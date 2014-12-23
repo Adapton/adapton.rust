@@ -1,4 +1,5 @@
 #![feature(globs)]
+
 extern crate adapton;
 extern crate test;
 

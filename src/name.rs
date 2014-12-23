@@ -19,14 +19,3 @@ pub fn fork (n:Name) -> (Name,Name) {
 pub fn pair (n:Name, m:Name) -> Name {
     NameCon::Pair(box n, box m)
 }
-#[allow(dead_code)]
-pub fn printstuff () {
-    let n = symbol (format!("one")) ;
-    let m = symbol (format!("two")) ;
-    println!("Adapton: {}, {}", n, m);
-    println!("Adapton: {}, {}", fork(n), m);
-}
-#[test] 
-fn test_printstuff () {
-    printstuff();
-}
