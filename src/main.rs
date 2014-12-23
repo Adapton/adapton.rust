@@ -1,5 +1,6 @@
 extern crate adapton;
 extern crate lazy;
+extern crate memoirs;
 
 pub use lazy::single::Thunk;
 pub use adapton::name::printstuff;
