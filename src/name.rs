@@ -1,22 +1,23 @@
 #[deriving(Clone,Show,Hash)]
-pub enum Name { 
+enum NameS { 
     Symbol (Box<String>),
     ForkL (Box<Name>),
     ForkR (Box<Name>),
     Pair (Box<Name>,Box<Name>),
 }
+pub type Name = NameS;
 #[allow(dead_code)]
 pub fn symbol (s:String) -> Name {
-    Name::Symbol(box s)
+    NameS::Symbol(box s)
 }
 #[allow(dead_code)]
 pub fn fork (n:Name) -> (Name,Name) {
     let m = n.clone () ;
-    (Name::ForkL(box n), Name::ForkR(box m))
+    (NameS::ForkL(box n), NameS::ForkR(box m))
 }    
 #[allow(dead_code)]
 pub fn pair (n:Name, m:Name) -> Name {
-    Name::Pair(box n, box m)
+    NameS::Pair(box n, box m)
 }
 #[allow(dead_code)]
 pub fn printstuff () {
