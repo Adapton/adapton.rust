@@ -27,7 +27,3 @@ mod name {
         println!("Adapton: {}, {}", fork(n), m);
     }
 }
-
-fn main () {
-
-}
