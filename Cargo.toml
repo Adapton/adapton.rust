@@ -1,0 +1,5 @@
+[package]
+
+name = "adapton"
+version = "0.0.1"
+authors = ["hammer <hammer@cs.umd.edu>"]

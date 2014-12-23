@@ -19,7 +19,6 @@ mod name {
     pub fn pair (n:Name, m:Name) -> Name {
         Name::Pair(box n, box m)
     }
-
     #[test]
     fn printstuff () {
         let n = symbol (format!("one")) ;
@@ -28,7 +27,6 @@ mod name {
         println!("Adapton: {}, {}", fork(n), m);
     }
 }
-
 
 fn main () {
 
