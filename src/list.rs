@@ -1,26 +1,19 @@
 use name::*;
 use art::*;
-//use self::List::{Cons, Nil, NomArt};
 
-
-/// A functional, shareable, persistent singly linked list.
-//#[deriving(Show)]
+// #[deriving(Show)]
 pub enum List<T> {
-    Cons(T, Box<List<T>>),
     Nil,
-    Name(Name,Box<List<T>>),
-    Art(Art<Box<List<T>>>)
+    Cons(T, Box<List<T>>),
+    Name(Name, Box<List<T>>),
+    Art( Art<Box<List<T>>> )
 }
 
-
 #[test]
-pub fn sizeofstuff () {
-//    println!("{} {} {}", 
-//             List::Nil, 
-//             List::Cons(1,box List::Nil), 
-//             List::Nil
-//             List::Name(symbol(format!("one")),List::Nil)
-//             );
+pub fn construct_examples () {
+    let x : List<int> = List::Nil;
+    let y : List<int> = List::Cons(1,box List::Nil);
+    let z : List<int> = List::Name(symbol(format!("one")),box List::Nil);
 }
 
 // impl<T> List<T> {
