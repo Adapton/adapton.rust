@@ -6,6 +6,8 @@
 extern crate lazy;
 
 pub mod name;
+pub mod art;
+pub mod list;
 
 mod adapton {
     pub use super::*;

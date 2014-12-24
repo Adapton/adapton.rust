@@ -1,6 +1,7 @@
 extern crate adapton;
 extern crate lazy;
 extern crate memoirs;
+extern crate adamantium;
 
 pub use lazy::single::Thunk;
 

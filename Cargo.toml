@@ -8,3 +8,6 @@ git = "https://github.com/reem/rust-lazy"
 
 [dependencies.memoirs]
 git = "https://github.com/Inspiravetion/Memoirs"
+
+[dependencies.adamantium]
+git = "https://github.com/reem/adamantium/"
