@@ -1,4 +1,4 @@
-#[deriving(Clone,Show,Hash)]
+#[deriving(Clone,Show,Hash,PartialEq,Eq)]
 enum NameCon { 
     Symbol (Box<String>),
     ForkL (Box<Name>),
@@ -19,3 +19,4 @@ pub fn fork (n:Name) -> (Name,Name) {
 pub fn pair (n:Name, m:Name) -> Name {
     NameCon::Pair(box n, box m)
 }
+

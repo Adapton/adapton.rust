@@ -1,7 +1,7 @@
 use name::*;
 use art::*;
 
-// #[deriving(Show)]
+#[deriving(Show,Hash,PartialEq,Eq)]
 pub enum List<T> {
     Nil,
     Cons(T, Box<List<T>>),
@@ -10,10 +10,12 @@ pub enum List<T> {
 }
 
 #[test]
-pub fn construct_examples () {
-    let x : List<int> = List::Nil;
-    let y : List<int> = List::Cons(1,box List::Nil);
-    let z : List<int> = List::Name(symbol(format!("one")),box List::Nil);
+pub fn construct_list () {
+    let z : List<int> = List::Nil;
+    let y : List<int> = List::Cons(1, box z);
+    let x : List<int> = List::Art(cell(symbol(format!("two")), box y));
+    let l : List<int> = List::Name(symbol(format!("one")), box x);
+    println!("constructed list: {}", l);
 }
 
 // impl<T> List<T> {
