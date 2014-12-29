@@ -1,12 +1,13 @@
 use name::*;
 use art::*;
 
+/// Nominal, artful lists: Lists with names and articulation points
 #[deriving(Show,Hash,PartialEq,Eq)]
 pub enum List<T> {
     Nil,
     Cons(T, Box<List<T>>),
     Name(Name, Box<List<T>>),
-    Art( Art<Box<List<T>>> )
+    Art(Art<Box<List<T>>>)
 }
 
 #[test]

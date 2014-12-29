@@ -4,8 +4,8 @@ use name::*;
 pub use lazy::single::Thunk;
 
 struct ArtThunk<T> {
-    // TODO: Memo table identity
-    // TODO: Access to args, for hasing/identity
+    // TODO: Memo table identity, for comparing thunks with same names
+    // TODO: Access to args, for equality check, hashing
     thunk : Thunk<T>
 }
 
@@ -43,9 +43,9 @@ impl<S: hash::Writer, T> hash::Hash<S> for ArtCon<T> {
 pub type Art<T> = ArtCon<T>;
 
 #[allow(dead_code)]
+// Create a named cell
 pub fn cell<T> (n:Name, x:T) -> Art<T> {
-    // TODO: Cache the art based on the name n
+    //! TODO: Cache the art based on the name n
     ArtCon { name  : n,
              thunk : ArtThunk{thunk:Thunk::evaluated(x)} }
 }
-
