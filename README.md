@@ -8,6 +8,9 @@ Status
 ------
 
  - Still learning how to develop in Rust.
+   - Thinking about lifetimes for Nominal Adapton.
+   - Thinking about other representation concerns, too.
+
  - Learning from projects on Cargo:
    - Basic Data structures: https://github.com/reem/adamantium
    - Laziness: https://github.com/reem/rust-lazy
