@@ -93,11 +93,11 @@ where T:'static,
                 },
                 // - - - - - boilerplate cases - - - - - -
                 List::Name(_,tl) => reduce (f, g, *tl),
-                List::Art(art) => reduce (f, g, *force(art)),
+                List::Art(art)   => reduce (f, g, *force(art)),
             }},
         // - - - - - boilerplate cases - - - - - -
-        List::Art(art)    => reduce(f, g, *force(art)),
         List::Name(_,tl) => reduce(f, g, *tl),
+        List::Art(art)   => reduce(f, g, *force(art)),
     }
 }
 
@@ -131,6 +131,36 @@ where T:'static,
     }
 }
 
+pub fn singletons<T> (list:List<T>) -> List<List<T>>
+where T: 'static
+{
+    match list {
+        List::Nil => List::Nil,
+        List::Cons(hd, tl) => {
+            List::Cons( List::Cons(hd, box List::Nil),
+                        box singletons(*tl) )
+        },
+        List::Art(art) => singletons(*force(art)),
+        List::Name(nm, tl) => {
+            let (nm1, nm2) = fork(nm) ;
+            let art = nart!(nm2, box singletons(*tl)) ;
+            List::Name(nm1, box List::Art(art))
+        }
+    }
+}
+
+ pub fn mergesort<F,G,T> (ord:&'static Ord, list:List<T>) -> List<T>
+  where T: 'static,
+        Ord: Fn(&List<T>, &List<T>) -> bool + 'static,
+ {
+     let c = |list1:List<T>,list2:List<T>| false ; // TODO
+     let m = |list1:List<T>,list2:List<T>| merge(ord,list1,list2) ;
+     let r = reduce(&c, &m, singletons(list)) ;
+     match r {
+         None => List::Nil,
+         Some(list) => list
+     }
+ }
 
 #[test]
 pub fn construct_list () {
