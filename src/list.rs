@@ -24,13 +24,13 @@ where T:'static {
     }
 }
 
-pub fn map<T,S,F> (f:F, list:List<T>) -> List<S>
+pub fn map<T,S,F> (f:&'static F, list:List<T>) -> List<S>
 where T:'static, S:'static,
-      F:Fn(T) -> S + 'static
+      F:Fn(T) -> S
 {
     match list {
         List::Nil         => List::Nil,
-        List::Cons(hd,tl) => List::Cons(f(hd), box map(f,*tl)),
+        List::Cons(hd,tl) => List::Cons((*f)(hd), box map(f,*tl)),
         // - - - - - boilerplate cases - - - - - -
         List::Art(art)    => map(f,*force(art)),
         List::Name(nm,tl) => {
@@ -41,19 +41,19 @@ where T:'static, S:'static,
     }
 }
 
-pub fn contract<F,G,T> (f:F, g:G, list:List<T>) -> List<T>
+pub fn contract<F,G,T> (f:&'static F, g:&'static G, list:List<T>) -> List<T>
 where T:'static,
-      F:Fn(&T,&T) -> bool + 'static,
-      G:Fn(T,T) -> T + 'static
+      F:Fn(&T,&T) -> bool,
+      G:Fn(T,T) -> T
 {
     match list {
         List::Nil => List::Nil,
         List::Cons(hd1, box list) => {
-            match list { 
+            match list {
                 List::Nil => List::Cons(hd1, box List::Nil),
                 List::Cons(hd2, tl) => {
-                    if f(&hd1,&hd2) {
-                        List::Cons(g(hd1,hd2), box contract(f,g,*tl))
+                    if (*f)(&hd1,&hd2) {
+                        List::Cons((*g)(hd1,hd2), box contract(f,g,*tl))
                     } else {
                         List::Cons(hd1, box contract(f, g, List::Cons(hd2, tl)))
                     } },
@@ -73,6 +73,31 @@ where T:'static,
             let art = nart!(nm1, box contract(f,g,*tl)) ;
             List::Name(nm2, box List::Art(art))
         },
+    }
+}
+
+pub fn reduce<F,G,T> (f:&'static F, g:&'static G, list:List<T>) -> Option<T>
+where T:'static,
+      F: Fn(&T,&T) -> bool + 'static,
+      G: Fn(T, T) -> T + 'static
+{
+    match list {
+        List::Nil => None,
+        List::Cons(hd, box list) => {
+            match list {
+                List::Nil => Some(hd),
+                List::Cons(hd2, tl) => {
+                    let hd3 = (*g)(hd,hd2) ;
+                    let list = contract(f, g, List::Cons(hd3, tl)) ;
+                    reduce (f, g, list)
+                },
+                // - - - - - boilerplate cases - - - - - -
+                List::Name(_,tl) => reduce (f, g, *tl),
+                List::Art(art) => reduce (f, g, *force(art)),
+            }},
+        // - - - - - boilerplate cases - - - - - -
+        List::Art(art)    => reduce(f, g, *force(art)),
+        List::Name(_,tl) => reduce(f, g, *tl),
     }
 }
 
