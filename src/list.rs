@@ -24,13 +24,14 @@ where T:'static {
     }
 }
 
-pub fn map<T,S,F>(f:F,list:List<T>) -> List<S>
+pub fn map<T,S,F> (f:F, list:List<T>) -> List<S>
 where T:'static, S:'static,
       F:Fn(T) -> S + 'static
 {
     match list {
         List::Nil         => List::Nil,
         List::Cons(hd,tl) => List::Cons(f(hd), box map(f,*tl)),
+        // - - - - - boilerplate cases - - - - - -
         List::Art(art)    => map(f,*force(art)),
         List::Name(nm,tl) => {
             let (nm1,nm2) = fork(nm) ;
@@ -39,6 +40,37 @@ where T:'static, S:'static,
         }
     }
 }
+
+pub fn merge<T,Ord> (ord:Ord, list1:List<T>, list2:List<T>) -> List<T>
+where T:'static + Clone, 
+      Ord: Fn(T,T) -> bool + 'static
+{
+    match (list1, list2) {
+        (List::Nil, list2) => list2,
+        (list1, List::Nil) => list1,
+        (List::Cons(hd1,tl1),
+         List::Cons(hd2,tl2)) => 
+            if ord(hd1.clone(),hd2.clone()) {
+                List::Cons(hd1, box merge(ord, *tl1, List::Cons(hd2,tl2)))
+            } else {
+                List::Cons(hd2, box merge(ord, List::Cons(hd1,tl1), *tl2))
+            },
+        // - - - - - boilerplate cases - - - - -
+        (List::Name(nm,tl), list2) => {
+            let (nm1,nm2) = fork(nm) ;
+            let art = nart!(nm1, box merge(ord, *tl, list2)) ;
+            List::Name(nm2, box List::Art(art))
+        },
+        (list1, List::Name(nm,tl)) => {
+            let (nm1,nm2) = fork(nm) ;
+            let art = nart!(nm1, box merge(ord, list1, *tl)) ;
+            List::Name(nm2, box List::Art(art))
+        },
+        (List::Art(art), list2) => merge(ord, *force(art), list2),
+        (list1, List::Art(art)) => merge(ord, list1, *force(art)),
+    }
+}
+
 
 #[test]
 pub fn construct_list () {
