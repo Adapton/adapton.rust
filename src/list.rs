@@ -41,6 +41,41 @@ where T:'static, S:'static,
     }
 }
 
+pub fn contract<F,G,T> (f:F, g:G, list:List<T>) -> List<T>
+where T:'static,
+      F:Fn(&T,&T) -> bool + 'static,
+      G:Fn(T,T) -> T + 'static
+{
+    match list {
+        List::Nil => List::Nil,
+        List::Cons(hd1, box list) => {
+            match list { 
+                List::Nil => List::Cons(hd1, box List::Nil),
+                List::Cons(hd2, tl) => {
+                    if f(&hd1,&hd2) {
+                        List::Cons(g(hd1,hd2), box contract(f,g,*tl))
+                    } else {
+                        List::Cons(hd1, box contract(f, g, List::Cons(hd2, tl)))
+                    } },
+                // - - - - - boilerplate cases - - - - - -
+                List::Art(art) => contract(f,g,List::Cons(hd1,force(art))),
+                List::Name(nm, tl) => {
+                    let (nm1,nm2) = fork(nm) ;
+                    let art = nart!(nm1, box contract(f,g,List::Cons(hd1,tl))) ;
+                    List::Name(nm2, box List::Art(art))
+                }
+            }
+        },
+        // - - - - - boilerplate cases - - - - - -
+        List::Art(art)    => contract(f,g,*force(art)),
+        List::Name(nm,tl) => {
+            let (nm1,nm2) = fork(nm) ;
+            let art = nart!(nm1, box contract(f,g,*tl)) ;
+            List::Name(nm2, box List::Art(art))
+        },
+    }
+}
+
 pub fn merge<T,Ord> (ord:Ord, list1:List<T>, list2:List<T>) -> List<T>
 where T:'static,
       Ord: Fn(&T,&T) -> bool + 'static
