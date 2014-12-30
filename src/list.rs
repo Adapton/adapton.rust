@@ -10,6 +10,36 @@ pub enum List<T> {
     Art(Art<Box<List<T>>>)
 }
 
+pub fn copy<T>(list:List<T>) -> List<T>
+where T:'static {
+    match list {
+        List::Nil         => List::Nil,
+        List::Cons(hd,tl) => List::Cons(hd, box copy(*tl)),
+        List::Art(art)    => copy(*force(art)),
+        List::Name(nm,tl) => {
+            let (nm1,nm2) = fork(nm) ;
+            let art = nart!(nm1, box copy(*tl)) ;
+            List::Name(nm2, box List::Art(art))
+        }
+    }
+}
+
+pub fn map<T,S,F>(f:F,list:List<T>) -> List<S>
+where T:'static, S:'static,
+      F:Fn(T) -> S + 'static
+{
+    match list {
+        List::Nil         => List::Nil,
+        List::Cons(hd,tl) => List::Cons(f(hd), box map(f,*tl)),
+        List::Art(art)    => map(f,*force(art)),
+        List::Name(nm,tl) => {
+            let (nm1,nm2) = fork(nm) ;
+            let art = nart!(nm1, box map(f,*tl)) ;
+            List::Name(nm2, box List::Art(art))
+        }
+    }
+}
+
 #[test]
 pub fn construct_list () {
     let z : List<int> = List::Nil;

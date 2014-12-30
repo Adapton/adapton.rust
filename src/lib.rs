@@ -6,7 +6,10 @@
 extern crate lazy;
 
 pub mod name;
+
+#[macro_escape]
 pub mod art;
+
 pub mod list;
 
 mod adapton {

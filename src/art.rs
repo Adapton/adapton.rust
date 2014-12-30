@@ -49,3 +49,24 @@ pub fn cell<T> (n:Name, x:T) -> Art<T> {
     ArtCon { name  : n,
              thunk : ArtThunk{thunk:Thunk::evaluated(x)} }
 }
+
+// Create a named (thunk) art
+pub fn nart<T> (n:Name, x:Thunk<T>) -> Art<T> {
+    //! TODO: Cache the art based on the name n
+    ArtCon { name  : n,
+             thunk : ArtThunk{thunk:x} }
+}
+
+#[macro_export]
+macro_rules! nart (
+    ($name:expr, $expr:expr) => {
+        nart($name, ::lazy::single::Thunk::new(move |:| { $expr }) )
+    }
+);
+
+#[allow(unused_variables)]
+pub fn force<T> (art:Art<T>) -> T {
+    match art {
+        ArtCon {name,thunk:ArtThunk{thunk}} => thunk.unwrap()
+    }
+}
