@@ -3,9 +3,6 @@ name = "adapton"
 version = "0.0.1"
 authors = ["hammer <hammer@cs.umd.edu>"]
 
-[dependencies.lazy]
-git = "https://github.com/reem/rust-lazy"
-
 [dependencies.memoirs]
 git = "https://github.com/Inspiravetion/Memoirs"
 

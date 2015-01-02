@@ -3,7 +3,7 @@
 //! Adapton for Rust
 
 /// A Thunk safe for single-threaded access.
-extern crate lazy;
+// extern crate lazy;
 
 pub mod name;
 
