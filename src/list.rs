@@ -39,9 +39,9 @@ where F:Fn(T) -> S
     }
 }
 
-pub fn contract<'x,F,G,T:'x> (f:&'static F, g:&'static G, list:List<'x,T>) -> List<'x,T>
-where F:Fn(&T,&T) -> bool,
-      G:Fn(T,T) -> T
+pub fn contract<'x,F,G,T:'x> (f:&'x F, g:&'x G, list:List<'x,T>) -> List<'x,T>
+where F:Fn(&T,&T) -> bool + 'x,
+      G:Fn(T,T) -> T + 'x
 {
     match list {
         List::Nil => List::Nil,
@@ -73,9 +73,9 @@ where F:Fn(&T,&T) -> bool,
     }
 }
 
-pub fn reduce<'x,F,G,T:'x> (f:&'static F, g:&'static G, list:List<'x,T>) -> Option<T>
-where F: Fn(&T,&T) -> bool + 'static,
-      G: Fn(T, T) -> T + 'static
+pub fn reduce<'x,F:'x,G:'x,T:'x> (f:&'x F, g:&'x G, list:List<'x,T>) -> Option<T>
+where F: Fn(&T,&T) -> bool,
+      G: Fn(T, T) -> T,
 {
     match list {
         List::Nil => None,
@@ -97,8 +97,8 @@ where F: Fn(&T,&T) -> bool + 'static,
     }
 }
 
-pub fn merge<'x,T:'x,Ord> (ord:Ord, list1:List<'x,T>, list2:List<'x,T>) -> List<'x,T>
-where Ord: Fn(&T,&T) -> bool + 'static
+pub fn merge<'x,T:'x,Ord:'x> (ord:Ord, list1:List<'x,T>, list2:List<'x,T>) -> List<'x,T>
+where Ord: Fn(&T,&T) -> bool
 {
     match (list1, list2) {
         (List::Nil, list2) => list2,
@@ -143,9 +143,11 @@ pub fn singletons<'x,T:'x> (list:List<'x,T>) -> List<'x,List<'x,T>>
     }
 }
 
-// pub fn mergesort<'x,F,G,T:'x> (ord:&'static Ord, list:List<'x,T>) -> List<'x,T>
-//     where Ord: Fn(&List<T>, &List<T>) -> bool + 'x,
-// {
+pub fn mergesort<'x,F,G,T:'x,Ord:'x> (ord:Ord, list:List<'x,T>) -> List<'x,T>
+where Ord: Fn(&T,&T) -> bool
+{
+    panic!("not implemented")
+
 //     let c = |list1:List<T>,list2:List<T>| false ; // TODO
 //     let m = |list1:List<T>,list2:List<T>| merge(ord,list1,list2) ;
 //     let r = reduce(&c, &m, singletons(list)) ;
@@ -153,7 +155,7 @@ pub fn singletons<'x,T:'x> (list:List<'x,T>) -> List<'x,List<'x,T>>
 //         None => List::Nil,
 //         Some(list) => list
 //     }
-// }
+}
 
 #[test]
 pub fn construct_list () {
