@@ -5,10 +5,29 @@ use std::thunk;
 use name::*;
 // pub use lazy::single::Thunk;
 
+pub type UAr<'x,S,T> = Box<thunk::Invoke<S,T> + 'x>;
+// arrow-typed value (in CBPV speak),
+// with explicit lifetime 'x, input tuple S, and return value of type T.
+//
+// Read in CBPV notation has "U(S -> T) with lifetime 'x".
+//
+// In rust, can be introduced by: 
+//   box () (move |: args:S |{ $body }))
+
+pub type UF<'x,T> = Box<thunk::Invoke<(),T> + 'x>;
+// value-producing value (in CBPV speak).
+// with explicit lifetime 'x and return value of type T.
+//
+// Read in CBPV notation has "U(F(T)) with lifetime 'x".
+//
+// In Rust, can be introduced by:
+//   box () (move |: () |{ $body }))
+
+/// rustc says that I need an explicit lifetime parameter; I name it `'x`.
 struct ArtThunk<'x,T> {
     // TODO: Memo table identity, for comparing thunks with same names
     // TODO: Access to args, for equality check, hashing    
-    thunk : Box<thunk::Invoke<(),T> + 'x>,
+    thunk : UF<'x,T>,
     value : Option<T>
 }
 

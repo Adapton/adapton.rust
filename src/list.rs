@@ -23,23 +23,28 @@ pub fn copy<'x,T:'x>(list:List<'x,T>) -> List<'x,T> {
     }
 }
 
-pub fn map<'x,T:'x,S:'x,F> (f:&'static F, list:List<'x,T>) -> List<'x,S>
-where F:Fn(T) -> S
+pub fn map<'x, T:'x, S:'x>
+(f:UAr<'x,T,S>, list:List<'x,T>) -> List<'x,S>
 {
     match list {
         List::Nil         => List::Nil,
-        List::Cons(hd,tl) => List::Cons((*f)(hd), box map(f,*tl)),
+        List::Cons(hd,tl) => {
+            let s : S = f.invoke(hd) ;
+            let t : List<'x,S> = map(f,*tl) ;
+            List::Cons(s, box t)
+        },
         // - - - - - boilerplate cases - - - - - -
         List::Art(art)    => map(f,*force(art)),
         List::Name(nm,tl) => {
             let (nm1,nm2) = fork(nm) ;
-            let art = nart!(nm1, box map(f,*tl)) ;
+            let art = nart!(nm1, box map(f,*tl));
             List::Name(nm2, box List::Art(art))
         }
     }
 }
 
-pub fn contract<'x,F,G,T:'x> (f:&'x F, g:&'x G, list:List<'x,T>) -> List<'x,T>
+pub fn contract<'x,F,G,T:'x>
+(f:&'x F, g:&'x G, list:List<'x,T>) -> List<'x,T>
 where F:Fn(&T,&T) -> bool + 'x,
       G:Fn(T,T) -> T + 'x
 {
@@ -73,7 +78,8 @@ where F:Fn(&T,&T) -> bool + 'x,
     }
 }
 
-pub fn reduce<'x,F:'x,G:'x,T:'x> (f:&'x F, g:&'x G, list:List<'x,T>) -> Option<T>
+pub fn reduce<'x,F:'x,G:'x,T:'x> 
+(f:&'x F, g:&'x G, list:List<'x,T>) -> Option<T>
 where F: Fn(&T,&T) -> bool,
       G: Fn(T, T) -> T,
 {
@@ -97,7 +103,8 @@ where F: Fn(&T,&T) -> bool,
     }
 }
 
-pub fn merge<'x,T:'x,Ord:'x> (ord:Ord, list1:List<'x,T>, list2:List<'x,T>) -> List<'x,T>
+pub fn merge<'x,T:'x,Ord:'x> 
+(ord:Ord, list1:List<'x,T>, list2:List<'x,T>) -> List<'x,T>
 where Ord: Fn(&T,&T) -> bool
 {
     match (list1, list2) {
@@ -126,7 +133,8 @@ where Ord: Fn(&T,&T) -> bool
     }
 }
 
-pub fn singletons<'x,T:'x> (list:List<'x,T>) -> List<'x,List<'x,T>>
+pub fn singletons<'x,T:'x> 
+(list:List<'x,T>) -> List<'x,List<'x,T>>
 {
     match list {
         List::Nil => List::Nil,
@@ -143,18 +151,18 @@ pub fn singletons<'x,T:'x> (list:List<'x,T>) -> List<'x,List<'x,T>>
     }
 }
 
-pub fn mergesort<'x,F,G,T:'x,Ord:'x> (ord:Ord, list:List<'x,T>) -> List<'x,T>
+pub fn mergesort<'x,F,G,T:'x,Ord:'x>
+(ord:Ord, list:List<'x,T>) -> List<'x,T>
 where Ord: Fn(&T,&T) -> bool
 {
-    panic!("not implemented")
-
-//     let c = |list1:List<T>,list2:List<T>| false ; // TODO
-//     let m = |list1:List<T>,list2:List<T>| merge(ord,list1,list2) ;
-//     let r = reduce(&c, &m, singletons(list)) ;
-//     match r {
-//         None => List::Nil,
-//         Some(list) => list
-//     }
+    let c = move |: list1:List<T>,list2:List<T>| false ; // TODO
+    let m = move |: list1:List<T>,list2:List<T>| merge(ord,list1,list2) ;
+    
+    //    let r = reduce(&c, &m, singletons(list)) ;
+    // match r {
+        // None => List::Nil,
+        // Some(list) => list
+    // }
 }
 
 #[test]
