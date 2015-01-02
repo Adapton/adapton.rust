@@ -58,7 +58,6 @@ pub fn cell<'x,T:'x> (n:Name, x:T) -> Art<'x,T> {
     }
 }
 
-
 // Create a named cell
 pub fn nart<'x,T:'x> (n:Name, body:Box<thunk::Invoke<(),T>+'x>) -> Art<'x,T> {
     //! TODO: Cache the art based on the name n
