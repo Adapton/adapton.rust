@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use name::*;
 use art::*;
 
@@ -29,9 +28,7 @@ pub fn map<'x, T:'x, S:'x>
 {
     match list {
         List::Nil         => List::Nil,
-        List::Cons(hd,tl) => { let y = (*f).call(hd) ;
-                               let t : List<'x,S> = map(f,*tl) ;
-                               List::Cons(y, box t) },
+        List::Cons(hd,tl) => List::Cons((*f).call(hd), box map(f,*tl)),
         // - - - - - boilerplate cases - - - - - -
         List::Art(art)    => map(f,*force(art)),
         List::Name(nm,tl) => {
@@ -103,7 +100,7 @@ where F: Fn(&T,&T) -> bool,
 }
 
 pub fn merge<'x,T:'x,Ord:'x> 
-(ord:Ord, list1:List<'x,T>, list2:List<'x,T>) -> List<'x,T>
+(ord:&'x Ord, list1:List<'x,T>, list2:List<'x,T>) -> List<'x,T>
 where Ord: Fn(&T,&T) -> bool
 {
     match (list1, list2) {
@@ -111,7 +108,7 @@ where Ord: Fn(&T,&T) -> bool
         (list1, List::Nil) => list1,
         (List::Cons(hd1,tl1),
          List::Cons(hd2,tl2)) =>
-            if ord(&hd1,&hd2) {
+            if (*ord)(&hd1,&hd2) {
                 List::Cons(hd1, box merge(ord, *tl1, List::Cons(hd2,tl2)))
             } else {
                 List::Cons(hd2, box merge(ord, List::Cons(hd1,tl1), *tl2))
@@ -150,19 +147,18 @@ pub fn singletons<'x,T:'x>
     }
 }
 
-pub fn mergesort<'x,F,G,T:'x,Ord:'x>
-(ord:Ord, list:List<'x,T>) -> List<'x,T>
+pub fn mergesort<'x,T:'x,Ord:'x>
+(ord:&'x Ord, list:List<'x,T>) -> List<'x,T>
 where Ord: Fn(&T,&T) -> bool
 {
-//    let c = move |: list1:List<T>,list2:List<T>| false ; // TODO
-  //  let m = move |: list1:List<T>,list2:List<T>| merge(ord,list1,list2) ;
+    let c = move |&: list1:&List<'x,T>,list2:&List<'x,T>| false ; // TODO
+    let m = move |&: list1:List<'x,T>,list2:List<'x,T>| merge(ord,list1,list2) ;
     
-    //    let r = reduce(&c, &m, singletons(list)) ;
-    // match r {
-        // None => List::Nil,
-        // Some(list) => list
-    // }
-    list
+    let r = reduce(&c, &m, singletons(list)) ;
+     match r {
+         None => List::Nil,
+         Some(list) => list
+     }
 }
 
 #[test]
