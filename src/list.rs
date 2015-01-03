@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use name::*;
 use art::*;
 
@@ -28,11 +29,9 @@ pub fn map<'x, T:'x, S:'x>
 {
     match list {
         List::Nil         => List::Nil,
-        List::Cons(hd,tl) => {
-            let s : S = f.invoke(hd) ;
-            let t : List<'x,S> = map(f,*tl) ;
-            List::Cons(s, box t)
-        },
+        List::Cons(hd,tl) => { let y = (*f).call(hd) ;
+                               let t : List<'x,S> = map(f,*tl) ;
+                               List::Cons(y, box t) },
         // - - - - - boilerplate cases - - - - - -
         List::Art(art)    => map(f,*force(art)),
         List::Name(nm,tl) => {
@@ -155,14 +154,15 @@ pub fn mergesort<'x,F,G,T:'x,Ord:'x>
 (ord:Ord, list:List<'x,T>) -> List<'x,T>
 where Ord: Fn(&T,&T) -> bool
 {
-    let c = move |: list1:List<T>,list2:List<T>| false ; // TODO
-    let m = move |: list1:List<T>,list2:List<T>| merge(ord,list1,list2) ;
+//    let c = move |: list1:List<T>,list2:List<T>| false ; // TODO
+  //  let m = move |: list1:List<T>,list2:List<T>| merge(ord,list1,list2) ;
     
     //    let r = reduce(&c, &m, singletons(list)) ;
     // match r {
         // None => List::Nil,
         // Some(list) => list
     // }
+    list
 }
 
 #[test]

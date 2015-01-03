@@ -1,20 +1,23 @@
 use std::fmt;
 use std::hash;
-use std::thunk;
+use std::thunk::Invoke;
 
 use name::*;
 // pub use lazy::single::Thunk;
 
-pub type UAr<'x,S,T> = Box<thunk::Invoke<S,T> + 'x>;
+pub type UAr<'x,S,T> = Box<Fn<S,T> + 'x>;
 // arrow-typed value (in CBPV speak),
 // with explicit lifetime 'x, input tuple S, and return value of type T.
 //
 // Read in CBPV notation has "U(S -> T) with lifetime 'x".
 //
 // In rust, can be introduced by: 
-//   box () (move |: args:S |{ $body }))
+//   box () (move |&: args:S |{ $body }))
+//
+// Invoke:
+//   box () (move |:  args:S |{ $body }))
 
-pub type UF<'x,T> = Box<thunk::Invoke<(),T> + 'x>;
+pub type UF<'x,T> = Box<Invoke<(),T> + 'x>;
 // value-producing value (in CBPV speak).
 // with explicit lifetime 'x and return value of type T.
 //
@@ -70,15 +73,15 @@ pub fn cell<'x,T:'x> (n:Name, x:T) -> Art<'x,T> {
     ArtCon { name  : n,
              thunk : ArtThunk{
                  value:None,
-                 thunk:box () (move |:() |{
+                 thunk:box () (move|:()|{
                      x
-                 } ) as Box<thunk::Invoke<(),T>>
+                 } ) as Box<Invoke()->T>
              }
     }
 }
 
 // Create a named cell
-pub fn nart<'x,T:'x> (n:Name, body:Box<thunk::Invoke<(),T>+'x>) -> Art<'x,T> {
+pub fn nart<'x,T:'x> (n:Name, body:Box<Invoke()->T+'x>) -> Art<'x,T> {
     //! TODO: Cache the art based on the name n
     ArtCon { name  : n,
              thunk : ArtThunk{
@@ -92,7 +95,7 @@ pub fn nart<'x,T:'x> (n:Name, body:Box<thunk::Invoke<(),T>+'x>) -> Art<'x,T> {
 macro_rules! nart (
     ($name:expr, $body:expr) => {
         nart($name,
-             box () (move |:() |{ $body }))
+             box () (move|:()|{ $body }))
     }
 );
 
