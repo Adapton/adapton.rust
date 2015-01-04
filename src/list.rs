@@ -1,5 +1,7 @@
 use name::*;
 use art::*;
+use std::hash;
+use std::hash::Hash;
 
 /// Nominal, artful lists: Lists with names and articulation points
 #[deriving(Show,Hash,PartialEq,Eq)]
@@ -149,16 +151,15 @@ pub fn singletons<'x,T:'x>
 
 pub fn mergesort<'x,T:'x,Ord:'x>
 (ord:&'x Ord, list:List<'x,T>) -> List<'x,T>
-where Ord: Fn(&T,&T) -> bool
+where Ord: Fn(&T,&T) -> bool, T:Hash
 {
-    let c = move |&: list1:&List<'x,T>,list2:&List<'x,T>| false ; // TODO
+    let c = move |&: list1:&List<'x,T>,list2:&List<'x,T>| hash::hash(list1) < hash::hash(list2) ;
     let m = move |&: list1:List<'x,T>,list2:List<'x,T>| merge(ord,list1,list2) ;
-    
-    let r = reduce(&c, &m, singletons(list)) ;
-     match r {
-         None => List::Nil,
-         Some(list) => list
-     }
+
+    match reduce(&c, &m, singletons(list)) {
+        None => List::Nil,
+        Some(list) => list
+    }
 }
 
 #[test]
