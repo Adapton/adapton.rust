@@ -76,7 +76,7 @@ where F:Fn(&T,&T) -> bool + 'x,
     }
 }
 
-pub fn reduce<'x,F:'x,G:'x,T:'x> 
+pub fn reduce<'x,F:'x,G:'x,T:'x>
 (f:&'x F, g:&'x G, list:List<'x,T>) -> Option<T>
 where F: Fn(&T,&T) -> bool,
       G: Fn(T, T) -> T,
@@ -101,7 +101,7 @@ where F: Fn(&T,&T) -> bool,
     }
 }
 
-pub fn merge<'x,T:'x,Ord:'x> 
+pub fn merge<'x,T:'x,Ord:'x>
 (ord:&'x Ord, list1:List<'x,T>, list2:List<'x,T>) -> List<'x,T>
 where Ord: Fn(&T,&T) -> bool
 {
@@ -131,7 +131,7 @@ where Ord: Fn(&T,&T) -> bool
     }
 }
 
-pub fn singletons<'x,T:'x> 
+pub fn singletons<'x,T:'x>
 (list:List<'x,T>) -> List<'x,List<'x,T>>
 {
     match list {
@@ -153,8 +153,11 @@ pub fn mergesort<'x,T:'x,Ord:'x>
 (ord:&'x Ord, list:List<'x,T>) -> List<'x,T>
 where Ord: Fn(&T,&T) -> bool, T:Hash
 {
-    let c = move |&: list1:&List<'x,T>,list2:&List<'x,T>| hash::hash(list1) < hash::hash(list2) ;
-    let m = move |&: list1:List<'x,T>,list2:List<'x,T>| merge(ord,list1,list2) ;
+    let c = move |&: list1:&List<'x,T>,list2:&List<'x,T>|
+    hash::hash(list1) < hash::hash(list2);
+
+    let m = move |&: list1:List<'x,T>,list2:List<'x,T>|
+    merge(ord,list1,list2);
 
     match reduce(&c, &m, singletons(list)) {
         None => List::Nil,
