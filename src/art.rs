@@ -13,9 +13,7 @@ pub type UAr<'x,S,T> = Box<Fn<S,T> + 'x>;
 //
 // In rust, can be introduced by: 
 //   box () (move |&: args:S |{ $body }))
-//
-// Invoke:
-//   box () (move |:  args:S |{ $body }))
+
 
 pub type UF<'x,T> = Box<Invoke<(),T> + 'x>;
 // value-producing value (in CBPV speak).
@@ -25,6 +23,7 @@ pub type UF<'x,T> = Box<Invoke<(),T> + 'x>;
 //
 // In Rust, can be introduced by:
 //   box () (move |: () |{ $body }))
+
 
 /// rustc says that I need an explicit lifetime parameter; I name it `'x`.
 struct ArtThunk<'x,T> {
@@ -80,7 +79,7 @@ pub fn cell<'x,T:'x> (n:Name, x:T) -> Art<'x,T> {
     }
 }
 
-// Create a named cell
+// Create a named thunk
 pub fn nart<'x,T:'x> (n:Name, body:Box<Invoke()->T+'x>) -> Art<'x,T> {
     //! TODO: Cache the art based on the name n
     ArtCon { name  : n,
@@ -101,10 +100,13 @@ macro_rules! nart (
 
 // pub fn force<'x,T> (art:Art<'x,T>) -> T {
 //     match art {
-//         ArtCon {name:_,thunk:t} => t ()
+//         ArtCon {name:_,thunk:t} => {
+//             let result = (*t.thunk).invoke(()) ;
+//             result
+//         }
 //     }
 // }
 
 pub fn force<'x,T> (art:Art<'x,T>) -> T {
-    panic!("Oh no something bad has happened!")
+   panic!("Oh no something bad has happened!")
 }
