@@ -110,3 +110,8 @@ macro_rules! nart (
 pub fn force<'x,T> (art:Art<'x,T>) -> T {
    panic!("Oh no something bad has happened!")
 }
+
+/// Needed this form to get List Iterator to borrow-check.
+pub fn force_ref<'x,T> (art:&'x Art<'x,T>) -> &'x T {
+   panic!("Oh no something bad has happened!")
+}

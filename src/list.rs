@@ -12,6 +12,59 @@ pub enum List<'x,T> {
     Art(Art<'x, Box<List<'x,T>>>)
 }
 
+ /// An iterator over the items in a list.
+pub struct ListItems<'x, T: 'x> {
+    list: &'x List<'x,T>
+}
+
+impl<'x,T> List<'x,T> {
+    /// Get an iterator over the items in a list.
+    pub fn iter<'a>(&'a self) -> ListItems<'a, T> {
+        ListItems {
+            list: self
+        }
+    }
+}
+
+impl<'x, T> Iterator<&'x T> for ListItems<'x, T> {
+    fn next(&mut self) -> Option<&'x T> {
+        match *self.list {
+            List::Cons(ref hd, ref tl) => {
+                self.list = & **tl;
+                Some(hd)
+            },
+            List::Name(ref nm, ref list) => {
+                self.list = & **list;
+                self.next()
+            },
+            List::Art(ref art) => {
+                self.list = & **force_ref(art);
+                self.next()
+            },
+            List::Nil => None
+        }
+    }
+}
+
+pub enum NameOrContent<T> { Name(Name),Content(T) }
+
+pub fn from_iter<'x, 'y, T:'y>
+(iter:&'x mut Iterator<&'y NameOrContent<T>>) -> List<'y,T>
+where T : Clone
+{
+    match iter.next() {
+        None => List::Nil,
+        Some(x) => match *x {
+            NameOrContent::Content(ref hd) => List::Cons(hd.clone(), box from_iter(iter)),
+            NameOrContent::Name(ref nm) => {
+                let (nm1,nm2) = fork(nm.clone());
+                let rest = from_iter(iter);                
+                List::Name(nm1, box List::Art( cell(nm2, box rest )))
+            }
+        }
+    }
+}
+
 pub fn copy<'x,T:'x>(list:List<'x,T>) -> List<'x,T> {
     match list {
         List::Nil         => List::Nil,
@@ -173,56 +226,3 @@ pub fn construct_list () {
     let l : List<int> = List::Name(symbol(format!("one")), box x);
     println!("constructed list: {}", l);
 }
-
-// impl<T> List<T> {
-//     /// Construct a new, empty list.
-//     #[inline]
-//     pub fn new() -> List<T> { Nil }
-// }
-
-// impl<T: Send + Sync> List<T> {
-//     /// Create a list with one element in it.
-//     #[inline]
-//     pub fn singleton(n:Name,val: T) -> List<T> { Cons(val, Art::new(Nil)) }
-
-//     /// Get the head of a list.
-//     pub fn head(&self) -> Option<&T> {
-//         match *self {
-//             Nil => None,
-//             Cons(ref head, _) => Some(head)
-//         }
-//     }
-
-//     /// Get the tail of a list.
-//     pub fn tail(&self) -> Option<Art<List<T>>> {
-//         match *self {
-//             Nil => None,
-//             Cons(_, ref tail) => Some(tail.clone())
-//         }
-//     }
-
-//     /// Get an iterator over the items in a list.
-//     pub fn iter<'a>(&'a self) -> ListItems<'a, T> {
-//         ListItems {
-//             list: self
-//         }
-//     }
-// }
-
-// /// An iterator over the items in a list.
-// pub struct ListItems<'a, T: 'a> {
-//     list: &'a List<T>
-// }
-
-// impl<'a, T: Send + Sync> Iterator<&'a T> for ListItems<'a, T> {
-//     fn next(&mut self) -> Option<&'a T> {
-//         match *self.list {
-//             Cons(ref head, ref tail) => {
-//                 self.list = &**tail;
-//                 Some(head)
-//             },
-//             Nil => None
-//         }
-//     }
-// }
-
