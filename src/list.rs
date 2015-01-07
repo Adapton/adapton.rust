@@ -178,39 +178,42 @@ pub fn construct_list () {
 
 // TODO: Rustup: Fix this:
 
-//  /// An iterator over the items in a list.
-// pub struct ListItems<'x, T: 'x> {
-//     list: &'x List<'x,T>
-// }
+ /// An iterator over the items in a list.
+pub struct ListItems<'x, T: 'x> {
+    list: &'x List<'x,T>
+}
 
-// impl<'x,T> List<'x,T> {
-//     /// Get an iterator over the items in a list.
-//     pub fn iter<'a>(&'a self) -> ListItems<'a, T> {
-//         ListItems {
-//             list: self
-//         }
-//     }
-// }
+impl<'x,T> List<'x,T> {
+    type Item = &'x T ;
+    /// Get an iterator over the items in a list.
+    pub fn iter(&'x self) -> ListItems<'x, T> {
+        ListItems {
+            list: self
+        }
+    }
 
-// impl<'x, T> Iterator for ListItems<'x, T> {
-//     fn next(&mut self) -> Option<&'x T> {
-//         match *self.list {
-//             List::Cons(ref hd, ref tl) => {
-//                 self.list = & **tl;
-//                 Some(hd)
-//             },
-//             List::Name(_, ref list) => {
-//                 self.list = & **list;
-//                 self.next()
-//             },
-//             List::Art(ref art) => {
-//                 self.list = & **force_ref(art);
-//                 self.next()
-//             },
-//             List::Nil => None
-//         }
-//     }
-// }
+}
+
+impl<'x, T:'x> Iterator for ListItems<'x, T> {
+    type Item = &'x T ;
+    fn next(&mut self) -> Option<&'x T> {
+        match *self.list {
+            List::Cons(ref hd, ref tl) => {
+                self.list = &**tl;
+                Some(hd)
+            },
+            List::Name(_, ref list) => {
+                self.list = &**list;
+                self.next()
+            },
+            List::Art(ref art) => {
+                self.list = &**force_ref(art);
+                self.next()
+            },
+            List::Nil => None
+        }
+    }
+}
 
 // pub enum NameOrContent<T> { Name(Name),Content(T) }
 
