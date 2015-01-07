@@ -7,25 +7,33 @@ Based on this OCaml implementation:
 Development Activities
 -----------------------
 
- - Building "outwards" from a basic, core interface.
+ - Building Adapton in Rust "outwards" from a basic, core interface.
 
    - The core library implements this interface.
-     It will proceed in three baby steps (see below).
+     I will use three baby steps (see below).
 
    - To run experiments, we need to implement user code.
 
-     I will proceed by creating simple list and tree transformations,
+     I will create simple list and tree transformations,
      as in our recent papers (PLDI 2014, Nominal Adapton draft).
 
      I will also implement simple small-step evaluators, to better
      understand and illustrate AAM + IC via Adapton.
 
+ - Learning Rust in the process:
+ 
+  - <del> How do I .invoke an Invoke object? </del> 
+     - See `examples/invoke.rs`
+
+  - <del> Can I implement data structures with sharing? </del>
+
+     - See `examples/exp.rs` for a
+       baby version of a small-step interpreter.
+
 
 TODO: Core Library
 -----------------
  - <del> Basic articulation interface </del>
-
- - Language understanding: How do I .invoke an Invoke object?
 
  - Baby step 1: Lazy evaluation (simple thunks).
                 [need .invoke, then done].
