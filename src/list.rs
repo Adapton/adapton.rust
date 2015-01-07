@@ -215,15 +215,16 @@ impl<'x, T:'x> Iterator for ListItems<'x, T> {
     }
 }
 
-// pub enum NameOrContent<T> { Name(Name),Content(T) }
+pub enum NameOrContent<T> { Name(Name),Content(T) }
 
 // pub fn clone_iter<'x, 'y, T:'y>
 // (iter:&'x mut Iterator) -> List<'y,T>
-// where T : Clone
+// where T : Clone,
+
 // {
 //     match iter.next() {
 //         None => List::Nil,
-//         Some(x) => match *x {
+//         Some(x) => match x {
 //             NameOrContent::Content(ref hd) => List::Cons(hd.clone(), box clone_iter(iter)),
 //             NameOrContent::Name(ref nm) => {
 //                 let (nm1,nm2) = fork(nm.clone());
