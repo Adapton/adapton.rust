@@ -51,9 +51,11 @@ pub fn print() {
 }
 
 pub fn test1 () {
-    let e0 = Exp::Plus(box Exp::Value(1),
+    let e0 = Exp::Plus(box Exp::Plus(box Exp::Value(0),
+                                     box Exp::Value(1)),
                        box Exp::Plus(box Exp::Value(2),
-                                     box Exp::Plus(box Exp::Value(3),
+                                     box Exp::Plus(box Exp::Plus(box Exp::Value(0),
+                                                                 box Exp::Value(3)),
                                                    box Exp::Plus(box Exp::Value(4),
                                                                  box Exp::Value(5))))) ;
     let e1 = step(&e0) ;
