@@ -98,23 +98,14 @@ macro_rules! nart (
     }
 );
 
-// pub fn force<'x,T> (art:Art<'x,T>) -> T {
-//     match art {
-//         ArtCon {name:_,thunk:t} => {
-//             let result = (*t.thunk).invoke(()) ;
-//             result
-//         }
-//     }
-// }
 
 pub fn force<'x,T> (art:Art<'x,T>) -> T {
-//     match art {
-//         ArtCon {name:_,thunk:t} => {
-//             let result = (*t.thunk).invoke(()) ;
-//             result
-//         }
-//     }
-    panic!("Oh no something bad has happened!")
+    match art {
+        ArtCon {name:_,thunk:t} => {
+            let result = t.thunk.invoke(()) ;
+            result
+        }
+    }
 }
 
 /// Needed this form to get List Iterator to borrow-check.

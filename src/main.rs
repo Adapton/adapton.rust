@@ -7,7 +7,6 @@ pub use adapton::name::fork;
 
 #[allow(dead_code)]
 fn main () {
-
     let z : List<int> = List::Nil;
     let y : List<int> = List::Cons(1, box z);
     let x : List<int> = List::Art(cell(symbol(format!("two")), box y));
