@@ -1,7 +1,7 @@
 (Nominal) Adapton in Rust
 ==========================
 
-Based on this OCaml implementation: 
+Based on this OCaml implementation:
  https://github.com/plum-umd/adapton.ocaml
 
 Development Activities
@@ -13,16 +13,17 @@ Development Activities
      It will proceed in three baby steps (see below).
 
    - To run experiments, we need to implement user code.
-     I will proceed by creating simple apps, as in our recent papers 
-     (PLDI 2014, Nominal Adapton draft).
 
-     I will also implement simple small-step evaluators, towards
-     better understanding and illustrate AAM + IC via Adapton.
+     I will proceed by creating simple list and tree transformations,
+     as in our recent papers (PLDI 2014, Nominal Adapton draft).
+
+     I will also implement simple small-step evaluators, to better
+     understand and illustrate AAM + IC via Adapton.
 
 
 TODO: Core Library
 -----------------
- - ~~ Basic articulation interface ~~
+ - <del> Basic articulation interface </del>
 
  - Language understanding: How do I .invoke an Invoke object?
 
@@ -33,17 +34,18 @@ TODO: Core Library
                 Names cannot be "double-used", cells cannot change.
                 Implements Bill Pugh's notion of IC, pure function caching.
 
- - Baby step 3: Bidirectional DCG structure structure, changeable input cells, 
+ - Baby step 3: Bidirectional DCG structure structure, changeable input cells,
                 dirtying traversals, repair traversals.
 
 
 TODO: Basic Data Structures and Algorithms
 -------------------------------------------
- - ~~ Implement mergesort. ~~
- - ~~ Implement lazy, memoized lists. ~~
- - Implement memoized tries.
- - Implement memoized sequences.
+ - <del> Implement lazy, memoized lists. </del>
+ - <del> Implement mergesort. </del>
 
-TODO: Basic Incremental Evaluators 
+ - Implement memoized sequences.
+ - Implement memoized tries.
+
+TODO: Basic Incremental Evaluators
 -----------------------------------------------------------
  - Arithmetic expressions, with small-step expression trace
