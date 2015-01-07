@@ -1,5 +1,6 @@
-#![feature(unsafe_destructor, macro_rules, phase, globs, default_type_params)]
+// #![feature(unsafe_destructor, macro_rules, phase, globs, default_type_params)]
 #![feature(unboxed_closures)]
+// #![feature(old_orphan_check)]
 
 //! Adapton for Rust
 
@@ -8,7 +9,7 @@
 
 pub mod name;
 
-#[macro_escape]
+#[macro_use]
 pub mod art;
 
 pub mod list;

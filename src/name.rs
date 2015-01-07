@@ -1,4 +1,4 @@
-#[deriving(Clone,Show,Hash,PartialEq,Eq)]
+#[derive(Clone,Show,Hash,PartialEq,Eq)]
 enum NameCon { 
     Symbol (Box<String>),
     ForkL (Box<Name>),

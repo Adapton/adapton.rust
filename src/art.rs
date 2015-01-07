@@ -39,7 +39,7 @@ impl<'x,T> fmt::Show for ArtThunk<'x,T> {
     }
 }
 
-#[deriving(Show)]
+#[derive(Show)]
 struct ArtCon<'x,T> {
     name : Name,
     thunk : ArtThunk<'x,T>
@@ -108,7 +108,13 @@ macro_rules! nart (
 // }
 
 pub fn force<'x,T> (art:Art<'x,T>) -> T {
-   panic!("Oh no something bad has happened!")
+//     match art {
+//         ArtCon {name:_,thunk:t} => {
+//             let result = (*t.thunk).invoke(()) ;
+//             result
+//         }
+//     }
+    panic!("Oh no something bad has happened!")
 }
 
 /// Needed this form to get List Iterator to borrow-check.
