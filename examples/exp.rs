@@ -5,6 +5,9 @@ use std::hash::Hash;
 pub enum Exp<'x> {
     Value(int),
     Plus(Box<Exp<'x>>, Box<Exp<'x>>),
+
+    // Meta nodes:
+    StepsTo(&'x Exp<'x>,Box<Exp<'x>>), // Expresses a StepsTo Relationship,
     Ref(&'x Exp<'x>) // Refs allow for (non-affine) sharing.
 }
 
@@ -12,6 +15,7 @@ pub fn step<'x> (e:&'x Exp<'x>) -> Option<Exp<'x>> {
     match *e {
         Exp::Value(_) => None,
         Exp::Ref(e) => step(e),
+        Exp::StepsTo(_, ref after) => step(&**after),
         Exp::Plus(ref e1, ref e2) =>
             match **e1 {
                 Exp::Value(n) =>
@@ -37,18 +41,6 @@ pub fn step<'x> (e:&'x Exp<'x>) -> Option<Exp<'x>> {
     }
 }
 
-#[test]
-pub fn print() {
-    let e0 = Exp::Plus(box Exp::Value(1),
-                       box Exp::Plus(box Exp::Value(2),
-                                     box Exp::Plus(box Exp::Value(3),
-                                                   box Exp::Plus(box Exp::Value(4),
-                                                                 box Exp::Value(5))))) ;
-    let e1 = step(e0) ;
-    let e2 = step(e1) ;
-    let e3 = step(e2) ;
-    print!("{} {} {} {}", e0, e1, e2, e3);
-}
 
 pub fn test1 () {
     let e0 = Exp::Plus(box Exp::Plus(box Exp::Value(0),
@@ -88,28 +80,30 @@ pub fn test1 () {
     }
 }
 
+fn step_loop<'x> ( stepcnt : int, exp : Exp<'x> ) {
+    let s = step(&exp) ;
+    match s {
+        None => (), // exp
+        Some(exp_) => {    
+            println!("{}: {} --> {}\n", stepcnt, exp, exp_) ;
+            let step_full = Exp::StepsTo( &exp, box exp_) ;
+            step_loop ( stepcnt+1, step_full )
+        }
+    }
+}
+
 pub fn test2 () {
     let e0 = Exp::Plus(box Exp::Value(1),
                        box Exp::Plus(box Exp::Value(2),
                                      box Exp::Plus(box Exp::Value(3),
                                                    box Exp::Plus(box Exp::Value(4),
                                                                  box Exp::Value(5))))) ;
-    let mut exp = & e0 ;
-    loop {
-        let s = step(&e0) ;
-        match s {
-            None => break,
-            Some(ref exp_) => {
-                println!("{} --> {}", exp, exp_) ;
-                // exp = exp_.clone () ;
-                continue
-            }
-        }
-    }
+    let e_trace = step_loop ( 0, e0 ) ;
+    println!("Final trace: {}", e_trace)
 }
 
 pub fn main () {
-    if true {
+    if false {
         test1 ()
     }
     else {
