@@ -11,7 +11,7 @@ pub type UAr<'x,S,T> = Box<Fn<S,T> + 'x>;
 //
 // Read in CBPV notation has "U(S -> T) with lifetime 'x".
 //
-// In rust, can be introduced by: 
+// In rust, can be introduced by:
 //   box () (move |&: args:S |{ $body }))
 
 
@@ -28,7 +28,7 @@ pub type UF<'x,T> = Box<Invoke<(),T> + 'x>;
 /// rustc says that I need an explicit lifetime parameter; I name it `'x`.
 struct ArtThunk<'x,T> {
     // TODO: Memo table identity, for comparing thunks with same names
-    // TODO: Access to args, for equality check, hashing    
+    // TODO: Access to args, for equality check, hashing
     thunk : UF<'x,T>,
     value : Option<T>
 }
@@ -110,5 +110,10 @@ pub fn force<'x,T> (art:Art<'x,T>) -> T {
 
 /// Needed this form to get List Iterator to borrow-check.
 pub fn force_ref<'x,T> (art:&'x Art<'x,T>) -> &'x T {
-   panic!("Oh no something bad has happened!")
+    match art {
+        & ArtCon {name:_,thunk:ref t} => {
+            // & t.thunk.invoke(())
+            panic!("this is broken");
+        }
+    }
 }
