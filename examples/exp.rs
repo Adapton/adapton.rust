@@ -1,5 +1,5 @@
 
-#[derive(Show,Clone)]
+#[derive(Show)]
 pub enum Exp<'x> {
     Value(int),
     Plus(Box<Exp<'x>>, Box<Exp<'x>>),
