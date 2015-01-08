@@ -218,7 +218,7 @@ impl<'x, T:'x> Iterator for ListItems<'x, T> {
 pub enum NameOrContent<T> { Name(Name),Content(T) }
 
 // pub fn clone_iter<'x, 'y, T:'y>
-// (iter:&'x mut Iterator) -> List<'y,T>
+// (iter:&'x mut Iterator where ) -> List<'y,T>
 // where T : Clone,
 
 // {
