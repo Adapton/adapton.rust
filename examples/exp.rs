@@ -81,10 +81,13 @@ pub fn test1 () {
     }
 }
 
+// Stuck: Cannot return the accumulated expression `exp`.
+// The lifetime/borrow-checker doe not permit it.
+// See exp2.rs for an alternative design that does not use borrowing.
 fn step_loop<'x> ( stepcnt : int, exp : Exp<'x> ) {
     let s = borrow::step(&exp) ;
     match s {
-        None => (), // exp
+        None => (), // Stuck: cannot return `exp` here.
         Some(exp_) => {
             println!("{}: {} --> {}\n", stepcnt, exp, exp_) ;
             let step_full = Exp::StepsTo( &exp, box exp_) ;
