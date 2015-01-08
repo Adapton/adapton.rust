@@ -1,18 +1,17 @@
-(* Balanced fixed-point computation. *)
-module Make ( Sem : sig 
+(* Balanced fixed-point loop. *)
+module Loop ( Sem : sig
                 type state
                 val level : state -> int
-                val step : state -> state option 
+                val step : state -> state option
               end ) = struct
 
  type state = Sem.state
-
  type tree = Empty | Bin of tree * state * tree
 
- let rec work 
-      (ctxlev:int) (state:state) 
-      (left:tree) (leftlev:int) 
-    : state * tree 
+ let rec work
+      (ctxlev:int) (state:state)
+      (left:tree) (leftlev:int)
+    : state * tree
     =
     match Sem.step state with
      | None -> (state, left)
@@ -27,7 +26,88 @@ module Make ( Sem : sig
        else
          (state, left)
 
-  let compute (start:state) : tree = 
+  let compute (start:state) : tree =
      snd (work max_int start (Bin(Empty,start,Empty)) (-1))
+
+end
+
+(* Balanced fixed-point loop for exploring a tree of states by
+   applying a user-provided step function.
+   The states must form a tree since we don't check for cycles below.
+   The loop can easily be breadth-first or depth-first.
+*)
+module TreeSearch ( Sem : sig
+                    type state
+                    val level : state -> int
+                    val step : state -> state list
+                    end ) = struct
+
+  type state = Sem.state
+  type tree = Empty | Bin of tree * state * tree
+
+  let rec work
+      (ctxlev:int) (queue:state list)
+      (left:tree) (leftlev:int)
+    : state list * tree
+    =
+    match queue with
+     | [] -> ([], left)
+     | state :: rest ->
+       let statelev = Sem.level(state) in
+       if ctxlev >= statelev && statelev >= leftlev then
+         let queue = 
+           (* true = Depth first, false = breadth first. *)
+           if true then (Sem.step state) @ rest
+           else rest @ (Sem.step state)
+         in
+         let queue, right = work statelev queue Empty (-1) in
+         work ctxlev queue (Bin(left,state,right)) statelev
+       else
+         (queue, left)
+
+  let compute (start:state) : tree =
+     snd (work max_int [start] (Bin(Empty,start,Empty)) (-1))
+end
+
+(* Balanced fixed-point loop for exploring a (possibly cyclic) graph
+   of states by applying a user-provided step function.
    
+  The "seen set" below is a list.  We want to use a better set rep for
+  efficiency. (such as a trie.)
+*)
+module GraphSearch ( Sem : sig
+                    type state
+                    val level : state -> int
+                    val step : state -> state list
+                    end ) = struct
+
+  type state = Sem.state
+  type tree = Empty | Bin of tree * state * tree
+
+  let rec work
+      (seen:state list) (* TODO: <-- Use a trie-based set rep here. *)
+      (ctxlev:int) (queue:state list)
+      (left:tree) (leftlev:int)
+    : (state list) * (state list) * tree
+    =
+    match queue with
+     | [] -> (seen, [], left)
+     | state :: rest ->
+       let statelev = Sem.level(state) in
+       if ctxlev >= statelev && statelev >= leftlev then
+         let queue =
+           (List.filter (fun s -> not (List.mem s seen))
+            (Sem.step state))
+           @ rest
+         in
+         let seen, queue, right = work seen statelev queue Empty (-1) in
+         work seen ctxlev queue (Bin(left,state,right)) statelev
+       else
+         (seen, queue, left)
+
+  let compute (start:state) : state list * tree =
+    let seen, _, trace = 
+      work [start] max_int [start] (Bin(Empty,start,Empty)) (-1)
+    in (seen, trace)
+
 end
