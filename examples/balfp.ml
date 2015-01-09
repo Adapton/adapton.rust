@@ -111,3 +111,56 @@ end ) = struct
     in (seen, trace)
 
 end
+
+
+
+module ExpSem = struct
+
+  let fix (type st) : (st -> st option) -> st -> st = 
+    fun step start ->
+      failwith "To Finish: Make the types line up with modules above:
+      let module Fp = 
+            Loop (struct type state = st 
+                         let step = step)
+      in 
+      Loop.compute start
+      "
+  
+  (* - - - - - - - - - - -  *)
+
+  type value = Num of int
+  type exp   = Value of value | Plus of exp * exp
+  
+  type focus_ctx   = EmpCtx | PlusCtx of focus_ctx * exp
+  type focus_state = focus_ctx * exp 
+ 
+  type reduce_trace = exp list
+  type reduce_state = reduce_trace * exp
+
+  let focus : focus_state -> focus_state option = 
+    function   
+    | (ctx, Plus(Value _, Value _)) -> None
+    | (ctx, Value _)                -> None
+    | (ctx, Plus(e1, e2))           -> Some (PlusCtx(ctx, e2), e1)
+
+  let unfocus : focus_state -> focus_state option =
+    function
+    | (EmpCtx, _)            -> None
+    | (PlusCtx(ctx, e2), e1) -> Some (ctx, Plus(e1, e2))
+
+  let reduce : reduce_state -> reduce_state option =
+    function
+    | (_, Value _) -> None
+    | (trace, exp) ->
+      let (ctx, redex) = (fix focus) (EmpCtx, exp) in
+      let reduced_redex = 
+        match redex with
+        | Plus(Value(Num(p)), Value(Num(q))) -> Value(Num(p+q))
+        | _ -> failwith "impossible"
+      in
+      let (ctx, exp) = (fix unfocus) (ctx, reduced_redex) in
+      assert ( ctx = EmpCtx ) ;
+      Some (exp :: trace, exp)
+
+end
+
