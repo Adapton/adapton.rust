@@ -133,18 +133,21 @@ where Ord: Fn(&T,&T) -> bool
 }
 
 pub fn singletons<'x,T:'x>
-(list:List<'x,T>) -> List<'x,List<'x,T>>
+    (nameop:Option<Name>, list:List<'x,T>) -> List<'x,List<'x,T>>
 {
     match list {
         List::Nil => List::Nil,
         List::Cons(hd, tl) => {
-            List::Cons( List::Cons(hd, box List::Nil),
-                        box singletons(*tl) )
+            List::Cons( match nameop {
+                None => List::Cons(hd, box List::Nil),
+                Some(nm) => List::Name(nm, box List::Cons(hd, box List::Nil))
+            }, box singletons(None,*tl) )
         },
-        List::Art(art) => singletons(*force(art)),
+        List::Art(art) => singletons(nameop,*force(art)),
         List::Name(nm, tl) => {
-            let (nm1, nm2) = fork(nm) ;
-            let art = nart!(nm2, box singletons(*tl)) ;
+            let (nm1, nm) = fork(nm) ;
+            let (nm2, nm3) = fork(nm) ;
+            let art = nart!(nm2, box singletons(Some(nm3), *tl)) ;
             List::Name(nm1, box List::Art(art))
         }
     }
@@ -160,7 +163,7 @@ where Ord: Fn(&T,&T) -> bool, T:Hash
     let m = move |&: list1:List<'x,T>,list2:List<'x,T>|
     merge(ord,list1,list2);
 
-    match reduce(&c, &m, singletons(list)) {
+    match reduce(&c, &m, singletons(None, list)) {
         None => List::Nil,
         Some(list) => list
     }
