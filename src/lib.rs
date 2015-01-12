@@ -12,6 +12,8 @@ pub mod name;
 #[macro_use]
 pub mod art;
 
+pub mod balfp;
+
 pub mod list;
 
 mod adapton {
