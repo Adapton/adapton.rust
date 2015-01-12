@@ -50,7 +50,10 @@ mod affine {
                     }
                 },
             
-            Exp::Arc(_) => panic!("dont know how to implement this case."),
+            Exp::Arc(arc) => 
+                // step(*arc) //~ERROR: cannot move out of dereference of `&`-pointer
+                panic!("cannot implement this case"),
+
             Exp::StepsTo(one, two) => 
                 match step(*two) {
                     (two, None) => (Exp::StepsTo(one, box two), None),
@@ -66,7 +69,7 @@ fn step_loop<'x> ( stepcnt : int, exp : Exp<'x> ) -> Exp<'x> {
     match s {
         None => exp,
         Some(step_exp) => {
-            println!("{}: {} --> {}\n", stepcnt, exp, step_exp) ;
+            println!("{}: {}\n --> {}\n", stepcnt, exp, step_exp) ;
             let step_full = Exp::StepsTo( box exp, box step_exp ) ;
             step_loop ( stepcnt+1, step_full )
         }
