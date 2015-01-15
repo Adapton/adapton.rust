@@ -31,7 +31,12 @@ trait FpFn {
     fn next (self:& Self, sys:Self::Sys) -> Result<(Self::St, Self::Sys), Self::Sys> ;
 }
 
-trait FpLp<F:FpFn> {
+trait BuildTree<T> {
+    fn leaf(data:&T) -> Self;
+    fn bin(left:Self,data:&T,right:Self) -> Self;
+}
+
+trait FpLp<F:FpFn, BT:BuildTree<F::St>> {
     fn work_tree (self:&Self, f:&F, left_lev:int, sys:F::Sys, parent_lev:int) -> F::Sys {
         let nxt = f.next(sys) ;
         match nxt {
