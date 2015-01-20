@@ -26,15 +26,15 @@ TODO: Core Library
 
 - Lazy Evaluation (simple, pure caching).
 
-  - Function Caching:
-    - Nominal/Classical caching, explicit eviction.
-    - Names cannot be "double-used", cells cannot change.
-    - Implements Bill Pugh's notion of IC, pure function caching.
+- Function Caching:
+  - Nominal/Classical caching, explicit eviction.
+  - Names cannot be "double-used", cells cannot change.
+  - Implements Bill Pugh's notion of IC, pure function caching.
 
-  - Full Nominal Adapton:
-    - changeable input cells,
-    - Bidirectional DCG structure structure
-    - dirtying traversals, repair traversals.
+- Full Nominal Adapton:
+  - changeable input cells,
+  - Bidirectional DCG structure structure
+  - dirtying traversals, repair traversals.
 
 
 TODO: Basic Data Structures and Algorithms
