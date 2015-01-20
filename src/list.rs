@@ -103,8 +103,10 @@ where F: Fn(&T,&T) -> bool,
 }
 
 pub fn merge<'x,T:'x,Ord:'x>
-(ord:&'x Ord, list1:List<'x,T>, list2:List<'x,T>) -> List<'x,T>
-where Ord: Fn(&T,&T) -> bool
+    (ord:&'x Ord,
+     nm1:Option<Name>, list1:List<'x,T>,
+     nm2:Option<Name>, list2:List<'x,T>) -> List<'x,T>
+    where Ord: Fn(&T,&T) -> bool
 {
     match (list1, list2) {
         (List::Nil, list2) => list2,
@@ -112,23 +114,34 @@ where Ord: Fn(&T,&T) -> bool
         (List::Cons(hd1,tl1),
          List::Cons(hd2,tl2)) =>
             if (*ord)(&hd1,&hd2) {
-                List::Cons(hd1, box merge(ord, *tl1, List::Cons(hd2,tl2)))
+                let list2 = List::Cons(hd2,tl2) ;
+                match nm1 {
+                    None => List::Cons(hd1, box merge(ord, None, *tl1, nm2, list2)),
+                    Some(nm1) => {
+                        let (nm11,nm12) = fork(nm1);
+                        let art = nart!(nm12, box merge(ord, None, *tl1, nm2, list2)) ;
+                        List::Name(nm11, box List::Cons(hd1, box List::Art(art)))
+                    }
+                }
             } else {
-                List::Cons(hd2, box merge(ord, List::Cons(hd1,tl1), *tl2))
+                // "Assert": This case is symmetric to the one above.
+                // 
+                let list1 = List::Cons(hd1,tl1) ;
+                match nm2 {
+                    None => List::Cons(hd2, box merge(ord, None, *tl2, nm1, list1)),
+                    Some(nm2) => {
+                        let (nm21,nm22) = fork(nm2);
+                        let art = nart!(nm22, box merge(ord, None, *tl2, nm1, list1)) ;
+                        List::Name(nm21, box List::Cons(hd2, box List::Art(art)))
+                    }
+                }
+                
             },
-        // - - - - - boilerplate cases - - - - -
-        (List::Name(nm,tl), list2) => {
-            let (nm1,nm2) = fork(nm) ;
-            let art = nart!(nm1, box merge(ord, *tl, list2)) ;
-            List::Name(nm2, box List::Art(art))
-        },
-        (list1, List::Name(nm,tl)) => {
-            let (nm1,nm2) = fork(nm) ;
-            let art = nart!(nm1, box merge(ord, list1, *tl)) ;
-            List::Name(nm2, box List::Art(art))
-        },
-        (List::Art(art), list2) => merge(ord, *force(art), list2),
-        (list1, List::Art(art)) => merge(ord, list1, *force(art)),
+        // - - - - - "boilerplate" cases - - - - -
+        (List::Name(nm,tl), list2) => merge(ord, Some(nm), *tl, nm2, list2),
+        (list1, List::Name(nm,tl)) => merge(ord, nm1, list1, Some(nm), *tl),
+        (List::Art(art), list2) => merge(ord, nm1, *force(art), nm2, list2),
+        (list1, List::Art(art)) => merge(ord, nm1, list1, nm2, *force(art)),
     }
 }
 
@@ -161,7 +174,7 @@ where Ord: Fn(&T,&T) -> bool, T:Hash
     hash::hash(list1) < hash::hash(list2);
 
     let m = move |&: list1:List<'x,T>,list2:List<'x,T>|
-    merge(ord,list1,list2);
+    merge(ord,None,list1,None,list2);
 
     match reduce(&c, &m, singletons(None, list)) {
         None => List::Nil,
