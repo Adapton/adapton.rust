@@ -1,3 +1,8 @@
+//trait Fork<T> {
+//    fn get(self:Self) -> T ;
+//    fn fork(self:Self) -> (T,Self,Self) ;
+//}
+
 #[derive(Clone,Show,Hash,PartialEq,Eq)]
 enum NameCon { 
     Symbol (Box<String>),
@@ -19,4 +24,3 @@ pub fn fork (n:Name) -> (Name,Name) {
 pub fn pair (n:Name, m:Name) -> Name {
     NameCon::Pair(box n, box m)
 }
-

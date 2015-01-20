@@ -55,7 +55,9 @@ trait BinTree<T> {
 
 trait FpLp<F:FpFn, BT:BinTree<F::St_stepped>> {
     // Our fixed-point loop.  It uses a hashing and probabilistic
-    // reasoning to build a binary tree of stepped states.
+    // reasoning to build a balanced binary tree of stepped states.
+    //
+    // Key assumption: Each state (of type `F::St`) has a distinct hash.
     fn work_tree (self:&Self, f:&F, bt:&BT,
                   left:BT::Tree, left_lev:int,
                   sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree)
