@@ -38,7 +38,7 @@ trait FpFn {
     /// Our fixed-point loop below needs a way of hashing the "current
     /// state" (type `St`).  It builds a binary tree of stepped states
     /// (type `St_stepped`).
-    
+
     type St : Hash ;
     type St_stepped ;
     type Sys ;
@@ -54,6 +54,14 @@ trait BinTree<T> {
 }
 
 trait FpLp<F:FpFn, BT:BinTree<F::St_stepped>> {
+
+    // We leave this abstract here.
+    // It can either be a simple wrapper around work_tree, or
+    // something that uses memoization.
+    fn work_recur (self:&Self, f:&F, bt:&BT,
+                  left:BT::Tree, left_lev:int,
+                  sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree) ;
+
     // Our fixed-point loop.  It uses a hashing and probabilistic
     // reasoning to build a balanced binary tree of stepped states.
     //
@@ -71,18 +79,26 @@ trait FpLp<F:FpFn, BT:BinTree<F::St_stepped>> {
                     st_lev  <= parent_lev
                 {
                     let (st, sys) = f.step(st, sys) ;
-                    let (sys,right) = self.work_tree (f, bt, bt.leaf(), -1, sys, st_lev );
+                    let (sys,right) = self.work_recur (f, bt, bt.leaf(), -1, sys, st_lev );
                     let tree = bt.bin(left,st,right) ;
-                    let (sys,tree) = self.work_tree (f, bt, tree, st_lev, sys, parent_lev );
+                    let (sys,tree) = self.work_recur (f, bt, tree, st_lev, sys, parent_lev );
                     (sys,tree)
                 }
                 else {
                     (sys,left)
                 }
             }
-        }    
-    }    
+        }
+    }
     fn compute (self:&Self, f:&F, bt:&BT, sys:F::Sys) -> (F::Sys,BT::Tree) {
-        self.work_tree (f, bt, bt.leaf(), -1, sys, MAX )
+        self.work_recur (f, bt, bt.leaf(), -1, sys, MAX )
+    }
+}
+
+impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for () {
+    fn work_recur (self:&Self, f:&F, bt:&BT,
+                   left:BT::Tree, left_lev:int,
+                   sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree) {
+        self.work_tree (f, bt, left, left_lev, sys, parent_lev )
     }
 }
