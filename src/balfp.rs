@@ -4,6 +4,8 @@ use std::int::MAX;
 use std::num::Int;
 use std::result::Result;
 
+use art::*;
+
 // The idea of a "balanced fixed-point" computation is to do two
 // things simultaneously:
 //
@@ -95,10 +97,23 @@ trait FpLp<F:FpFn, BT:BinTree<F::St_stepped>> {
     }
 }
 
-impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for () {
+struct Fp_direct ;
+impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for Fp_direct {
     fn work_recur (self:&Self, f:&F, bt:&BT,
                    left:BT::Tree, left_lev:int,
                    sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree) {
         self.work_tree (f, bt, left, left_lev, sys, parent_lev )
     }
 }
+
+struct Fp_art ;
+impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for Fp_art {
+    fn work_recur (self:&Self, f:&F, bt:&BT,
+                   left:BT::Tree, left_lev:int,
+                   sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree) {
+        let n = panic!("");
+        let a = nart!(n, self.work_tree (f, bt, left, left_lev, sys, parent_lev));
+        force( a )
+    }
+}
+
