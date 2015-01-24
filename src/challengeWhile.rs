@@ -43,19 +43,38 @@ pub type ExpB<'x> = Box<Exp<'x>>;
 /// Variables for the while language
 pub type Var<'x> = String;
 
-pub trait Heap<T> {
-    fn empty () -> Self ;
-    fn update (Self, Hash, T) -> Self ;
-    fn select (Self, Hash) -> Result<(Self,T), Self> ;
+pub trait Heap<L:Hash+Eq, V> {
+    fn empty () -> Box<Self> ;
+    fn update (Box<Self>, L, V) -> Box<Self> ;
+    fn select (Box<Self>, L) -> (Box<Self>, Option<V>) ;
 }
 
-pub enum Err {
-    VarNotDef(String)
+pub enum Error {
+    VarNotDef(String),
 }
 
-pub fn eval_exp<'x,T:'x> (exp:Exp<'x>, heap:Box<Heap<int>>)
-                          -> Result<(Box<Heap<int>>,int), (Box<Heap<int>>,Err)> {
-    panic!("not impl")
+pub fn eval_exp<'x>
+    (heap:Box<Heap<String, int>>, exp:Exp<'x>)
+     -> (Box<Heap<String, int>>, Result<int, Error>)
+{
+    match exp {
+        Exp::Num(n) => (heap, Ok(n)),
+        Exp::Var(v) => {
+            let (heap,q) = Heap::select(heap, v.clone()) ;
+            match q {
+                None => (heap, Err(Error::VarNotDef(v))),
+                Some(val) => (heap, Ok(val))
+            }},
+        
+        Exp::Plus(l, r) => {
+            let (heap, l) = eval_exp(heap, *l) ;
+            let (heap, r) = eval_exp(heap, *r) ;
+            match (l,r) {
+                (Ok(l), Ok(r)) => (heap, Ok(l+r)),
+                (Err(l), _) => (heap, Err(l)),
+                (_, Err(r)) => (heap, Err(r))
+            }},
+    }
 }
    
 

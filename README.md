@@ -62,9 +62,14 @@ TODO: Incremental Program Evaluators
 
 Rust Q&A
 ---------
+
+  - When are explicit lifetime paremters needed on:
+    - type delcarations
+    - enum/struct declarations
+    - function paramters/results
  
+  - <del> Can I implement data structures with sharing? </del>
+     - See `examples/exp.rs` for a baby version of a small-step interpreter.
+
   - <del> How do I .invoke an Invoke object? </del> 
      - See `examples/invoke.rs`
-  - <del> Can I implement data structures with sharing? </del>
-     - See `examples/exp.rs` for a
-       baby version of a small-step interpreter.
