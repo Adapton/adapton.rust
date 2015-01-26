@@ -210,28 +210,28 @@ impl<'x,T> List<'x,T> {
 
 }
 
-impl<'x, T:'x> Iterator for ListItems<'x, T> {
-    type Item = &'x T ;
-    fn next(&mut self) -> Option<&'x T> {
-        match *self.list {
-            List::Cons(ref hd, ref tl) => {
-                self.list = &**tl;
-                Some(hd)
-            },
-            List::Name(_, ref list) => {
-                self.list = &**list;
-                self.next()
-            },
-            List::Art(ref art) => {
-                self.list = &**force_ref(art);
-                self.next()
-            },
-            List::Nil => None
-        }
-    }
-}
+// impl<'x, T:'x> Iterator for ListItems<'x, T> {
+//     type Item = &'x T ;
+//     fn next(&mut self) -> Option<&'x T> {
+//         match *self.list {
+//             List::Cons(ref hd, ref tl) => {
+//                 self.list = &**tl;
+//                 Some(hd)
+//             },
+//             List::Name(_, ref list) => {
+//                 self.list = &**list;
+//                 self.next()
+//             },
+//             List::Art(ref art) => {
+//                 self.list = &**force_ref(art);
+//                 self.next()
+//             },
+//             List::Nil => None
+//         }
+//     }
+// }
 
-pub enum NameOrContent<T> { Name(Name),Content(T) }
+// pub enum NameOrContent<T> { Name(Name),Content(T) }
 
 // pub fn clone_iter<'x, 'y, T:'y>
 // (iter:&'x mut Iterator where ) -> List<'y,T>

@@ -39,10 +39,9 @@ impl<'x,T> fmt::Show for ArtThunk<'x,T> {
     }
 }
 
-#[derive(Show)]
+#[derive(Show,Clone)]
 struct ArtCon<'x,T> {
     name : Name,
-    thunk : ArtThunk<'x,T>
 }
 
 impl<'x,T> PartialEq for ArtCon<'x,T> {
@@ -68,26 +67,14 @@ pub type Art<'x,T> = ArtCon<'x,T>;
 
 // Create a named cell
 pub fn cell<'x,T:'x> (n:Name, x:T) -> Art<'x,T> {
-    //! TODO: Cache the art based on the name n
-    ArtCon { name  : n,
-             thunk : ArtThunk{
-                 value:None,
-                 thunk:box () (move|:()|{
-                     x
-                 } ) as Box<Invoke()->T>
-             }
-    }
+    //! TODO: Cache the art based on the name n    
+    ArtCon { name : n }
 }
 
 // Create a named thunk
 pub fn nart<'x,T:'x> (n:Name, body:Box<Invoke()->T+'x>) -> Art<'x,T> {
     //! TODO: Cache the art based on the name n
-    ArtCon { name  : n,
-             thunk : ArtThunk{
-                 value:None,
-                 thunk:body
-             }
-    }
+    ArtCon { name  : n }
 }
 
 #[macro_export]
@@ -101,19 +88,11 @@ macro_rules! nart (
 
 pub fn force<'x,T> (art:Art<'x,T>) -> T {
     match art {
-        ArtCon {name:_,thunk:t} => {
-            let result = t.thunk.invoke(()) ;
-            result
-        }
-    }
-}
-
-/// Needed this form to get List Iterator to borrow-check.
-pub fn force_ref<'x,T> (art:&'x Art<'x,T>) -> &'x T {
-    match art {
-        & ArtCon {name:_,thunk:ref t} => {
-            // & t.thunk.invoke(())
-            panic!("this is broken");
+        ArtCon {name:n} => {
+            // t = memotable_lookup(n) ;
+            // let result = t.thunk.invoke(()) ;
+            // result
+            panic!("")
         }
     }
 }
