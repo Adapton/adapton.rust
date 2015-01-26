@@ -16,7 +16,7 @@ pub mod balfp;
 
 pub mod list;
 
-pub mod challengeWhile;
+pub mod challenge_while;
 
 mod adapton {
     pub use super::*;
