@@ -73,12 +73,12 @@ impl Heap<String, int> for HashMapHeap {
         HashMapHeap { hm : HashMap::new() }
     }
     fn update (hm:Self, l:String, v:int) -> Self {
-        let mut hm = hm.hm.clone () ; // TODO: Avoid this clone.
+        let mut hm = hm.hm.clone () ; // TODO: Avoid this clone. Use trie structure instead.
         hm.insert(l,v) ;
         HashMapHeap{ hm : hm }
     }
     fn select (hm:Self, l:String) -> (Self, Option<int>) {
-        let hmq = hm.hm.clone () ; // TODO: Avoid this clone.
+        let hmq = hm.hm.clone () ; // TODO: Avoid this clone. Use trie structure instead.
         let x = hmq.get(&l) ;
         (hm, match x { None => None, Some(x) => Some(*x) })
     }
@@ -186,12 +186,16 @@ pub fn step_cmd<'x>
                 Ok(_) => { (heap, Some((cxt, *cmd1))) },
             }
         },
-            
+
+        // TODO: Step to a name here.
+        // TODO: to write eta, need "dynamic coordinate" for this static name nm.
+        // TODO: This coordinate information consists of counts for each of the loops we are in now.
+        (CmdCxt::Name(nm, cxt), cmd) => { step_cmd(heap, *cxt, cmd) }
+
         // - - - - - - - - - 
         (cxt, Cmd::Art(art))         => { step_cmd(heap, cxt, *force(art)) },
         (cxt, Cmd::Name(nm, cmd))    => { step_cmd(heap, cxt, *cmd) }
         (CmdCxt::Art(art), cmd)      => { step_cmd(heap, *force(art), cmd) }
-        (CmdCxt::Name(nm, cxt), cmd) => { step_cmd(heap, *cxt, cmd) }
 
     }
 }    
