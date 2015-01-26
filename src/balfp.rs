@@ -97,8 +97,8 @@ trait FpLp<F:FpFn, BT:BinTree<F::St_stepped>> {
     }
 }
 
-struct Fp_direct ;
-impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for Fp_direct {
+struct FpDirect ;
+impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for FpDirect {
     fn work_recur (self:&Self, f:&F, bt:&BT,
                    left:BT::Tree, left_lev:int,
                    sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree) {
@@ -106,8 +106,8 @@ impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for Fp_direct {
     }
 }
 
-struct Fp_art ;
-impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for Fp_art {
+struct FpArt ;
+impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for FpArt {
     fn work_recur (self:&Self, f:&F, bt:&BT,
                    left:BT::Tree, left_lev:int,
                    sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree) {
