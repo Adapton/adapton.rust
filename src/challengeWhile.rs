@@ -3,6 +3,7 @@ use art::*;
 use std::hash;
 use std::hash::Hash;
 use std::result::Result;
+use std::collections::HashMap;
 
 //
 // Cmd C ::= Skip
@@ -43,19 +44,33 @@ pub type ExpB<'x> = Box<Exp<'x>>;
 /// Variables for the while language
 pub type Var<'x> = String;
 
-pub trait Heap<L:Hash+Eq, V> {
-    fn empty () -> Box<Self> ;
-    fn update (Box<Self>, L, V) -> Box<Self> ;
-    fn select (Box<Self>, L) -> (Box<Self>, Option<V>) ;
+pub trait Heap<L:Hash+Eq, V> : Sized {
+    fn empty () -> Self ;
+    fn update (Self, L, V) -> Self ;
+    fn select (Self, L) -> (Self, Option<V>) ;
+}
+
+pub struct HashMapHeap { hm : HashMap<String, int> }
+
+impl Heap<String, int> for HashMapHeap {
+    fn empty () -> Self {
+        HashMapHeap { hm : HashMap::new() }
+    }
+    fn update (hm:Self, l:String, v:int) -> Self {
+        panic!("")
+    }
+    fn select (hm:Self, l:String) -> (Self, Option<int>) {
+        panic!("")
+    }
 }
 
 pub enum Error {
     VarNotDef(String),
 }
-
+   
 pub fn eval_exp<'x>
-    (heap:Box<Heap<String, int>>, exp:Exp<'x>)
-     -> (Box<Heap<String, int>>, Result<int, Error>)
+    (heap:HashMapHeap, exp:Exp<'x>)
+     -> (HashMapHeap, Result<int, Error>)
 {
     match exp {
         Exp::Num(n) => (heap, Ok(n)),
