@@ -7,8 +7,8 @@ use std::thunk::Invoke;
 pub trait Adapton {
     fn name_of_string (self:&mut Self, String) -> Name ;
     fn name_of_u64 (self:&mut Self, u64) -> Name ;
-    fn pair (self: &Self, Name, Name) -> Name ;        
-    fn fork (self:&mut Self, Name) -> (Name, Name) ;
+    fn name_pair (self: &Self, Name, Name) -> Name ;        
+    fn name_fork (self:&mut Self, Name) -> (Name, Name) ;
 
     fn cell<T:Eq+Hash> (self:&mut Self, ArtId, T) -> Art<T> ;
 
@@ -54,10 +54,10 @@ impl Adapton for AdaptonState {
     fn name_of_u64 (self:&mut AdaptonState, sym:u64) -> Name {
         panic!("")            
     }
-    fn pair (self: &AdaptonState, fst: Name, snd: Name) -> Name {
+    fn name_pair (self: &AdaptonState, fst: Name, snd: Name) -> Name {
         panic!("")
     }
-    fn fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
+    fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
         panic!("")
     }
     fn cell<T:Eq+Hash> (self:&mut AdaptonState, id:ArtId, x:T) -> Art<T> {
