@@ -86,7 +86,10 @@ impl Adapton for AdaptonState {
         Name{ hash:h, lineage:Arc::new(p) }
     }
     fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
-        panic!("")
+        let h1 = hash::<_>( &(&nm, 1) ) ;
+        let h2 = hash::<_>( &(&nm, 2) );
+        ( Name{ hash:h1, lineage:Arc::new(Lineage::ForkL(nm.lineage.clone())) } ,
+          Name{ hash:h2, lineage:Arc::new(Lineage::ForkR(nm.lineage)) } )
     }
     fn cell<T:Eq+Hash> (self:&mut AdaptonState, id:ArtId, x:T) -> Art<T> {
         panic!("")
