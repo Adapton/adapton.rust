@@ -13,6 +13,8 @@ pub trait Adapton {
     fn name_pair (self: &Self, Name, Name) -> Name ;
     fn name_fork (self:&mut Self, Name) -> (Name, Name) ;
 
+    fn child<T> (self: &mut Self, Name, body:Box<Invoke<(),T>+'static>) -> T ;
+    
     fn cell<T:Eq+Hash> (self:&mut Self, ArtId, T) -> Art<T> ;
 
     fn thunk<Arg:Eq+Hash,T:Eq+Hash>
@@ -25,7 +27,6 @@ pub trait Adapton {
 pub enum Lineage {
     Unknown,
     Root,
-    Taken,
     Pair(Arc<Lineage>,Arc<Lineage>),
     ForkL(Arc<Lineage>),
     ForkR(Arc<Lineage>),
@@ -35,15 +36,16 @@ pub enum Lineage {
 }
 
 #[derive(Hash,Show,PartialEq,Eq)]
-pub struct Name {
-    hash : u64,
-    lineage : Arc<Lineage>,
+pub enum Path {
+    Empty,
+    Child(Arc<Path>,Name),
 }
 
 #[derive(Hash,Show,PartialEq,Eq)]
-pub enum Art<T> {
-    Hash(u64),
-    Box(Box<T>),
+pub struct Name {
+    hash : u64,
+    lineage : Arc<Lineage>,
+    path : Arc<Path>,
 }
 
 #[derive(Hash,Show,PartialEq,Eq)]
@@ -53,43 +55,59 @@ pub enum ArtId {
     Nominal(Name),
 }
 
+#[derive(Hash,Show,PartialEq,Eq)]
+pub enum Art<T> {
+    Hash(u64),
+    Box(Box<T>),
+}
+
 pub struct AdaptonState {
     memo_table : HashMap<ArtId, *mut ()>, // memo table
-    curr_nmspc : Name, // current_namespace
-    curr_artnm : Name, // current articulation point
+    curr_path : Arc<Path>, // current_namespace
+    curr_name : Arc<Name>, // current articulation point
 }
 
 impl Adapton for AdaptonState {
     fn new () -> AdaptonState {
-        let root = Arc::new(Lineage::Root);
-        let root1 = Name{hash:0, lineage:root.clone()};
-        let root2 = Name{hash:0, lineage:root};
+        let empty = Arc::new(Path::Empty);
+        let root = Arc::new(Name{hash:0, lineage:Arc::new(Lineage::Root), path:empty.clone()});
         AdaptonState {
             memo_table : HashMap::new (),
-            curr_nmspc : root1,
-            curr_artnm : root2,
+            curr_path : empty,
+            curr_name : root,
         }
     }
     fn name_of_string (self:&mut AdaptonState, sym:String) -> Name {
         let h = hash::<_>(&sym) ;
         let s = Lineage::String(sym) ;
-        Name{ hash:h, lineage:Arc::new(s) }
+        Name{ hash:h, lineage:Arc::new(s), path:self.curr_path.clone() }
     }
     fn name_of_u64 (self:&mut AdaptonState, sym:u64) -> Name {
         let h = hash::<_>(&sym) ;
         let s = Lineage::U64(sym) ;
-        Name{ hash:h, lineage:Arc::new(s) }
+        Name{ hash:h, lineage:Arc::new(s), path:self.curr_path.clone() }
     }
     fn name_pair (self: &AdaptonState, fst: Name, snd: Name) -> Name {
         let h = hash::<_>( &(&fst,&snd) ) ;
         let p = Lineage::Pair(fst.lineage, snd.lineage) ;
-        Name{ hash:h, lineage:Arc::new(p) }
+        Name{ hash:h, lineage:Arc::new(p), path:self.curr_path.clone() }
     }
     fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
         let h1 = hash::<_>( &(&nm, 1) ) ;
         let h2 = hash::<_>( &(&nm, 2) );
-        ( Name{ hash:h1, lineage:Arc::new(Lineage::ForkL(nm.lineage.clone())) } ,
-          Name{ hash:h2, lineage:Arc::new(Lineage::ForkR(nm.lineage)) } )
+        ( Name{ hash:h1,
+                lineage:Arc::new(Lineage::ForkL(nm.lineage.clone())),
+                path:self.curr_path.clone() } ,
+          Name{ hash:h2,
+                lineage:Arc::new(Lineage::ForkR(nm.lineage)),
+                path:self.curr_path.clone() } )
+    }
+    fn child<T> (self: &mut Self, nm:Name, body:Box<Invoke<(),T>+'static>) -> T {
+        let path_body = Arc::new(Path::Child(self.curr_path.clone(), nm)) ;
+        let path_pre = replace(&mut self.curr_path, path_body ) ;
+        let x = body.invoke(()) ;
+        let path_body = replace(&mut self.curr_path, path_pre) ;
+        drop(path_body); x
     }
     fn cell<T:Eq+Hash> (self:&mut AdaptonState, id:ArtId, x:T) -> Art<T> {
         panic!("")
