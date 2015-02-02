@@ -16,8 +16,8 @@ pub trait Adapton {
     fn name_pair (self: &Self, Name, Name) -> Name ;
     fn name_fork (self:&mut Self, Name) -> (Name, Name) ;
     
-    fn ns<T> (self: &mut Self, Name,
-                 body:Box<Invoke<&mut Self, T> + 'static>) -> T ;
+    fn ns<T,F> (self: &mut Self, Name,
+                 body:F) -> T where F:FnOnce(&mut Self) -> T;
 
     fn put<T:Eq> (self:&mut Self, T) -> Art<T> ;
 
@@ -154,13 +154,12 @@ impl Adapton for AdaptonState {
                 lineage:Arc::new(Lineage::ForkR(nm.lineage)),
                 path:self.curr_path.clone() } )
     }
-    fn ns<T> (self: &mut Self, nm:Name, body:Box<Invoke<&mut Self,T>+'static>) -> T {
+    fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
         let path_body = Arc::new(Path::Child(self.curr_path.clone(), nm)) ;
         let path_pre = replace(&mut self.curr_path, path_body ) ;
-        let x = body.invoke(self) ;
-        // TODO: Overcome borrow-checker error here: XXX
-        //let path_body = replace(&mut self.curr_path, path_pre) ;
-        //drop(path_body);
+        let x = body(self) ;
+        let path_body = replace(&mut self.curr_path, path_pre) ;
+        drop(path_body);
         x
     }
     fn put<T:Eq> (self:&mut AdaptonState, x:T) -> Art<T> {
