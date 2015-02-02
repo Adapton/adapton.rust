@@ -98,6 +98,7 @@ struct PureNode<T> {
 #[derive(Show)]
 struct MutNode<T> {
     loc : Rc<Loc>,
+    creators  : Vec<DemPrec>,
     dem_precs : Vec<DemPrec>,
     val : T,
 }
@@ -105,6 +106,7 @@ struct MutNode<T> {
 #[derive(Show)]
 struct ComputeNode<T> {
     loc : Rc<Loc>,
+    creators  : Vec<DemPrec>,
     dem_precs : Vec<DemPrec>,
     dem_succs : Vec<DemSucc>,
     val  : Option<T>,
@@ -128,6 +130,7 @@ pub struct AdaptonState {
 }
 
 impl Adapton for AdaptonState {
+
     fn new () -> AdaptonState {
         let empty = Rc::new(Path::Empty);
         let root = Rc::new(Name{hash:0, lineage:Rc::new(Lineage::Root) });
@@ -137,21 +140,25 @@ impl Adapton for AdaptonState {
             curr_name : root,
         }
     }
+
     fn name_of_string (self:&mut AdaptonState, sym:String) -> Name {
         let h = hash::<_>(&sym) ;
         let s = Lineage::String(sym) ;
         Name{ hash:h, lineage:Rc::new(s) }
     }
+
     fn name_of_u64 (self:&mut AdaptonState, sym:u64) -> Name {
         let h = hash::<_>(&sym) ;
         let s = Lineage::U64(sym) ;
         Name{ hash:h, lineage:Rc::new(s) }
     }
+
     fn name_pair (self: &AdaptonState, fst: Name, snd: Name) -> Name {
         let h = hash::<_>( &(fst.hash,snd.hash) ) ;
         let p = Lineage::Pair(fst.lineage, snd.lineage) ;
         Name{ hash:h, lineage:Rc::new(p) }
     }
+
     fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
         let h1 = hash::<_>( &(&nm, 11111111) ) ; // TODO: make this hashing better.
         let h2 = hash::<_>( &(&nm, 22222222) ) ;
@@ -160,6 +167,7 @@ impl Adapton for AdaptonState {
           Name{ hash:h2,
                 lineage:Rc::new(Lineage::ForkR(nm.lineage)) } )
     }
+
     fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
         let path_body = Rc::new(Path::Child(self.curr_path.clone(), nm)) ;
         let path_pre = replace(&mut self.curr_path, path_body ) ;
@@ -168,27 +176,39 @@ impl Adapton for AdaptonState {
         drop(path_body);
         x
     }
+
     fn put<T:Eq> (self:&mut AdaptonState, x:T) -> Art<T> {
         Art::Box(box x)
     }
-    fn cell<T:Eq+Clone+Show> (self:&mut AdaptonState, id:ArtId, x:T) -> MutArt<T> {
-        match id {
+
+    fn cell<T:Eq+Clone+Show> (self:&mut AdaptonState, id:ArtId, val:T) -> MutArt<T> {
+        let loc = match id {
             ArtId::None => panic!(""),
             ArtId::Structural(hash) => {
-                let loc = Loc{hash:hash,
-                              name:Rc::new(Name{hash:hash,
-                                                lineage:Rc::new(Lineage::Structural)}),
-                              path:self.curr_path.clone()} ;
-                MutArt::MutArt(Art::Loc(Rc::new(loc)))
+                Rc::new(Loc{
+                    hash:hash,
+                    name:Rc::new(Name{hash:hash,
+                                      lineage:Rc::new(Lineage::Structural)}),
+                    path:self.curr_path.clone()
+                })
             }
             ArtId::Nominal(nm) => {
-                let loc = Loc{hash:nm.hash,
-                              name:Rc::new(nm),
-                              path:self.curr_path.clone()} ;
-                MutArt::MutArt(Art::Loc(Rc::new(loc)))
-            }
-        }
+                Rc::new(Loc{
+                    hash:nm.hash,
+                    name:Rc::new(nm),
+                    path:self.curr_path.clone() })
+            }} ;
+        let mut node = Node::Mut(MutNode{
+            loc:loc.clone(),
+            dem_precs:Vec::new(),
+            creators:Vec::new(),
+            val:val                    
+        }) ;
+        let ptr = unsafe { std::mem::transmute::<*mut Node<T>,*mut ()>(&mut node) } ;
+        self.memo_table.insert(loc.clone(), ptr) ;
+        MutArt::MutArt(Art::Loc(loc))        
     }
+    
     fn set<T:Eq+Clone+Show> (self:&mut Self, cell:MutArt<T>, val:T) {
         match cell {
             MutArt::MutArt(Art::Box(b)) => {
@@ -217,12 +237,14 @@ impl Adapton for AdaptonState {
             }
         }
     }
+    
     fn thunk<Arg:Eq+Hash+Clone+Show,T:Eq+Clone+Show>
         (self:&mut AdaptonState,
          id:ArtId, fn_body:Box<Invoke<Arg,T>+'static>, arg:Arg) -> Art<T>
     {
         panic!("")
-    }        
+    }
+    
     fn force<T:Eq+Clone+Show> (self:&mut AdaptonState, art:Art<T>) -> T {
         match art {
             Art::Box(b) => *b,
@@ -251,6 +273,7 @@ impl Adapton for AdaptonState {
             }
         }
     }
+    
 }
 
 pub fn main () {
