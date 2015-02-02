@@ -64,9 +64,11 @@ Rust Q&A
 ---------
 
   - When are explicit lifetime paremters needed on:
-    - type delcarations
-    - enum/struct declarations
-    - function paramters/results
+    - Q: type delcarations.
+      A: When they use traits instead of concrete types (?).
+
+    - Q: function paramters/results.
+      A: When they use traits instead of concrete types (??).
  
   - <del> Can I implement data structures with sharing? </del>
      - See `examples/exp.rs` for a baby version of a small-step interpreter.
