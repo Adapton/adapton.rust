@@ -66,15 +66,15 @@ pub struct Loc {
 
 #[derive(Hash,Show,PartialEq,Eq)]
 pub enum ArtId {
-    None,
-    Structural(u64),
-    Nominal(Name),
+    None,            // Identifies an Art::Box.
+    Structural(u64), // Identifies an Art::Loc.
+    Nominal(Name),   // Identifies an Art::Loc.
 }
 
 #[derive(Hash,Show,PartialEq,Eq)]
 pub enum Art<T> {
-    Box(Box<T>),
-    Loc(Rc<Loc>),
+    Box(Box<T>),  // No entry in table.
+    Loc(Rc<Loc>), // Location in table.
 }
 
 #[derive(Hash,Show,PartialEq,Eq)]
@@ -123,10 +123,14 @@ struct DemSucc {
     dirty : bool
 }
 
+pub struct Frame {
+    path : Rc<Path>,
+    name : Rc<Name>,
+}
+
 pub struct AdaptonState {
-    memo_table : HashMap<Rc<Loc>, *mut ()>, // memo table
-    curr_path : Rc<Path>, // current_namespace
-    curr_name : Rc<Name>, // current articulation point
+    table : HashMap<Rc<Loc>, *mut ()>,
+    stack : Vec<Frame>,
 }
 
 impl Adapton for AdaptonState {
@@ -134,10 +138,11 @@ impl Adapton for AdaptonState {
     fn new () -> AdaptonState {
         let empty = Rc::new(Path::Empty);
         let root = Rc::new(Name{hash:0, lineage:Rc::new(Lineage::Root) });
+        let mut stack = Vec::new();
+        stack.push( Frame{path:empty, name:root} ) ;
         AdaptonState {
-            memo_table : HashMap::new (),
-            curr_path : empty,
-            curr_name : root,
+            table : HashMap::new (),
+            stack : stack,
         }
     }
 
@@ -169,10 +174,10 @@ impl Adapton for AdaptonState {
     }
 
     fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
-        let path_body = Rc::new(Path::Child(self.curr_path.clone(), nm)) ;
-        let path_pre = replace(&mut self.curr_path, path_body ) ;
+        let path_body = Rc::new(Path::Child(self.stack[0].path.clone(), nm)) ;
+        let path_pre = replace(&mut self.stack[0].path, path_body ) ;
         let x = body(self) ;
-        let path_body = replace(&mut self.curr_path, path_pre) ;
+        let path_body = replace(&mut self.stack[0].path, path_pre) ;
         drop(path_body);
         x
     }
@@ -189,14 +194,14 @@ impl Adapton for AdaptonState {
                     hash:hash,
                     name:Rc::new(Name{hash:hash,
                                       lineage:Rc::new(Lineage::Structural)}),
-                    path:self.curr_path.clone()
+                    path:self.stack[0].path.clone()
                 })
             }
             ArtId::Nominal(nm) => {
                 Rc::new(Loc{
                     hash:nm.hash,
                     name:Rc::new(nm),
-                    path:self.curr_path.clone() })
+                    path:self.stack[0].path.clone() })
             }} ;
         let mut node = Node::Mut(MutNode{
             loc:loc.clone(),
@@ -205,7 +210,7 @@ impl Adapton for AdaptonState {
             val:val                    
         }) ;
         let ptr = unsafe { std::mem::transmute::<*mut Node<T>,*mut ()>(&mut node) } ;
-        self.memo_table.insert(loc.clone(), ptr) ;
+        self.table.insert(loc.clone(), ptr) ;
         MutArt::MutArt(Art::Loc(loc))        
     }
     
@@ -215,7 +220,7 @@ impl Adapton for AdaptonState {
                 panic!("cannot set pure value");
             }
             MutArt::MutArt(Art::Loc(loc)) => {
-                let node = self.memo_table.get(&loc) ;
+                let node = self.table.get(&loc) ;
                 match node {
                     None => panic!("dangling pointer: {}", loc),
                     Some(ptr) => {
@@ -249,7 +254,7 @@ impl Adapton for AdaptonState {
         match art {
             Art::Box(b) => *b,
             Art::Loc(loc) => {
-                let node = self.memo_table.get(&loc) ;
+                let node = self.table.get(&loc) ;
                 match node {
                     None => panic!("dangling pointer: {}", loc),
                     Some(ptr) => {
@@ -265,7 +270,11 @@ impl Adapton for AdaptonState {
                                 nd.val.clone()
                             }
                             Node::Compute(ref mut nd) => {
-                                panic!("TODO")
+                                self.stack.push ( Frame{name:loc.name.clone(),
+                                                        path:loc.path.clone() } );
+                                panic!("TODO");
+                                let frame = self.stack.pop();
+                                drop(frame);
                             }
                         }
                     }
