@@ -1,5 +1,4 @@
-use std::hash;
-use std::hash::Hash;
+use std::hash::{hash,Hash,SipHasher};
 use std::int::MAX;
 use std::num::Int;
 use std::result::Result;
@@ -41,7 +40,7 @@ trait FpFn {
     /// state" (type `St`).  It builds a binary tree of stepped states
     /// (type `St_stepped`).
 
-    type St : Hash ;
+    type St : Hash<SipHasher> ;
     type St_stepped ;
     type Sys ;
     fn step (self:& Self, st:Self::St, sys:Self::Sys) -> (Self::St_stepped, Self::Sys) ;
@@ -61,22 +60,22 @@ trait FpLp<F:FpFn, BT:BinTree<F::St_stepped>> {
     // It can either be a simple wrapper around work_tree, or
     // something that uses memoization.
     fn work_recur (self:&Self, f:&F, bt:&BT,
-                  left:BT::Tree, left_lev:int,
-                  sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree) ;
+                  left:BT::Tree, left_lev:isize,
+                  sys:F::Sys, parent_lev:isize) -> (F::Sys, BT::Tree) ;
 
     // Our fixed-point loop.  It uses a hashing and probabilistic
     // reasoning to build a balanced binary tree of stepped states.
     //
     // Key assumption: Each state (of type `F::St`) has a distinct hash.
     fn work_tree (self:&Self, f:&F, bt:&BT,
-                  left:BT::Tree, left_lev:int,
-                  sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree)
+                  left:BT::Tree, left_lev:isize,
+                  sys:F::Sys, parent_lev:isize) -> (F::Sys, BT::Tree)
     {
         let nxt = f.next(sys) ;
         match nxt {
             Err(sys) => (sys, left),
             Ok((st,sys)) => {
-                let st_lev = Int::trailing_zeros(hash::hash(&st)) as int ;
+                let st_lev = Int::trailing_zeros(hash::<_,SipHasher>(&st)) as isize ;
                 if left_lev <= st_lev &&
                     st_lev  <= parent_lev
                 {
@@ -100,8 +99,8 @@ trait FpLp<F:FpFn, BT:BinTree<F::St_stepped>> {
 struct FpDirect ;
 impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for FpDirect {
     fn work_recur (self:&Self, f:&F, bt:&BT,
-                   left:BT::Tree, left_lev:int,
-                   sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree) {
+                   left:BT::Tree, left_lev:isize,
+                   sys:F::Sys, parent_lev:isize) -> (F::Sys, BT::Tree) {
         self.work_tree (f, bt, left, left_lev, sys, parent_lev )
     }
 }
@@ -109,8 +108,8 @@ impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for FpDirect {
 struct FpArt ;
 impl<F:FpFn, BT:BinTree<F::St_stepped>> FpLp<F,BT> for FpArt {
     fn work_recur (self:&Self, f:&F, bt:&BT,
-                   left:BT::Tree, left_lev:int,
-                   sys:F::Sys, parent_lev:int) -> (F::Sys, BT::Tree) {
+                   left:BT::Tree, left_lev:isize,
+                   sys:F::Sys, parent_lev:isize) -> (F::Sys, BT::Tree) {
         let n = panic!("");
         let a = nart!(n, self.work_tree (f, bt, left, left_lev, sys, parent_lev));
         force( a )
