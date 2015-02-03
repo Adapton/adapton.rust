@@ -1,5 +1,7 @@
-use std::fmt::Show;
-use std::hash::{hash,Hash};
+#![feature(box_syntax)]
+
+use std::fmt::Debug;
+use std::hash::{hash,Hash,SipHasher};
 use std::collections::HashMap;
 use std::thunk::Invoke;
 use std::mem::replace;
@@ -21,20 +23,20 @@ pub trait Adapton {
     fn ns<T,F> (self: &mut Self, Name, body:F) -> T
         where F:FnOnce(&mut Self) -> T ;
 
-    fn put<T:Eq+Clone+Show> (self:&mut Self, T) -> Art<T> ;
+    fn put<T:Eq+Clone+Debug> (self:&mut Self, T) -> Art<T> ;
 
     // Mutable cells
-    fn cell<T:Eq+Clone+Show> (self:&mut Self, ArtId, T) -> MutArt<T> ;
-    fn set<T:Eq+Clone+Show> (self:&mut Self, MutArt<T>, T) ;
+    fn cell<T:Eq+Clone+Debug> (self:&mut Self, ArtId, T) -> MutArt<T> ;
+    fn set<T:Eq+Clone+Debug> (self:&mut Self, MutArt<T>, T) ;
 
-    fn thunk<Arg:Eq+Hash+Clone+Show,T:Eq+Clone+Show>
+    fn thunk<Arg:Eq+Hash<SipHasher>+Clone+Debug,T:Eq+Clone+Debug>
         (self:&mut Self, id:ArtId,
          fn_body:Box<Invoke<(&mut Self, Arg), T> + 'static>, arg:Arg) -> Art<T> ;
 
-    fn force<T:Eq+Clone+Show> (self:&mut Self, Art<T>) -> T ;
+    fn force<T:Eq+Clone+Debug> (self:&mut Self, Art<T>) -> T ;
 }
 
-#[derive(Hash,Show,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq)]
 pub enum Lineage {
     Unknown, Structural,
     Root,
@@ -46,57 +48,57 @@ pub enum Lineage {
     Rc(Rc<Lineage>),
 }
 
-#[derive(Hash,Show,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq)]
 pub enum Path {
     Empty,
     Child(Rc<Path>,Name),
 }
 
-#[derive(Hash,Show,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq)]
 pub struct Name {
     hash : u64,
     lineage : Rc<Lineage>,
 }
 
-#[derive(Hash,Show,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq)]
 pub struct Loc {
     hash : u64,
     name : Rc<Name>,
     path : Rc<Path>
 }
 
-#[derive(Hash,Show,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq)]
 pub enum ArtId {
     None,            // Identifies an Art::Box. No dependency tracking.
     Structural(u64), // Identifies an Art::Loc.
     Nominal(Name),   // Identifies an Art::Loc.
 }
 
-#[derive(Hash,Show,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq)]
 pub enum Art<T> {
     Box(Box<T>),  // No entry in table. No dependency tracking.
     Loc(Rc<Loc>), // Location in table.
 }
 
-#[derive(Hash,Show,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq)]
 pub enum MutArt<T> {
     MutArt(Art<T>)
 }
 
-#[derive(Show)]
-enum Node<Res,Comp:Computer<Res>> {
+#[derive(Debug)]
+enum Node<Res> {
     Pure(PureNode<Res>),
     Mut(MutNode<Res>),
-    Compute(ComputeNode<Res,Comp>),
+    Compute(Box<Computer<Res>>),
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 struct PureNode<T> {
     loc : Rc<Loc>,
     val : T,
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 struct MutNode<T> {
     loc : Rc<Loc>,
     creators  : Vec<DemPrec>,
@@ -104,14 +106,14 @@ struct MutNode<T> {
     val : T,
 }
 
-
-trait Computer<Res> {
-    type Arg;
-    fn compute(self:&Self, st:&mut AdaptonState, arg:Self::Arg) -> Res;
-    //fn size_hint(&self) -> (usize, Option<usize>) { ... }
+trait Clos where Self::Comp : Computer<Self::Res> {
+    type Res;
+    type Comp;
+    fn get_node<'x>(self:&'x mut Self) ->
+        &'x mut ComputeNode<Self::Res,Self::Comp> ;
 }
 
-//#[derive(Show)]
+//#[derive(Debug)]
 struct ComputeNode<Res,Comp:Computer<Res>> {
     loc : Rc<Loc>,
     creators  : Vec<DemPrec>,
@@ -120,21 +122,27 @@ struct ComputeNode<Res,Comp:Computer<Res>> {
     arg : Comp::Arg,
     res : Option<Res>,
     //body : Box<Invoke<(&'static mut A, Arg),Res> + 'static>,
-    comp : Comp,
+    comp : Box<Comp>,
 }
 
-impl<Res,Comp:Computer<Res>> fmt::Show for ComputeNode<Res,Comp> {
+trait Computer<Res> {
+    type Arg;
+    fn compute(self:&Self, st:&mut AdaptonState, arg:Self::Arg) -> Res;
+    //fn size_hint(&self) -> (usize, Option<usize>) { ... }
+}
+
+impl<Res,Comp:Computer<Res>> fmt::Debug for ComputeNode<Res,Comp> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(ComputeNode)")
     }
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 struct DemPrec {
     loc : Rc<Loc>,
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 struct DemSucc {
     loc : Rc<Loc>,
     dirty : bool
@@ -151,7 +159,7 @@ pub struct AdaptonState {
     stack : Vec<Frame>,
 }
 
-impl fmt::Show for AdaptonState {
+impl fmt::Debug for AdaptonState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(AdaptonState)")
     }
@@ -160,7 +168,7 @@ impl fmt::Show for AdaptonState {
 fn node<'x,Res,Comp:Computer<Res>> (st: &'x mut AdaptonState, loc:&Rc<Loc>) -> &'x mut Node<Res,Comp> {
     let node = st.table.get(loc) ;
     match node {
-        None => panic!("dangling pointer: {}", loc),
+        None => panic!("dangling pointer"),
         Some(ptr) => {
             let ptr = unsafe {
                 std::mem::transmute::<
@@ -213,26 +221,26 @@ impl Adapton for AdaptonState {
     }
 
     fn name_of_string (self:&mut AdaptonState, sym:String) -> Name {
-        let h = hash::<_>(&sym) ;
+        let h = hash::<_,SipHasher>(&sym) ;
         let s = Lineage::String(sym) ;
         Name{ hash:h, lineage:Rc::new(s) }
     }
 
     fn name_of_u64 (self:&mut AdaptonState, sym:u64) -> Name {
-        let h = hash::<_>(&sym) ;
+        let h = hash::<_,SipHasher>(&sym) ;
         let s = Lineage::U64(sym) ;
         Name{ hash:h, lineage:Rc::new(s) }
     }
 
     fn name_pair (self: &AdaptonState, fst: Name, snd: Name) -> Name {
-        let h = hash::<_>( &(fst.hash,snd.hash) ) ;
+        let h = hash::<_,SipHasher>( &(fst.hash,snd.hash) ) ;
         let p = Lineage::Pair(fst.lineage, snd.lineage) ;
         Name{ hash:h, lineage:Rc::new(p) }
     }
 
     fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
-        let h1 = hash::<_>( &(&nm, 11111111) ) ; // TODO: make this hashing better.
-        let h2 = hash::<_>( &(&nm, 22222222) ) ;
+        let h1 = hash::<_,SipHasher>( &(&nm, 11111111) ) ; // TODO: make this hashing better.
+        let h2 = hash::<_,SipHasher>( &(&nm, 22222222) ) ;
         ( Name{ hash:h1,
                 lineage:Rc::new(Lineage::ForkL(nm.lineage.clone())) } ,
           Name{ hash:h2,
@@ -249,10 +257,10 @@ impl Adapton for AdaptonState {
     }
 
     fn put<T:Eq> (self:&mut AdaptonState, x:T) -> Art<T> {
-        Art::Box(box x)
+        Art::Box(Box::new(x))
     }
 
-    fn cell<T:Eq+Clone+Show,Comp:Computer<T>> (self:&mut AdaptonState, id:ArtId, val:T) -> MutArt<T> {
+    fn cell<T:Eq+Clone+Debug> (self:&mut AdaptonState, id:ArtId, val:T) -> MutArt<T> {
         let loc = match id {
             ArtId::None => panic!("a cell requires a unique identity"),
             ArtId::Structural(hash) => {
@@ -275,10 +283,11 @@ impl Adapton for AdaptonState {
             creators:Vec::new(),
             val:val
         }) ;
-        let ptr = unsafe { std::mem::transmute::<
-                           *mut Node<T,Comp>,
-                           *mut ()
-                           >(&mut node) } ;
+        let ptr = panic!("") ;
+            // unsafe { std::mem::transmute::<
+            // *mut Node<T,Comp>,
+            // *mut ()
+            // >(&mut node) } ;
         // TODO: Check to see if the cell exists;
         // check if its content has changed.
         // dirty its precs if so.
@@ -286,7 +295,7 @@ impl Adapton for AdaptonState {
         MutArt::MutArt(Art::Loc(loc))
     }
 
-    fn set<T:Eq+Clone+Show> (self:&mut Self, cell:MutArt<T>, val:T) {
+    fn set<T:Eq+Clone+Debug> (self:&mut Self, cell:MutArt<T>, val:T) {
         match cell {
             MutArt::MutArt(Art::Box(b)) => {
                 panic!("cannot set pure value");
@@ -294,7 +303,7 @@ impl Adapton for AdaptonState {
             MutArt::MutArt(Art::Loc(loc)) => {
                 let node = self.table.get(&loc) ;
                 match node {
-                    None => panic!("dangling pointer: {}", loc),
+                    None => panic!("dangling pointer"),
                     Some(ptr) => {
                         let node : &mut MutNode<T> = unsafe {
                             let node = std::mem::transmute::<
@@ -302,7 +311,7 @@ impl Adapton for AdaptonState {
                                 >(*ptr) ;
                             match *node {
                                 Node::Mut(ref mut nd) => nd,
-                                ref nd => panic!("impossible: {}", nd)
+                                ref nd => panic!("impossible")
                             }} ;
                         if (node.val == val) {
                             // Nothing.
@@ -317,13 +326,13 @@ impl Adapton for AdaptonState {
         }
     }
 
-    fn thunk<Arg:Eq+Hash+Clone+Show,T:Eq+Clone+Show>
+    fn thunk<Arg:Eq+Hash<SipHasher>+Clone+Debug,T:Eq+Clone+Debug>
         (self:&mut AdaptonState,
          id:ArtId, fn_body:Box<Invoke<(&mut Self, Arg),T>+'static>, arg:Arg) -> Art<T>
     {
         match id {
             ArtId::None => {
-                Art::Box(box fn_body.invoke((self,arg)))
+                Art::Box(Box::new(fn_body.invoke((self,arg))))
             },
             ArtId::Structural(hash) => {
                 panic!("")
@@ -334,13 +343,13 @@ impl Adapton for AdaptonState {
         }
     }
 
-    fn force<T:Eq+Clone+Show> (self:&mut AdaptonState, art:Art<T>) -> T {
+    fn force<T:Eq+Clone+Debug> (self:&mut AdaptonState, art:Art<T>) -> T {
         match art {
             Art::Box(b) => *b,
             Art::Loc(loc) => {
                 let node = self.table.get(&loc) ;
                 match node {
-                    None => panic!("dangling pointer: {}", loc),
+                    None => panic!("dangling pointer"),
                     Some(ptr) => {
                         let node : &mut Node<T,Computer<T>> = unsafe {
                             let node = std::mem::transmute::<*mut (), *mut Node<T,Computer<T>>>(*ptr) ;
