@@ -1,10 +1,9 @@
 use name::*;
 use art::*;
-use std::hash;
-use std::hash::Hash;
+use std::hash::{hash,Hash,SipHasher};
 
-/// Nominal, artful lists: Lists with names and articulation points
-#[derive(Show,Hash,PartialEq,Eq)]
+/// Nominal, artful lists: Lists with names and articulation point
+#[derive(Debug,Hash,PartialEq,Eq)]
 pub enum List<'x,T> {
     Nil,
     Cons(T, Box<List<'x,T>>),
@@ -16,12 +15,12 @@ pub enum List<'x,T> {
 pub fn copy<'x,T:'x>(list:List<'x,T>) -> List<'x,T> {
     match list {
         List::Nil         => List::Nil,
-        List::Cons(hd,tl) => List::Cons(hd, box copy(*tl)),
+        List::Cons(hd,tl) => List::Cons(hd, Box::new(copy(*tl))),
         List::Art(art)    => copy(*force(art)),
         List::Name(nm,tl) => {
             let (nm1,nm2) = fork(nm) ;
-            let art = nart!(nm1, box copy(*tl)) ;
-            List::Name(nm2, box List::Art(art))
+            let art = nart!(nm1, Box::new(copy(*tl))) ;
+            List::Name(nm2, Box::new(List::Art(art)))
         }
     }
 }
@@ -31,13 +30,13 @@ pub fn map<'x, T:'x, S:'x>
 {
     match list {
         List::Nil         => List::Nil,
-        List::Cons(hd,tl) => List::Cons((*f).call(hd), box map(f,*tl)),
+        List::Cons(hd,tl) => List::Cons((*f).call((hd,)), Box::new(map(f,*tl))),
         // - - - - - boilerplate cases - - - - - -
         List::Art(art)    => map(f,*force(art)),
         List::Name(nm,tl) => {
             let (nm1,nm2) = fork(nm) ;
-            let art = nart!(nm1, box map(f,*tl));
-            List::Name(nm2, box List::Art(art))
+            let art = nart!(nm1, Box::new(map(f,*tl)));
+            List::Name(nm2, Box::new(List::Art(art)))
         }
     }
 }
@@ -51,19 +50,19 @@ where F:Fn(&T,&T) -> bool + 'x,
         List::Nil => List::Nil,
         List::Cons(hd1, box list) => {
             match list {
-                List::Nil => List::Cons(hd1, box List::Nil),
+                List::Nil => List::Cons(hd1, Box::new(List::Nil)),
                 List::Cons(hd2, tl) => {
                     if (*f)(&hd1,&hd2) {
-                        List::Cons((*g)(hd1,hd2), box contract(f,g,*tl))
+                        List::Cons((*g)(hd1,hd2), Box::new(contract(f,g,*tl)))
                     } else {
-                        List::Cons(hd1, box contract(f, g, List::Cons(hd2, tl)))
+                        List::Cons(hd1, Box::new(contract(f, g, List::Cons(hd2, tl))))
                     } },
                 // - - - - - boilerplate cases - - - - - -
                 List::Art(art) => contract(f,g,List::Cons(hd1,force(art))),
                 List::Name(nm, tl) => {
                     let (nm1,nm2) = fork(nm) ;
-                    let art = nart!(nm1, box contract(f,g,List::Cons(hd1,tl))) ;
-                    List::Name(nm2, box List::Art(art))
+                    let art = nart!(nm1, Box::new(contract(f,g,List::Cons(hd1,tl)))) ;
+                    List::Name(nm2, Box::new(List::Art(art)))
                 }
             }
         },
@@ -71,8 +70,8 @@ where F:Fn(&T,&T) -> bool + 'x,
         List::Art(art)    => contract(f,g,*force(art)),
         List::Name(nm,tl) => {
             let (nm1,nm2) = fork(nm) ;
-            let art = nart!(nm1, box contract(f,g,*tl)) ;
-            List::Name(nm2, box List::Art(art))
+            let art = nart!(nm1, Box::new(contract(f,g,*tl))) ;
+            List::Name(nm2, Box::new(List::Art(art)))
         },
     }
 }
@@ -168,10 +167,10 @@ pub fn singletons<'x,T:'x>
 
 pub fn mergesort<'x,T:'x,Ord:'x>
 (ord:&'x Ord, list:List<'x,T>) -> List<'x,T>
-where Ord: Fn(&T,&T) -> bool, T:Hash
+where Ord: Fn(&T,&T) -> bool, T:Hash<SipHasher>
 {
     let c = move |&: list1:&List<'x,T>,list2:&List<'x,T>|
-    hash::hash(list1) < hash::hash(list2);
+    hash::<_,SipHasher>(list1) < hash::<_,SipHasher>(list2);
 
     let m = move |&: list1:List<'x,T>,list2:List<'x,T>|
     merge(ord,None,list1,None,list2);
@@ -184,10 +183,10 @@ where Ord: Fn(&T,&T) -> bool, T:Hash
 
 #[test]
 pub fn construct_list () {
-    let z : List<int> = List::Nil;
-    let y : List<int> = List::Cons(1, box z);
-    let x : List<int> = List::Art(cell(symbol(format!("two")), box y));
-    let l : List<int> = List::Name(symbol(format!("one")), box x);
+    let z : List<isize> = List::Nil;
+    let y : List<isize> = List::Cons(1, box z);
+    let x : List<isize> = List::Art(cell(symbol(format!("two")), box y));
+    let l : List<isize> = List::Name(symbol(format!("one")), box x);
     println!("constructed list: {}", l);
 }
 
@@ -199,16 +198,16 @@ pub struct ListItems<'x, T: 'x> {
     list: &'x List<'x,T>
 }
 
-impl<'x,T> List<'x,T> {
-    type Item = &'x T ;
-    /// Get an iterator over the items in a list.
-    pub fn iter(&'x self) -> ListItems<'x, T> {
-        ListItems {
-            list: self
-        }
-    }
+// impl<'x,T> List<'x,T> {
+//     type Item = &'x T ;
+//     /// Get an iterator over the items in a list.
+//     pub fn iter(&'x self) -> ListItems<'x, T> {
+//         ListItems {
+//             list: self
+//         }
+//     }
 
-}
+// }
 
 // impl<'x, T:'x> Iterator for ListItems<'x, T> {
 //     type Item = &'x T ;

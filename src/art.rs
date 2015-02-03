@@ -5,7 +5,7 @@ use std::thunk::Invoke;
 use name::*;
 // pub use lazy::single::Thunk;
 
-pub type UAr<'x,S,T> = Box<Fn<S,T> + 'x>;
+pub type UAr<'x,S,T> = Box<Fn(S)->T + 'x>;
 // arrow-typed value (in CBPV speak),
 // with explicit lifetime 'x, input tuple S, and return value of type T.
 //
@@ -15,7 +15,7 @@ pub type UAr<'x,S,T> = Box<Fn<S,T> + 'x>;
 //   box () (move |&: args:S |{ $body }))
 
 
-pub type UF<'x,T> = Box<Invoke<(),T> + 'x>;
+// pub type UF<'x,T> = Box<Invoke<(),T> + 'x>;
 // value-producing value (in CBPV speak).
 // with explicit lifetime 'x and return value of type T.
 //
@@ -29,17 +29,17 @@ pub type UF<'x,T> = Box<Invoke<(),T> + 'x>;
 struct ArtThunk<'x,T> {
     // TODO: Memo table identity, for comparing thunks with same names
     // TODO: Access to args, for equality check, hashing
-    thunk : UF<'x,T>,
+    // thunk : UF<'x,T>,
     value : Option<T>
 }
 
-impl<'x,T> fmt::Show for ArtThunk<'x,T> {
+impl<'x,T> fmt::Debug for ArtThunk<'x,T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(ArtThunk)")
     }
 }
 
-#[derive(Show,Clone)]
+#[derive(Debug,Clone)]
 struct ArtCon<'x,T> {
     name : Name,
 }
@@ -57,7 +57,7 @@ impl<'x,T> Eq for ArtCon<'x,T> {
     fn assert_receiver_is_total_eq(&self) {  }
 }
 
-impl<'x,S: hash::Writer, T> hash::Hash<S> for ArtCon<'x,T> {
+impl<'x,S: hash::Hasher+hash::Writer, T> hash::Hash<S> for ArtCon<'x,T> {
     fn hash(&self, state: &mut S) {
         self.name.hash( state )
     }
@@ -72,7 +72,7 @@ pub fn cell<'x,T:'x> (n:Name, x:T) -> Art<'x,T> {
 }
 
 // Create a named thunk
-pub fn nart<'x,T:'x> (n:Name, body:Box<Invoke()->T+'x>) -> Art<'x,T> {
+pub fn nart<'x,T:'x> (n:Name, body:Box<Invoke<(),T>+'x>) -> Art<'x,T> {
     //! TODO: Cache the art based on the name n
     ArtCon { name  : n }
 }

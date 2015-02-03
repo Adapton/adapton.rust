@@ -1,7 +1,6 @@
 use name::*;
 use art::*;
-use std::hash;
-use std::hash::Hash;
+use std::hash::{hash,Hash,SipHasher};
 use std::result::Result;
 use std::collections::HashMap;
 
@@ -21,7 +20,7 @@ use std::collections::HashMap;
 //
 
 /// Nominal, artful commands for the while language
-#[derive(Show,Hash,PartialEq,Eq,Clone)]
+#[derive(Debug,Hash,PartialEq,Eq,Clone)]
 pub enum Cmd<'x> {
     Skip,
     //Continue,
@@ -29,9 +28,9 @@ pub enum Cmd<'x> {
     Seq(CmdB<'x>, CmdB<'x>),
     // WHILE-loops:
     While(ExpB<'x>, CmdB<'x>),
-    If(ExpB<'x>, CmdB<'x>, CmdB<'x>),
     Again(ExpB<'x>, CmdB<'x>),
-    Break,    
+    If(ExpB<'x>, CmdB<'x>, CmdB<'x>),
+    Break,
     // ----
     Name(Name, CmdB<'x>),
     Art(Art<'x,CmdB<'x>>),
@@ -48,36 +47,36 @@ pub enum CmdCxt<'x> {
 pub type CmdCxtB<'x> = Box<CmdCxt<'x>>;
     
 /// Expressions for the while language
-#[derive(Show,Hash,PartialEq,Eq,Clone)]
+#[derive(Debug,Hash,PartialEq,Eq,Clone)]
 pub enum Exp<'x> {
     Var(Var<'x>),
     Plus(ExpB<'x>,ExpB<'x>),
     Less(ExpB<'x>,ExpB<'x>),
-    Num(int),
+    Num(isize),
 }
 pub type ExpB<'x> = Box<Exp<'x>>;
 
 /// Variables for the while language
 pub type Var<'x> = String;
 
-pub trait Heap<L:Hash+Eq, V> {
+pub trait Heap<L:Hash<SipHasher>+Eq, V> {
     fn empty () -> Self ;
     fn update (Self, L, V) -> Self ;
     fn select (Self, L) -> (Self, Option<V>) ;
 }
 
-pub struct HashMapHeap { hm : HashMap<String, int> }
+pub struct HashMapHeap { hm : HashMap<String, isize> }
 
-impl Heap<String, int> for HashMapHeap {
+impl Heap<String, isize> for HashMapHeap {
     fn empty () -> Self {
         HashMapHeap { hm : HashMap::new() }
     }
-    fn update (hm:Self, l:String, v:int) -> Self {
+    fn update (hm:Self, l:String, v:isize) -> Self {
         let mut hm = hm.hm.clone () ; // TODO: Avoid this clone. Use trie structure instead.
         hm.insert(l,v) ;
         HashMapHeap{ hm : hm }
     }
-    fn select (hm:Self, l:String) -> (Self, Option<int>) {
+    fn select (hm:Self, l:String) -> (Self, Option<isize>) {
         let hmq = hm.hm.clone () ; // TODO: Avoid this clone. Use trie structure instead.
         let x = hmq.get(&l) ;
         (hm, match x { None => None, Some(x) => Some(*x) })
@@ -90,7 +89,7 @@ pub enum Error {
    
 pub fn eval_exp<'x>
     (heap:HashMapHeap, exp:Exp<'x>)
-     -> (HashMapHeap, Result<int, Error>)
+     -> (HashMapHeap, Result<isize, Error>)
 {
     match exp {
         Exp::Num(n) => (heap, Ok(n)),
@@ -155,7 +154,7 @@ pub fn step_cmd<'x>
             (heap, Some((cxt, Cmd::Skip)))
         }
 
-        (cxt, Cmd::Seq(cmd1, cmd2)) => (heap, Some( (CmdCxt::Seq(box cxt, cmd2), *cmd1) )),
+        (cxt, Cmd::Seq(cmd1, cmd2)) => (heap, Some( (CmdCxt::Seq(Box::new(cxt), cmd2), *cmd1) )),
 
         // While becomes Again, which repeats again and again..
         // This case only fires when first entering the loop;
@@ -163,8 +162,8 @@ pub fn step_cmd<'x>
         (cxt, Cmd::While(exp, cmd)) => (heap, Some( (cxt, Cmd::Again(exp, cmd)) )),
 
         (cxt, Cmd::Again(exp, cmd)) =>
-            (heap, Some( (CmdCxt::Seq(box cxt, box Cmd::Again(exp.clone(), cmd.clone())),
-                          Cmd::If(exp, cmd, box Cmd::Break)
+            (heap, Some( (CmdCxt::Seq(Box::new(cxt), Box::new(Cmd::Again(exp.clone(), cmd.clone()))),
+                          Cmd::If(exp, cmd, Box::new(Cmd::Break))
                           ) )),
         
         (cxt, Cmd::Assign(var, exp)) => {
