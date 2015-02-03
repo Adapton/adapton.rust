@@ -84,10 +84,10 @@ pub enum MutArt<T> {
 }
 
 #[derive(Show)]
-enum Node<A:Adapton,Arg,Res> {
+enum Node<Res,Comp:Computer<Res>> {
     Pure(PureNode<Res>),
     Mut(MutNode<Res>),
-    Compute(ComputeNode<A,Arg,Res>),
+    Compute(ComputeNode<Res,Comp>),
 }
 
 #[derive(Show)]
@@ -104,18 +104,26 @@ struct MutNode<T> {
     val : T,
 }
 
+
+trait Computer<Res> {
+    type Arg;
+    fn compute(self:&Self, st:&mut AdaptonState, arg:Self::Arg) -> Res;
+    //fn size_hint(&self) -> (usize, Option<usize>) { ... }
+}
+
 //#[derive(Show)]
-struct ComputeNode<A:Adapton,Arg,Res> {
+struct ComputeNode<Res,Comp:Computer<Res>> {
     loc : Rc<Loc>,
     creators  : Vec<DemPrec>,
     dem_precs : Vec<DemPrec>,
     dem_succs : Vec<DemSucc>,
-    arg : Arg,
+    arg : Comp::Arg,
     res : Option<Res>,
-    body : Box<Invoke<(&'static mut A, Arg),Res> + 'static>,
+    //body : Box<Invoke<(&'static mut A, Arg),Res> + 'static>,
+    comp : Comp,
 }
 
-impl<A:Adapton,Arg,Res> fmt::Show for ComputeNode<A,Arg,Res> {
+impl<Res,Comp:Computer<Res>> fmt::Show for ComputeNode<Res,Comp> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(ComputeNode)")
     }
@@ -149,22 +157,22 @@ impl fmt::Show for AdaptonState {
     }
 }
 
-fn node<'x> (st: &'x mut AdaptonState, loc:&Rc<Loc>) -> &'x mut Node<AdaptonState,(),()> {
+fn node<'x,Res,Comp:Computer<Res>> (st: &'x mut AdaptonState, loc:&Rc<Loc>) -> &'x mut Node<Res,Comp> {
     let node = st.table.get(loc) ;
     match node {
         None => panic!("dangling pointer: {}", loc),
         Some(ptr) => {
             let ptr = unsafe {
                 std::mem::transmute::<
-                    *mut (), &mut Node<AdaptonState,(),()> // TODO: () and () is a lie.
+                    *mut (), &mut Node<Res,Comp>
                     >(*ptr) } ;
             ptr
         }
     }
 }
 
-fn dem_precs<'x> (st: &'x mut AdaptonState, loc: &Rc<Loc>) -> &'x mut Vec<DemPrec> {
-    match *(node(st,loc)) {
+fn dem_precs<'x,Res:'x,Comp:Computer<Res>+'x> (st: &'x mut AdaptonState, loc: &Rc<Loc>) -> &'x mut Vec<DemPrec> {
+    match *(node::<Res,Comp>(st,loc)) {
         Node::Pure(_) => {
             panic!("Node::Pure: no precs")
         },
@@ -177,16 +185,16 @@ fn dem_precs<'x> (st: &'x mut AdaptonState, loc: &Rc<Loc>) -> &'x mut Vec<DemPre
     }
 }
 
-fn revoke_demand (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<DemSucc>) {
+fn revoke_demand<'x,Res:'x,Comp:Computer<Res>+'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<DemSucc>) {
     for succ in succs.iter() {
-        let precs = dem_precs(st, &succ.loc);
+        let precs = dem_precs::<Res,Comp>(st, &succ.loc);
         precs.retain(|ref prec| &prec.loc != src);
     }
 }
 
-fn invoke_demand (st:&mut AdaptonState, src:Rc<Loc>, succs:& Vec<DemSucc>) {
+fn invoke_demand<'x,Res:'x,Comp:Computer<Res>+'x> (st:&mut AdaptonState, src:Rc<Loc>, succs:& Vec<DemSucc>) {
     for succ in succs.iter() {
-        let precs = dem_precs(st, &succ.loc);
+        let precs = dem_precs::<Res,Comp>(st, &succ.loc);
         precs.push(DemPrec{loc:src.clone()})
     }
 }
@@ -244,7 +252,7 @@ impl Adapton for AdaptonState {
         Art::Box(box x)
     }
 
-    fn cell<T:Eq+Clone+Show> (self:&mut AdaptonState, id:ArtId, val:T) -> MutArt<T> {
+    fn cell<T:Eq+Clone+Show,Comp:Computer<T>> (self:&mut AdaptonState, id:ArtId, val:T) -> MutArt<T> {
         let loc = match id {
             ArtId::None => panic!("a cell requires a unique identity"),
             ArtId::Structural(hash) => {
@@ -268,7 +276,7 @@ impl Adapton for AdaptonState {
             val:val
         }) ;
         let ptr = unsafe { std::mem::transmute::<
-                           *mut Node<AdaptonState,(),T>,
+                           *mut Node<T,Comp>,
                            *mut ()
                            >(&mut node) } ;
         // TODO: Check to see if the cell exists;
@@ -290,7 +298,7 @@ impl Adapton for AdaptonState {
                     Some(ptr) => {
                         let node : &mut MutNode<T> = unsafe {
                             let node = std::mem::transmute::<
-                                *mut (), *mut Node<AdaptonState,(),T> // TODO: () is a lie.
+                                *mut (), *mut Node<T,Computer<T>>
                                 >(*ptr) ;
                             match *node {
                                 Node::Mut(ref mut nd) => nd,
@@ -334,8 +342,8 @@ impl Adapton for AdaptonState {
                 match node {
                     None => panic!("dangling pointer: {}", loc),
                     Some(ptr) => {
-                        let node : &mut Node<AdaptonState,(),T> = unsafe {
-                            let node = std::mem::transmute::<*mut (), *mut Node<AdaptonState,(),T>>(*ptr) ; // TODO: () is a lie.
+                        let node : &mut Node<T,Computer<T>> = unsafe {
+                            let node = std::mem::transmute::<*mut (), *mut Node<T,Computer<T>>>(*ptr) ;
                             &mut ( *node ) } ;
                         match *node {
                             Node::Pure(ref mut nd) => {
