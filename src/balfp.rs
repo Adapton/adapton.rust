@@ -1,5 +1,5 @@
 use std::hash::{hash,Hash,SipHasher};
-use std::int::MAX;
+use std::i64::MAX;
 use std::num::Int;
 use std::result::Result;
 
@@ -40,7 +40,7 @@ trait FpFn {
     /// state" (type `St`).  It builds a binary tree of stepped states
     /// (type `St_stepped`).
 
-    type St : Hash<SipHasher> ;
+    type St : Hash ;
     type St_stepped ;
     type Sys ;
     fn step (self:& Self, st:Self::St, sys:Self::Sys) -> (Self::St_stepped, Self::Sys) ;
@@ -75,7 +75,7 @@ trait FpLp<F:FpFn, BT:BinTree<F::St_stepped>> {
         match nxt {
             Err(sys) => (sys, left),
             Ok((st,sys)) => {
-                let st_lev = Int::trailing_zeros(hash::<_,SipHasher>(&st)) as isize ;
+                let st_lev = (hash::<_,SipHasher>(&st) as isize).trailing_zeros() ;
                 if left_lev <= st_lev &&
                     st_lev  <= parent_lev
                 {

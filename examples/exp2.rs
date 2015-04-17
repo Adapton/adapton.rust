@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-#[derive(Show)]
+#[derive(Debug)]
 pub enum Exp<'x> {
     Value(int),
     Plus(Box<Exp<'x>>, Box<Exp<'x>>),

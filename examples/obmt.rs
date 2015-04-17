@@ -89,7 +89,7 @@ pub enum MutArt<T> {
 enum Node<Res> {
     Pure(PureNode<Res>),
     Mut(MutNode<Res>),
-    Compute(Box<Computer<Res>>),
+    Compute(ComputeNode<Res>),
 }
 
 #[derive(Debug)]
@@ -106,32 +106,37 @@ struct MutNode<T> {
     val : T,
 }
 
-trait Clos where Self::Comp : Computer<Self::Res> {
-    type Res;
-    type Comp;
-    fn get_node<'x>(self:&'x mut Self) ->
-        &'x mut ComputeNode<Self::Res,Self::Comp> ;
-}
+// trait Clos where Self::Comp : Computer<Self::Res> {
+//     type Res;
+//     type Comp;
+//     fn get_node<'x>(self:&'x mut Self) ->
+//         &'x mut ComputeNode<Self::Res,Self::Comp> ;
+// }
 
 //#[derive(Debug)]
-struct ComputeNode<Res,Comp:Computer<Res>> {
+struct ComputeNode<Res> {
     loc : Rc<Loc>,
     creators  : Vec<DemPrec>,
     dem_precs : Vec<DemPrec>,
     dem_succs : Vec<DemSucc>,
-    arg : Comp::Arg,
     res : Option<Res>,
     //body : Box<Invoke<(&'static mut A, Arg),Res> + 'static>,
-    comp : Box<Comp>,
+    comp : Box<Computer<Res>+'static>,
 }
 
 trait Computer<Res> {
     type Arg;
+    fn get_arg(self:&Self) -> Self::Arg;
     fn compute(self:&Self, st:&mut AdaptonState, arg:Self::Arg) -> Res;
     //fn size_hint(&self) -> (usize, Option<usize>) { ... }
 }
 
-impl<Res,Comp:Computer<Res>> fmt::Debug for ComputeNode<Res,Comp> {
+trait Packed {
+    type Res;
+    fn get_node<'x>(self:&'x mut Self) -> &'x mut Node<Self::Res>;
+}
+
+impl<Res> fmt::Debug for ComputeNode<Res> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(ComputeNode)")
     }
@@ -155,7 +160,7 @@ pub struct Frame {
 }
 
 pub struct AdaptonState {
-    table : HashMap<Rc<Loc>, *mut ()>,
+    table : HashMap<Rc<Loc>, Box<Packed+'static>>,
     stack : Vec<Frame>,
 }
 
@@ -165,46 +170,40 @@ impl fmt::Debug for AdaptonState {
     }
 }
 
-fn node<'x,Res,Comp:Computer<Res>> (st: &'x mut AdaptonState, loc:&Rc<Loc>) -> &'x mut Node<Res,Comp> {
-    let node = st.table.get(loc) ;
-    match node {
-        None => panic!("dangling pointer"),
-        Some(ptr) => {
-            let ptr = unsafe {
-                std::mem::transmute::<
-                    *mut (), &mut Node<Res,Comp>
-                    >(*ptr) } ;
-            ptr
-        }
-    }
+// fn dem_precs<'x,T:'x> (st: &'x mut AdaptonState, loc: &Rc<Loc>) -> &'x mut Vec<DemPrec> {    
+//     let node = st.table.get(loc) ;
+//     match node {
+//         None => panic!("dangling pointer"),
+//         Some(ptr) => {
+//             match *(ptr.get_node()) {
+//                 Node::Pure(_) => {
+//                     panic!("Node::Pure: no precs")
+//                 },
+//                 Node::Compute(ref mut nd) => {
+//                     &mut nd.dem_precs
+//                 },
+//                 Node::Mut(ref mut nd) => {
+//                     &mut nd.dem_precs
+//                 }
+//             }
+//         }
+//     }    
+// }
+
+fn revoke_demand<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<DemSucc>) {
+    // for succ in succs.iter() {
+    //     let precs = dem_precs(st, &succ.loc);
+    //     precs.retain(|ref prec| &prec.loc != src);
+    // }
+    panic!("")
 }
 
-fn dem_precs<'x,Res:'x,Comp:Computer<Res>+'x> (st: &'x mut AdaptonState, loc: &Rc<Loc>) -> &'x mut Vec<DemPrec> {
-    match *(node::<Res,Comp>(st,loc)) {
-        Node::Pure(_) => {
-            panic!("Node::Pure: no precs")
-        },
-        Node::Compute(ref mut nd) => {
-            &mut nd.dem_precs
-        },
-        Node::Mut(ref mut nd) => {
-            &mut nd.dem_precs
-        }
-    }
-}
-
-fn revoke_demand<'x,Res:'x,Comp:Computer<Res>+'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<DemSucc>) {
-    for succ in succs.iter() {
-        let precs = dem_precs::<Res,Comp>(st, &succ.loc);
-        precs.retain(|ref prec| &prec.loc != src);
-    }
-}
-
-fn invoke_demand<'x,Res:'x,Comp:Computer<Res>+'x> (st:&mut AdaptonState, src:Rc<Loc>, succs:& Vec<DemSucc>) {
-    for succ in succs.iter() {
-        let precs = dem_precs::<Res,Comp>(st, &succ.loc);
-        precs.push(DemPrec{loc:src.clone()})
-    }
+fn invoke_demand<'x> (st:&mut AdaptonState, src:Rc<Loc>, succs:& Vec<DemSucc>) {
+    // for succ in succs.iter() {
+    //     let precs = dem_precs(st, &succ.loc);
+    //     precs.push(DemPrec{loc:src.clone()})
+    // }
+    panic!("")
 }
 
 impl Adapton for AdaptonState {
@@ -283,15 +282,10 @@ impl Adapton for AdaptonState {
             creators:Vec::new(),
             val:val
         }) ;
-        let ptr = panic!("") ;
-            // unsafe { std::mem::transmute::<
-            // *mut Node<T,Comp>,
-            // *mut ()
-            // >(&mut node) } ;
         // TODO: Check to see if the cell exists;
         // check if its content has changed.
         // dirty its precs if so.
-        self.table.insert(loc.clone(), ptr) ;
+        self.table.insert(loc.clone(), Box::new(node)) ;
         MutArt::MutArt(Art::Loc(loc))
     }
 
@@ -305,21 +299,16 @@ impl Adapton for AdaptonState {
                 match node {
                     None => panic!("dangling pointer"),
                     Some(ptr) => {
-                        let node : &mut MutNode<T> = unsafe {
-                            let node = std::mem::transmute::<
-                                *mut (), *mut Node<T,Computer<T>>
-                                >(*ptr) ;
-                            match *node {
-                                Node::Mut(ref mut nd) => nd,
-                                ref nd => panic!("impossible")
-                            }} ;
-                        if (node.val == val) {
-                            // Nothing.
+                        match *ptr.get_node() {
+                            Node::Mut(ref mut nd) => nd,
+                            ref nd => panic!("impossible")
                         }
-                        else {
-                            node.val = val;
-                            // TODO: Dirty traversal. Notify/mark demand precs.
-                        }
+                    if (node.val == val) {
+                        // Nothing.
+                    }
+                    else {
+                        node.val = val;
+                        // TODO: Dirty traversal. Notify/mark demand precs.
                     }
                 }
             }
@@ -351,8 +340,8 @@ impl Adapton for AdaptonState {
                 match node {
                     None => panic!("dangling pointer"),
                     Some(ptr) => {
-                        let node : &mut Node<T,Computer<T>> = unsafe {
-                            let node = std::mem::transmute::<*mut (), *mut Node<T,Computer<T>>>(*ptr) ;
+                        let node : &mut Node<T> = unsafe {
+                            let node = std::mem::transmute::<*mut (), *mut Node<T>>(*ptr) ;
                             &mut ( *node ) } ;
                         match *node {
                             Node::Pure(ref mut nd) => {

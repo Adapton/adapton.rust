@@ -1,3 +1,4 @@
+#![feature(box_syntax)]
 
 #[derive(Show)]
 pub enum Exp<'x> {

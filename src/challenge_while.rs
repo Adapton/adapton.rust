@@ -53,13 +53,15 @@ pub enum Exp<'x> {
     Plus(ExpB<'x>,ExpB<'x>),
     Less(ExpB<'x>,ExpB<'x>),
     Num(isize),
+    Name(Name, ExpB<'x>),
+    Art(Art<'x,ExpB<'x>>),
 }
 pub type ExpB<'x> = Box<Exp<'x>>;
 
 /// Variables for the while language
 pub type Var<'x> = String;
 
-pub trait Heap<L:Hash<SipHasher>+Eq, V> {
+pub trait Heap<L:Hash+Eq, V> {
     fn empty () -> Self ;
     fn update (Self, L, V) -> Self ;
     fn select (Self, L) -> (Self, Option<V>) ;

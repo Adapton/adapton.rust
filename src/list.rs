@@ -4,7 +4,7 @@ use std::hash::{hash,Hash,SipHasher};
 
 /// Nominal, artful lists: Lists with names and articulation point
 #[derive(Debug,Hash,PartialEq,Eq)]
-pub enum List<'x,T> {
+pub enum List<'x,T:'x> {
     Nil,
     Cons(T, Box<List<'x,T>>),
     Name(Name, Box<List<'x,T>>),
@@ -167,12 +167,12 @@ pub fn singletons<'x,T:'x>
 
 pub fn mergesort<'x,T:'x,Ord:'x>
 (ord:&'x Ord, list:List<'x,T>) -> List<'x,T>
-where Ord: Fn(&T,&T) -> bool, T:Hash<SipHasher>
+where Ord: Fn(&T,&T) -> bool, T:Hash
 {
-    let c = move |&: list1:&List<'x,T>,list2:&List<'x,T>|
+    let c = move |list1:&List<'x,T>,list2:&List<'x,T>|
     hash::<_,SipHasher>(list1) < hash::<_,SipHasher>(list2);
 
-    let m = move |&: list1:List<'x,T>,list2:List<'x,T>|
+    let m = move |list1:List<'x,T>,list2:List<'x,T>|
     merge(ord,None,list1,None,list2);
 
     match reduce(&c, &m, singletons(None, list)) {

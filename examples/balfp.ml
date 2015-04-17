@@ -26,8 +26,8 @@ end ) = struct
       else
         (state, left)
 
-  let compute (start:state) : tree =
-    snd (work max_int start (Bin(Empty,start,Empty)) (-1))
+  let compute (start:state) : state * tree =
+    work max_int start (Bin(Empty,start,Empty)) (-1)
 
 end
 
@@ -65,8 +65,8 @@ end ) = struct
       else
         (queue, left)
 
-  let compute (start:state) : tree =
-    snd (work max_int [start] (Bin(Empty,start,Empty)) (-1))
+  let compute (start:state) : tree * state =
+    let snd (work max_int [start] (Bin(Empty,start,Empty)) (-1))
 end
 
 (* Balanced fixed-point loop for exploring a (possibly cyclic) graph

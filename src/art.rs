@@ -1,6 +1,7 @@
 use std::fmt;
 use std::hash;
-use std::thunk::Invoke;
+// use std::thunk::Invoke;
+use std::marker::PhantomData;
 
 use name::*;
 // pub use lazy::single::Thunk;
@@ -30,7 +31,8 @@ struct ArtThunk<'x,T> {
     // TODO: Memo table identity, for comparing thunks with same names
     // TODO: Access to args, for equality check, hashing
     // thunk : UF<'x,T>,
-    value : Option<T>
+    value : Option<T>,
+    phantom: PhantomData<&'x ()>
 }
 
 impl<'x,T> fmt::Debug for ArtThunk<'x,T> {
@@ -40,8 +42,9 @@ impl<'x,T> fmt::Debug for ArtThunk<'x,T> {
 }
 
 #[derive(Debug,Clone)]
-struct ArtCon<'x,T> {
+struct ArtCon<'x,T:'x> {
     name : Name,
+    phantom: PhantomData<&'x T>
 }
 
 impl<'x,T> PartialEq for ArtCon<'x,T> {
@@ -57,11 +60,11 @@ impl<'x,T> Eq for ArtCon<'x,T> {
     fn assert_receiver_is_total_eq(&self) {  }
 }
 
-impl<'x,S: hash::Hasher+hash::Writer, T> hash::Hash<S> for ArtCon<'x,T> {
-    fn hash(&self, state: &mut S) {
-        self.name.hash( state )
-    }
-}
+// impl<'x,S: hash::Hasher+hash::Writer, T> hash::Hash<S> for ArtCon<'x,T> {
+//     fn hash(&self, state: &mut S) {
+//         self.name.hash( state )
+//     }
+// }
 
 pub type Art<'x,T> = ArtCon<'x,T>;
 
@@ -72,7 +75,7 @@ pub fn cell<'x,T:'x> (n:Name, x:T) -> Art<'x,T> {
 }
 
 // Create a named thunk
-pub fn nart<'x,T:'x> (n:Name, body:Box<Invoke<(),T>+'x>) -> Art<'x,T> {
+pub fn nart<'x,T:'x> (n:Name, body:Fn () -> T) -> Art<'x,T> {
     //! TODO: Cache the art based on the name n
     ArtCon { name  : n }
 }
@@ -81,7 +84,7 @@ pub fn nart<'x,T:'x> (n:Name, body:Box<Invoke<(),T>+'x>) -> Art<'x,T> {
 macro_rules! nart (
     ($name:expr, $body:expr) => {
         nart($name,
-             box () (move|:()|{ $body }))
+             box () (move||{ $body }))
     }
 );
 
