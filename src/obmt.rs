@@ -3,8 +3,9 @@
 use std::fmt::Debug;
 use std::hash::{hash,Hash,SipHasher};
 use std::collections::HashMap;
-use std::thunk::Invoke;
+//use std::thunk::Invoke;
 use std::mem::replace;
+use std::mem::transmute;
 //use std::sync::Arc;
 use std::rc::Rc;
 use std::fmt;
@@ -29,9 +30,9 @@ pub trait Adapton {
     fn cell<T:Eq+Clone+Debug> (self:&mut Self, ArtId, T) -> MutArt<T> ;
     fn set<T:Eq+Clone+Debug> (self:&mut Self, MutArt<T>, T) ;
 
-    fn thunk<Arg:Eq+Hash<SipHasher>+Clone+Debug,T:Eq+Clone+Debug>
+    fn thunk<Arg:Eq+Hash+Clone+Debug,T:Eq+Clone+Debug>
         (self:&mut Self, id:ArtId,
-         fn_body:Box<Invoke<(&mut Self, Arg), T> + 'static>, arg:Arg) -> Art<T> ;
+         fn_body:Box<Fn(Arg) -> T>, arg:Arg) -> Art<T> ;
 
     fn force<T:Eq+Clone+Debug> (self:&mut Self, Art<T>) -> T ;
 }
@@ -120,8 +121,7 @@ struct ComputeNode<Res> {
     dem_precs : Vec<DemPrec>,
     dem_succs : Vec<DemSucc>,
     res : Option<Res>,
-    //body : Box<Invoke<(&'static mut A, Arg),Res> + 'static>,
-    comp : Box<Computer<Res>+'static>,
+    comp : Box<Computer<Res>>,
 }
 
 trait Computer<Res> {
@@ -132,6 +132,7 @@ trait Computer<Res> {
 }
 
 trait Packed {
+    type Arg;
     type Res;
     fn get_node<'x>(self:&'x mut Self) -> &'x mut Node<Self::Res>;
 }
@@ -160,7 +161,7 @@ pub struct Frame {
 }
 
 pub struct AdaptonState {
-    table : HashMap<Rc<Loc>, Box<Packed+'static>>,
+    table : HashMap<Rc<Loc>, Box<Packed>>,
     stack : Vec<Frame>,
 }
 
@@ -218,25 +219,25 @@ impl Adapton for AdaptonState {
             stack : stack,
         }
     }
-
+    
     fn name_of_string (self:&mut AdaptonState, sym:String) -> Name {
         let h = hash::<_,SipHasher>(&sym) ;
         let s = Lineage::String(sym) ;
         Name{ hash:h, lineage:Rc::new(s) }
     }
-
+    
     fn name_of_u64 (self:&mut AdaptonState, sym:u64) -> Name {
         let h = hash::<_,SipHasher>(&sym) ;
         let s = Lineage::U64(sym) ;
         Name{ hash:h, lineage:Rc::new(s) }
     }
-
+    
     fn name_pair (self: &AdaptonState, fst: Name, snd: Name) -> Name {
         let h = hash::<_,SipHasher>( &(fst.hash,snd.hash) ) ;
         let p = Lineage::Pair(fst.lineage, snd.lineage) ;
         Name{ hash:h, lineage:Rc::new(p) }
     }
-
+    
     fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
         let h1 = hash::<_,SipHasher>( &(&nm, 11111111) ) ; // TODO: make this hashing better.
         let h2 = hash::<_,SipHasher>( &(&nm, 22222222) ) ;
@@ -245,7 +246,7 @@ impl Adapton for AdaptonState {
           Name{ hash:h2,
                 lineage:Rc::new(Lineage::ForkR(nm.lineage)) } )
     }
-
+    
     fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
         let path_body = Rc::new(Path::Child(self.stack[0].path.clone(), nm)) ;
         let path_pre = replace(&mut self.stack[0].path, path_body ) ;
@@ -254,11 +255,11 @@ impl Adapton for AdaptonState {
         drop(path_body);
         x
     }
-
+    
     fn put<T:Eq> (self:&mut AdaptonState, x:T) -> Art<T> {
         Art::Box(Box::new(x))
     }
-
+    
     fn cell<T:Eq+Clone+Debug> (self:&mut AdaptonState, id:ArtId, val:T) -> MutArt<T> {
         let loc = match id {
             ArtId::None => panic!("a cell requires a unique identity"),
@@ -296,32 +297,32 @@ impl Adapton for AdaptonState {
             }
             MutArt::MutArt(Art::Loc(loc)) => {
                 let node = self.table.get(&loc) ;
-                match node {
+                let node = match node {
                     None => panic!("dangling pointer"),
                     Some(ptr) => {
                         match *ptr.get_node() {
                             Node::Mut(ref mut nd) => nd,
                             ref nd => panic!("impossible")
                         }
-                    if (node.val == val) {
-                        // Nothing.
-                    }
-                    else {
-                        node.val = val;
-                        // TODO: Dirty traversal. Notify/mark demand precs.
-                    }
+                    }};
+                if (node.val == val) {
+                    // Nothing.
+                }
+                else {
+                    node.val = val;
+                    // TODO: Dirty traversal. Notify/mark demand precs.
                 }
             }
         }
     }
 
-    fn thunk<Arg:Eq+Hash<SipHasher>+Clone+Debug,T:Eq+Clone+Debug>
+    fn thunk<Arg:Eq+Hash+Clone+Debug,T:Eq+Clone+Debug>
         (self:&mut AdaptonState,
-         id:ArtId, fn_body:Box<Invoke<(&mut Self, Arg),T>+'static>, arg:Arg) -> Art<T>
+         id:ArtId, fn_body:Box<Fn(Arg)->T>, arg:Arg) -> Art<T>
     {
         match id {
             ArtId::None => {
-                Art::Box(Box::new(fn_body.invoke((self,arg))))
+                Art::Box(Box::new(fn_body.invoke((arg))))
             },
             ArtId::Structural(hash) => {
                 panic!("")
@@ -331,7 +332,7 @@ impl Adapton for AdaptonState {
             }
         }
     }
-
+    
     fn force<T:Eq+Clone+Debug> (self:&mut AdaptonState, art:Art<T>) -> T {
         match art {
             Art::Box(b) => *b,
@@ -341,7 +342,7 @@ impl Adapton for AdaptonState {
                     None => panic!("dangling pointer"),
                     Some(ptr) => {
                         let node : &mut Node<T> = unsafe {
-                            let node = std::mem::transmute::<*mut (), *mut Node<T>>(*ptr) ;
+                            let node = transmute::<*mut (), *mut Node<T>>(*ptr) ;
                             &mut ( *node ) } ;
                         match *node {
                             Node::Pure(ref mut nd) => {
@@ -373,8 +374,7 @@ impl Adapton for AdaptonState {
                 }
             }
         }
-    }
-
+    }    
 }
 
 pub fn main () {
