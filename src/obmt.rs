@@ -107,21 +107,23 @@ struct MutNode<T> {
     val : T,
 }
 
-// trait Clos where Self::Comp : Computer<Self::Res> {
-//     type Res;
-//     type Comp;
-//     fn get_node<'x>(self:&'x mut Self) ->
-//         &'x mut ComputeNode<Self::Res,Self::Comp> ;
+// //#[derive(Debug)]
+// struct ComputeNode<Res> {
+//     loc : Rc<Loc>,
+//     creators  : Vec<DemPrec>,
+//     dem_precs : Vec<DemPrec>,
+//     dem_succs : Vec<DemSucc>,
+//     res : Option<Res>,
+//     comp : Box<Computer<Res>>,
 // }
 
-//#[derive(Debug)]
-struct ComputeNode<Res> {
-    loc : Rc<Loc>,
-    creators  : Vec<DemPrec>,
-    dem_precs : Vec<DemPrec>,
-    dem_succs : Vec<DemSucc>,
-    res : Option<Res>,
-    comp : Box<Computer<Res>>,
+trait ComputeNode<Res> {
+    fn loc (self:&Self) -> Rc<Loc>;
+    fn creators (self:&Self) -> Vec<DemPrec>;
+    fn dem_precs (self:&Self) -> Vec<DemPrec>;
+    fn dem_succs (self:&Self) -> Vec<DemSucc>;
+    fn res (self:&Self) -> Option<Res>;
+    fn comp<Arg> (self:&Self) -> Box<Computer<Res,Arg=Arg>> ;
 }
 
 trait Computer<Res> {
@@ -160,15 +162,9 @@ pub struct Frame {
     succs : Vec<DemSucc>,
 }
 
-pub struct AdaptonState {
-    table : HashMap<Rc<Loc>, Box<Packed>>,
-    stack : Vec<Frame>,
-}
-
-impl fmt::Debug for AdaptonState {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(AdaptonState)")
-    }
+trait AdaptonState {
+    fn table<Arg,Res> (self:&Self) -> HashMap<Rc<Loc>, Box<Packed<Arg=Arg,Res=Res>>>;
+    fn stack (self:&Self) -> Vec<Frame>;
 }
 
 // fn dem_precs<'x,T:'x> (st: &'x mut AdaptonState, loc: &Rc<Loc>) -> &'x mut Vec<DemPrec> {    
