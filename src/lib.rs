@@ -7,6 +7,7 @@
 //! Adapton for Rust
 
 pub mod obmt ;
+pub mod obmt_impl ;
 
 mod adapton {
     pub use super::*;
