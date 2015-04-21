@@ -13,7 +13,7 @@ trait T : Debug {
 }
 
 trait S : Debug {
-    fn doit_abs (self:&Self) -> String ;
+    fn doit (self:&Self) -> String ;
 }
 
 #[derive(Debug)]
@@ -22,7 +22,7 @@ struct Packed {
 }
 
 impl <A, B: T<t=A>> S for B {
-    fn doit_abs (self:&Self) -> String {
+    fn doit (self:&Self) -> String {
         self.doit ( self.get () )
     }
 }
