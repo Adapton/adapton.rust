@@ -21,6 +21,8 @@ use std::fmt::Debug;
 
 // This post may provide a path forward:
 // http://stackoverflow.com/questions/28003773/implementing-iterator-using-an-underlying-iterator
+// No. It doesn't. It uses the same pattern that I'm using below,
+// exposing the identity of the associated type.
 
 trait T : Debug {
     type t;

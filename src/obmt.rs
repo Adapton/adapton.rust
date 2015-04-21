@@ -123,7 +123,7 @@ trait ComputeNode<Res> {
     fn dem_precs (self:&Self) -> Vec<DemPrec>;
     fn dem_succs (self:&Self) -> Vec<DemSucc>;
     fn res (self:&Self) -> Option<Res>;
-    fn comp<Arg> (self:&Self) -> Box<Computer<Res,Arg=Arg>> ;
+    fn computer<Arg> (self:&Self) -> Box<Computer<Res,Arg=Arg>> ;
 }
 
 trait Computer<Res> {
@@ -203,7 +203,7 @@ fn invoke_demand<'x> (st:&mut AdaptonState, src:Rc<Loc>, succs:& Vec<DemSucc>) {
     panic!("")
 }
 
-impl Adapton for AdaptonState {
+impl <AS:AdaptonState> Adapton {
 
     fn new () -> AdaptonState {
         let empty = Rc::new(Path::Empty);
