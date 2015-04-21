@@ -6,8 +6,8 @@
 
 //! Adapton for Rust
 
-pub mod obmt ;
-pub mod obmt_impl ;
+pub mod adapton_sigs ;
+pub mod adapton_impl ;
 
 mod adapton {
     pub use super::*;

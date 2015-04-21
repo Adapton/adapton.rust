@@ -10,7 +10,7 @@ use std::mem::transmute;
 use std::rc::Rc;
 use std::fmt;
 
-use obmt::*;
+use adapton_sigs::*;
 
 impl Adapton for AdaptonState {
     fn new () -> AdaptonState {
