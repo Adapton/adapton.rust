@@ -12,15 +12,22 @@ trait T : Debug {
     fn doit (self:&Self, Self::t ) -> String ;
 }
 
-trait Tabs : Debug {
+trait S : Debug {
     fn doit_abs (self:&Self) -> String ;
 }
 
-impl <A, B: T<t=A>> Tabs for B {
+#[derive(Debug)]
+struct Packed {
+    two : (Box<S>,Box<S>)
+}
+
+impl <A, B: T<t=A>> S for B {
     fn doit_abs (self:&Self) -> String {
         self.doit ( self.get () )
     }
 }
+
+// ----------------------------------------
 
 #[derive(Debug)]
 pub enum Foo { Foo }
@@ -38,11 +45,6 @@ impl T for Bar {
     type t = u32;
     fn get (self:&Self) -> u32 { 0 }
     fn doit (self:&Self, _s:Self::t) -> String { String::from_str("bar") }
-}
-
-#[derive(Debug)]
-struct Packed {
-    two : (Box<Tabs>,Box<Tabs>)
 }
 
 pub fn main () {
