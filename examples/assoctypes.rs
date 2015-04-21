@@ -12,14 +12,16 @@ use std::fmt::Debug;
 // mention trait T, and each leaves t abstract, via an (implicit)
 // existential quantifier.
 
-// Apparently, this is not allowed:
+// The only way I can get rustc to accept this code is when I leave
+// these associated types "translucent", and expose their identities
+// in terms of concrete types (i.e., String and u32).  This is exactly
+// what I want to avoid.  In particular, the tuple pattern that works
+// below doesn't generalize to the case where I have an array or a
+// list.
 
-// examples/assoctypes.rs:24:16: 24:17 error: the value of the associated type `t` (from the trait `T`) must be specified [E0191]
-//    examples/assoctypes.rs:24     two : (Box<T>,Box<T>)
-//
-// examples/assoctypes.rs:24:23: 24:24 error: the value of the associated type `t` (from the trait `T`) must be specified [E0191]
-//    examples/assoctypes.rs:24     two : (Box<T>,Box<T>)
-    
+// This post may provide a path forward:
+// http://stackoverflow.com/questions/28003773/implementing-iterator-using-an-underlying-iterator
+
 trait T : Debug {
     type t;
     fn get (self:&Self) -> Self::t ;
