@@ -90,7 +90,10 @@ impl Adapton for AdaptonState {
         // TODO: Check to see if the cell exists;
         // check if its content has changed.
         // dirty its precs if so.
-        self.table.insert(loc.clone(), Box::new(node)) ;
+
+        // self.table.insert(loc.clone(), Box::new(node)) ;
+        self.table.insert(loc.clone(), panic!("Box::new(node)")) ;
+        
         MutArt::MutArt(Art::Loc(loc))
     }
 
@@ -104,10 +107,12 @@ impl Adapton for AdaptonState {
                 let node = match node {
                     None => panic!("dangling pointer"),
                     Some(ptr) => {
-                        match *ptr.get_node() {
-                            Node::Mut(ref mut nd) => nd,
-                            ref nd => panic!("impossible")
-                        }
+                        match cell { MutArt::MutArt( art ) => {
+                            match **node_of_opaque(art, ptr) {
+                                Node::Mut(ref mut nd) => nd,
+                                ref nd => panic!("impossible")
+                            }
+                        }}
                     }};
                 if (node.val == val) {
                     // Nothing.
@@ -126,7 +131,7 @@ impl Adapton for AdaptonState {
     {
         match id {
             ArtId::None => {
-                Art::Box(Box::new(fn_body.invoke((arg))))
+                Art::Box(Box::new(fn_body((arg))))
             },
             ArtId::Structural(hash) => {
                 panic!("")
@@ -137,26 +142,26 @@ impl Adapton for AdaptonState {
         }
     }
     
-    fn force<T:Eq+Debug> (self:&mut AdaptonState, art:Art<T>) -> T {
+    fn force<T:Eq+Debug> (self:&mut AdaptonState, art:Art<T>) -> & T {
         match art {
-            Art::Box(b) => *b,
+            Art::Box(b) => & b,
             Art::Loc(loc) => {
-                let node = self.table.get(&loc) ;
+                let node = self.table.get_mut(&loc) ;
                 match node {
                     None => panic!("dangling pointer"),
-                    Some(ptr) => {
+                    Some(ref ptr) => {
                         let node : &mut Node<T> = unsafe {
-                            let node = transmute::<*mut (), *mut Node<T>>(*ptr) ;
+                            let node : *mut Node<T> = panic!("transmute::<*mut (), *mut Node<T>>(*ptr)") ;
                             &mut ( *node ) } ;
                         match *node {
                             Node::Pure(ref mut nd) => {
-                                nd.val.clone()
+                                & nd.val
                             },
                             Node::Mut(ref mut nd) => {
                                 if self.stack.is_empty() { } else {
                                     self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
                                 } ;
-                                nd.val.clone()
+                                & nd.val
                             },
                             Node::Compute(ref mut nd) => {
                                 self.stack.push ( Frame{name:loc.name.clone(),
@@ -171,7 +176,7 @@ impl Adapton for AdaptonState {
                                 if self.stack.is_empty() { } else {
                                     self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
                                 };
-                                val
+                                & val
                             }
                         }
                     }
