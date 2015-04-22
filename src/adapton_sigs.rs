@@ -1,5 +1,3 @@
-#![feature(box_syntax)]
-
 use std::fmt::Debug;
 use std::hash::{hash,Hash,SipHasher};
 use std::collections::HashMap;
@@ -21,19 +19,23 @@ pub trait Adapton {
     fn name_pair (self: &Self, Name, Name) -> Name ;
     fn name_fork (self:&mut Self, Name) -> (Name, Name) ;
 
+    // Namespaces
     fn ns<T,F> (self: &mut Self, Name, body:F) -> T
         where F:FnOnce(&mut Self) -> T ;
 
+    // Create immutable, eager arts: put
     fn put<T:Eq+Debug> (self:&mut Self, T) -> Art<T> ;
 
-    // Mutable cells
+    // Mutable arts: cell and set
     fn cell<T:Eq+Debug> (self:&mut Self, ArtId, T) -> MutArt<T> ;
     fn set<T:Eq+Debug> (self:&mut Self, MutArt<T>, T) ;
 
+    // Computation arts: thunk
     fn thunk<Arg:Eq+Hash+Debug,T:Eq+Debug>
         (self:&mut Self, id:ArtId,
          fn_body:Box<Fn(Arg) -> T>, arg:Arg) -> Art<T> ;
 
+    // Demand & observe arts: force
     fn force<T:Eq+Debug> (self:&mut Self, Art<T>) -> & T ;
 }
 
