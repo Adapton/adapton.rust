@@ -88,7 +88,7 @@ impl <Res> OpaqueNode for Node<Res> {
     fn dem_succs (self:&Self) -> Vec<DemSucc> { panic!("") }
 }
 
-pub fn node_of_opaque<Res> (art:Art<Res>, opaque:&Box<OpaqueNode>) -> &Box<Node<Res>> {
+pub fn node_of_opaque<'x,Res> (art:Art<Res>, opaque:&'x mut Box<OpaqueNode>) -> &'x mut Box<Node<Res>> {
     panic!("")
 }
 
@@ -301,31 +301,6 @@ impl Adapton for AdaptonState {
     }
 
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T>, val:T) {
-        match cell {
-            MutArt::MutArt(Art::Box(b)) => {
-                panic!("cannot set pure value");
-            }
-            MutArt::MutArt(Art::Loc(loc)) => {
-                let node = self.table.get(&loc) ;
-                let node = match node {
-                    None => panic!("dangling pointer"),
-                    Some(ptr) => {
-                        match cell { MutArt::MutArt( art ) => {
-                            match **node_of_opaque(art, ptr) {
-                                Node::Mut(ref mut nd) => nd,
-                                ref nd => panic!("impossible")
-                            }
-                        }}
-                    }};
-                if (node.val == val) {
-                    // Nothing.
-                }
-                else {
-                    node.val = val;
-                    // TODO: Dirty traversal. Notify/mark demand precs.
-                }
-            }
-        }
     }
 
     fn thunk<Arg:Eq+Hash+Debug,T:Eq+Debug>
@@ -346,46 +321,47 @@ impl Adapton for AdaptonState {
     }
     
     fn force<T:Eq+Debug> (self:&mut AdaptonState, art:Art<T>) -> & T {
-        match art {
-            Art::Box(b) => & b,
-            Art::Loc(loc) => {
-                let node = self.table.get_mut(&loc) ;
-                match node {
-                    None => panic!("dangling pointer"),
-                    Some(ref ptr) => {
-                        let node : &mut Node<T> = unsafe {
-                            let node : *mut Node<T> = panic!("transmute::<*mut (), *mut Node<T>>(*ptr)") ;
-                            &mut ( *node ) } ;
-                        match *node {
-                            Node::Pure(ref mut nd) => {
-                                & nd.val
-                            },
-                            Node::Mut(ref mut nd) => {
-                                if self.stack.is_empty() { } else {
-                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
-                                } ;
-                                & nd.val
-                            },
-                            Node::Compute(ref mut nd) => {
-                                self.stack.push ( Frame{name:loc.name.clone(),
-                                                        path:loc.path.clone(),
-                                                        succs:Vec::new(), } );
-                                let val = panic!("TODO: run compute node body") ;
-                                let mut frame = match
-                                    self.stack.pop() { None => panic!(""), Some(frame) => frame } ;
-                                revoke_demand( self, &nd.loc, &nd.dem_succs );
-                                invoke_demand( self, nd.loc.clone(), &frame.succs );
-                                nd.dem_succs = frame.succs;
-                                if self.stack.is_empty() { } else {
-                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
-                                };
-                                & val
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        panic!("")
+        // match art {
+        //     Art::Box(b) => & b,
+        //     Art::Loc(loc) => {
+        //         let node = self.table.get_mut(&loc) ;
+        //         match node {
+        //             None => panic!("dangling pointer"),
+        //             Some(ref ptr) => {
+        //                 let node : &mut Node<T> = unsafe {
+        //                     let node : *mut Node<T> = panic!("transmute::<*mut (), *mut Node<T>>(*ptr)") ;
+        //                     &mut ( *node ) } ;
+        //                 match *node {
+        //                     Node::Pure(ref mut nd) => {
+        //                         & nd.val
+        //                     },
+        //                     Node::Mut(ref mut nd) => {
+        //                         if self.stack.is_empty() { } else {
+        //                             self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
+        //                         } ;
+        //                         & nd.val
+        //                     },
+        //                     Node::Compute(ref mut nd) => {
+        //                         self.stack.push ( Frame{name:loc.name.clone(),
+        //                                                 path:loc.path.clone(),
+        //                                                 succs:Vec::new(), } );
+        //                         let val = panic!("TODO: run compute node body") ;
+        //                         let mut frame = match
+        //                             self.stack.pop() { None => panic!(""), Some(frame) => frame } ;
+        //                         revoke_demand( self, &nd.loc, &nd.dem_succs );
+        //                         invoke_demand( self, nd.loc.clone(), &frame.succs );
+        //                         nd.dem_succs = frame.succs;
+        //                         if self.stack.is_empty() { } else {
+        //                             self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
+        //                         };
+        //                         & val
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
     }    
 }
 
