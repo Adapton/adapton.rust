@@ -1,4 +1,4 @@
-#![feature(box_syntax)]
+// #![feature(box_syntax)]
 extern crate adapton;
 
 #[allow(dead_code)]

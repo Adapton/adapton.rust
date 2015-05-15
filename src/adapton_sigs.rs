@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::hash::{hash,Hash,SipHasher};
+use std::hash::{hash,Hash,Hasher,SipHasher};
 use std::collections::HashMap;
 //use std::thunk::Invoke;
 use std::mem::replace;
@@ -216,6 +216,13 @@ pub fn invoke_demand<'x> (st:&mut AdaptonState, src:Rc<Loc>, succs:& Vec<DemSucc
     panic!("")
 }
 
+fn my_hash<T>(obj: T) -> u64
+    where T: Hash
+{
+    let mut hasher = SipHasher::new();
+    obj.hash(&mut hasher);
+    hasher.finish()
+}
 
 impl Adapton for AdaptonState {
     fn new () -> AdaptonState {
@@ -230,26 +237,26 @@ impl Adapton for AdaptonState {
     }
     
     fn name_of_string (self:&mut AdaptonState, sym:String) -> Name {
-        let h = hash::<_,SipHasher>(&sym) ;
+        let h = my_hash(&sym);
         let s = Lineage::String(sym) ;
         Name{ hash:h, lineage:Rc::new(s) }
     }
     
     fn name_of_u64 (self:&mut AdaptonState, sym:u64) -> Name {
-        let h = hash::<_,SipHasher>(&sym) ;
+        let h = my_hash(&sym) ;
         let s = Lineage::U64(sym) ;
         Name{ hash:h, lineage:Rc::new(s) }
     }
     
     fn name_pair (self: &AdaptonState, fst: Name, snd: Name) -> Name {
-        let h = hash::<_,SipHasher>( &(fst.hash,snd.hash) ) ;
+        let h = my_hash( &(fst.hash,snd.hash) ) ;
         let p = Lineage::Pair(fst.lineage, snd.lineage) ;
         Name{ hash:h, lineage:Rc::new(p) }
     }
     
     fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
-        let h1 = hash::<_,SipHasher>( &(&nm, 11111111) ) ; // TODO: make this hashing better.
-        let h2 = hash::<_,SipHasher>( &(&nm, 22222222) ) ;
+        let h1 = my_hash( &(&nm, 11111111) ) ; // TODO: make this hashing better.
+        let h2 = my_hash( &(&nm, 22222222) ) ;
         ( Name{ hash:h1,
                 lineage:Rc::new(Lineage::ForkL(nm.lineage.clone())) } ,
           Name{ hash:h2,
