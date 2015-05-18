@@ -203,7 +203,7 @@ impl Adapton for AdaptonState {
         Name{ hash:h, lineage:Rc::new(s) }
     }
     
-    fn name_pair (self: &AdaptonState, fst: Name, snd: Name) -> Name {
+    fn name_pair (self: &mut AdaptonState, fst: Name, snd: Name) -> Name {
         let h = my_hash( &(fst.hash,snd.hash) ) ;
         let p = Lineage::Pair(fst.lineage, snd.lineage) ;
         Name{ hash:h, lineage:Rc::new(p) }

@@ -27,10 +27,10 @@ pub trait Adapton {
     fn new () -> Self ;
 
     // Names
+    fn name_of_u64    (self:&mut Self, u64)    -> Self::Name ;
     fn name_of_string (self:&mut Self, String) -> Self::Name ;
-    fn name_of_u64 (self:&mut Self, u64) -> Self::Name ;
-    fn name_pair (self: &Self, Self::Name, Self::Name) -> Self::Name ;
-    fn name_fork (self:&mut Self, Self::Name) -> (Self::Name, Self::Name) ;
+    fn name_pair      (self:&mut Self, Self::Name, Self::Name) -> Self::Name               ;
+    fn name_fork      (self:&mut Self, Self::Name)             -> (Self::Name, Self::Name) ;
 
     // Namespaces
     fn ns<T,F> (self: &mut Self, Self::Name, body:F) -> T
@@ -45,8 +45,11 @@ pub trait Adapton {
 
     // Computation arts: thunk
     fn thunk<Arg:Eq+Hash+Debug,T:Eq+Debug>
-        (self:&mut Self, id:ArtId<Self::Name>,
-         fn_body:Box<Fn(Arg) -> T>, arg:Arg) -> Art<T,Self::Loc> ;
+        (self:&mut Self,
+         id:ArtId<Self::Name>,
+         fn_body:Box<Fn(Arg) -> T>,
+         arg:Arg)
+         -> Art<T,Self::Loc> ;
 
     // Demand & observe arts (all kinds): force
     fn force<T:Eq+Debug> (self:&mut Self, Art<T,Self::Loc>) -> & T ;
