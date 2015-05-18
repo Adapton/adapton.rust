@@ -35,19 +35,21 @@ pub trait Adapton {
         (self:&mut Self, id:ArtId,
          fn_body:Box<Fn(Arg) -> T>, arg:Arg) -> Art<T> ;
 
-    // Demand & observe arts: force
+    // Demand & observe arts (all kinds): force
     fn force<T:Eq+Debug> (self:&mut Self, Art<T>) -> & T ;
 }
 
 #[derive(Hash,Debug,PartialEq,Eq)]
 pub enum Lineage {
-    Unknown, Structural,
-    Root,
+    // Roots: Unique Symbols (String, U64)
+    // (See Chapter 31 of PFPL 2nd Edition. Harper 2015.
+        http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf)
+    String(String),
+    U64(u64),
+    // Non-Roots: Pair, ForkL, ForkR, Rc:
     Pair(Rc<Lineage>,Rc<Lineage>),
     ForkL(Rc<Lineage>),
     ForkR(Rc<Lineage>),
-    String(String),
-    U64(u64),
     Rc(Rc<Lineage>),
 }
 
