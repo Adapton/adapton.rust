@@ -8,26 +8,26 @@ use std::fmt;
 
 use adapton_sigs::*;
 
-#[derive(Hash,Debug,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub struct Loc {
-    hash : u64,
+    hash : u64, // hash of name and path, together.
     name : Rc<Name>,
     path : Rc<Path>
 }
 
-#[derive(Hash,Debug,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum Path {
     Empty,
     Child(Rc<Path>,Name),
 }
 
-#[derive(Hash,Debug,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub struct Name {
-    hash : u64,
+    hash : u64, // hash of lineage
     lineage : Rc<Lineage>,
 }
 
-#[derive(Hash,Debug,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum Lineage {
     // Roots: Unique Symbols (String, U64)
     // (See Chapter 31 of PFPL 2nd Edition. Harper 2015.
@@ -43,26 +43,12 @@ pub enum Lineage {
     Rc(Rc<Lineage>),
 }
 
+#[derive(Debug)]
 pub enum Node<Res> {
     Pure(PureNode<Res>),
     Mut(MutNode<Res>),
     Compute(ComputeNode<Res>),
 }
-
-pub trait OpaqueNode {
-    fn loc (self:&Self) -> Rc<Loc> ;
-    fn creators (self:&Self) -> Vec<DemPrec> ;
-    fn dem_precs (self:&Self) -> Vec<DemPrec> ;
-    fn dem_succs (self:&Self) -> Vec<DemSucc> ;
-}
-
-impl <Res> OpaqueNode for Node<Res> {
-    fn loc (self:&Self) -> Rc<Loc> { panic!("") }
-    fn creators (self:&Self) -> Vec<DemPrec> { panic!("") }
-    fn dem_precs (self:&Self) -> Vec<DemPrec> { panic!("") }
-    fn dem_succs (self:&Self) -> Vec<DemSucc> { panic!("") }
-}
-
 
 #[derive(Debug)]
 pub struct PureNode<T> {
@@ -91,6 +77,19 @@ pub trait Computer<Res> {
     fn compute(self:&Self, st:&mut AdaptonState) -> Res;
 }
 
+pub trait OpaqueNode {
+    fn loc (self:&Self) -> Rc<Loc> ;
+    fn creators (self:&Self) -> Vec<DemPrec> ;
+    fn dem_precs (self:&Self) -> Vec<DemPrec> ;
+    fn dem_succs (self:&Self) -> Vec<DemSucc> ;
+}
+
+impl <Res> OpaqueNode for Node<Res> {
+    fn loc (self:&Self) -> Rc<Loc> { panic!("") }
+    fn creators (self:&Self) -> Vec<DemPrec> { panic!("") }
+    fn dem_precs (self:&Self) -> Vec<DemPrec> { panic!("") }
+    fn dem_succs (self:&Self) -> Vec<DemSucc> { panic!("") }
+}
 pub trait ComputerArg<Res> {
     type Arg;
     fn get_arg(self:&Self) -> Self::Arg;
@@ -108,7 +107,6 @@ impl<Res> fmt::Debug for ComputeNode<Res> {
         write!(f, "(ComputeNode)")
     }
 }
- 
 
 #[derive(Debug)]
 pub struct DemPrec {
@@ -284,49 +282,48 @@ impl Adapton for AdaptonState {
         }
     }
     
-    fn force<T:Eq+Debug> (self:&mut AdaptonState, art:Art<T,Self::Loc>) -> & T {
-        panic!("")
-        // match art {
-        //     Art::Box(b) => & b,
-        //     Art::Loc(loc) => {
-        //         let node = self.table.get_mut(&loc) ;
-        //         match node {
-        //             None => panic!("dangling pointer"),
-        //             Some(ref ptr) => {
-        //                 let node : &mut Node<T> = unsafe {
-        //                     let node : *mut Node<T> = panic!("transmute::<*mut (), *mut Node<T>>(*ptr)") ;
-        //                     &mut ( *node ) } ;
-        //                 match *node {
-        //                     Node::Pure(ref mut nd) => {
-        //                         & nd.val
-        //                     },
-        //                     Node::Mut(ref mut nd) => {
-        //                         if self.stack.is_empty() { } else {
-        //                             self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
-        //                         } ;
-        //                         & nd.val
-        //                     },
-        //                     Node::Compute(ref mut nd) => {
-        //                         self.stack.push ( Frame{name:loc.name.clone(),
-        //                                                 path:loc.path.clone(),
-        //                                                 succs:Vec::new(), } );
-        //                         let val = panic!("TODO: run compute node body") ;
-        //                         let mut frame = match
-        //                             self.stack.pop() { None => panic!(""), Some(frame) => frame } ;
-        //                         revoke_demand( self, &nd.loc, &nd.dem_succs );
-        //                         invoke_demand( self, nd.loc.clone(), &frame.succs );
-        //                         nd.dem_succs = frame.succs;
-        //                         if self.stack.is_empty() { } else {
-        //                             self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
-        //                         };
-        //                         & val
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-    }    
+    fn force<'a,T:Eq+Debug+Clone> (self:&mut AdaptonState, art:Art<T,Self::Loc>) -> T {
+        match art {
+            Art::Box(b) => *b.clone(),
+            Art::Loc(loc) => {
+                let node = self.table.get_mut(&loc) ;
+                match node {
+                    None => panic!("dangling pointer"),
+                    Some(ref ptr) => {
+                        let node : &mut Node<T> = unsafe {
+                            let node : *mut Node<T> = transmute::<_,_>(ptr) ;
+                            &mut ( *node ) } ;
+                        match *node {
+                            Node::Pure(ref mut nd) => nd.val.clone(),
+                            Node::Mut(ref mut nd) => {
+                                if self.stack.is_empty() { } else {
+                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
+                                } ;
+                                nd.val.clone()
+                            },
+                            Node::Compute(ref mut nd) => {
+                                self.stack.push ( Frame{name:loc.name.clone(),
+                                                        path:loc.path.clone(),
+                                                        succs:Vec::new(), } );
+                                let val = nd.computer.compute( panic!("TODO:self") ) ;
+                                let frame = match self.stack.pop() {
+                                    None => panic!(""),
+                                    Some(frame) => frame } ;
+                                
+                                revoke_demand( self, &nd.loc, &nd.dem_succs );
+                                invoke_demand( self, nd.loc.clone(), &frame.succs );
+                                nd.dem_succs = frame.succs;
+                                if self.stack.is_empty() { } else {
+                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
+                                };
+                                val
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn main () {

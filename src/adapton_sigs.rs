@@ -2,18 +2,18 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
 
-#[derive(Hash,Debug,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum Art<T,Loc> {
     Box(Box<T>),  // No entry in table. No dependency tracking.
     Loc(Rc<Loc>), // Location in table.
 }
 
-#[derive(Hash,Debug,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum MutArt<T,Loc> {
     MutArt(Art<T,Loc>)
 }
 
-#[derive(Hash,Debug,PartialEq,Eq)]
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum ArtId<Name> {
     None,            // Identifies an Art::Box. No dependency tracking.
     Structural(u64), // Identifies an Art::Loc.
@@ -21,8 +21,8 @@ pub enum ArtId<Name> {
 }
 
 pub trait Adapton {
-    type Name;
-    type Loc;
+    type Name : Clone;
+    type Loc : Clone;
     
     fn new () -> Self ;
 
@@ -37,14 +37,14 @@ pub trait Adapton {
         where F:FnOnce(&mut Self) -> T ;
 
     // Create immutable, eager arts: put
-    fn put<T:Eq+Debug> (self:&mut Self, T) -> Art<T,Self::Loc> ;
+    fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> Art<T,Self::Loc> ;
 
     // Mutable arts: cell and set
-    fn cell<T:Eq+Debug> (self:&mut Self, ArtId<Self::Name>, T) -> MutArt<T,Self::Loc> ;
-    fn set<T:Eq+Debug> (self:&mut Self, MutArt<T,Self::Loc>, T) ;
+    fn cell<T:Eq+Debug+Clone> (self:&mut Self, ArtId<Self::Name>, T) -> MutArt<T,Self::Loc> ;
+    fn set<T:Eq+Debug+Clone> (self:&mut Self, MutArt<T,Self::Loc>, T) ;
 
     // Computation arts: thunk
-    fn thunk<Arg:Eq+Hash+Debug,T:Eq+Debug>
+    fn thunk<Arg:Eq+Hash+Debug+Clone,T:Eq+Debug+Clone>
         (self:&mut Self,
          id:ArtId<Self::Name>,
          fn_body:Box<Fn(Arg) -> T>,
@@ -52,5 +52,5 @@ pub trait Adapton {
          -> Art<T,Self::Loc> ;
 
     // Demand & observe arts (all kinds): force
-    fn force<T:Eq+Debug> (self:&mut Self, Art<T,Self::Loc>) -> & T ;
+    fn force<T:Eq+Debug+Clone> (self:&mut Self, Art<T,Self::Loc>) -> T ;
 }
