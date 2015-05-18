@@ -9,7 +9,7 @@
 //! Adapton for Rust
 
 pub mod adapton_sigs ;
-//pub mod adapton_impl ;
+// pub mod adapton_impl ;
 
 mod adapton {
     pub use super::*;
