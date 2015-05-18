@@ -63,10 +63,6 @@ impl <Res> OpaqueNode for Node<Res> {
     fn dem_succs (self:&Self) -> Vec<DemSucc> { panic!("") }
 }
 
-pub fn node_of_opaque<'x,Res> (art:Art<Res>, opaque:&'x mut Box<OpaqueNode>) -> &'x mut Box<Node<Res>> {
-    panic!("")
-}
-
 
 #[derive(Debug)]
 pub struct PureNode<T> {
@@ -231,11 +227,11 @@ impl Adapton for AdaptonState {
         x
     }
     
-    fn put<T:Eq> (self:&mut AdaptonState, x:T) -> Art<T> {
+    fn put<T:Eq> (self:&mut AdaptonState, x:T) -> Art<T,Self::Loc> {
         Art::Box(Box::new(x))
     }
     
-    fn cell<T:Eq+Debug> (self:&mut AdaptonState, id:ArtId, val:T) -> MutArt<T> {
+    fn cell<T:Eq+Debug> (self:&mut AdaptonState, id:ArtId<Self::Name>, val:T) -> MutArt<T,Self::Loc> {
         let loc = match id {
             ArtId::None => panic!("a cell requires a unique identity"),
             ArtId::Structural(hash) => {
@@ -268,12 +264,12 @@ impl Adapton for AdaptonState {
         MutArt::MutArt(Art::Loc(loc))
     }
 
-    fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T>, val:T) {
+    fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:T) {
     }
 
     fn thunk<Arg:Eq+Hash+Debug,T:Eq+Debug>
         (self:&mut AdaptonState,
-         id:ArtId, fn_body:Box<Fn(Arg)->T>, arg:Arg) -> Art<T>
+         id:ArtId<Self::Name>, fn_body:Box<Fn(Arg)->T>, arg:Arg) -> Art<T,Self::Loc>
     {
         match id {
             ArtId::None => {
@@ -288,7 +284,7 @@ impl Adapton for AdaptonState {
         }
     }
     
-    fn force<T:Eq+Debug> (self:&mut AdaptonState, art:Art<T>) -> & T {
+    fn force<T:Eq+Debug> (self:&mut AdaptonState, art:Art<T,Self::Loc>) -> & T {
         panic!("")
         // match art {
         //     Art::Box(b) => & b,
