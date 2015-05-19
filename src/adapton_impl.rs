@@ -248,7 +248,7 @@ impl Adapton for AdaptonState {
     
     fn cell<T:Eq+Debug> (self:&mut AdaptonState, id:ArtId<Self::Name>, val:T) -> MutArt<T,Self::Loc> {
         let path = self.stack[0].path.clone();
-        let id   = Rc::new(id.clone());
+        let id   = Rc::new(id);
         let hash = my_hash(&(&path,&id));
         let loc = Rc::new(Loc{path:path,id:id,hash:hash});
         let mut node = Node::Mut(MutNode{
