@@ -395,25 +395,34 @@ impl Adapton for AdaptonState {
                                 nd.val.clone()
                             },
                             Node::Compute(ref mut nd) => {
-                                self.stack.push ( Frame{loc:loc.clone(),
-                                                        path:loc.path.clone(),
-                                                        succs:Vec::new(), } );
-                                let res = {
-                                    // TODO: See borrow of self above.
-                                    nd.computer.compute( panic!("self") )
-                                } ;
-                                let frame = match self.stack.pop() {
-                                    None => panic!("expected Some _: stack invariants are broken"),
-                                    Some(frame) => frame } ;                                
-                                revoke_demand( self, &nd.loc, &nd.dem_succs );
-                                invoke_demand( self, nd.loc.clone(), &frame.succs );
-                                nd.dem_succs = frame.succs;
-                                replace(&mut nd.res, Some(res.clone()));
-                                ;
-                                if self.stack.is_empty() { } else {
-                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:Rc::new(false)});
-                                };
-                                res
+                                match nd.res {
+                                    None => {
+                                        self.stack.push ( Frame{loc:loc.clone(),
+                                                                path:loc.path.clone(),
+                                                                succs:Vec::new(), } );
+                                        let res = {
+                                            // TODO: See borrow of self above.
+                                            nd.computer.compute( panic!("self") )
+                                        } ;
+                                        let frame = match self.stack.pop() {
+                                            None => panic!("expected Some _: stack invariants are broken"),
+                                            Some(frame) => frame } ;                                
+                                        revoke_demand( self, &nd.loc, &nd.dem_succs );
+                                        invoke_demand( self, nd.loc.clone(), &frame.succs );
+                                        nd.dem_succs = frame.succs;
+                                        replace(&mut nd.res, Some(res.clone()));
+                                        ;
+                                        if self.stack.is_empty() { } else {
+                                            self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:Rc::new(false)});
+                                        };
+                                        res
+                                    },
+                                    Some(ref res) => {                                        
+                                        panic!("");
+                                        // TODO: Check to see if there are dirty successors
+                                        res.clone()
+                                    }
+                                }
                             }
                         }
                     }
