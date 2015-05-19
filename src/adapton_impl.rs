@@ -56,12 +56,13 @@ pub enum Symbol {
 #[derive(Debug)]
 pub struct DemPrec {
     loc : Rc<Loc>,
+    dirty : Rc<bool>,
 }
 
 #[derive(Debug)]
 pub struct DemSucc {
     loc : Rc<Loc>,
-    dirty : bool
+    dirty : Rc<bool>,
 }
 
 #[derive(Debug)]
@@ -212,8 +213,22 @@ fn loc_of_name(path:Rc<Path>,name:Name) -> Rc<Loc> {
     loc_of_id(path,Rc::new(ArtId::Nominal(name)))
 }
 
-fn dirty_preds(st:&mut AdaptonState, loc:Loc) {
-    panic!("");
+fn dirty_preds(st:&mut AdaptonState, loc:&Loc) {
+    let node = st.table.get(loc) ;
+    match node {
+        None => panic!("dangling pointer"),
+        Some(nd) => {
+            for pred in nd.dem_precs().iter() {
+                if ! &*pred.dirty {
+                    dirty_preds(panic!("st"),&*pred.loc);
+                }
+                else {
+                    // Nothing to do.
+                    // Already dirty.
+                }
+            }
+        }
+    }
 }
 
 impl Adapton for AdaptonState {
@@ -294,7 +309,7 @@ impl Adapton for AdaptonState {
         // TODO: Check to see if the cell exists;
         // check if its content has changed.
         // dirty its precs if so.
-        panic!("")
+        panic!("");
         self.table.insert(loc.clone(), Box::new(node));
         MutArt::MutArt(Art::Loc(loc))
     }
@@ -324,12 +339,16 @@ impl Adapton for AdaptonState {
             ArtId::Structural(hash) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Structural(hash)));
+                // TODO: Lookup loc in table.  If it exists, re-use it.
                 let creators =
                     if self.stack.is_empty() {
                         Vec::new()
                     } else {
+                        let pred = self.stack[0].loc.clone();
+                        let dirty = Rc::new(false);
+                        self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:dirty.clone()});
                         let mut v = Vec::new();
-                        v.push(DemPrec{loc:self.stack[0].loc.clone()});
+                        v.push(DemPrec{loc:pred,dirty:dirty});
                         v
                     };
                 let computer_arg = Box::new((fn_body,arg.clone()));
@@ -358,7 +377,8 @@ impl Adapton for AdaptonState {
             Art::Box(b) => *b.clone(),
             Art::Loc(loc) => {
                 let node = self.table.get_mut(&loc) ;
-                // TODO: Do we need to clone the node here; otherwise, we are borrowing self through the entire match!
+                // TODO: Do we need to clone the node here?;
+                // otherwise, we are borrowing self through the entire match!
                 match node {
                     None => panic!("dangling pointer"),
                     Some(ref ptr) => {
@@ -369,7 +389,7 @@ impl Adapton for AdaptonState {
                             Node::Pure(ref mut nd) => nd.val.clone(),
                             Node::Mut(ref mut nd) => {
                                 if self.stack.is_empty() { } else {
-                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
+                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:Rc::new(false)});
                                 } ;
                                 nd.val.clone()
                             },
@@ -386,7 +406,7 @@ impl Adapton for AdaptonState {
                                 invoke_demand( self, nd.loc.clone(), &frame.succs );
                                 nd.dem_succs = frame.succs;
                                 if self.stack.is_empty() { } else {
-                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
+                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:Rc::new(false)});
                                 };
                                 val
                             }
