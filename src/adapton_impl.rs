@@ -8,39 +8,67 @@ use std::fmt;
 
 use adapton_sigs::*;
 
-#[derive(Hash,Debug,PartialEq,Eq,Clone)]
-pub struct Loc {
-    hash : u64, // hash of name and path, together.
-    name : Rc<Name>,
-    path : Rc<Path>
+#[derive(Debug)]
+pub struct Frame {
+    loc   : Rc<Loc>,       // The currently-executing node
+    path  : Rc<Path>,      // The current path for creating new nodes; invariant: (prefix-of frame.loc.path frame.path)
+    succs : Vec<DemSucc>,  // The currently-executing node's effects (viz., the nodes it demands)
 }
 
+// Each location identifies a node in the DCG.
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+pub struct Loc {
+    path : Rc<Path>,
+    id   : Rc<ArtId<Name>>,
+    hash : u64, // hash of (id,path)
+}
+
+// Paths are built using the ns command.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum Path {
     Empty,
     Child(Rc<Path>,Name),
 }
 
+// Names provide a symbolic way to identify nodes.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub struct Name {
-    hash : u64, // hash of lineage
-    lineage : Rc<Lineage>,
+    hash : u64, // hash of symbol
+    symbol : Rc<Symbol>,
 }
 
+// Symbols
+//
+// For a general account of the semantics of symbolics, see Chapter 31
+// of PFPL 2nd Edition. Harper 2015:
+// http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf
+//
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
-pub enum Lineage {
-    // Roots: Unique Symbols (String, U64)
-    // (See Chapter 31 of PFPL 2nd Edition. Harper 2015.
-    //  http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf)
-    String(String),
-    U64(u64),
-    Root,
-    Unknown,
-    // Non-Roots: Pair, ForkL, ForkR, Rc:
-    Pair(Rc<Lineage>,Rc<Lineage>),
-    ForkL(Rc<Lineage>),
-    ForkR(Rc<Lineage>),
-    Rc(Rc<Lineage>),
+pub enum Symbol {
+    Root, // Root identifies the outside environment of Rust code.
+    Nil,  // Nil for non-symbolic, hash-based names.
+    String(String), U64(u64),   // Strings and U64s are unique symbols.
+    Pair(Rc<Symbol>,Rc<Symbol>),
+    ForkL(Rc<Symbol>),
+    ForkR(Rc<Symbol>),
+    Rc(Rc<Symbol>),
+}
+
+#[derive(Debug)]
+pub struct DemPrec {
+    loc : Rc<Loc>,
+}
+
+#[derive(Debug)]
+pub struct DemSucc {
+    loc : Rc<Loc>,
+    dirty : bool
+}
+
+#[derive(Debug)]
+pub struct AdaptonState {
+    table : HashMap<Rc<Loc>, Box<OpaqueNode>>,
+    stack : Vec<Frame>
 }
 
 #[derive(Debug)]
@@ -108,26 +136,10 @@ impl<Res> fmt::Debug for ComputeNode<Res> {
     }
 }
 
-#[derive(Debug)]
-pub struct DemPrec {
-    loc : Rc<Loc>,
-}
-
-#[derive(Debug)]
-pub struct DemSucc {
-    loc : Rc<Loc>,
-    dirty : bool
-}
-
-pub struct Frame {
-    path : Rc<Path>,
-    name : Rc<Name>,
-    succs : Vec<DemSucc>,
-}
-
-pub struct AdaptonState {
-    table : HashMap<Rc<Loc>, Box<OpaqueNode>>,
-    stack : Vec<Frame>
+impl fmt::Debug for OpaqueNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "(OpaqueNode)")
+    }
 }
 
 // fn dem_precs<'x,T:'x> (st: &'x mut AdaptonState, loc: &Rc<Loc>) -> &'x mut Vec<DemPrec> {    
@@ -179,10 +191,15 @@ impl Adapton for AdaptonState {
     type Loc  = Loc;
     
     fn new () -> AdaptonState {
-        let empty = Rc::new(Path::Empty);
-        let root = Rc::new(Name{hash:0, lineage:Rc::new(Lineage::Root) });
+        let path   = Rc::new(Path::Empty);
+        let symbol = Rc::new(Symbol::Root);
+        let hash   = my_hash(&symbol);
+        let name   = Name{symbol:symbol,hash:hash};
+        let id     = Rc::new(ArtId::Nominal(name));
+        let hash   = my_hash(&(&path,&id));
+        let loc    = Rc::new(Loc{path:path.clone(),id:id,hash:hash});
         let mut stack = Vec::new();
-        stack.push( Frame{path:empty, name:root, succs:Vec::new()} ) ;
+        stack.push( Frame{loc:loc, path:path, succs:Vec::new()} ) ;
         AdaptonState {
             table : HashMap::new (),
             stack : stack,
@@ -191,29 +208,29 @@ impl Adapton for AdaptonState {
     
     fn name_of_string (self:&mut AdaptonState, sym:String) -> Name {
         let h = my_hash(&sym);
-        let s = Lineage::String(sym) ;
-        Name{ hash:h, lineage:Rc::new(s) }
+        let s = Symbol::String(sym) ;
+        Name{ hash:h, symbol:Rc::new(s) }
     }
     
     fn name_of_u64 (self:&mut AdaptonState, sym:u64) -> Name {
         let h = my_hash(&sym) ;
-        let s = Lineage::U64(sym) ;
-        Name{ hash:h, lineage:Rc::new(s) }
+        let s = Symbol::U64(sym) ;
+        Name{ hash:h, symbol:Rc::new(s) }
     }
     
     fn name_pair (self: &mut AdaptonState, fst: Name, snd: Name) -> Name {
         let h = my_hash( &(fst.hash,snd.hash) ) ;
-        let p = Lineage::Pair(fst.lineage, snd.lineage) ;
-        Name{ hash:h, lineage:Rc::new(p) }
+        let p = Symbol::Pair(fst.symbol, snd.symbol) ;
+        Name{ hash:h, symbol:Rc::new(p) }
     }
     
     fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
         let h1 = my_hash( &(&nm, 11111111) ) ; // TODO: make this hashing better.
         let h2 = my_hash( &(&nm, 22222222) ) ;
         ( Name{ hash:h1,
-                lineage:Rc::new(Lineage::ForkL(nm.lineage.clone())) } ,
+                symbol:Rc::new(Symbol::ForkL(nm.symbol.clone())) } ,
           Name{ hash:h2,
-                lineage:Rc::new(Lineage::ForkR(nm.lineage)) } )
+                symbol:Rc::new(Symbol::ForkR(nm.symbol)) } )
     }
     
     fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
@@ -230,22 +247,10 @@ impl Adapton for AdaptonState {
     }
     
     fn cell<T:Eq+Debug> (self:&mut AdaptonState, id:ArtId<Self::Name>, val:T) -> MutArt<T,Self::Loc> {
-        let loc = match id {
-            ArtId::None => panic!("a cell requires a unique identity"),
-            ArtId::Structural(hash) => {
-                Rc::new(Loc{
-                    hash:hash,
-                    name:Rc::new(Name{hash:hash,
-                                      lineage:Rc::new(Lineage::Unknown)}),
-                    path:self.stack[0].path.clone()
-                })
-            }
-            ArtId::Nominal(nm) => {
-                Rc::new(Loc{
-                    hash:nm.hash,
-                    name:Rc::new(nm),
-                    path:self.stack[0].path.clone() })
-            }} ;
+        let path = self.stack[0].path.clone();
+        let id   = Rc::new(id.clone());
+        let hash = my_hash(&(&path,&id));
+        let loc = Rc::new(Loc{path:path,id:id,hash:hash});
         let mut node = Node::Mut(MutNode{
             loc:loc.clone(),
             dem_precs:Vec::new(),
@@ -302,7 +307,7 @@ impl Adapton for AdaptonState {
                                 nd.val.clone()
                             },
                             Node::Compute(ref mut nd) => {
-                                self.stack.push ( Frame{name:loc.name.clone(),
+                                self.stack.push ( Frame{loc:loc.clone(),
                                                         path:loc.path.clone(),
                                                         succs:Vec::new(), } );
                                 let val = nd.computer.compute( panic!("TODO:self") ) ;

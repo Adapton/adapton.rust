@@ -10,14 +10,17 @@ pub enum Art<T,Loc> {
 
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum MutArt<T,Loc> {
-    MutArt(Art<T,Loc>)
+    MutArt(Art<T,Loc>) // An articulation can is permitted to be mutated via set.
 }
 
+// ArtId -- A symbolic identity for an articulation point.  An ArtId
+// is chosen by the programmer to identify the point during evaluation
+// (and simultaneously, to identify the point during re-evaluation).
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum ArtId<Name> {
     None,            // Identifies an Art::Box. No dependency tracking.
-    Structural(u64), // Identifies an Art::Loc.
-    Nominal(Name),   // Identifies an Art::Loc.
+    Structural(u64), // Identifies an Art::Loc based on hashing content.
+    Nominal(Name),   // Identifies an Art::Loc based on a name.
 }
 
 pub trait Adapton {
