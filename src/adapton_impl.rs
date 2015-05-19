@@ -39,8 +39,7 @@ pub struct Name {
 
 // Symbols
 //
-// For a general account of the semantics of symbolics, see Chapter 31
-// of PFPL 2nd Edition. Harper 2015:
+// For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
 // http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf
 //
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
@@ -121,12 +120,30 @@ impl <Res> OpaqueNode for Node<Res> {
 pub trait ComputerArg<Res> {
     type Arg;
     fn get_arg(self:&Self) -> Self::Arg;
-    fn compute(self:&Self, st:&mut AdaptonState, arg:Self::Arg) -> Res;
+    fn compute(self:&Self, st:&mut AdaptonState) -> Res;
 }
 
 impl<Arg,Res> Computer<Res> for ComputerArg<Res,Arg=Arg> {
     fn compute(self:&Self, st:&mut AdaptonState) -> Res {
-        self.compute(st, self.get_arg())
+        self.compute(st)
+    }
+}
+
+impl<Arg:Clone,Res> ComputerArg<Res> for (Box<Fn(&mut AdaptonState,Arg)->Res>,Arg) {
+    type Arg = Arg;
+    fn get_arg(self:&Self) -> Arg { let &(_,ref arg) = self; arg.clone() }
+    fn compute(self:&Self, st:&mut AdaptonState) -> Res {
+        let &(ref fn_body,ref arg) = self;
+        fn_body(st,arg.clone())
+    }
+}
+
+impl<Arg:Clone,Res> Computer<Res>
+for (Box<Fn(&mut AdaptonState,Arg)->Res>,Arg)
+{
+    fn compute(self:&Self, st:&mut AdaptonState) -> Res {
+        let &(ref fn_body,ref arg) = self;
+        fn_body(st,arg.clone())
     }
 }
 
@@ -186,6 +203,19 @@ fn my_hash<T>(obj: T) -> u64
     hasher.finish()
 }
 
+fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
+    let hash = my_hash(&(&path,&id));
+    Rc::new(Loc{path:path,id:id,hash:hash})
+}
+
+fn loc_of_name(path:Rc<Path>,name:Name) -> Rc<Loc> {
+    loc_of_id(path,Rc::new(ArtId::Nominal(name)))
+}
+
+fn dirty_preds(st:&mut AdaptonState, loc:Loc) {
+    panic!("");
+}
+
 impl Adapton for AdaptonState {
     type Name = Name;
     type Loc  = Loc;
@@ -195,6 +225,7 @@ impl Adapton for AdaptonState {
         let symbol = Rc::new(Symbol::Root);
         let hash   = my_hash(&symbol);
         let name   = Name{symbol:symbol,hash:hash};
+        
         let id     = Rc::new(ArtId::Nominal(name));
         let hash   = my_hash(&(&path,&id));
         let loc    = Rc::new(Loc{path:path.clone(),id:id,hash:hash});
@@ -245,8 +276,11 @@ impl Adapton for AdaptonState {
     fn put<T:Eq> (self:&mut AdaptonState, x:T) -> Art<T,Self::Loc> {
         Art::Box(Box::new(x))
     }
-    
-    fn cell<T:Eq+Debug> (self:&mut AdaptonState, id:ArtId<Self::Name>, val:T) -> MutArt<T,Self::Loc> {
+
+    fn cell<T:Eq+Debug
+        +'static // TODO: Needed on T because of lifetime issues.
+        >
+        (self:&mut AdaptonState, id:ArtId<Self::Name>, val:T) -> MutArt<T,Self::Loc> {
         let path = self.stack[0].path.clone();
         let id   = Rc::new(id);
         let hash = my_hash(&(&path,&id));
@@ -260,26 +294,56 @@ impl Adapton for AdaptonState {
         // TODO: Check to see if the cell exists;
         // check if its content has changed.
         // dirty its precs if so.
-
-        // self.table.insert(loc.clone(), Box::new(node)) ;
-        self.table.insert(loc.clone(), panic!("Box::new(node)")) ;
-        
+        panic!("")
+        self.table.insert(loc.clone(), Box::new(node));
         MutArt::MutArt(Art::Loc(loc))
     }
 
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:T) {
+        // TODO:
+        // check if its content has changed.
+        // dirty its precs if so.
+        panic!("")
     }
 
-    fn thunk<Arg:Eq+Hash+Debug,T:Eq+Debug>
+    fn thunk<Arg:Eq+Hash+Debug+Clone
+        +'static // Needed on Arg because of lifetime issues.
+        ,T:Eq+Debug+Clone
+        +'static // Needed on T because of lifetime issues.
+        >        
         (self:&mut AdaptonState,
-         id:ArtId<Self::Name>, fn_body:Box<Fn(Arg)->T>, arg:Arg) -> Art<T,Self::Loc>
+         id:ArtId<Self::Name>,
+         fn_body:Box<Fn(&mut AdaptonState,Arg)->T>,
+         arg:Arg)
+         -> Art<T,Self::Loc>
     {
         match id {
             ArtId::None => {
-                Art::Box(Box::new(fn_body((arg))))
+                Art::Box(Box::new(fn_body(self,arg)))
             },
             ArtId::Structural(hash) => {
-                panic!("")
+                let loc = loc_of_id(self.stack[0].path.clone(),
+                                    Rc::new(ArtId::Structural(hash)));
+                let creators =
+                    if self.stack.is_empty() {
+                        Vec::new()
+                    } else {
+                        let mut v = Vec::new();
+                        v.push(DemPrec{loc:self.stack[0].loc.clone()});
+                        v
+                    };
+                let computer_arg = Box::new((fn_body,arg.clone()));
+                let node : ComputeNode<T> = ComputeNode{
+                    loc:loc.clone(),
+                    creators:creators,
+                    dem_precs:Vec::new(),
+                    dem_succs:Vec::new(),
+                    res:None,
+                    computer:computer_arg,
+                } ;
+                self.table.insert(loc.clone(),
+                                  Box::new(Node::Compute(node)));
+                Art::Loc(loc)
             },
             ArtId::Nominal(nm) => {
                 panic!("")
@@ -287,11 +351,14 @@ impl Adapton for AdaptonState {
         }
     }
     
-    fn force<'a,T:Eq+Debug+Clone> (self:&mut AdaptonState, art:Art<T,Self::Loc>) -> T {
+    fn force<'a,T:Eq+Debug+Clone> (self:&mut AdaptonState,
+                                   art:Art<T,Self::Loc>) -> T
+    {
         match art {
             Art::Box(b) => *b.clone(),
             Art::Loc(loc) => {
                 let node = self.table.get_mut(&loc) ;
+                // TODO: Do we need to clone the node here; otherwise, we are borrowing self through the entire match!
                 match node {
                     None => panic!("dangling pointer"),
                     Some(ref ptr) => {
@@ -310,9 +377,9 @@ impl Adapton for AdaptonState {
                                 self.stack.push ( Frame{loc:loc.clone(),
                                                         path:loc.path.clone(),
                                                         succs:Vec::new(), } );
-                                let val = nd.computer.compute( panic!("TODO:self") ) ;
+                                let val = nd.computer.compute( panic!("self") ); // TODO: See borrow of self above.
                                 let frame = match self.stack.pop() {
-                                    None => panic!(""),
+                                    None => panic!("expected Some _: stack invariants are broken"),
                                     Some(frame) => frame } ;
                                 
                                 revoke_demand( self, &nd.loc, &nd.dem_succs );
