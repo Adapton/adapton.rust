@@ -220,6 +220,7 @@ fn dirty_preds(st:&mut AdaptonState, loc:&Loc) {
         Some(nd) => {
             for pred in nd.dem_precs().iter() {
                 if ! &*pred.dirty {
+                    replace(panic!(""), true);
                     dirty_preds(panic!("st"),&*pred.loc);
                 }
                 else {
@@ -397,18 +398,22 @@ impl Adapton for AdaptonState {
                                 self.stack.push ( Frame{loc:loc.clone(),
                                                         path:loc.path.clone(),
                                                         succs:Vec::new(), } );
-                                let val = nd.computer.compute( panic!("self") ); // TODO: See borrow of self above.
+                                let res = {
+                                    // TODO: See borrow of self above.
+                                    nd.computer.compute( panic!("self") )
+                                } ;
                                 let frame = match self.stack.pop() {
                                     None => panic!("expected Some _: stack invariants are broken"),
-                                    Some(frame) => frame } ;
-                                
+                                    Some(frame) => frame } ;                                
                                 revoke_demand( self, &nd.loc, &nd.dem_succs );
                                 invoke_demand( self, nd.loc.clone(), &frame.succs );
                                 nd.dem_succs = frame.succs;
+                                replace(&mut nd.res, Some(res.clone()));
+                                ;
                                 if self.stack.is_empty() { } else {
                                     self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:Rc::new(false)});
                                 };
-                                val
+                                res
                             }
                         }
                     }
