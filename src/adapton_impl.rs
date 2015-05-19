@@ -417,7 +417,7 @@ impl Adapton for AdaptonState {
                                         };
                                         res
                                     },
-                                    Some(ref res) => {                                        
+                                    Some(ref res) => {
                                         panic!("");
                                         // TODO: Check to see if there are dirty successors
                                         res.clone()
