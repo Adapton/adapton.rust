@@ -87,14 +87,14 @@ pub struct PureNode<T> {
 #[derive(Debug)]
 pub struct MutNode<T> {
     loc : Rc<Loc>,
-    creators  : Vec<DemPred>,
+    creators  : Vec<Rc<Loc>>,
     dem_preds : Vec<DemPred>,
     val : T,
 }
 
 pub struct ComputeNode<Res> {
     loc : Rc<Loc>,
-    creators : Vec<DemPred>,
+    creators : Vec<Rc<Loc>>,
     dem_preds : Vec<DemPred>,
     dem_succs : Vec<DemSucc>,
     res : Option<Res>,
@@ -107,14 +107,14 @@ pub trait Computer<Res> {
 
 pub trait OpaqueNode {
     fn loc (self:&Self) -> Rc<Loc> ;
-    fn creators<'r>  (self:&'r mut Self) -> &'r mut Vec<DemPred> ;
+    fn creators<'r>  (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn dem_preds<'r> (self:&'r mut Self) -> &'r mut Vec<DemPred> ;
     fn dem_succs<'r> (self:&'r mut Self) -> &'r mut Vec<DemSucc> ;
 }
 
 impl <Res> OpaqueNode for Node<Res> {
     fn loc (self:&Self) -> Rc<Loc> { panic!("") }
-    fn creators<'r>  (self:&'r mut Self) -> &'r mut Vec<DemPred> { panic!("") }
+    fn creators<'r>  (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> { panic!("") }
     fn dem_preds<'r> (self:&'r mut Self) -> &'r mut Vec<DemPred> { panic!("") }
     fn dem_succs<'r> (self:&'r mut Self) -> &'r mut Vec<DemSucc> { panic!("") }
 }
@@ -332,25 +332,39 @@ impl Adapton for AdaptonState {
             let path = self.stack[0].path.clone();
             let id   = Rc::new(id);
             let hash = my_hash(&(&path,&id));
-            let loc = Rc::new(Loc{path:path,id:id,hash:hash});
-            let cell = match self.table.get(&loc) {
+            let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
+            let cell = match self.table.get_mut(&loc) {
                 None => None,
-                Some(_) => {Some(MutArt{loc:loc.clone(),
-                                        phantom:PhantomData})},
+                Some(ref mut nd) => {
+                    let creators = nd.creators() ;
+                    if ! self.stack.is_empty () {
+                        creators.push(self.stack[0].loc.clone())
+                    } ;
+                    Some(MutArt{loc:loc.clone(),
+                                phantom:PhantomData})
+                },
             } ;
             match cell {
                 Some(cell) => {
                     self.set(cell, val) ;
                 },
                 None => {
+                    let mut creators = Vec::new();
+                    if ! self.stack.is_empty () {
+                        creators.push(self.stack[0].loc.clone())
+                    } ;
                     let mut node = Node::Mut(MutNode{
                         loc:loc.clone(),
                         dem_preds:Vec::new(),
-                        creators:Vec::new(),
+                        creators:creators,
                         val:val
                     }) ;
                     self.table.insert(loc.clone(), Box::new(node));
                 },
+            } ;
+            if ! self.stack.is_empty () {
+                // Todo: DemSucc should be Alloc or Create or something
+                self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
             } ;
             MutArt{loc:loc,phantom:PhantomData}
         }
@@ -406,7 +420,7 @@ impl Adapton for AdaptonState {
                         let pred = self.stack[0].loc.clone();
                         self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
                         let mut v = Vec::new();
-                        v.push(DemPred{loc:pred});
+                        v.push(pred);
                         v
                     };
                 let computer_arg = Box::new((fn_body,arg.clone()));
