@@ -233,13 +233,13 @@ fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Loc, tgt_loc:&Loc) -> &'r 
 }
 
 fn dirty_preds(st:&mut AdaptonState, loc:&Loc) {
-    let pred_locs = {
+    let pred_locs : Vec<Rc<Loc>> = {
+        // To pass borrow-checker,
+        //   pred_locs are copies of the Loc's from st, for use below.
         let node = st.table.get_mut(loc) ;
         match node {
             None => panic!("dangling pointer"),
             Some(nd) => {
-                // Todo: Create a vec copy of the pred locs.
-                // End borrow of st.
                 let mut v = Vec::new();
                 for pred in nd.dem_preds().iter() {
                     v.push(pred.loc.clone())
@@ -248,6 +248,7 @@ fn dirty_preds(st:&mut AdaptonState, loc:&Loc) {
     ;
     for pred_loc in pred_locs {
         let stop = {
+            // The stop bit communicates information from st for use below.
             let succ = get_succ_mut(st, &pred_loc, &loc) ;
             if succ.dirty { true } else {
                 replace(&mut succ.dirty, true);
@@ -444,7 +445,6 @@ impl Adapton for AdaptonState {
                                         res
                                     },
                                     Some(ref res) => {
-                                        panic!("");
                                         // TODO: Check to see if there are dirty successors
                                         
                                         // If there are dirty
