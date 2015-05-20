@@ -325,7 +325,7 @@ impl Adapton for AdaptonState {
         Art::Box(Box::new(x))
     }
 
-    fn cell<T:Eq+Debug
+    fn cell<T:Eq+Debug+Clone
         +'static // TODO: Needed on T because of lifetime issues.
         >
         (self:&mut AdaptonState, id:ArtId<Self::Name>, val:T) -> MutArt<T,Self::Loc> {
@@ -333,9 +333,14 @@ impl Adapton for AdaptonState {
             let id   = Rc::new(id);
             let hash = my_hash(&(&path,&id));
             let loc = Rc::new(Loc{path:path,id:id,hash:hash});
-            match self.table.get(&loc) {
-                Some(nd) => {
-                    panic!("TODO")
+            let cell = match self.table.get(&loc) {
+                None => None,
+                Some(_) => {Some(MutArt{loc:loc.clone(),
+                                        phantom:PhantomData})},
+            } ;
+            match cell {
+                Some(cell) => {
+                    self.set(cell, val) ;
                 },
                 None => {
                     let mut node = Node::Mut(MutNode{
@@ -345,22 +350,23 @@ impl Adapton for AdaptonState {
                         val:val
                     }) ;
                     self.table.insert(loc.clone(), Box::new(node));
-                    MutArt{loc:loc,phantom:PhantomData}
                 },
-            }
+            } ;
+            MutArt{loc:loc,phantom:PhantomData}
         }
 
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:T) {
         // TODO: Assert that the stack is empty
-        let node = self.table.get_mut(&cell.loc) ;
-        let changed = match node {
+        let changed = {
+            let node = self.table.get_mut(&cell.loc) ;
+            match node {
             None => panic!("dangling location"),
             Some(nd) => {
                 let node : &mut Node<T> = unsafe {
                     let node : *mut Node<T> = transmute::<_,_>(nd) ;
                     &mut ( *node ) } ;
                 match *node {
-                    Node::Mut(nd) => {
+                    Node::Mut(ref mut nd) => {
                         if nd.val == val {
                             false
                         } else {
@@ -369,7 +375,7 @@ impl Adapton for AdaptonState {
                         }},
                     _ => panic!("dangling location"),
                 }},
-        } ;
+            }} ;
         if changed { dirty_preds(self, &cell.loc) }
         else { }
     }
