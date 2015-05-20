@@ -217,40 +217,45 @@ fn loc_of_name(path:Rc<Path>,name:Name) -> Rc<Loc> {
 // From Pred{loc=a}         in b.dem_preds
 // To   Succ{loc=b,dirty=?} in a.dem_succs
 // Where a and b are each a node.
-fn succ_of_pred<'r>(st:&'r mut AdaptonState, loc:&Loc, pred:&DemPred) -> &'r mut DemSucc {
-    let pred_node = st.table.get_mut( & pred.loc ) ;
-    match pred_node {
-        None => panic!("dangling pred; no such pred node"),
+fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Loc, tgt_loc:&Loc) -> &'r mut DemSucc {
+    let src_node = st.table.get_mut( src_loc ) ;
+    match src_node {
+        None => panic!("src_loc is dangling"),
         Some(nd) => {
             for succ in nd.dem_succs().iter_mut() {
-                if *loc == *succ.loc {
+                if *succ.loc == *tgt_loc {
                     return succ
                 } else {}
             } ;
-            panic!("dangling pred; no corresponding succ")
+            panic!("tgt_loc is dangling in src_node.dem_succs")
         }
     }
 }
 
 fn dirty_preds(st:&mut AdaptonState, loc:&Loc) {
-    let node = st.table.get_mut(loc) ;
-    match node {
-        None => panic!("dangling pointer"),
-        Some(nd) => {
-            // Todo: Create a vec copy of the pred locs.
-            // End borrow of st.
-            for pred in nd.dem_preds().iter() {
-                let succ = succ_of_pred(st, &loc, &pred) ;
-                if ! succ.dirty {
-                    replace(&mut succ.dirty, true);
-                    dirty_preds(st,&*pred.loc);
-                }
-                else {
-                    // Nothing to do.
-                    // Already dirty.
-                }
-            }
-        }
+    let pred_locs = {
+        let node = st.table.get_mut(loc) ;
+        match node {
+            None => panic!("dangling pointer"),
+            Some(nd) => {
+                // Todo: Create a vec copy of the pred locs.
+                // End borrow of st.
+                let mut v = Vec::new();
+                for pred in nd.dem_preds().iter() {
+                    v.push(pred.loc.clone())
+                } ; v
+            }}}
+    ;
+    for pred_loc in pred_locs {
+        let stop = {
+            let succ = get_succ_mut(st, &pred_loc, &loc) ;
+            if succ.dirty { true } else {
+                replace(&mut succ.dirty, true);
+                false
+            }} ;
+        if !stop {
+            dirty_preds(st,&pred_loc);
+        } else {}
     }
 }
 
