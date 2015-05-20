@@ -5,6 +5,7 @@ use std::mem::replace;
 use std::mem::transmute;
 use std::rc::Rc;
 use std::fmt;
+use std::marker::PhantomData;
 
 use adapton_sigs::*;
 
@@ -217,6 +218,9 @@ fn loc_of_name(path:Rc<Path>,name:Name) -> Rc<Loc> {
 // From Pred{loc=a}         in b.dem_preds
 // To   Succ{loc=b,dirty=?} in a.dem_succs
 // Where a and b are each a node.
+//
+// The succ edge is returned as a mutable borrow, to permit checking
+// and mutating the dirty bit.
 fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Loc, tgt_loc:&Loc) -> &'r mut DemSucc {
     let src_node = st.table.get_mut( src_loc ) ;
     match src_node {
@@ -325,29 +329,49 @@ impl Adapton for AdaptonState {
         +'static // TODO: Needed on T because of lifetime issues.
         >
         (self:&mut AdaptonState, id:ArtId<Self::Name>, val:T) -> MutArt<T,Self::Loc> {
-        let path = self.stack[0].path.clone();
-        let id   = Rc::new(id);
-        let hash = my_hash(&(&path,&id));
-        let loc = Rc::new(Loc{path:path,id:id,hash:hash});
-        let mut node = Node::Mut(MutNode{
-            loc:loc.clone(),
-            dem_preds:Vec::new(),
-            creators:Vec::new(),
-            val:val
-        }) ;
-        // TODO: Check to see if the cell exists;
-        // check if its content has changed.
-        // dirty its precs if so.
-        panic!("");
-        self.table.insert(loc.clone(), Box::new(node));
-        MutArt::MutArt(Art::Loc(loc))
-    }
+            let path = self.stack[0].path.clone();
+            let id   = Rc::new(id);
+            let hash = my_hash(&(&path,&id));
+            let loc = Rc::new(Loc{path:path,id:id,hash:hash});
+            match self.table.get(&loc) {
+                Some(nd) => {
+                    panic!("TODO")
+                },
+                None => {
+                    let mut node = Node::Mut(MutNode{
+                        loc:loc.clone(),
+                        dem_preds:Vec::new(),
+                        creators:Vec::new(),
+                        val:val
+                    }) ;
+                    self.table.insert(loc.clone(), Box::new(node));
+                    MutArt{loc:loc,phantom:PhantomData}
+                },
+            }
+        }
 
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:T) {
-        // TODO:
-        // check if its content has changed.
-        // dirty its precs if so.
-        panic!("")
+        // TODO: Assert that the stack is empty
+        let node = self.table.get_mut(&cell.loc) ;
+        let changed = match node {
+            None => panic!("dangling location"),
+            Some(nd) => {
+                let node : &mut Node<T> = unsafe {
+                    let node : *mut Node<T> = transmute::<_,_>(nd) ;
+                    &mut ( *node ) } ;
+                match *node {
+                    Node::Mut(nd) => {
+                        if nd.val == val {
+                            false
+                        } else {
+                            replace(&mut nd.val, val) ;
+                            true
+                        }},
+                    _ => panic!("dangling location"),
+                }},
+        } ;
+        if changed { dirty_preds(self, &cell.loc) }
+        else { }
     }
 
     fn thunk<Arg:Eq+Hash+Debug+Clone

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
+use std::marker::PhantomData;
 
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum Art<T,Loc> {
@@ -9,8 +10,9 @@ pub enum Art<T,Loc> {
 }
 
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
-pub enum MutArt<T,Loc> {
-    MutArt(Art<T,Loc>) // An articulation can is permitted to be mutated via set.
+pub struct MutArt<T,Loc> {
+    pub loc:Rc<Loc>,
+    pub phantom: PhantomData<T>
 }
 
 // ArtId -- A symbolic identity for an articulation point.  An ArtId
