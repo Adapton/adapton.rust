@@ -224,8 +224,7 @@ fn succ_of_pred<'r>(st:&'r mut AdaptonState, loc:&Loc, pred:&DemPred) -> &'r mut
         Some(nd) => {
             for succ in nd.dem_succs().iter_mut() {
                 if *loc == *succ.loc {
-                    replace(&mut succ.dirty, true);
-                    return (&mut succ)
+                    return succ
                 } else {}
             } ;
             panic!("dangling pred; no corresponding succ")
@@ -233,7 +232,7 @@ fn succ_of_pred<'r>(st:&'r mut AdaptonState, loc:&Loc, pred:&DemPred) -> &'r mut
     }
 }
 
-fn dirty_preds(st:&mut AdaptonState, loc:&Loc) {    
+fn dirty_preds(st:&mut AdaptonState, loc:&Loc) {
     let node = st.table.get_mut(loc) ;
     match node {
         None => panic!("dangling pointer"),
