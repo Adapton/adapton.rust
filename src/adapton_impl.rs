@@ -54,15 +54,14 @@ pub enum Symbol {
 }
 
 #[derive(Debug)]
-pub struct DemPrec {
+pub struct DemPred {
     loc : Rc<Loc>,
-    dirty : Rc<bool>,
 }
 
 #[derive(Debug)]
 pub struct DemSucc {
     loc : Rc<Loc>,
-    dirty : Rc<bool>,
+    dirty : bool, // mutated to dirty when loc changes, or any of its successors change
 }
 
 #[derive(Debug)]
@@ -87,15 +86,15 @@ pub struct PureNode<T> {
 #[derive(Debug)]
 pub struct MutNode<T> {
     loc : Rc<Loc>,
-    creators  : Vec<DemPrec>,
-    dem_precs : Vec<DemPrec>,
+    creators  : Vec<DemPred>,
+    dem_preds : Vec<DemPred>,
     val : T,
 }
 
 pub struct ComputeNode<Res> {
     loc : Rc<Loc>,
-    creators : Vec<DemPrec>,
-    dem_precs : Vec<DemPrec>,
+    creators : Vec<DemPred>,
+    dem_preds : Vec<DemPred>,
     dem_succs : Vec<DemSucc>,
     res : Option<Res>,
     computer : Box<Computer<Res>>
@@ -107,16 +106,16 @@ pub trait Computer<Res> {
 
 pub trait OpaqueNode {
     fn loc (self:&Self) -> Rc<Loc> ;
-    fn creators (self:&Self) -> Vec<DemPrec> ;
-    fn dem_precs (self:&Self) -> Vec<DemPrec> ;
-    fn dem_succs (self:&Self) -> Vec<DemSucc> ;
+    fn creators<'r>  (self:&'r mut Self) -> &'r mut Vec<DemPred> ;
+    fn dem_preds<'r> (self:&'r mut Self) -> &'r mut Vec<DemPred> ;
+    fn dem_succs<'r> (self:&'r mut Self) -> &'r mut Vec<DemSucc> ;
 }
 
 impl <Res> OpaqueNode for Node<Res> {
     fn loc (self:&Self) -> Rc<Loc> { panic!("") }
-    fn creators (self:&Self) -> Vec<DemPrec> { panic!("") }
-    fn dem_precs (self:&Self) -> Vec<DemPrec> { panic!("") }
-    fn dem_succs (self:&Self) -> Vec<DemSucc> { panic!("") }
+    fn creators<'r>  (self:&'r mut Self) -> &'r mut Vec<DemPred> { panic!("") }
+    fn dem_preds<'r> (self:&'r mut Self) -> &'r mut Vec<DemPred> { panic!("") }
+    fn dem_succs<'r> (self:&'r mut Self) -> &'r mut Vec<DemSucc> { panic!("") }
 }
 pub trait ComputerArg<Res> {
     type Arg;
@@ -160,7 +159,7 @@ impl fmt::Debug for OpaqueNode {
     }
 }
 
-// fn dem_precs<'x,T:'x> (st: &'x mut AdaptonState, loc: &Rc<Loc>) -> &'x mut Vec<DemPrec> {    
+// fn dem_preds<'x,T:'x> (st: &'x mut AdaptonState, loc: &Rc<Loc>) -> &'x mut Vec<DemPred> {    
 //     let node = st.table.get(loc) ;
 //     match node {
 //         None => panic!("dangling pointer"),
@@ -170,10 +169,10 @@ impl fmt::Debug for OpaqueNode {
 //                     panic!("Node::Pure: no precs")
 //                 },
 //                 Node::Compute(ref mut nd) => {
-//                     &mut nd.dem_precs
+//                     &mut nd.dem_preds
 //                 },
 //                 Node::Mut(ref mut nd) => {
-//                     &mut nd.dem_precs
+//                     &mut nd.dem_preds
 //                 }
 //             }
 //         }
@@ -182,7 +181,7 @@ impl fmt::Debug for OpaqueNode {
 
 pub fn revoke_demand<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<DemSucc>) {
     // for succ in succs.iter() {
-    //     let precs = dem_precs(st, &succ.loc);
+    //     let precs = dem_preds(st, &succ.loc);
     //     precs.retain(|ref prec| &prec.loc != src);
     // }
     panic!("")
@@ -190,8 +189,8 @@ pub fn revoke_demand<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<DemSucc
 
 pub fn invoke_demand<'x> (st:&mut AdaptonState, src:Rc<Loc>, succs:& Vec<DemSucc>) {
     // for succ in succs.iter() {
-    //     let precs = dem_precs(st, &succ.loc);
-    //     precs.push(DemPrec{loc:src.clone()})
+    //     let precs = dem_preds(st, &succ.loc);
+    //     precs.push(DemPred{loc:src.clone()})
     // }
     panic!("")
 }
@@ -213,15 +212,39 @@ fn loc_of_name(path:Rc<Path>,name:Name) -> Rc<Loc> {
     loc_of_id(path,Rc::new(ArtId::Nominal(name)))
 }
 
-fn dirty_preds(st:&mut AdaptonState, loc:&Loc) {
-    let node = st.table.get(loc) ;
+// Implement "sharing" of the dirty bit:
+// Convert edge direction:
+// From Pred{loc=a}         in b.dem_preds
+// To   Succ{loc=b,dirty=?} in a.dem_succs
+// Where a and b are each a node.
+fn succ_of_pred<'r>(st:&'r mut AdaptonState, loc:&Loc, pred:&DemPred) -> &'r mut DemSucc {
+    let pred_node = st.table.get_mut( & pred.loc ) ;
+    match pred_node {
+        None => panic!("dangling pred; no such pred node"),
+        Some(nd) => {
+            for succ in nd.dem_succs().iter_mut() {
+                if *loc == *succ.loc {
+                    replace(&mut succ.dirty, true);
+                    return (&mut succ)
+                } else {}
+            } ;
+            panic!("dangling pred; no corresponding succ")
+        }
+    }
+}
+
+fn dirty_preds(st:&mut AdaptonState, loc:&Loc) {    
+    let node = st.table.get_mut(loc) ;
     match node {
         None => panic!("dangling pointer"),
         Some(nd) => {
-            for pred in nd.dem_precs().iter() {
-                if ! &*pred.dirty {
-                    replace(panic!(""), true);
-                    dirty_preds(panic!("st"),&*pred.loc);
+            // Todo: Create a vec copy of the pred locs.
+            // End borrow of st.
+            for pred in nd.dem_preds().iter() {
+                let succ = succ_of_pred(st, &loc, &pred) ;
+                if ! succ.dirty {
+                    replace(&mut succ.dirty, true);
+                    dirty_preds(st,&*pred.loc);
                 }
                 else {
                     // Nothing to do.
@@ -303,7 +326,7 @@ impl Adapton for AdaptonState {
         let loc = Rc::new(Loc{path:path,id:id,hash:hash});
         let mut node = Node::Mut(MutNode{
             loc:loc.clone(),
-            dem_precs:Vec::new(),
+            dem_preds:Vec::new(),
             creators:Vec::new(),
             val:val
         }) ;
@@ -346,17 +369,16 @@ impl Adapton for AdaptonState {
                         Vec::new()
                     } else {
                         let pred = self.stack[0].loc.clone();
-                        let dirty = Rc::new(false);
-                        self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:dirty.clone()});
+                        self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
                         let mut v = Vec::new();
-                        v.push(DemPrec{loc:pred,dirty:dirty});
+                        v.push(DemPred{loc:pred});
                         v
                     };
                 let computer_arg = Box::new((fn_body,arg.clone()));
                 let node : ComputeNode<T> = ComputeNode{
                     loc:loc.clone(),
                     creators:creators,
-                    dem_precs:Vec::new(),
+                    dem_preds:Vec::new(),
                     dem_succs:Vec::new(),
                     res:None,
                     computer:computer_arg,
@@ -390,7 +412,7 @@ impl Adapton for AdaptonState {
                             Node::Pure(ref mut nd) => nd.val.clone(),
                             Node::Mut(ref mut nd) => {
                                 if self.stack.is_empty() { } else {
-                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:Rc::new(false)});
+                                    self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
                                 } ;
                                 nd.val.clone()
                             },
@@ -413,13 +435,21 @@ impl Adapton for AdaptonState {
                                         replace(&mut nd.res, Some(res.clone()));
                                         ;
                                         if self.stack.is_empty() { } else {
-                                            self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:Rc::new(false)});
+                                            self.stack[0].succs.push(DemSucc{loc:loc.clone(),dirty:false});
                                         };
                                         res
                                     },
                                     Some(ref res) => {
                                         panic!("");
                                         // TODO: Check to see if there are dirty successors
+                                        
+                                        // If there are dirty
+                                        // successors (transitively),
+                                        // then re-evaluate them to a
+                                        // value and compare that
+                                        // value to the result above.
+                                        // If equal, then return this;
+                                        // otherwise, re-evaluate..
                                         res.clone()
                                     }
                                 }
