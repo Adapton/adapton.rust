@@ -397,6 +397,7 @@ impl Adapton for AdaptonState {
             ArtId::Structural(hash) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Structural(hash)));
+                // Next step:
                 // TODO: Lookup loc in table.  If it exists, re-use it.
                 let creators =
                     if self.stack.is_empty() {
@@ -436,6 +437,7 @@ impl Adapton for AdaptonState {
             Art::Box(b) => *b.clone(),
             Art::Loc(loc) => {
                 let node = self.table.get_mut(&loc) ;
+                // Next steps:
                 // TODO: Do we need to clone the node here?;
                 // otherwise, we are borrowing self through the entire match!
                 match node {
