@@ -21,7 +21,7 @@ pub struct Frame {
 pub struct Loc {
     path : Rc<Path>,
     id   : Rc<ArtId<Name>>,
-    hash : u64, // hash of (id,path)
+    hash : u64, // hash of (path,id)
 }
 
 // Paths are built using the ns command.
