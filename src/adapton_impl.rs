@@ -54,11 +54,6 @@ pub enum Symbol {
     Rc(Rc<Symbol>),
 }
 
-#[derive(Debug)]
-pub struct Pred {
-    loc : Rc<Loc>,
-}
-
 #[derive(PartialEq,Eq,Debug)]
 pub enum Effect {
     Observe,
@@ -233,7 +228,7 @@ fn dirty_pred_observers(st:&mut AdaptonState, loc:&Loc) {
             }}}
     ;
     for pred_loc in pred_locs {
-        let stop = {
+        let stop : bool = {
             // The stop bit communicates information from st for use below.
             let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
             if succ.dirty { true } else {
@@ -353,8 +348,8 @@ impl Adapton for AdaptonState {
         }
 
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:T) {
-        // TODO: Assert that the stack is empty
-        let changed = {
+        assert!( self.stack.is_empty() );
+        let changed : bool = {
             let node = self.table.get_mut(&cell.loc) ;
             match node {
             None => panic!("dangling location"),
