@@ -73,40 +73,6 @@ pub struct AdaptonState {
     stack : Vec<Frame>
 }
 
-#[derive(Debug)]
-pub enum Node<Res> {
-    Pure(PureNode<Res>),
-    Mut(MutNode<Res>),
-    Compute(ComputeNode<Res>),
-}
-
-#[derive(Debug)]
-pub struct PureNode<T> {
-    loc : Rc<Loc>,
-    val : T,
-}
-
-#[derive(Debug)]
-pub struct MutNode<T> {
-    loc         : Rc<Loc>,
-    preds_alloc : Vec<Rc<Loc>>,
-    preds_obs   : Vec<Rc<Loc>>,
-    val         : T,
-}
-
-pub struct ComputeNode<Res> {
-    loc         : Rc<Loc>,
-    preds_alloc : Vec<Rc<Loc>>,
-    preds_obs   : Vec<Rc<Loc>>,
-    succs       : Vec<Succ>,
-    computer    : Box<Computer<Res>>,
-    res         : Option<Res>,
-}
-
-pub trait Computer<Res> {    
-    fn compute(self:&Self, st:&mut AdaptonState) -> Res;
-}
-
 pub trait OpaqueNode {
     fn loc (self:&Self) -> Rc<Loc> ;
     fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
@@ -120,35 +86,80 @@ impl <Res> OpaqueNode for Node<Res> {
     fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> { panic!("") }
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ> { panic!("") }
 }
-pub trait ComputerArg<Res> {
-    type Arg;
-    fn get_arg(self:&Self) -> Self::Arg;
+
+// Structureful (Non-opaque) nodes:
+#[derive(Debug)]
+pub enum Node<Res> {
+    Pure(PureNode<Res>),
+    Mut(MutNode<Res>),
+    Compute(ComputeNode<Res>),
+}
+
+// PureNode<T> for pure hash-consing of T's.
+// Location in table never changes value.
+#[derive(Debug)]
+pub struct PureNode<T> {
+    loc : Rc<Loc>,
+    val : T,
+}
+
+// MutNode<T> for mutable content of type T.
+// Location in table *does* change value, but only by *outer* environment.
+// ComputeNode's do not directly change the value of MutNodes.
+#[derive(Debug)]
+pub struct MutNode<T> {
+    loc         : Rc<Loc>,
+    preds_alloc : Vec<Rc<Loc>>,
+    preds_obs   : Vec<Rc<Loc>>,
+    val         : T,
+}
+
+// ComputeNode<Res> for a suspended computation whose resulting value
+// of type T.  Location in table *does not* change its "compute",
+// except that (1) the arguments for these "computes" may change and
+// (2) by virue of depending on other "computes" and on MutNodes, the
+// resulting value stored in field res may change.
+pub struct ComputeNode<Res> {
+    loc         : Rc<Loc>,
+    preds_alloc : Vec<Rc<Loc>>,
+    preds_obs   : Vec<Rc<Loc>>,
+    succs       : Vec<Succ>,
+    compute     : Box<Compute<Res>>, // A Box<App<Arg,Res>> where type Arg is hidden.
+    res         : Option<Res>,
+}
+
+// struct App is hidden by traits Compute<Res> and ComputeWithArg<Res>, below.
+pub struct App<Arg,Res> {
+    fn_body : Box<Fn(&mut AdaptonState,Arg)->Res>,
+    arg     : Arg,
+}
+
+// Compute a value of type Res.
+pub trait Compute<Res> {
     fn compute(self:&Self, st:&mut AdaptonState) -> Res;
 }
-
-impl<Arg,Res> Computer<Res> for ComputerArg<Res,Arg=Arg> {
-    fn compute(self:&Self, st:&mut AdaptonState) -> Res {
-        self.compute(st)
-    }
+// Compute<Res>'s are actually ComputeWithArg<Res>'s, where associated type Arg is forgotten/hidden.
+pub trait ComputeWithArg<Res> {
+    type Arg;
+    fn set_arg(self:&mut Self, Self::Arg);
+    fn get_arg(self:&Self) -> Self::Arg;
+    fn compute_wa(self:&Self, st:&mut AdaptonState) -> Res;
 }
-
-impl<Arg:Clone,Res> ComputerArg<Res> for (Box<Fn(&mut AdaptonState,Arg)->Res>,Arg) {
+impl<Arg:Clone,Res> ComputeWithArg<Res> for App<Arg,Res> {
     type Arg = Arg;
-    fn get_arg(self:&Self) -> Arg { let &(_,ref arg) = self; arg.clone() }
+    fn set_arg(self:&mut Self, arg:Arg) { replace(&mut self.arg, arg); }
+    fn get_arg(self:&Self) -> Arg { self.arg.clone() }
+    fn compute_wa(self:&Self, st:&mut AdaptonState) -> Res {
+        let fn_body = &self.fn_body;
+        fn_body(st,self.arg.clone())
+    }
+}
+impl<Arg:Clone,Res> Compute<Res> for App<Arg,Res> {
     fn compute(self:&Self, st:&mut AdaptonState) -> Res {
-        let &(ref fn_body,ref arg) = self;
-        fn_body(st,arg.clone())
+        self.compute_wa(st)
     }
 }
 
-impl<Arg:Clone,Res> Computer<Res>
-for (Box<Fn(&mut AdaptonState,Arg)->Res>,Arg)
-{
-    fn compute(self:&Self, st:&mut AdaptonState) -> Res {
-        let &(ref fn_body,ref arg) = self;
-        fn_body(st,arg.clone())
-    }
-}
 
 impl<Res> fmt::Debug for ComputeNode<Res> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -391,9 +402,15 @@ impl Adapton for AdaptonState {
             },
             ArtId::Structural(hash) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
-                                    Rc::new(ArtId::Structural(hash)));
-                // Next step:
-                // TODO: Lookup loc in table.  If it exists, re-use it.
+                                    Rc::new(ArtId::Structural(hash)));                
+                let _ = {
+                    // If the node exists; there's nothing else to do.
+                    let node = self.table.get_mut(&loc);
+                    match node {
+                    Some(_) => { // Nothing to do; it's there.
+                        return Art::Loc(loc)
+                    },
+                    None => { } } } ;
                 let creators =
                     if self.stack.is_empty() {
                         Vec::new()
@@ -406,13 +423,13 @@ impl Adapton for AdaptonState {
                         v.push(pred);
                         v
                     };
-                let computer = Box::new((fn_body,arg.clone()));
+                let app : Box<Compute<T>> = Box::new(App{fn_body:fn_body,arg:arg.clone()}) ;
                 let node : ComputeNode<T> = ComputeNode{
                     loc:loc.clone(),
                     preds_alloc:creators,
                     preds_obs:Vec::new(),
                     succs:Vec::new(),
-                    computer:computer,
+                    compute:app,
                     res:None,
                 } ;
                 self.table.insert(loc.clone(),
@@ -420,6 +437,17 @@ impl Adapton for AdaptonState {
                 Art::Loc(loc)
             },
             ArtId::Nominal(nm) => {
+                let loc = loc_of_id(self.stack[0].path.clone(),
+                                    Rc::new(ArtId::Nominal(nm)));
+                let _ = {
+                    // If the node exists; there's nothing else to do.
+                    match self.table.get_mut(&loc) {
+                        Some(nd) => {
+                            // TODO: Check if the computer's arg is the same, or if its different.
+                            return Art::Loc(loc)
+                        },
+                        None => { } }
+                } ;
                 panic!("")
             }
         }
@@ -459,7 +487,7 @@ impl Adapton for AdaptonState {
                                                                 succs:Vec::new(), } );
                                         let res = {
                                             // TODO: See borrow of self above.
-                                            nd.computer.compute( panic!("self") )
+                                            nd.compute.compute( panic!("self") )
                                         } ;
                                         let frame = match self.stack.pop() {
                                             None => panic!("expected Some _: stack invariants are broken"),
