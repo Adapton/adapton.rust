@@ -407,10 +407,11 @@ impl Adapton for AdaptonState {
                     // If the node exists; there's nothing else to do.
                     let node = self.table.get_mut(&loc);
                     match node {
-                    Some(_) => { // Nothing to do; it's there.
-                        return Art::Loc(loc)
-                    },
-                    None => { } } } ;
+                        Some(opaque) => { // Nothing to do; it's there.
+                            return Art::Loc(loc)
+                        },
+                        None => { } }
+                } ;
                 let creators =
                     if self.stack.is_empty() {
                         Vec::new()
