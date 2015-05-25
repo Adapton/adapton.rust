@@ -54,37 +54,42 @@ pub enum Symbol {
     Rc(Rc<Symbol>),
 }
 
-#[derive(PartialEq,Eq,Debug)]
+#[derive(PartialEq,Eq,Debug,Clone)]
 pub enum Effect {
     Observe,
     Allocate,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Succ {
     effect : Effect,
+    dep    : Box<AdaptonDep>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
     loc    : Rc<Loc>, // Target of the effect, aka, the successor, by this edge
     dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change    
 }
 
-#[derive(Debug)]
-pub struct AdaptonState {
-    table : HashMap<Rc<Loc>, Box<OpaqueNode>>,
-    stack : Vec<Frame>
+
+pub trait AdaptonDep : Debug+Clone+PartialEq+Eq {
+    fn change_prop     (self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes ;
+    fn re_produce      (self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes ;
 }
 
-pub trait OpaqueNode {
+pub struct AdaptonRes {
+    changed : bool,
+}
+
+pub trait AdaptonNode {
     fn loc (self:&Self) -> Rc<Loc> ;
+    // DCG structure:
     fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ> ;
 }
 
-impl <Res> OpaqueNode for Node<Res> {
-    fn loc (self:&Self) -> Rc<Loc> { panic!("") }
-    fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> { panic!("") }
-    fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> { panic!("") }
-    fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ> { panic!("") }
+#[derive(Debug)]
+pub struct AdaptonState {
+    table : HashMap<Rc<Loc>, Box<AdaptonNode>>,
+    stack : Vec<Frame>
 }
 
 // Structureful (Non-opaque) nodes:
@@ -124,52 +129,123 @@ pub struct ComputeNode<Res> {
     preds_alloc : Vec<Rc<Loc>>,
     preds_obs   : Vec<Rc<Loc>>,
     succs       : Vec<Succ>,
-    compute     : Box<Compute<Res>>, // A Box<App<Arg,Res>> where type Arg is hidden.
+    producer    : Rc<Box<Producer<Res>>>, // E.g., a Box<App<Arg,Res>> where type Arg is hidden.
     res         : Option<Res>,
 }
-
+// Produce a value of type Res.
+pub trait Producer<Res> {
+    fn produce(self:&Self, st:&mut AdaptonState) -> Res;
+}
+pub trait MutableArg<Res> {
+    type Arg;
+    fn set_arg(self:&mut Self, Self::Arg);
+    fn get_arg(self:&Self) -> Self::Arg;
+}
 // struct App is hidden by traits Compute<Res> and ComputeWithArg<Res>, below.
 pub struct App<Arg,Res> {
     fn_body : Box<Fn(&mut AdaptonState,Arg)->Res>,
     arg     : Arg,
 }
 
-// Compute a value of type Res.
-pub trait Compute<Res> {
-    fn compute(self:&Self, st:&mut AdaptonState) -> Res;
+
+// ---------- Ret implementation of Producer:
+
+pub enum Ret<Res> { Ret(Res) }
+
+impl<Res:Clone> Producer<Res> for Ret<Res> {
+    fn produce(self:&Self, st:&mut AdaptonState) -> Res {
+        match *self { Ret::Ret(v) => { v.clone() } }
+    }
 }
-// Compute<Res>'s are actually ComputeWithArg<Res>'s, where associated type Arg is forgotten/hidden.
-pub trait ComputeWithArg<Res> {
-    type Arg;
-    fn set_arg(self:&mut Self, Self::Arg);
-    fn get_arg(self:&Self) -> Self::Arg;
-    fn compute_wa(self:&Self, st:&mut AdaptonState) -> Res;
-}
-impl<Arg:Clone,Res> ComputeWithArg<Res> for App<Arg,Res> {
-    type Arg = Arg;
-    fn set_arg(self:&mut Self, arg:Arg) { replace(&mut self.arg, arg); }
-    fn get_arg(self:&Self) -> Arg { self.arg.clone() }
-    fn compute_wa(self:&Self, st:&mut AdaptonState) -> Res {
+
+// ---------- App implementation of Producer:
+
+impl<Arg:Clone,Res:Clone> Producer<Res> for App<Arg,Res> {
+    fn produce(self:&Self, st:&mut AdaptonState) -> Res {
         let fn_body = &self.fn_body;
         fn_body(st,self.arg.clone())
     }
 }
-impl<Arg:Clone,Res> Compute<Res> for App<Arg,Res> {
-    fn compute(self:&Self, st:&mut AdaptonState) -> Res {
-        self.compute_wa(st)
+
+impl<Arg:Clone,Res> MutableArg<Res> for App<Arg,Res> {
+    type Arg = Arg;
+    fn set_arg(self:&mut Self, arg:Arg) { replace(&mut self.arg, arg); }
+    fn get_arg(self:&Self) -> Arg { self.arg.clone() }
+}
+
+
+// ----------- Location resolution:
+
+pub fn node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Loc) -> &'r mut Node<Res> {
+    match st.table.get(loc) {
+        None => panic!("dangling pointer"),
+        Some(ref mut node) => {
+            unsafe { transmute::<_,_>(node) }
+        }
+    }
+}
+
+// ---------- Node implementation:
+
+impl <Res> AdaptonNode for Node<Res> {
+    fn loc (self:&Self) -> Rc<Loc> { panic!("") }
+    fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> { panic!("") }
+    fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> { panic!("") }
+    fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ>    { panic!("") }
+}
+
+// ---------- ChangeProp implementation:
+
+impl <Res:Sized+Clone+Debug+PartialEq+Eq>
+    AdaptonDep for Res
+{
+    fn re_produce(self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes where Self:Clone+Debug+Sized+PartialEq+Eq {
+        let old_result = self ;
+        let producer : Rc<Box<Producer<Self>>> = {
+            let node : &mut Node<Self> = node_of_loc(st, loc) ;
+            match *node {
+                Node::Mut(nd)     => Rc::new(Box::new(Ret::Ret(nd.val))),
+                Node::Compute(nd) => nd.producer.clone(),
+                _ => panic!(""),
+            }
+        } ;
+        let result : Option<Self> =
+            Some( producer.produce( st ) ) ;
+        let changed = ( &result == old_result ) ;
+        AdaptonRes{changed:changed}
+    }
+    
+    fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
+        let succs = {
+            let node = node_of_loc(st, loc) ;
+            node.succs().clone()
+        } ;
+        for succ in succs.iter() {
+            if succ.dirty {
+                let res = succ.dep.change_prop(st, &succ.loc) ;
+                if res.changed {
+                    return self.re_produce (st, &succ.loc)
+                }
+            }
+        } ;
+        // No early return =>
+        //   all immediate dependencies are change-free:
+        AdaptonRes{changed:false}
     }
 }
 
 
+// ---------- Node implementation:
+    
 impl<Res> fmt::Debug for ComputeNode<Res> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(ComputeNode)")
     }
 }
 
-impl fmt::Debug for OpaqueNode {
+impl fmt::Debug for AdaptonNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(OpaqueNode)")
+        write!(f, "(AdaptonNode)")
     }
 }
 
@@ -226,17 +302,10 @@ fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Loc, eff:Effect, tgt_loc:&
 
 fn dirty_pred_observers(st:&mut AdaptonState, loc:&Loc) {
     let pred_locs : Vec<Rc<Loc>> = {
-        // To pass borrow-checker,
-        //   pred_locs are copies of the Loc's from st, for use below.
         let node = st.table.get_mut(loc) ;
         match node {
             None => panic!("dangling pointer"),
-            Some(nd) => {
-                let mut v = Vec::new();
-                for pred in nd.preds_obs().iter() {
-                    v.push(pred.clone())
-                } ; v
-            }}}
+            Some(nd) => { nd.preds_obs().clone() }}}
     ;
     for pred_loc in pred_locs {
         let stop : bool = {
@@ -345,13 +414,14 @@ impl Adapton for AdaptonState {
                         loc:loc.clone(),
                         preds_alloc:creators,
                         preds_obs:Vec::new(),
-                        val:val
+                        val:val.clone(),
                     }) ;
                     self.table.insert(loc.clone(), Box::new(node));
                 },
             } ;
             if ! self.stack.is_empty () {
                 self.stack[0].succs.push(Succ{loc:loc.clone(),
+                                              dep:Box::new(Ret::Ret(val)),
                                               effect:Effect::Allocate,
                                               dirty:false});
             } ;
@@ -418,19 +488,20 @@ impl Adapton for AdaptonState {
                     } else {
                         let pred = self.stack[0].loc.clone();
                         self.stack[0].succs.push(Succ{loc:loc.clone(),
+                                                      dep:Box::new(()),
                                                       effect:Effect::Allocate,
                                                       dirty:false});
                         let mut v = Vec::new();
                         v.push(pred);
                         v
                     };
-                let app : Box<Compute<T>> = Box::new(App{fn_body:fn_body,arg:arg.clone()}) ;
+                let producer : Box<Producer<T>> = Box::new(App{fn_body:fn_body,arg:arg.clone()}) ;
                 let node : ComputeNode<T> = ComputeNode{
                     loc:loc.clone(),
                     preds_alloc:creators,
                     preds_obs:Vec::new(),
                     succs:Vec::new(),
-                    compute:app,
+                    producer:Rc::new(producer),
                     res:None,
                 } ;
                 self.table.insert(loc.clone(),
@@ -441,10 +512,10 @@ impl Adapton for AdaptonState {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Nominal(nm)));
                 let _ = {
-                    // If the node exists; there's nothing else to do.
                     match self.table.get_mut(&loc) {
                         Some(nd) => {
                             // TODO: Check if the computer's arg is the same, or if its different.
+                            // If different, re-set argument; dirty its creators and observers.
                             return Art::Loc(loc)
                         },
                         None => { } }
@@ -475,6 +546,7 @@ impl Adapton for AdaptonState {
                             Node::Mut(ref mut nd) => {
                                 if self.stack.is_empty() { } else {
                                     self.stack[0].succs.push(Succ{loc:loc.clone(),
+                                                                  dep:Box::new(nd.val.clone()),
                                                                   effect:Effect::Observe,
                                                                   dirty:false});
                                 } ;
@@ -488,7 +560,7 @@ impl Adapton for AdaptonState {
                                                                 succs:Vec::new(), } );
                                         let res = {
                                             // TODO: See borrow of self above.
-                                            nd.compute.compute( panic!("self") )
+                                            nd.producer.produce( panic!("self") )
                                         } ;
                                         let frame = match self.stack.pop() {
                                             None => panic!("expected Some _: stack invariants are broken"),
@@ -501,6 +573,7 @@ impl Adapton for AdaptonState {
                                         if self.stack.is_empty() { } else {
                                             self.stack[0].succs.push(Succ{loc:loc.clone(),
                                                                           effect:Effect::Observe,
+                                                                          dep:Box::new(res.clone()),
                                                                           dirty:false});
                                         };
                                         res
