@@ -63,13 +63,13 @@ pub enum Effect {
 #[derive(Debug,Clone)]
 pub struct Succ {
     effect : Effect,
-    dep    : Box<AdaptonDep>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
+    dep    : Rc<Box<AdaptonDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
     loc    : Rc<Loc>, // Target of the effect, aka, the successor, by this edge
     dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change    
 }
 
 
-pub trait AdaptonDep : Debug+Clone+PartialEq+Eq {
+pub trait AdaptonDep : Debug {
     fn change_prop     (self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes ;
     fn re_produce      (self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes ;
 }
@@ -154,7 +154,7 @@ pub enum Ret<Res> { Ret(Res) }
 
 impl<Res:Clone> Producer<Res> for Ret<Res> {
     fn produce(self:&Self, st:&mut AdaptonState) -> Res {
-        match *self { Ret::Ret(v) => { v.clone() } }
+        panic!("")
     }
 }
 
@@ -196,33 +196,33 @@ impl <Res> AdaptonNode for Node<Res> {
 
 // ---------- ChangeProp implementation:
 
-impl <Res:Sized+Clone+Debug+PartialEq+Eq>
+impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     AdaptonDep for Res
-{
-    fn re_produce(self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes where Self:Clone+Debug+Sized+PartialEq+Eq {
+{    
+    fn re_produce(self:&Res, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
         let old_result = self ;
         let producer : Rc<Box<Producer<Self>>> = {
             let node : &mut Node<Self> = node_of_loc(st, loc) ;
             match *node {
-                Node::Mut(nd)     => Rc::new(Box::new(Ret::Ret(nd.val))),
-                Node::Compute(nd) => nd.producer.clone(),
+                Node::Mut(ref nd)     => Rc::new(Box::new(Ret::Ret(nd.val.clone()))),
+                Node::Compute(ref nd) => nd.producer.clone(),
                 _ => panic!(""),
             }
         } ;
-        let result : Option<Self> =
-            Some( producer.produce( st ) ) ;
-        let changed = ( &result == old_result ) ;
+        let result : Res = producer.produce( st ) ;
+        let changed = (result == *old_result) ;
         AdaptonRes{changed:changed}
     }
     
-    fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
+    fn change_prop(self:&Res, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
         let succs = {
-            let node = node_of_loc(st, loc) ;
+            let node : &mut Node<Res> = node_of_loc(st, loc) ;
             node.succs().clone()
         } ;
         for succ in succs.iter() {
             if succ.dirty {
-                let res = succ.dep.change_prop(st, &succ.loc) ;
+                let dep = & succ.dep ;
+                let res = dep.change_prop(st, &succ.loc) ;
                 if res.changed {
                     return self.re_produce (st, &succ.loc)
                 }
@@ -233,6 +233,18 @@ impl <Res:Sized+Clone+Debug+PartialEq+Eq>
         AdaptonRes{changed:false}
     }
 }
+
+// impl AdaptonDep for ()
+// {    
+//     fn re_produce(self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
+//         // lack of dependency => lack of change
+//         AdaptonRes{changed:false}
+//     }    
+//     fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
+//         // lack of dependency => lack of change
+//         AdaptonRes{changed:false}
+//     }
+// }
 
 
 // ---------- Node implementation:
@@ -403,7 +415,7 @@ impl Adapton for AdaptonState {
             } ;
             match cell {
                 Some(cell) => {
-                    self.set(cell, val) ;
+                    self.set(cell, val.clone()) ;
                 },
                 None => {
                     let mut creators = Vec::new();
@@ -421,7 +433,7 @@ impl Adapton for AdaptonState {
             } ;
             if ! self.stack.is_empty () {
                 self.stack[0].succs.push(Succ{loc:loc.clone(),
-                                              dep:Box::new(Ret::Ret(val)),
+                                              dep:Rc::new(Box::new(Some(val))),
                                               effect:Effect::Allocate,
                                               dirty:false});
             } ;
@@ -488,7 +500,7 @@ impl Adapton for AdaptonState {
                     } else {
                         let pred = self.stack[0].loc.clone();
                         self.stack[0].succs.push(Succ{loc:loc.clone(),
-                                                      dep:Box::new(()),
+                                                      dep:Rc::new(Box::new(())), // No dependencies
                                                       effect:Effect::Allocate,
                                                       dirty:false});
                         let mut v = Vec::new();
@@ -525,8 +537,8 @@ impl Adapton for AdaptonState {
         }
     }
     
-    fn force<'a,T:Eq+Debug+Clone> (self:&mut AdaptonState,
-                                   art:Art<T,Self::Loc>) -> T
+    fn force<'a,T:'static+Eq+Debug+Clone> (self:&mut AdaptonState,
+                                           art:Art<T,Self::Loc>) -> T
     {
         match art {
             Art::Box(b) => *b.clone(),
@@ -546,7 +558,7 @@ impl Adapton for AdaptonState {
                             Node::Mut(ref mut nd) => {
                                 if self.stack.is_empty() { } else {
                                     self.stack[0].succs.push(Succ{loc:loc.clone(),
-                                                                  dep:Box::new(nd.val.clone()),
+                                                                  dep:Rc::new(Box::new(Some(nd.val.clone()))),
                                                                   effect:Effect::Observe,
                                                                   dirty:false});
                                 } ;
@@ -573,7 +585,7 @@ impl Adapton for AdaptonState {
                                         if self.stack.is_empty() { } else {
                                             self.stack[0].succs.push(Succ{loc:loc.clone(),
                                                                           effect:Effect::Observe,
-                                                                          dep:Box::new(res.clone()),
+                                                                          dep:Rc::new(Box::new(Some(res.clone()))),
                                                                           dirty:false});
                                         };
                                         res
