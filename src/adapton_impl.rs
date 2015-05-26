@@ -480,9 +480,7 @@ impl Adapton for AdaptonState {
             match node {
             None => panic!("dangling location"),
             Some(nd) => {
-                let node : &mut Node<T> = unsafe {
-                    let node : *mut Node<T> = transmute::<_,_>(nd) ;
-                    &mut ( *node ) } ;
+                let node : &mut Node<T> = unsafe { transmute::<_,_>(nd) } ;
                 match *node {
                     Node::Mut(ref mut nd) => {
                         if nd.val == val {
@@ -557,7 +555,7 @@ impl Adapton for AdaptonState {
                                     Rc::new(ArtId::Nominal(nm)));
                 let _ = {
                     match self.table.get_mut(&loc) {
-                        Some(_nd) => {
+                        Some(nd) => {
                             // TODO-Now: Check if the computer's arg is the same, or if its different.
                             // If different, re-set argument; dirty its creators and observers.
                             return Art::Loc(loc)
