@@ -153,7 +153,7 @@ pub struct App<Arg,Res> {
 pub enum Ret<Res> { Ret(Res) }
 
 impl<Res:Clone> Producer<Res> for Ret<Res> {
-    fn produce(self:&Self, st:&mut AdaptonState) -> Res {
+    fn produce(self:&Self, _st:&mut AdaptonState) -> Res {
         let &Ret::Ret(ref val) = self;
         val.clone()
     }
@@ -177,7 +177,7 @@ impl<Arg:Clone,Res> MutableArg<Res> for App<Arg,Res> {
 
 // ----------- Location resolution:
 
-pub fn abs_node_of_loc<'r> (st:&'r mut AdaptonState, loc:&Loc) -> &'r mut Box<AdaptonNode> {
+pub fn abs_node_of_loc<'r> (_st:&'r mut AdaptonState, _loc:&Loc) -> &'r mut Box<AdaptonNode> {
     // TODO: Figure out how to get rustc to abstract a table lookup.
     panic!("")
     // match st.table.get_mut(loc) {
@@ -220,7 +220,7 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
             }
         } ;
         let result : Res = producer.produce( st ) ;
-        let changed = (result == *old_result) ;
+        let changed = result == *old_result ;
         AdaptonRes{changed:changed}
     }
     
@@ -271,19 +271,11 @@ impl fmt::Debug for AdaptonNode {
     }
 }
 
-pub fn revoke_demand<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
+pub fn revoke_succs<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
     for succ in succs.iter() {
         let node : &mut Box<AdaptonNode> = abs_node_of_loc(st, &succ.loc) ;
         node.preds_obs().retain(|ref pred| **pred != *src);
     }
-}
-
-pub fn invoke_demand<'x> (st:&mut AdaptonState, src:Rc<Loc>, succs:& Vec<Succ>) {
-    // for succ in succs.iter() {
-    //     let precs = dem_preds(st, &succ.loc);
-    //     precs.push(Pred{loc:src.clone()})
-    // }
-    panic!("")
 }
 
 fn my_hash<T>(obj: T) -> u64
@@ -431,7 +423,7 @@ impl Adapton for AdaptonState {
                     if ! self.stack.is_empty () {
                         creators.push(self.stack[0].loc.clone())
                     } ;
-                    let mut node = Node::Mut(MutNode{
+                    let node = Node::Mut(MutNode{
                         loc:loc.clone(),
                         preds_alloc:creators,
                         preds_obs:Vec::new(),
@@ -498,7 +490,7 @@ impl Adapton for AdaptonState {
                     // If the node exists; there's nothing else to do.
                     let node = self.table.get_mut(&loc);
                     match node {
-                        Some(opaque) => { // Nothing to do; it's there.
+                        Some(_) => { // Nothing to do; it's there.
                             return Art::Loc(loc)
                         },
                         None => { } }
@@ -534,7 +526,7 @@ impl Adapton for AdaptonState {
                                     Rc::new(ArtId::Nominal(nm)));
                 let _ = {
                     match self.table.get_mut(&loc) {
-                        Some(nd) => {
+                        Some(_nd) => {
                             // TODO: Check if the computer's arg is the same, or if its different.
                             // If different, re-set argument; dirty its creators and observers.
                             return Art::Loc(loc)
@@ -577,6 +569,8 @@ impl Adapton for AdaptonState {
                             Node::Compute(ref mut nd) => {
                                 match nd.res {
                                     None => {
+                                        revoke_succs( panic!("self"), &nd.loc, &nd.succs );
+                                        nd.succs.clear();
                                         self.stack.push ( Frame{loc:loc.clone(),
                                                                 path:loc.path.clone(),
                                                                 succs:Vec::new(), } );
@@ -586,10 +580,9 @@ impl Adapton for AdaptonState {
                                         } ;
                                         let frame = match self.stack.pop() {
                                             None => panic!("expected Some _: stack invariants are broken"),
-                                            Some(frame) => frame } ;                                
-                                        revoke_demand( self, &nd.loc, &nd.succs );
-                                        invoke_demand( self, nd.loc.clone(), &frame.succs );
-                                        nd.succs = frame.succs;
+                                            Some(frame) => frame
+                                        } ;
+                                        replace(&mut nd.succs, frame.succs);
                                         replace(&mut nd.res, Some(res.clone()));
                                         ;
                                         if self.stack.is_empty() { } else {
