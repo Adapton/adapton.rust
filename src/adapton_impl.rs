@@ -65,7 +65,7 @@ pub struct Succ {
     effect : Effect,
     dep    : Rc<Box<AdaptonDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
     loc    : Rc<Loc>, // Target of the effect, aka, the successor, by this edge
-    dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change    
+    dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change
 }
 
 
@@ -204,16 +204,21 @@ impl <Res> AdaptonNode for Node<Res> {
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ>    { panic!("") }
 }
 
-fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<Loc>) -> Res {
+fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<Loc>) -> Res
+{
+    let succs : Vec<Succ> = {
+        let mut succs : Vec<Succ> = Vec::new();
+        let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
+        replace(node.succs(), succs)
+    } ;
+    revoke_succs( st, loc, &succs );
+    st.stack.push ( Frame{loc:loc.clone(),
+                          path:loc.path.clone(),
+                          succs:Vec::new(), } );
     let producer : Rc<Box<Producer<Res>>> = {
         let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
-        revoke_succs( st, loc, node.succs() );
-        node.succs().clear();
-        st.stack.push ( Frame{loc:loc.clone(),
-                              path:loc.path.clone(),
-                              succs:Vec::new(), } );
         match *node {
-            Node::Compute(nd) => nd.producer.clone(),
+            Node::Compute(ref nd) => nd.producer.clone(),
             _ => panic!("internal error"),
         }
     } ;
@@ -222,13 +227,16 @@ fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<L
         None => panic!("expected Some _: stack invariants are broken"),
         Some(frame) => frame
     } ;
-    let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
-    match *node {
-        Node::Compute(node) => {
-            replace(&mut node.succs, frame.succs) ;
-            replace(&mut node.res, Some(res.clone())) ;
-        },
-        Node::Mut(node) => panic!("")
+    {
+        let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
+        match *node {
+            Node::Compute(ref mut node) => {
+                replace(&mut node.succs, frame.succs) ;
+                replace(&mut node.res, Some(res.clone()))
+            },
+            Node::Mut(_) => panic!(""),
+            Node::Pure(_) => panic!("")
+        }
     } ;
     if st.stack.is_empty() { } else {
         st.stack[0].succs.push(Succ{loc:loc.clone(),
@@ -243,9 +251,10 @@ fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<L
 
 impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     AdaptonDep for Res
-{    
+{
     fn re_produce(self:&Res, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
         let old_result = self ;
+        // TODO: Call produce, define above.
         let producer : Rc<Box<Producer<Self>>> = {
             let node : &mut Node<Self> = res_node_of_loc(st, loc) ;
             match *node {
@@ -255,10 +264,11 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
             }
         } ;
         let result : Res = producer.produce( st ) ;
+        // TODO: Save new result.
         let changed = result == *old_result ;
         AdaptonRes{changed:changed}
     }
-    
+
     fn change_prop(self:&Res, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
         let succs = {
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
@@ -281,11 +291,11 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
 }
 
 // impl AdaptonDep for ()
-// {    
+// {
 //     fn re_produce(self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
 //         // lack of dependency => lack of change
 //         AdaptonRes{changed:false}
-//     }    
+//     }
 //     fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
 //         // lack of dependency => lack of change
 //         AdaptonRes{changed:false}
@@ -294,7 +304,7 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
 
 
 // ---------- Node implementation:
-    
+
 impl<Res> fmt::Debug for ComputeNode<Res> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(ComputeNode)")
@@ -373,13 +383,13 @@ fn dirty_pred_observers(st:&mut AdaptonState, loc:&Loc) {
 impl Adapton for AdaptonState {
     type Name = Name;
     type Loc  = Loc;
-    
+
     fn new () -> AdaptonState {
         let path   = Rc::new(Path::Empty);
         let symbol = Rc::new(Symbol::Root);
         let hash   = my_hash(&symbol);
         let name   = Name{symbol:symbol,hash:hash};
-        
+
         let id     = Rc::new(ArtId::Nominal(name));
         let hash   = my_hash(&(&path,&id));
         let loc    = Rc::new(Loc{path:path.clone(),id:id,hash:hash});
@@ -390,25 +400,25 @@ impl Adapton for AdaptonState {
             stack : stack,
         }
     }
-    
+
     fn name_of_string (self:&mut AdaptonState, sym:String) -> Name {
         let h = my_hash(&sym);
         let s = Symbol::String(sym) ;
         Name{ hash:h, symbol:Rc::new(s) }
     }
-    
+
     fn name_of_u64 (self:&mut AdaptonState, sym:u64) -> Name {
         let h = my_hash(&sym) ;
         let s = Symbol::U64(sym) ;
         Name{ hash:h, symbol:Rc::new(s) }
     }
-    
+
     fn name_pair (self: &mut AdaptonState, fst: Name, snd: Name) -> Name {
         let h = my_hash( &(fst.hash,snd.hash) ) ;
         let p = Symbol::Pair(fst.symbol, snd.symbol) ;
         Name{ hash:h, symbol:Rc::new(p) }
     }
-    
+
     fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
         let h1 = my_hash( &(&nm, 11111111) ) ; // TODO: make this hashing better.
         let h2 = my_hash( &(&nm, 22222222) ) ;
@@ -417,7 +427,7 @@ impl Adapton for AdaptonState {
           Name{ hash:h2,
                 symbol:Rc::new(Symbol::ForkR(nm.symbol)) } )
     }
-    
+
     fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
         let path_body = Rc::new(Path::Child(self.stack[0].path.clone(), nm)) ;
         let path_pre = replace(&mut self.stack[0].path, path_body ) ;
@@ -426,7 +436,7 @@ impl Adapton for AdaptonState {
         drop(path_body);
         x
     }
-    
+
     fn put<T:Eq> (self:&mut AdaptonState, x:T) -> Art<T,Self::Loc> {
         Art::Box(Box::new(x))
     }
@@ -508,7 +518,7 @@ impl Adapton for AdaptonState {
         +'static // Needed on Arg because of lifetime issues.
         ,T:Eq+Debug+Clone
         +'static // Needed on T because of lifetime issues.
-        >        
+        >
         (self:&mut AdaptonState,
          id:ArtId<Self::Name>,
          fn_body:Box<Fn(&mut AdaptonState,Arg)->T>,
@@ -521,7 +531,7 @@ impl Adapton for AdaptonState {
             },
             ArtId::Structural(hash) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
-                                    Rc::new(ArtId::Structural(hash)));                
+                                    Rc::new(ArtId::Structural(hash)));
                 let _ = {
                     // If the node exists; there's nothing else to do.
                     let node = self.table.get_mut(&loc);
@@ -574,53 +584,44 @@ impl Adapton for AdaptonState {
             }
         }
     }
-    
+
     fn force<T:'static+Eq+Debug+Clone> (self:&mut AdaptonState,
                                         art:Art<T,Self::Loc>) -> T
     {
         match art {
             Art::Box(b) => *b.clone(),
             Art::Loc(loc) => {
-                let node = self.table.get_mut(&loc) ;
-                match node {
-                    None => panic!("dangling pointer"),
-                    Some(ref ptr) => {
-                        let node : &mut Node<T> = unsafe {
-                            let node : *mut Node<T> = transmute::<_,_>(ptr) ;
-                            &mut ( *node ) } ;
-                        let cached_result : Option<T> = {
-                            match *node {
-                                Node::Pure(ref mut nd) => Some(nd.val.clone()),
-                                Node::Mut(ref mut nd) => {
-                                    if self.stack.is_empty() { } else {
-                                        self.stack[0].succs.push(Succ{loc:loc.clone(),
-                                                                      dep:Rc::new(Box::new(Some(nd.val.clone()))),
-                                                                      effect:Effect::Observe,
-                                                                      dirty:false});
-                                    } ;
-                                    Some(nd.val.clone())
-                                },
-                                Node::Compute(ref mut nd) => nd.res.clone()
-                            }
-                        } ;
-                        match cached_result {
-                            None          => { produce(self, &loc) },
-                            Some(ref res) => {
-                                res.change_prop(self, &loc) ;
-                                match res_node_of_loc(self, &loc) {
-                                    Node::Compute(nd) => match nd.res {
-                                        None => panic!("impossible"),
-                                        Some(ref res) => res.clone()
-                                    },
-                                    _ => panic!("impossible"),
-                                }
-                            }
+                let cached_result : Option<T> = {
+                    let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
+                    match *node {
+                        Node::Pure(ref mut nd) => Some(nd.val.clone()),
+                        Node::Mut(ref mut nd) => Some(nd.val.clone()),
+                        Node::Compute(ref mut nd) => nd.res.clone(),
+                    }
+                } ;
+                let result = match cached_result {
+                    None          => { produce(self, &loc) },
+                    Some(ref res) => {
+                        res.change_prop(self, &loc) ;
+                        let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
+                        match *node {
+                            Node::Compute(ref nd) => match nd.res {
+                                None => panic!("impossible"),
+                                Some(ref res) => res.clone()
+                            },
+                            _ => panic!("impossible"),
                         }
                     }
-                }
-            }            
-        }
-    }                                
+                } ;
+                if self.stack.is_empty() { } else {
+                    self.stack[0].succs.push(Succ{loc:loc.clone(),
+                                                  dep:Rc::new(Box::new(Some(result.clone()))),
+                                                  effect:Effect::Observe,
+                                                  dirty:false});
+                } ;
+                result
+            }
+        }}
 }
 
 pub fn main () {
