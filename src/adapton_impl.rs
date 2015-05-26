@@ -177,7 +177,16 @@ impl<Arg:Clone,Res> MutableArg<Res> for App<Arg,Res> {
 
 // ----------- Location resolution:
 
-pub fn node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Loc) -> &'r mut Node<Res> {
+pub fn abs_node_of_loc<'r> (st:&'r mut AdaptonState, loc:&Loc) -> &'r mut Box<AdaptonNode> {
+    // TODO: Figure out how to get rustc to abstract a table lookup.
+    panic!("")
+    // match st.table.get_mut(loc) {
+    //     None => panic!("dangling pointer"),
+    //     Some(node) => { node }
+    // }
+}
+
+pub fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Loc) -> &'r mut Node<Res> {
     match st.table.get(loc) {
         None => panic!("dangling pointer"),
         Some(ref mut node) => {
@@ -203,11 +212,11 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     fn re_produce(self:&Res, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
         let old_result = self ;
         let producer : Rc<Box<Producer<Self>>> = {
-            let node : &mut Node<Self> = node_of_loc(st, loc) ;
+            let node : &mut Node<Self> = res_node_of_loc(st, loc) ;
             match *node {
                 Node::Mut(ref nd)     => Rc::new(Box::new(Ret::Ret(nd.val.clone()))),
                 Node::Compute(ref nd) => nd.producer.clone(),
-                _ => panic!(""),
+                _ => panic!("internal error"),
             }
         } ;
         let result : Res = producer.produce( st ) ;
@@ -217,7 +226,7 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     
     fn change_prop(self:&Res, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
         let succs = {
-            let node : &mut Node<Res> = node_of_loc(st, loc) ;
+            let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             node.succs().clone()
         } ;
         for succ in succs.iter() {
@@ -263,11 +272,10 @@ impl fmt::Debug for AdaptonNode {
 }
 
 pub fn revoke_demand<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
-    // for succ in succs.iter() {
-    //     let precs = dem_preds(st, &succ.loc);
-    //     precs.retain(|ref prec| &prec.loc != src);
-    // }
-    panic!("")
+    for succ in succs.iter() {
+        let node : &mut Box<AdaptonNode> = abs_node_of_loc(st, &succ.loc) ;
+        node.preds_obs().retain(|ref pred| **pred != *src);
+    }
 }
 
 pub fn invoke_demand<'x> (st:&mut AdaptonState, src:Rc<Loc>, succs:& Vec<Succ>) {
@@ -533,7 +541,8 @@ impl Adapton for AdaptonState {
                         },
                         None => { } }
                 } ;
-                panic!("")
+                // Next steps: Finish this
+                panic!("TODO")
             }
         }
     }
