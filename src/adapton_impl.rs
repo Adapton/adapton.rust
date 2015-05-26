@@ -69,6 +69,8 @@ pub struct Succ {
 }
 
 
+// AdaptonDep abstracts over the value produced by a dependency, as
+// well as mechanisms to update and/or re-produce it.
 pub trait AdaptonDep : Debug {
     fn change_prop     (self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes ;
     fn re_produce      (self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes ;
@@ -107,8 +109,9 @@ pub struct PureNode<T> {
 }
 
 // MutNode<T> for mutable content of type T.
-// Location in table *does* change value, but only by *outer* environment.
-// CompNode's do not directly change the value of MutNodes.
+// The set operation mutates a MutNode; set may only be called by *outer* Rust environment.
+// Its notable that the CompNodes' producers do not directly change the value of MutNodes with set.
+// They may indirectly mutate these nodes by performing nominal allocation; mutation is limited to "one-shot" changes.
 #[derive(Debug)]
 pub struct MutNode<T> {
     preds_alloc : Vec<Rc<Loc>>,
@@ -116,11 +119,11 @@ pub struct MutNode<T> {
     val         : T,
 }
 
-// CompNode<Res> for a suspended computation whose resulting value
-// of type T.  Location in table *does not* change its "compute",
-// except that (1) the arguments for these "computes" may change and
-// (2) by virue of depending on other "computes" and on MutNodes, the
-// resulting value stored in field res may change.
+// CompNode<Res> for a suspended computation whose resulting value of
+// type T.  The result of the CompNode is affected in two ways: the
+// (1) producer may change, which may affect the result and (2) the
+// values produced by the successors may change, indirectly
+// influencing how the producer produces its resulting value.
 pub struct CompNode<Res> {
     preds_alloc : Vec<Rc<Loc>>,
     preds_obs   : Vec<Rc<Loc>>,
@@ -250,6 +253,7 @@ fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<L
 impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     AdaptonDep for Res
 {
+    // TODO-Sometime: Lift this out of the AdaptonDep trait.  Move above.
     fn re_produce(self:&Res, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
         let result : Res = produce( st, loc ) ;
         let changed = result == *self ;
@@ -257,6 +261,15 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     }
 
     fn change_prop(self:&Res, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
+        {
+            let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
+            match *node {
+                Node::Comp(_) => (),
+                Node::Pure(_) =>
+                    return AdaptonRes{changed:false},
+                Node::Mut(ref nd) =>
+                    return AdaptonRes{changed:&nd.val == self},
+            }};
         let succs = {
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             assert!( match *node { Node::Comp(_) => true, _ => false } ) ;
@@ -277,20 +290,15 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     }
 }
 
-// impl AdaptonDep for ()
-// {
-//     fn re_produce(self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
-//         // lack of dependency => lack of change
-//         AdaptonRes{changed:false}
-//     }
-//     fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
-//         // lack of dependency => lack of change
-//         AdaptonRes{changed:false}
-//     }
-// }
-
-
 // ---------- Node implementation:
+
+fn my_hash<T>(obj: T) -> u64
+    where T: Hash
+{
+    let mut hasher = SipHasher::new();
+    obj.hash(&mut hasher);
+    hasher.finish()
+}
 
 impl<Res> fmt::Debug for CompNode<Res> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -309,14 +317,6 @@ pub fn revoke_succs<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
         let node : &mut Box<AdaptonNode> = abs_node_of_loc(st, &succ.loc) ;
         node.preds_obs().retain(|ref pred| **pred != *src);
     }
-}
-
-fn my_hash<T>(obj: T) -> u64
-    where T: Hash
-{
-    let mut hasher = SipHasher::new();
-    obj.hash(&mut hasher);
-    hasher.finish()
 }
 
 fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
