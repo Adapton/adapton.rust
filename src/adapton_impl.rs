@@ -259,6 +259,7 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     fn change_prop(self:&Res, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
         let succs = {
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
+            assert!( match *node { Node::Comp(_) => true, _ => false } ) ;
             node.succs().clone()
         } ;
         for succ in succs.iter() {
@@ -272,7 +273,6 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
         } ;
         // No early return =>
         //   all immediate dependencies are change-free:
-        // TODO-Now: Not correct for when loc is a MutNode.
         AdaptonRes{changed:false}
     }
 }
@@ -576,25 +576,30 @@ impl Adapton for AdaptonState {
         match art {
             Art::Box(b) => *b.clone(),
             Art::Loc(loc) => {
-                let cached_result : Option<T> = {
+                let (is_comp, cached_result) : (bool, Option<T>) = {
                     let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
                     match *node {
-                        Node::Pure(ref mut nd) => Some(nd.val.clone()),
-                        Node::Mut(ref mut nd) => Some(nd.val.clone()),
-                        Node::Comp(ref mut nd) => nd.res.clone(),
+                        Node::Pure(ref mut nd) => (false, Some(nd.val.clone())),
+                        Node::Mut(ref mut nd)  => (false, Some(nd.val.clone())),
+                        Node::Comp(ref mut nd) => (true,  nd.res.clone()),
                     }
                 } ;
                 let result = match cached_result {
-                    None          => { produce(self, &loc) },
+                    None          => { assert!(is_comp); produce(self, &loc) },
                     Some(ref res) => {
-                        res.change_prop(self, &loc) ;
-                        let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
-                        match *node {
-                            Node::Comp(ref nd) => match nd.res {
-                                None => panic!("impossible"),
-                                Some(ref res) => res.clone()
-                            },
-                            _ => panic!("impossible"),
+                        if is_comp {
+                            // Change-propagation precondition: loc is a computational node:
+                            res.change_prop(self, &loc) ;
+                            let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
+                            match *node {
+                                Node::Comp(ref nd) => match nd.res {
+                                    None => panic!("impossible"),
+                                    Some(ref res) => res.clone()
+                                },
+                                _ => panic!("impossible"),
+                            }}
+                        else {
+                            res.clone()
                         }
                     }
                 } ;
