@@ -154,7 +154,8 @@ pub enum Ret<Res> { Ret(Res) }
 
 impl<Res:Clone> Producer<Res> for Ret<Res> {
     fn produce(self:&Self, st:&mut AdaptonState) -> Res {
-        panic!("")
+        let &Ret::Ret(ref val) = self;
+        val.clone()
     }
 }
 
