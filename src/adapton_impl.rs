@@ -11,8 +11,8 @@ use adapton_sigs::*;
 
 #[derive(Debug)]
 pub struct Frame {
-    loc   : Rc<Loc>,       // The currently-executing node
-    path  : Rc<Path>,      // The current path for creating new nodes; invariant: (prefix-of frame.loc.path frame.path)
+    loc   : Rc<Loc>,    // The currently-executing node
+    path  : Rc<Path>,   // The current path for creating new nodes; invariant: (prefix-of frame.loc.path frame.path)
     succs : Vec<Succ>,  // The currently-executing node's effects (viz., the nodes it demands)
 }
 
@@ -51,7 +51,7 @@ pub enum Symbol {
     Pair(Rc<Symbol>,Rc<Symbol>),
     ForkL(Rc<Symbol>),
     ForkR(Rc<Symbol>),
-    Rc(Rc<Symbol>),
+    //Rc(Rc<Symbol>),
 }
 
 #[derive(PartialEq,Eq,Debug,Clone)]
@@ -204,7 +204,42 @@ impl <Res> AdaptonNode for Node<Res> {
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ>    { panic!("") }
 }
 
-// ---------- ChangeProp implementation:
+fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<Loc>) -> Res {
+    let producer : Rc<Box<Producer<Res>>> = {
+        let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
+        revoke_succs( st, loc, node.succs() );
+        node.succs().clear();
+        st.stack.push ( Frame{loc:loc.clone(),
+                              path:loc.path.clone(),
+                              succs:Vec::new(), } );
+        match *node {
+            Node::Compute(nd) => nd.producer.clone(),
+            _ => panic!("internal error"),
+        }
+    } ;
+    let res = producer.produce( st ) ;
+    let frame = match st.stack.pop() {
+        None => panic!("expected Some _: stack invariants are broken"),
+        Some(frame) => frame
+    } ;
+    let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
+    match *node {
+        Node::Compute(node) => {
+            replace(&mut node.succs, frame.succs) ;
+            replace(&mut node.res, Some(res.clone())) ;
+        },
+        Node::Mut(node) => panic!("")
+    } ;
+    if st.stack.is_empty() { } else {
+        st.stack[0].succs.push(Succ{loc:loc.clone(),
+                                    effect:Effect::Observe,
+                                    dep:Rc::new(Box::new(Some(res.clone()))),
+                                    dirty:false});
+    };
+    res
+}
+
+// ---------- AdaptonDep implementation:
 
 impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     AdaptonDep for Res
@@ -240,6 +275,7 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
         } ;
         // No early return =>
         //   all immediate dependencies are change-free:
+        // TODO: Not correct for when loc is a MutNode.
         AdaptonRes{changed:false}
     }
 }
@@ -539,80 +575,52 @@ impl Adapton for AdaptonState {
         }
     }
     
-    fn force<'a,T:'static+Eq+Debug+Clone> (self:&mut AdaptonState,
-                                           art:Art<T,Self::Loc>) -> T
+    fn force<T:'static+Eq+Debug+Clone> (self:&mut AdaptonState,
+                                        art:Art<T,Self::Loc>) -> T
     {
         match art {
             Art::Box(b) => *b.clone(),
             Art::Loc(loc) => {
                 let node = self.table.get_mut(&loc) ;
-                // Next steps:
-                // TODO: Do we need to clone the node here?;
-                // otherwise, we are borrowing self through the entire match!
                 match node {
                     None => panic!("dangling pointer"),
                     Some(ref ptr) => {
                         let node : &mut Node<T> = unsafe {
                             let node : *mut Node<T> = transmute::<_,_>(ptr) ;
                             &mut ( *node ) } ;
-                        match *node {
-                            Node::Pure(ref mut nd) => nd.val.clone(),
-                            Node::Mut(ref mut nd) => {
-                                if self.stack.is_empty() { } else {
-                                    self.stack[0].succs.push(Succ{loc:loc.clone(),
-                                                                  dep:Rc::new(Box::new(Some(nd.val.clone()))),
-                                                                  effect:Effect::Observe,
-                                                                  dirty:false});
-                                } ;
-                                nd.val.clone()
-                            },
-                            Node::Compute(ref mut nd) => {
-                                match nd.res {
-                                    None => {
-                                        revoke_succs( panic!("self"), &nd.loc, &nd.succs );
-                                        nd.succs.clear();
-                                        self.stack.push ( Frame{loc:loc.clone(),
-                                                                path:loc.path.clone(),
-                                                                succs:Vec::new(), } );
-                                        let res = {
-                                            // TODO: See borrow of self above.
-                                            nd.producer.produce( panic!("self") )
-                                        } ;
-                                        let frame = match self.stack.pop() {
-                                            None => panic!("expected Some _: stack invariants are broken"),
-                                            Some(frame) => frame
-                                        } ;
-                                        replace(&mut nd.succs, frame.succs);
-                                        replace(&mut nd.res, Some(res.clone()));
-                                        ;
-                                        if self.stack.is_empty() { } else {
-                                            self.stack[0].succs.push(Succ{loc:loc.clone(),
-                                                                          effect:Effect::Observe,
-                                                                          dep:Rc::new(Box::new(Some(res.clone()))),
-                                                                          dirty:false});
-                                        };
-                                        res
+                        let cached_result : Option<T> = {
+                            match *node {
+                                Node::Pure(ref mut nd) => Some(nd.val.clone()),
+                                Node::Mut(ref mut nd) => {
+                                    if self.stack.is_empty() { } else {
+                                        self.stack[0].succs.push(Succ{loc:loc.clone(),
+                                                                      dep:Rc::new(Box::new(Some(nd.val.clone()))),
+                                                                      effect:Effect::Observe,
+                                                                      dirty:false});
+                                    } ;
+                                    Some(nd.val.clone())
+                                },
+                                Node::Compute(ref mut nd) => nd.res.clone()
+                            }
+                        } ;
+                        match cached_result {
+                            None          => { produce(self, &loc) },
+                            Some(ref res) => {
+                                res.change_prop(self, &loc) ;
+                                match res_node_of_loc(self, &loc) {
+                                    Node::Compute(nd) => match nd.res {
+                                        None => panic!("impossible"),
+                                        Some(ref res) => res.clone()
                                     },
-                                    Some(ref res) => {
-                                        // TODO: Check to see if there are dirty successors
-                                        
-                                        // If there are dirty
-                                        // successors (transitively),
-                                        // then re-evaluate them to a
-                                        // value and compare that
-                                        // value to the result above.
-                                        // If equal, then return this;
-                                        // otherwise, re-evaluate..
-                                        res.clone()
-                                    }
+                                    _ => panic!("impossible"),
                                 }
                             }
                         }
                     }
                 }
-            }
+            }            
         }
-    }
+    }                                
 }
 
 pub fn main () {
