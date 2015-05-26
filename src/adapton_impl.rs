@@ -70,8 +70,8 @@ pub struct Succ {
 
 
 pub trait AdaptonDep : Debug {
-    fn change_prop     (self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes ;
-    fn re_produce      (self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes ;
+    fn change_prop     (self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes ;
+    fn re_produce      (self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes ;
 }
 
 pub struct AdaptonRes {
@@ -79,7 +79,6 @@ pub struct AdaptonRes {
 }
 
 pub trait AdaptonNode {
-    fn loc (self:&Self) -> Rc<Loc> ;
     // DCG structure:
     fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
@@ -104,7 +103,6 @@ pub enum Node<Res> {
 // Location in table never changes value.
 #[derive(Debug)]
 pub struct PureNode<T> {
-    loc : Rc<Loc>,
     val : T,
 }
 
@@ -113,7 +111,6 @@ pub struct PureNode<T> {
 // CompNode's do not directly change the value of MutNodes.
 #[derive(Debug)]
 pub struct MutNode<T> {
-    loc         : Rc<Loc>,
     preds_alloc : Vec<Rc<Loc>>,
     preds_obs   : Vec<Rc<Loc>>,
     val         : T,
@@ -125,7 +122,6 @@ pub struct MutNode<T> {
 // (2) by virue of depending on other "computes" and on MutNodes, the
 // resulting value stored in field res may change.
 pub struct CompNode<Res> {
-    loc         : Rc<Loc>,
     preds_alloc : Vec<Rc<Loc>>,
     preds_obs   : Vec<Rc<Loc>>,
     succs       : Vec<Succ>,
@@ -177,7 +173,7 @@ impl<Arg:Clone,Res> MutableArg<Res> for App<Arg,Res> {
 
 // ----------- Location resolution:
 
-pub fn abs_node_of_loc<'r> (_st:&'r mut AdaptonState, _loc:&Loc) -> &'r mut Box<AdaptonNode> {
+pub fn abs_node_of_loc<'r> (_st:&'r mut AdaptonState, _loc:&Rc<Loc>) -> &'r mut Box<AdaptonNode> {
     // TODO-Later: Figure out how to get rustc to abstract a table lookup.
     panic!("")
     // match st.table.get_mut(loc) {
@@ -186,7 +182,7 @@ pub fn abs_node_of_loc<'r> (_st:&'r mut AdaptonState, _loc:&Loc) -> &'r mut Box<
     // }
 }
 
-pub fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Loc) -> &'r mut Node<Res> {
+pub fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Node<Res> {
     match st.table.get(loc) {
         None => panic!("dangling pointer"),
         Some(ref mut node) => {
@@ -198,7 +194,7 @@ pub fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Loc) -> &'r mut No
 // ---------- Node implementation:
 
 impl <Res> AdaptonNode for Node<Res> {
-    fn loc (self:&Self) -> Rc<Loc> { panic!("") }
+    // TODO-Later: Implement these methods:
     fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> { panic!("") }
     fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> { panic!("") }
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ>    { panic!("") }
@@ -209,7 +205,7 @@ impl <Res> AdaptonNode for Node<Res> {
 fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<Loc>) -> Res
 {
     let succs : Vec<Succ> = {
-        let mut succs : Vec<Succ> = Vec::new();
+        let succs : Vec<Succ> = Vec::new();
         let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
         replace(node.succs(), succs)
     } ;
@@ -254,24 +250,13 @@ fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<L
 impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     AdaptonDep for Res
 {
-    fn re_produce(self:&Res, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
-        let old_result = self ;
-        // TODO-Now: Call produce, define above.
-        let producer : Rc<Box<Producer<Self>>> = {
-            let node : &mut Node<Self> = res_node_of_loc(st, loc) ;
-            match *node {
-                Node::Mut(ref nd)     => Rc::new(Box::new(Ret::Ret(nd.val.clone()))),
-                Node::Comp(ref nd) => nd.producer.clone(),
-                _ => panic!("internal error"),
-            }
-        } ;
-        let result : Res = producer.produce( st ) ;
-        // TODO-Now: Save new result.
-        let changed = result == *old_result ;
+    fn re_produce(self:&Res, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
+        let result : Res = produce( st, loc ) ;
+        let changed = result == *self ;
         AdaptonRes{changed:changed}
     }
 
-    fn change_prop(self:&Res, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
+    fn change_prop(self:&Res, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
         let succs = {
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             node.succs().clone()
@@ -294,11 +279,11 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
 
 // impl AdaptonDep for ()
 // {
-//     fn re_produce(self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
+//     fn re_produce(self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
 //         // lack of dependency => lack of change
 //         AdaptonRes{changed:false}
 //     }
-//     fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
+//     fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
 //         // lack of dependency => lack of change
 //         AdaptonRes{changed:false}
 //     }
@@ -346,13 +331,13 @@ fn loc_of_name(path:Rc<Path>,name:Name) -> Rc<Loc> {
 // Implement "sharing" of the dirty bit.
 // The succ edge is returned as a mutable borrow, to permit checking
 // and mutating the dirty bit.
-fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Loc, eff:Effect, tgt_loc:&Loc) -> &'r mut Succ {
+fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
     let src_node = st.table.get_mut( src_loc ) ;
     match src_node {
         None => panic!("src_loc is dangling"),
         Some(nd) => {
             for succ in nd.succs().iter_mut() {
-                if (succ.effect == eff) && (*succ.loc == *tgt_loc) {
+                if (succ.effect == eff) && (&succ.loc == tgt_loc) {
                     return succ
                 } else {}
             } ;
@@ -361,7 +346,7 @@ fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Loc, eff:Effect, tgt_loc:&
     }
 }
 
-fn dirty_pred_observers(st:&mut AdaptonState, loc:&Loc) {
+fn dirty_pred_observers(st:&mut AdaptonState, loc:&Rc<Loc>) {
     let pred_locs : Vec<Rc<Loc>> = {
         let node = st.table.get_mut(loc) ;
         match node {
@@ -472,7 +457,6 @@ impl Adapton for AdaptonState {
                         creators.push(self.stack[0].loc.clone())
                     } ;
                     let node = Node::Mut(MutNode{
-                        loc:loc.clone(),
                         preds_alloc:creators,
                         preds_obs:Vec::new(),
                         val:val.clone(),
@@ -558,7 +542,6 @@ impl Adapton for AdaptonState {
                     };
                 let producer : Box<Producer<T>> = Box::new(App{fn_body:fn_body,arg:arg.clone()}) ;
                 let node : CompNode<T> = CompNode{
-                    loc:loc.clone(),
                     preds_alloc:creators,
                     preds_obs:Vec::new(),
                     succs:Vec::new(),
