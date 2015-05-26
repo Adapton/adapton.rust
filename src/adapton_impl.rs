@@ -97,7 +97,7 @@ pub struct AdaptonState {
 pub enum Node<Res> {
     Pure(PureNode<Res>),
     Mut(MutNode<Res>),
-    Compute(ComputeNode<Res>),
+    Comp(CompNode<Res>),
 }
 
 // PureNode<T> for pure hash-consing of T's.
@@ -110,7 +110,7 @@ pub struct PureNode<T> {
 
 // MutNode<T> for mutable content of type T.
 // Location in table *does* change value, but only by *outer* environment.
-// ComputeNode's do not directly change the value of MutNodes.
+// CompNode's do not directly change the value of MutNodes.
 #[derive(Debug)]
 pub struct MutNode<T> {
     loc         : Rc<Loc>,
@@ -119,12 +119,12 @@ pub struct MutNode<T> {
     val         : T,
 }
 
-// ComputeNode<Res> for a suspended computation whose resulting value
+// CompNode<Res> for a suspended computation whose resulting value
 // of type T.  Location in table *does not* change its "compute",
 // except that (1) the arguments for these "computes" may change and
 // (2) by virue of depending on other "computes" and on MutNodes, the
 // resulting value stored in field res may change.
-pub struct ComputeNode<Res> {
+pub struct CompNode<Res> {
     loc         : Rc<Loc>,
     preds_alloc : Vec<Rc<Loc>>,
     preds_obs   : Vec<Rc<Loc>>,
@@ -141,7 +141,7 @@ pub trait MutableArg<Res> {
     fn set_arg(self:&mut Self, Self::Arg);
     fn get_arg(self:&Self) -> Self::Arg;
 }
-// struct App is hidden by traits Compute<Res> and ComputeWithArg<Res>, below.
+// struct App is hidden by traits Comp<Res> and CompWithArg<Res>, below.
 pub struct App<Arg,Res> {
     fn_body : Box<Fn(&mut AdaptonState,Arg)->Res>,
     arg     : Arg,
@@ -178,7 +178,7 @@ impl<Arg:Clone,Res> MutableArg<Res> for App<Arg,Res> {
 // ----------- Location resolution:
 
 pub fn abs_node_of_loc<'r> (_st:&'r mut AdaptonState, _loc:&Loc) -> &'r mut Box<AdaptonNode> {
-    // TODO: Figure out how to get rustc to abstract a table lookup.
+    // TODO-Later: Figure out how to get rustc to abstract a table lookup.
     panic!("")
     // match st.table.get_mut(loc) {
     //     None => panic!("dangling pointer"),
@@ -204,6 +204,8 @@ impl <Res> AdaptonNode for Node<Res> {
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ>    { panic!("") }
 }
 
+// Performs the computation at loc, produces a result of type Res.
+// Error if loc is not a Node::Comp.
 fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<Loc>) -> Res
 {
     let succs : Vec<Succ> = {
@@ -218,7 +220,7 @@ fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<L
     let producer : Rc<Box<Producer<Res>>> = {
         let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
         match *node {
-            Node::Compute(ref nd) => nd.producer.clone(),
+            Node::Comp(ref nd) => nd.producer.clone(),
             _ => panic!("internal error"),
         }
     } ;
@@ -230,7 +232,7 @@ fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<L
     {
         let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
         match *node {
-            Node::Compute(ref mut node) => {
+            Node::Comp(ref mut node) => {
                 replace(&mut node.succs, frame.succs) ;
                 replace(&mut node.res, Some(res.clone()))
             },
@@ -254,17 +256,17 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
 {
     fn re_produce(self:&Res, st:&mut AdaptonState, loc:&Loc) -> AdaptonRes {
         let old_result = self ;
-        // TODO: Call produce, define above.
+        // TODO-Now: Call produce, define above.
         let producer : Rc<Box<Producer<Self>>> = {
             let node : &mut Node<Self> = res_node_of_loc(st, loc) ;
             match *node {
                 Node::Mut(ref nd)     => Rc::new(Box::new(Ret::Ret(nd.val.clone()))),
-                Node::Compute(ref nd) => nd.producer.clone(),
+                Node::Comp(ref nd) => nd.producer.clone(),
                 _ => panic!("internal error"),
             }
         } ;
         let result : Res = producer.produce( st ) ;
-        // TODO: Save new result.
+        // TODO-Now: Save new result.
         let changed = result == *old_result ;
         AdaptonRes{changed:changed}
     }
@@ -285,7 +287,7 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
         } ;
         // No early return =>
         //   all immediate dependencies are change-free:
-        // TODO: Not correct for when loc is a MutNode.
+        // TODO-Now: Not correct for when loc is a MutNode.
         AdaptonRes{changed:false}
     }
 }
@@ -305,9 +307,9 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
 
 // ---------- Node implementation:
 
-impl<Res> fmt::Debug for ComputeNode<Res> {
+impl<Res> fmt::Debug for CompNode<Res> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(ComputeNode)")
+        write!(f, "(CompNode)")
     }
 }
 
@@ -420,7 +422,7 @@ impl Adapton for AdaptonState {
     }
 
     fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
-        let h1 = my_hash( &(&nm, 11111111) ) ; // TODO: make this hashing better.
+        let h1 = my_hash( &(&nm, 11111111) ) ; // TODO-Later: make this hashing better.
         let h2 = my_hash( &(&nm, 22222222) ) ;
         ( Name{ hash:h1,
                 symbol:Rc::new(Symbol::ForkL(nm.symbol.clone())) } ,
@@ -442,7 +444,7 @@ impl Adapton for AdaptonState {
     }
 
     fn cell<T:Eq+Debug+Clone
-        +'static // TODO: Needed on T because of lifetime issues.
+        +'static // TODO-Later: Needed on T because of lifetime issues.
         >
         (self:&mut AdaptonState, id:ArtId<Self::Name>, val:T) -> MutArt<T,Self::Loc> {
             let path = self.stack[0].path.clone();
@@ -555,7 +557,7 @@ impl Adapton for AdaptonState {
                         v
                     };
                 let producer : Box<Producer<T>> = Box::new(App{fn_body:fn_body,arg:arg.clone()}) ;
-                let node : ComputeNode<T> = ComputeNode{
+                let node : CompNode<T> = CompNode{
                     loc:loc.clone(),
                     preds_alloc:creators,
                     preds_obs:Vec::new(),
@@ -564,7 +566,7 @@ impl Adapton for AdaptonState {
                     res:None,
                 } ;
                 self.table.insert(loc.clone(),
-                                  Box::new(Node::Compute(node)));
+                                  Box::new(Node::Comp(node)));
                 Art::Loc(loc)
             },
             ArtId::Nominal(nm) => {
@@ -573,7 +575,7 @@ impl Adapton for AdaptonState {
                 let _ = {
                     match self.table.get_mut(&loc) {
                         Some(_nd) => {
-                            // TODO: Check if the computer's arg is the same, or if its different.
+                            // TODO-Now: Check if the computer's arg is the same, or if its different.
                             // If different, re-set argument; dirty its creators and observers.
                             return Art::Loc(loc)
                         },
@@ -596,7 +598,7 @@ impl Adapton for AdaptonState {
                     match *node {
                         Node::Pure(ref mut nd) => Some(nd.val.clone()),
                         Node::Mut(ref mut nd) => Some(nd.val.clone()),
-                        Node::Compute(ref mut nd) => nd.res.clone(),
+                        Node::Comp(ref mut nd) => nd.res.clone(),
                     }
                 } ;
                 let result = match cached_result {
@@ -605,7 +607,7 @@ impl Adapton for AdaptonState {
                         res.change_prop(self, &loc) ;
                         let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
                         match *node {
-                            Node::Compute(ref nd) => match nd.res {
+                            Node::Comp(ref nd) => match nd.res {
                                 None => panic!("impossible"),
                                 Some(ref res) => res.clone()
                             },
