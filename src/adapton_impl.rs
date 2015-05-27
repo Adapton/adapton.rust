@@ -72,22 +72,19 @@ pub struct Succ {
 // AdaptonDep abstracts over the value produced by a dependency, as
 // well as mechanisms to update and/or re-produce it.
 pub trait AdaptonDep : Debug {
-    fn change_prop     (self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes ;
-    fn re_produce      (self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes ;
+    fn change_prop (self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes ;
 }
 
 #[derive(Debug)]
 pub struct NoDependency;
 impl AdaptonDep for NoDependency {
-    fn change_prop     (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:false} }
-    fn re_produce      (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:false} }
+    fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:false} }
 }
 
 #[derive(Debug)]
 pub struct AllocDependency<T> { val:T }
 impl<T:Debug> AdaptonDep for AllocDependency<T> {
-    fn change_prop     (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:true} } // TODO: Make this a little better.
-    fn re_produce      (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:false} } // TODO: Drop re_produce.
+    fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:true} } // TODO: Make this a little better.
 }
 
 pub struct AdaptonRes {
@@ -146,7 +143,7 @@ pub struct CompNode<Res> {
     res         : Option<Res>,
 }
 // Produce a value of type Res.
-pub trait Producer<Res> : PartialEq+Eq {
+pub trait Producer<Res> {
     fn produce(self:&Self, st:&mut AdaptonState) -> Res;
 }
 // Consume a value of type Arg.
@@ -155,7 +152,6 @@ pub trait Consumer<Arg> {
     fn get_arg(self:&mut Self) -> Arg;
 }
 // struct App is hidden by traits Comp<Res> and CompWithArg<Res>, below.
-#[derive(PartialEq,Eq)]
 pub struct App<Arg,Res> {
     fn_body : Box<Fn(&mut AdaptonState,Arg)->Res>,
     arg     : Arg,
@@ -264,6 +260,13 @@ fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<L
     res
 }
 
+fn re_produce<Res:'static+Debug+Clone+PartialEq+Eq>(dep:&ProducerDep<Res>, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
+    let result : Res = produce( st, loc ) ;
+    let changed = result == dep.res ;
+    AdaptonRes{changed:changed}
+}
+
+
 // ---------- AdaptonDep implementation:
 
 #[derive(Debug)]
@@ -271,13 +274,6 @@ struct ProducerDep<T> { res:T }
 impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     AdaptonDep for ProducerDep<Res>
 {
-    // TODO-Sometime: Lift this out of the AdaptonDep trait.  Move above.
-    fn re_produce(self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
-        let result : Res = produce( st, loc ) ;
-        let changed = result == self.res ;
-        AdaptonRes{changed:changed}
-    }
-
     fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
         {
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
@@ -298,7 +294,7 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
                 let dep = & succ.dep ;
                 let res = dep.change_prop(st, &succ.loc) ;
                 if res.changed {
-                    return self.re_produce (st, &succ.loc)
+                    return re_produce (self, st, &succ.loc)
                 }
             }
         } ;
@@ -490,6 +486,7 @@ impl Adapton for AdaptonState {
             match cell {
                 Some(cell) => {
                     self.set(cell, val.clone()) ;
+                    // TODO: move down after set: creators.push(self.stack[0].loc.clone())
                 },
                 None => {
                     let mut creators = Vec::new();
@@ -533,7 +530,7 @@ impl Adapton for AdaptonState {
                 }},
             }} ;
         if changed {
-            dirty_pred_observers(self, &cell.loc)
+            dirty_alloc(self, &cell.loc)
         }
         else { }
     }
@@ -600,7 +597,7 @@ impl Adapton for AdaptonState {
                                 Node::Comp(comp) => comp
                             } } ;
                             let nd_producer : &Rc<Box<Producer<T>>> = &comp_nd.producer ;
-                            if &producer == nd_producer {
+                            if panic!("&producer == nd_producer") {
                                 // Producers are the same => same fn_body => same argument type (Arg).
                                 // Hence, it's safe to transmute to consume an Arg below:
                                 let consumer : Rc<Box<Consumer<Arg>>>
