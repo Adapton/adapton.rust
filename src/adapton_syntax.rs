@@ -18,11 +18,16 @@ use adapton_sigs::Adapton;
 
 #[derive(Hash,Debug)]
 pub struct ProgPt {
-    file:Rc<String>,
-    module:Rc<String>,
-    name:Rc<String>,
-    line:usize,
-    column:usize,
+    hash:u64, // hash of all fields below:
+
+    // Symbolic identity, in Rust semantics:
+    symbol:Rc<String>, // via stringify!(...)
+    module:Rc<String>, // via module!()
+
+    // Location in local filesystem:
+    file:Rc<String>,   // via file!()
+    line:usize,        // via line!()
+    column:usize,      // via column!()
 }
 
 pub struct FnObj<A:Adapton,Arg,Res> {
