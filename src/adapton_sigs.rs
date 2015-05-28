@@ -1,7 +1,8 @@
-use std::fmt::Debug;
-use std::hash::Hash;
+use std::fmt::{Debug};
+use std::hash::{Hash};
 use std::rc::Rc;
 use std::marker::PhantomData;
+use adapton_syntax::{FnObj};
 
 // TODO: I'd like the Art<T> definition to live within the Adapton trait below.
 // Then, it need not be parameterized by Loc. It can simply use Adapton::Loc.

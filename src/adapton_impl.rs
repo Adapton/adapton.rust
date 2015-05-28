@@ -7,6 +7,7 @@ use std::rc::Rc;
 use std::fmt;
 use std::marker::PhantomData;
 
+use adapton_syntax::*;
 use adapton_sigs::*;
 
 #[derive(Debug)]

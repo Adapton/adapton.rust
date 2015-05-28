@@ -8,6 +8,7 @@
 
 //! Adapton for Rust
 
+pub mod adapton_syntax ;
 pub mod adapton_sigs ;
 pub mod adapton_impl ;
 
