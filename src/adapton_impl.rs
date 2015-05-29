@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::fmt;
 use std::marker::PhantomData;
 
-use adapton_syntax::*;
+// use adapton_syntax::*;
 use adapton_sigs::*;
 
 #[derive(Debug)]
@@ -356,10 +356,6 @@ fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
     Rc::new(Loc{path:path,id:id,hash:hash})
 }
 
-fn loc_of_name(path:Rc<Path>,name:Name) -> Rc<Loc> {
-    loc_of_id(path,Rc::new(ArtId::Nominal(name)))
-}
-
 // Implement "sharing" of the dirty bit.
 // The succ edge is returned as a mutable borrow, to permit checking
 // and mutating the dirty bit.
@@ -492,18 +488,20 @@ impl Adapton for AdaptonState {
             let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
             let cell = match self.table.get_mut(&loc) {
                 None => None,
-                Some(ref mut nd) => {
+                Some(ref mut _nd) => {
                     Some(MutArt{loc:loc.clone(),
                                 phantom:PhantomData})
                 },
             } ;
             match cell {
                 Some(cell) => {
+                    let cell_loc = cell.loc.clone();
                     self.set(cell, val.clone()) ;
                     if ! self.stack.is_empty () {
                         // Current loc is an alloc predecessor of the cell:
-                        let cell_nd = abs_node_of_loc(self, &cell.loc) ;
-                        cell_nd.preds_alloc().push(self.stack[0].loc.clone()) ;
+                        let top_loc = self.stack[0].loc.clone();
+                        let cell_nd = abs_node_of_loc(self, &cell_loc);
+                        cell_nd.preds_alloc().push(top_loc);
                     }
                 },
                 None => {
@@ -601,42 +599,34 @@ impl Adapton for AdaptonState {
                                   Box::new(Node::Comp(node)));
                 Art::Loc(loc)
             },
+            
             ArtId::Nominal(nm) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
-                                            Rc::new(ArtId::Nominal(nm)));
-                let producer : Box<Producer<T>> = Box::new(App{fn_body:fn_body,arg:arg.clone()}) ;                
-                { // Handle the cases where we find an existing node:
-                    match self.table.get_mut(&loc) {
-                        Some(ref mut nd) => {
-                            let res_nd : &mut Node<T> = res_node_of_abs_node( nd ) ;
-                            let comp_nd : &mut CompNode<T> = match *res_nd {
-                                Node::Pure(_)=> panic!("impossible"),
-                                Node::Mut(_) => panic!("TODO-Sometime"),
-                                Node::Comp(ref mut comp) => comp
-                            } ;
-                            let nd_producer : &Rc<Box<Producer<T>>> = &comp_nd.producer ;
-                            if panic!("&producer == nd_producer") {
-                                // Producers are the same => same fn_body => same argument type (Arg).
-                                // Hence, it's safe to transmute to consume an Arg below:
-                                let consumer : Rc<Box<Consumer<Arg>>> = transmute::<_,_>( producer ) ;
-                                if consumer.get_arg() == arg {
-                                    // Same argument; Nothing else to do:
-                                    return Art::Loc(loc)
-                                }
-                                else {
-                                    consumer.consume(arg);
-                                    dirty_alloc(self, &loc);
-                                    return Art::Loc(loc)
-                                }
+                                    Rc::new(ArtId::Nominal(nm)));
+                let producer : Box<Producer<T>> = Box::new(App{fn_body:fn_body,arg:arg.clone()}) ;
+                { match self.table.get_mut(&loc) {
+                    None => { },
+                    Some(ref mut nd) => {
+                        let res_nd: &mut Node<T> = unsafe { transmute::<_,_>( nd ) };
+                        let comp_nd: &mut CompNode<T> = match *res_nd {
+                            Node::Pure(_)=> panic!("impossible"),
+                            Node::Mut(_) => panic!("TODO-Sometime"),
+                            Node::Comp(ref mut comp) => comp
+                        } ;
+                        let consumer:&mut Box<Consumer<Arg>> = unsafe { transmute::<_,_>( &mut comp_nd.producer ) };
+                        if panic!("&producer == nd_producer") {
+                            if consumer.get_arg() == arg {
+                                // Same argument; Nothing else to do:
+                                return Art::Loc(loc)
                             }
                             else {
-                                // In this case, a name is re-purposed with a new fn_body.
-                                // We've never handled this case before in prior OCaml implementations.
-                                panic!("TODO-Sometime")
-                            }
-                        },
-                        None => { } }
-                } ;
+                                consumer.consume(arg);
+                                dirty_alloc(self, &loc);
+                                return Art::Loc(loc)
+                            }}
+                        else { }                            
+                    }}}
+                ;
                 let creators = {
                     if self.stack.is_empty() { Vec::new() }
                     else
