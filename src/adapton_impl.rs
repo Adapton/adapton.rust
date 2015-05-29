@@ -85,7 +85,7 @@ impl AdaptonDep for NoDependency {
 #[derive(Debug)]
 pub struct AllocDependency<T> { val:T }
 impl<T:Debug> AdaptonDep for AllocDependency<T> {
-    fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:true} } // TODO: Make this a little better.
+    fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:true} } // TODO-Later: Make this a little better.
 }
 
 pub struct AdaptonRes {
@@ -214,13 +214,13 @@ impl <Res> AdaptonNode for Node<Res> {
     fn preds_alloc<'r>(self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> {
         match *self { Node::Mut(ref mut nd) => &mut nd.preds_alloc,
                       Node::Comp(ref mut nd) => &mut nd.preds_alloc,
-                      Node::Pure(_) => panic!(""),
+                      Node::Pure(_) => unreachable!(),
         }}
                       
     fn preds_obs<'r>(self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> {
         match *self { Node::Mut(ref mut nd) => &mut nd.preds_obs,
                       Node::Comp(ref mut nd) => &mut nd.preds_obs,
-                      Node::Pure(_) => panic!(""),
+                      Node::Pure(_) => unreachable!(),
         }}
     fn succs_def<'r>(self:&'r mut Self) -> bool {
         match *self { Node::Comp(_) => true, _ => false
@@ -493,10 +493,6 @@ impl Adapton for AdaptonState {
             let cell = match self.table.get_mut(&loc) {
                 None => None,
                 Some(ref mut nd) => {
-                    let creators = nd.preds_alloc() ;
-                    if ! self.stack.is_empty () {
-                        creators.push(self.stack[0].loc.clone())
-                    } ;
                     Some(MutArt{loc:loc.clone(),
                                 phantom:PhantomData})
                 },
@@ -504,7 +500,11 @@ impl Adapton for AdaptonState {
             match cell {
                 Some(cell) => {
                     self.set(cell, val.clone()) ;
-                    // TODO: move down after set: creators.push(self.stack[0].loc.clone())
+                    if ! self.stack.is_empty () {
+                        // Current loc is an alloc predecessor of the cell:
+                        let cell_nd = abs_node_of_loc(self, &cell.loc) ;
+                        cell_nd.preds_alloc().push(self.stack[0].loc.clone()) ;
+                    }
                 },
                 None => {
                     let mut creators = Vec::new();
@@ -611,7 +611,7 @@ impl Adapton for AdaptonState {
                             let res_nd : &mut Node<T> = res_node_of_abs_node( nd ) ;
                             let comp_nd : &mut CompNode<T> = match *res_nd {
                                 Node::Pure(_)=> panic!("impossible"),
-                                Node::Mut(_) => panic!("TODO"),
+                                Node::Mut(_) => panic!("TODO-Sometime"),
                                 Node::Comp(ref mut comp) => comp
                             } ;
                             let nd_producer : &Rc<Box<Producer<T>>> = &comp_nd.producer ;
@@ -632,7 +632,7 @@ impl Adapton for AdaptonState {
                             else {
                                 // In this case, a name is re-purposed with a new fn_body.
                                 // We've never handled this case before in prior OCaml implementations.
-                                panic!("TODO")
+                                panic!("TODO-Sometime")
                             }
                         },
                         None => { } }
