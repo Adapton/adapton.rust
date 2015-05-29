@@ -1,5 +1,5 @@
 use std::fmt::{Debug};
-use std::hash::{Hash};
+use std::hash::{Hash,Hasher};
 use std::rc::Rc;
 use std::marker::PhantomData;
 use adapton_syntax::{FnObj};

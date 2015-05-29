@@ -41,5 +41,5 @@ impl<A:Adapton,Arg,Res> Debug for FnObj<A,Arg,Res> {
 
 impl<A:Adapton,Arg,Res> Hash for FnObj<A,Arg,Res> {
     fn hash<H>(&self, state: &mut H) where H: Hasher { self.prog_pt.hash(state) }
-    fn hash_slice<H>(data: &[Self], state: &mut H) where H: Hasher { panic!("TODO") }
+    //fn hash_slice<H>(data: &[Self], state: &mut H) where H: Hasher { panic!("TODO") }
 }

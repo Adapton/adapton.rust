@@ -96,6 +96,7 @@ pub trait AdaptonNode {
     // DCG structure:
     fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
+    fn succs_def<'r>   (self:&'r mut Self) -> bool ;
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ> ;
 }
 
@@ -210,10 +211,25 @@ pub fn res_node_of_abs_node<'r,Res> (nd:&'r mut Box<AdaptonNode>) -> &'r mut Nod
 // ---------- Node implementation:
 
 impl <Res> AdaptonNode for Node<Res> {
-    // TODO-Later: Implement these methods:
-    fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> { panic!("") }
-    fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> { panic!("") }
-    fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ>    { panic!("") }
+    fn preds_alloc<'r>(self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> {
+        match *self { Node::Mut(ref mut nd) => &mut nd.preds_alloc,
+                      Node::Comp(ref mut nd) => &mut nd.preds_alloc,
+                      Node::Pure(_) => panic!(""),
+        }}
+                      
+    fn preds_obs<'r>(self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> {
+        match *self { Node::Mut(ref mut nd) => &mut nd.preds_obs,
+                      Node::Comp(ref mut nd) => &mut nd.preds_obs,
+                      Node::Pure(_) => panic!(""),
+        }}
+    fn succs_def<'r>(self:&'r mut Self) -> bool {
+        match *self { Node::Comp(_) => true, _ => false
+        }}
+    fn succs<'r>(self:&'r mut Self) -> &'r mut Vec<Succ> {
+        match *self { Node::Comp(ref mut n) => &mut n.succs,
+                     _ => panic!("undefined"),
+        }
+    }
 }
 
 // Performs the computation at loc, produces a result of type Res.
@@ -276,7 +292,7 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
     AdaptonDep for ProducerDep<Res>
 {
     fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
-        {
+        { // Handle cases where there is no internal computation to re-compute:
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             match *node {
                 Node::Comp(_) => (),
@@ -284,10 +300,11 @@ impl <Res:'static+Sized+Clone+Debug+PartialEq+Eq>
                     return AdaptonRes{changed:false},
                 Node::Mut(ref nd) =>
                     return AdaptonRes{changed:nd.val == self.res},
-            }};
+            }
+        };
         let succs = {
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
-            assert!( match *node { Node::Comp(_) => true, _ => false } ) ;
+            assert!( node.succs_def() );
             node.succs().clone()
         } ;
         for succ in succs.iter() {
@@ -586,23 +603,22 @@ impl Adapton for AdaptonState {
             },
             ArtId::Nominal(nm) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
-                                    Rc::new(ArtId::Nominal(nm)));
+                                            Rc::new(ArtId::Nominal(nm)));
                 let producer : Box<Producer<T>> = Box::new(App{fn_body:fn_body,arg:arg.clone()}) ;                
                 { // Handle the cases where we find an existing node:
                     match self.table.get_mut(&loc) {
-                        Some(nd) => {
-                            let res_nd = res_node_of_abs_node( nd ) ;
-                            let comp_nd = { match *res_nd {
+                        Some(ref mut nd) => {
+                            let res_nd : &mut Node<T> = res_node_of_abs_node( nd ) ;
+                            let comp_nd : &mut CompNode<T> = match *res_nd {
                                 Node::Pure(_)=> panic!("impossible"),
                                 Node::Mut(_) => panic!("TODO"),
-                                Node::Comp(comp) => comp
-                            } } ;
+                                Node::Comp(ref mut comp) => comp
+                            } ;
                             let nd_producer : &Rc<Box<Producer<T>>> = &comp_nd.producer ;
                             if panic!("&producer == nd_producer") {
                                 // Producers are the same => same fn_body => same argument type (Arg).
                                 // Hence, it's safe to transmute to consume an Arg below:
-                                let consumer : Rc<Box<Consumer<Arg>>>
-                                    = transmute::<_,_>( producer ) ;
+                                let consumer : Rc<Box<Consumer<Arg>>> = transmute::<_,_>( producer ) ;
                                 if consumer.get_arg() == arg {
                                     // Same argument; Nothing else to do:
                                     return Art::Loc(loc)
@@ -615,7 +631,7 @@ impl Adapton for AdaptonState {
                             }
                             else {
                                 // In this case, a name is re-purposed with a new fn_body.
-                                // We've never handled this case before in prior OCaml implements.
+                                // We've never handled this case before in prior OCaml implementations.
                                 panic!("TODO")
                             }
                         },
@@ -693,7 +709,4 @@ impl Adapton for AdaptonState {
         }}
 }
 
-pub fn main () {
-
-
-}
+pub fn main () { }
