@@ -60,7 +60,7 @@ pub trait Adapton {
     fn thunk<Arg:Eq+Hash+Debug+Clone,T:Eq+Debug+Clone>
         (self:&mut Self,
          id:ArtId<Self::Name>,
-         fn_body:Box<Fn(&mut Self,Arg) -> T>,
+         fn_body:Rc<Box<Fn(&mut Self,Arg) -> T>>,
          arg:Arg)
          -> Art<T,Self::Loc> ;
 

@@ -141,12 +141,13 @@ pub struct CompNode<Res> {
     preds_alloc : Vec<Rc<Loc>>,
     preds_obs   : Vec<Rc<Loc>>,
     succs       : Vec<Succ>,
-    producer    : Rc<Box<Producer<Res>>>, // Producer can be App<Arg,Res>, where type Arg is hidden.
+    producer    : Box<Producer<Res>>, // Producer can be App<Arg,Res>, where type Arg is hidden.
     res         : Option<Res>,
 }
 // Produce a value of type Res.
 pub trait Producer<Res> {
     fn produce(self:&Self, st:&mut AdaptonState) -> Res;
+    fn copy(self:&Self) -> Box<Producer<Res>>;
 }
 // Consume a value of type Arg.
 pub trait Consumer<Arg> {
@@ -154,22 +155,26 @@ pub trait Consumer<Arg> {
     fn get_arg(self:&mut Self) -> Arg;
 }
 // struct App is hidden by traits Comp<Res> and CompWithArg<Res>, below.
+#[derive(Clone)]
 pub struct App<Arg,Res> {
-    fn_body : Box<Fn(&mut AdaptonState,Arg)->Res>,
+    fn_body : Rc<Box<Fn(&mut AdaptonState, Arg) -> Res>>,
     arg     : Arg,
 }
 
 // ---------- App implementation of Producer and Consumer traits:
 
-impl<Arg:Clone+PartialEq+Eq,Res:Clone+PartialEq+Eq> Producer<Res> for App<Arg,Res> {
+impl<Arg:'static+Clone+PartialEq+Eq,Res:'static+Clone+PartialEq+Eq> Producer<Res> for App<Arg,Res> {
     fn produce(self:&Self, st:&mut AdaptonState) -> Res {
         let fn_body = &self.fn_body;
         fn_body(st,self.arg.clone())
     }
+    fn copy(self:&Self) -> Box<Producer<Res>> {
+        Box::new(self.clone())
+    }
 }
 impl<Arg:Clone+PartialEq+Eq,Res> Consumer<Arg> for App<Arg,Res> {
     fn consume(self:&mut Self, arg:Arg) { replace(&mut self.arg, arg); }
-    fn get_arg(self:&mut Self) -> Arg    { self.arg.clone() }
+    fn get_arg(self:&mut Self) -> Arg   { self.arg.clone() }
 }
 
 // // ---------- Ret implementation of Producer:
@@ -186,15 +191,12 @@ impl<Arg:Clone+PartialEq+Eq,Res> Consumer<Arg> for App<Arg,Res> {
 
 // ----------- Location resolution:
 
-pub fn abs_node_of_loc<'r> (_st:&'r mut AdaptonState, _loc:&Rc<Loc>) -> &'r mut Box<AdaptonNode> {
-    // TODO-Later: Figure out how to get rustc to abstract a table lookup.
-    panic!("")
-    // match st.table.get_mut(loc) {
-    //     None => panic!("dangling pointer"),
-    //     Some(node) => { node }
-    // }
+pub fn abs_node_of_loc<'r> (st:&'r mut AdaptonState, loc:&'r Rc<Loc>) -> Option<&'r mut Box<AdaptonNode>> {
+    st.table.get_mut(loc)
 }
 
+// This only is safe in contexts where the type of loc is known.
+// Double uses of names and hashes will generally cause uncaught type errors.
 pub fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Node<Res> {
     match st.table.get(loc) {
         None => panic!("dangling pointer"),
@@ -205,7 +207,7 @@ pub fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mu
 }
 
 pub fn res_node_of_abs_node<'r,Res> (nd:&'r mut Box<AdaptonNode>) -> &'r mut Node<Res> {
-    panic!("TODO")
+    panic!("TODO-Now")
 }
 
 // ---------- Node implementation:
@@ -245,10 +247,10 @@ fn produce<Res:'static+Clone+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<L
     st.stack.push ( Frame{loc:loc.clone(),
                           path:loc.path.clone(),
                           succs:Vec::new(), } );
-    let producer : Rc<Box<Producer<Res>>> = {
+    let producer : Box<Producer<Res>> = {
         let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
         match *node {
-            Node::Comp(ref nd) => nd.producer.clone(),
+            Node::Comp(ref nd) => nd.producer.copy(),
             _ => panic!("internal error"),
         }
     } ;
@@ -347,7 +349,8 @@ impl fmt::Debug for AdaptonNode {
 pub fn revoke_succs<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
     for succ in succs.iter() {
         let node : &mut Box<AdaptonNode> = abs_node_of_loc(st, &succ.loc) ;
-        node.preds_obs().retain(|ref pred| **pred != *src);
+        node.preds_obs().retain  (|ref pred| **pred != *src);
+        node.preds_alloc().retain(|ref pred| **pred != *src);
     }
 }
 
@@ -542,7 +545,7 @@ impl Adapton for AdaptonState {
                             replace(&mut nd.val, val) ;
                             true
                         }},
-                    _ => panic!("dangling location"),
+                    _ => unreachable!(),
                 }},
             }} ;
         if changed {
@@ -558,7 +561,7 @@ impl Adapton for AdaptonState {
         >
         (self:&mut AdaptonState,
          id:ArtId<Self::Name>,
-         fn_body:Box<Fn(&mut AdaptonState,Arg)->T>,
+         fn_body:Rc<Box<Fn(&mut AdaptonState,Arg)->T>>,
          arg:Arg)
          -> Art<T,Self::Loc>
     {
@@ -592,7 +595,7 @@ impl Adapton for AdaptonState {
                     preds_alloc:creators,
                     preds_obs:Vec::new(),
                     succs:Vec::new(),
-                    producer:Rc::new(producer),
+                    producer:producer,
                     res:None,
                 } ;
                 self.table.insert(loc.clone(),
@@ -644,7 +647,7 @@ impl Adapton for AdaptonState {
                     preds_alloc:creators,
                     preds_obs:Vec::new(),
                     succs:Vec::new(),
-                    producer:Rc::new(producer),
+                    producer:producer,
                     res:None,
                 } ;
                 self.table.insert(loc.clone(),
