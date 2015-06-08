@@ -2,14 +2,14 @@ use std::fmt::{Debug};
 use std::hash::{Hash,Hasher};
 use std::rc::Rc;
 use std::marker::PhantomData;
-use adapton_syntax::{FnObj};
+use adapton_syntax::{ProgPt};
 
 // TODO: I'd like the Art<T> definition to live within the Adapton trait below.
 // Then, it need not be parameterized by Loc. It can simply use Adapton::Loc.
 // However, I run into problems with rustc accepting associated types for traits that are parameterized (by type T).
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum Art<T,Loc> {
-    Box(Box<T>),  // No entry in table. No dependency tracking.
+    Box(Rc<T>),   // No entry in table. No dependency tracking.
     Loc(Rc<Loc>), // Location in table.
 }
 
@@ -34,8 +34,8 @@ pub enum ArtId<Name> {
 }
 
 pub trait Adapton {
-    type Name : Clone;
-    type Loc : Clone;
+    type Name;
+    type Loc;
     
     fn new () -> Self ;
 
@@ -50,20 +50,21 @@ pub trait Adapton {
         where F:FnOnce(&mut Self) -> T ;
 
     // Create immutable, eager arts: put
-    fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> Art<T,Self::Loc> ;
+    fn put<T:Eq+Debug> (self:&mut Self, Rc<T>) -> Art<T,Self::Loc> ;
 
     // Mutable arts: cell and set
-    fn cell<T:Eq+Debug+Clone> (self:&mut Self, ArtId<Self::Name>, T) -> MutArt<T,Self::Loc> ;
-    fn set<T:Eq+Debug+Clone> (self:&mut Self, MutArt<T,Self::Loc>, T) ;
+    fn cell<T:Eq+Debug> (self:&mut Self, ArtId<Self::Name>, Rc<T>) -> MutArt<T,Self::Loc> ;
+    fn set<T:Eq+Debug> (self:&mut Self, MutArt<T,Self::Loc>, Rc<T>) ;
 
     // Computation arts: thunk
-    fn thunk<Arg:Eq+Hash+Debug+Clone,T:Eq+Debug+Clone>
+    fn thunk<Arg:Eq+Hash+Debug,T:Eq+Debug>
         (self:&mut Self,
          id:ArtId<Self::Name>,
-         fn_body:Rc<Box<Fn(&mut Self,Arg) -> T>>,
-         arg:Arg)
+         prog_pt:ProgPt,
+         fn_box:Rc<Box<Fn(&mut Self, Rc<Arg>) -> Rc<T>>>,
+         arg:Rc<Arg>)
          -> Art<T,Self::Loc> ;
 
     // Demand & observe arts (all kinds): force
-    fn force<T:Eq+Debug+Clone> (self:&mut Self, Art<T,Self::Loc>) -> T ;
+    fn force<T:Eq+Debug> (self:&mut Self, Art<T,Self::Loc>) -> Rc<T> ;
 }
