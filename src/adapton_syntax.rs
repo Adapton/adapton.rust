@@ -10,13 +10,9 @@
 // always have two distinct identities).
 //
 // TODO: make a macro for wrapping Fn's as FnObj's, defined below:
-
-use std::fmt::{Debug,Formatter,Result};
-use std::hash::{Hash,Hasher};
 use std::rc::Rc;
-use adapton_sigs::Adapton;
 
-#[derive(Hash,Debug)]
+#[derive(Clone,Hash,Debug)]
 pub struct ProgPt {
     hash:u64, // hash of all fields below:
 
@@ -28,18 +24,4 @@ pub struct ProgPt {
     file:Rc<String>,   // via file!()
     line:usize,        // via line!()
     column:usize,      // via column!()
-}
-
-pub struct FnObj<A:Adapton,Arg,Res> {
-    prog_pt:ProgPt,
-    fn_val:Box<Fn(&mut A, Rc<Arg>) -> Rc<Res>>,
-}
-
-impl<A:Adapton,Arg,Res> Debug for FnObj<A,Arg,Res> {
-    fn fmt(&self, f: &mut Formatter) -> Result { self.prog_pt.fmt(f) }
-}
-
-impl<A:Adapton,Arg,Res> Hash for FnObj<A,Arg,Res> {
-    fn hash<H>(&self, state: &mut H) where H: Hasher { self.prog_pt.hash(state) }
-    //fn hash_slice<H>(data: &[Self], state: &mut H) where H: Hasher { panic!("TODO") }
 }
