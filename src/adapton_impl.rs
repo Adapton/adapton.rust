@@ -101,6 +101,7 @@ pub trait AdaptonNode {
     fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn succs_def<'r>   (self:&'r mut Self) -> bool ;
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ> ;
+    fn be<'r>          (self:&'r mut Self) -> &'r mut AdaptonNode ;
 }
 
 impl fmt::Debug for AdaptonNode {
@@ -215,9 +216,16 @@ pub fn abs_node_of_loc<'r> (st:&'r mut AdaptonState, loc:&'r Rc<Loc>) -> Option<
     panic!("st.table.get_mut(loc)")
 }
 
+fn lookup<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut AdaptonNode {
+    match st.table.get_mut( loc ) {
+        None => panic!("dangling pointer"),
+        Some(node) => node.be()
+    }
+}
+
 // This only is safe in contexts where the type of loc is known.
 // Double uses of names and hashes will generally cause uncaught type errors.
-pub fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Node<Res> {
+pub fn res_node_of_loc<'r,'s,Res> (st:&'r mut AdaptonState, loc:&'s Rc<Loc>) -> &'r mut Node<Res> {
     match st.table.get(loc) {
         None => panic!("dangling pointer"),
         Some(ref mut node) => {
@@ -251,6 +259,9 @@ impl <Res> AdaptonNode for Node<Res> {
         match *self { Node::Comp(ref mut n) => &mut n.succs,
                      _ => panic!("undefined"),
         }
+    }
+    fn be<'r>(self:&'r mut Self) -> &'r mut AdaptonNode {
+        self
     }
 }
 
