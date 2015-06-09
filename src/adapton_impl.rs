@@ -101,7 +101,10 @@ pub trait AdaptonNode {
     fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn succs_def<'r>   (self:&'r mut Self) -> bool ;
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ> ;
-    fn be<'r>          (self:&'r mut Self) -> &'r mut AdaptonNode ;
+}
+
+pub trait ShapeShifter {
+    fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<AdaptonNode> ;
 }
 
 impl fmt::Debug for AdaptonNode {
@@ -216,26 +219,18 @@ pub fn abs_node_of_loc<'r> (st:&'r mut AdaptonState, loc:&'r Rc<Loc>) -> Option<
     panic!("st.table.get_mut(loc)")
 }
 
-fn lookup<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut AdaptonNode {
+fn lookup_abs<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<AdaptonNode> {
     match st.table.get_mut( loc ) {
         None => panic!("dangling pointer"),
-        Some(node) => node.be()
+        Some(node) => node.be_node() // This is a wierd workaround; TODO-Later: Investigate.
     }
 }
 
 // This only is safe in contexts where the type of loc is known.
-// Double uses of names and hashes will generally cause uncaught type errors.
-pub fn res_node_of_loc<'r,'s,Res> (st:&'r mut AdaptonState, loc:&'s Rc<Loc>) -> &'r mut Node<Res> {
-    match st.table.get(loc) {
-        None => panic!("dangling pointer"),
-        Some(ref mut node) => {
-            unsafe { transmute::<_,_>(node) }
-        }
-    }
-}
-
-pub fn res_node_of_abs_node<'r,Res> (nd:&'r mut Box<AdaptonNode>) -> &'r mut Node<Res> {
-    panic!("TODO-Now")
+// Unintended double-uses of names and hashes will generally cause uncaught type errors.
+pub fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
+    let abs_node = lookup_abs(st, loc) ;
+    unsafe { transmute::<_,_>(abs_node) }
 }
 
 // ---------- Node implementation:
@@ -260,10 +255,22 @@ impl <Res> AdaptonNode for Node<Res> {
                      _ => panic!("undefined"),
         }
     }
-    fn be<'r>(self:&'r mut Self) -> &'r mut AdaptonNode {
-        self
+}
+
+impl <Res> ShapeShifter for Box<Node<Res>> {
+    fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<AdaptonNode> {
+        // TODO-Later: Why is this transmute needed here ??
+        unsafe { transmute::<_,_>(self) }
     }
 }
+
+impl ShapeShifter for Box<AdaptonNode> {
+    fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<AdaptonNode> {
+        // TODO-Later: Why is this transmute needed here ??
+        unsafe { transmute::<_,_>(self) }
+    }
+}
+
 
 
 impl<Res> fmt::Debug for CompNode<Res> {
