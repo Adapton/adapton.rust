@@ -397,7 +397,10 @@ impl Adapton for AdaptonState {
                                 dirty_alloc(self, &loc);
                                 return Art::Loc(loc)
                             }}
-                        else { }                            
+                        else {
+                            // TODO-Sometime: Not yet implemented
+                            panic!("producers not equal!")
+                        }
                     }}}
                 ;
                 let creators = {
