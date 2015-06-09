@@ -11,6 +11,7 @@
 pub mod adapton_syntax ;
 pub mod adapton_sigs ;
 pub mod adapton_impl ;
+pub mod adapton_impl_rest ;
 
 mod adapton {
     pub use super::*;

@@ -219,7 +219,7 @@ pub fn abs_node_of_loc<'r> (st:&'r mut AdaptonState, loc:&'r Rc<Loc>) -> Option<
     panic!("st.table.get_mut(loc)")
 }
 
-fn lookup_abs<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<AdaptonNode> {
+pub fn lookup_abs<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<AdaptonNode> {
     match st.table.get_mut( loc ) {
         None => panic!("dangling pointer"),
         Some(node) => node.be_node() // This is a wierd workaround; TODO-Later: Investigate.

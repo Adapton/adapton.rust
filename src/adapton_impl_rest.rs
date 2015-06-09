@@ -117,7 +117,7 @@ fn my_hash<T>(obj: T) -> u64
 
 pub fn revoke_succs<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
     for succ in succs.iter() {
-        let node : &mut Box<AdaptonNode> = abs_node_of_loc(st, &succ.loc) ;
+        let node : &mut Box<AdaptonNode> = lookup_abs(st, &succ.loc) ;
         node.preds_obs().retain  (|ref pred| **pred != *src);
         node.preds_alloc().retain(|ref pred| **pred != *src);
     }
