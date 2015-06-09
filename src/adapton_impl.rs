@@ -86,7 +86,7 @@ impl AdaptonDep for NoDependency {
 }
 
 #[derive(Debug)]
-pub struct AllocDependency<T> { val:T }
+pub struct AllocDependency<T> { val:Rc<T> }
 impl<T:Debug> AdaptonDep for AllocDependency<T> {
     fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:true} } // TODO-Later: Make this a little better.
 }
@@ -131,7 +131,7 @@ pub enum Node<Res> {
 // Location in table never changes value.
 #[derive(Debug)]
 pub struct PureNode<T> {
-    val : T,
+    val : Rc<T>,
 }
 
 // MutNode<T> for mutable content of type T.
@@ -142,7 +142,7 @@ pub struct PureNode<T> {
 pub struct MutNode<T> {
     preds_alloc : Vec<Rc<Loc>>,
     preds_obs   : Vec<Rc<Loc>>,
-    val         : T,
+    val         : Rc<T>,
 }
 
 // CompNode<Res> for a suspended computation whose resulting value of
@@ -155,7 +155,7 @@ pub struct CompNode<Res> {
     preds_obs   : Vec<Rc<Loc>>,
     succs       : Vec<Succ>,
     producer    : Box<Producer<Res>>, // Producer can be App<Arg,Res>, where type Arg is hidden.
-    res         : Option<Res>,
+    res         : Option<Rc<Res>>,
 }
 // Produce a value of type Res.
 pub trait Producer<Res> {
@@ -187,7 +187,7 @@ impl<Arg:Hash,Res> Hash for App<Arg,Res> {
 
 // ---------- App implementation of Producer and Consumer traits:
 
-impl<Arg:'static+Clone+PartialEq+Eq,Res:'static+Clone+PartialEq+Eq> Producer<Res> for App<Arg,Res> {
+impl<Arg:'static+PartialEq+Eq,Res:'static+PartialEq+Eq> Producer<Res> for App<Arg,Res> {
     fn produce(self:&Self, st:&mut AdaptonState) -> Rc<Res> {
         let f = self.fn_box.clone() ;
         f (st,self.arg.clone())
@@ -276,6 +276,180 @@ impl ShapeShifter for Box<AdaptonNode> {
 impl<Res> fmt::Debug for CompNode<Res> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "(CompNode)")
+    }
+}
+
+// Performs the computation at loc, produces a result of type Res.
+// Error if loc is not a Node::Comp.
+pub fn produce<Res:'static+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<Loc>) -> Rc<Res>
+{
+    let succs : Vec<Succ> = {
+        let succs : Vec<Succ> = Vec::new();
+        let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
+        replace(node.succs(), succs)
+    } ;
+    revoke_succs( st, loc, &succs );
+    st.stack.push ( Frame{loc:loc.clone(),
+                          path:loc.path.clone(),
+                          succs:Vec::new(), } );
+    let producer : Box<Producer<Res>> = {
+        let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
+        match *node {
+            Node::Comp(ref nd) => nd.producer.copy(),
+            _ => panic!("internal error"),
+        }
+    } ;
+    let res = producer.produce( st ) ;
+    let frame = match st.stack.pop() {
+        None => panic!("expected Some _: stack invariants are broken"),
+        Some(frame) => frame
+    } ;
+    {
+        let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
+        match *node {
+            Node::Comp(ref mut node) => {
+                replace(&mut node.succs, frame.succs) ;
+                replace(&mut node.res, Some(res.clone()))
+            },
+            Node::Mut(_) => panic!(""),
+            Node::Pure(_) => panic!("")
+        }
+    } ;
+    if st.stack.is_empty() { } else {
+        st.stack[0].succs.push(Succ{loc:loc.clone(),
+                                    effect:Effect::Observe,
+                                    dep:Rc::new(Box::new(ProducerDep{res:res.clone()})),
+                                    dirty:false});
+    };
+    res
+}
+
+fn re_produce<Res:'static+Debug+PartialEq+Eq>(dep:&ProducerDep<Res>, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
+    let result : Rc<Res> = produce( st, loc ) ;
+    let changed = result == dep.res ;
+    AdaptonRes{changed:changed}
+}
+
+
+// ---------- AdaptonDep implementation:
+
+#[derive(Debug)]
+pub struct ProducerDep<T> { res:Rc<T> }
+impl <Res:'static+Sized+Debug+PartialEq+Eq>
+    AdaptonDep for ProducerDep<Res>
+{
+    fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
+        { // Handle cases where there is no internal computation to re-compute:
+            let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
+            match *node {
+                Node::Comp(_) => (),
+                Node::Pure(_) =>
+                    return AdaptonRes{changed:false},
+                Node::Mut(ref nd) =>
+                    return AdaptonRes{changed:nd.val == self.res},
+            }
+        };
+        let succs = {
+            let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
+            assert!( node.succs_def() );
+            node.succs().clone()
+        } ;
+        for succ in succs.iter() {
+            if succ.dirty {
+                let dep = & succ.dep ;
+                let res = dep.change_prop(st, &succ.loc) ;
+                if res.changed {
+                    return re_produce (self, st, &succ.loc)
+                }
+            }
+        } ;
+        // No early return =>
+        //   all immediate dependencies are change-free:
+        AdaptonRes{changed:false}
+    }
+}
+
+// ---------- Node implementation:
+
+pub fn my_hash<T>(obj: T) -> u64
+    where T: Hash
+{
+    let mut hasher = SipHasher::new();
+    obj.hash(&mut hasher);
+    hasher.finish()
+}
+
+pub fn revoke_succs<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
+    for succ in succs.iter() {
+        let node : &mut Box<AdaptonNode> = lookup_abs(st, &succ.loc) ;
+        node.preds_obs().retain  (|ref pred| **pred != *src);
+        node.preds_alloc().retain(|ref pred| **pred != *src);
+    }
+}
+
+pub fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
+    let hash = my_hash(&(&path,&id));
+    Rc::new(Loc{path:path,id:id,hash:hash})
+}
+
+// Implement "sharing" of the dirty bit.
+// The succ edge is returned as a mutable borrow, to permit checking
+// and mutating the dirty bit.
+pub fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
+    let src_node = st.table.get_mut( src_loc ) ;
+    match src_node {
+        None => panic!("src_loc is dangling"),
+        Some(nd) => {
+            for succ in nd.succs().iter_mut() {
+                if (succ.effect == eff) && (&succ.loc == tgt_loc) {
+                    return succ
+                } else {}
+            } ;
+            panic!("tgt_loc is dangling in src_node.dem_succs")
+        }
+    }
+}
+
+pub fn dirty_pred_observers(st:&mut AdaptonState, loc:&Rc<Loc>) {
+    let pred_locs : Vec<Rc<Loc>> = {
+        let node = st.table.get_mut(loc) ;
+        match node {
+            None => panic!("dangling pointer"),
+            Some(nd) => { nd.preds_obs().clone() }}}
+    ;
+    for pred_loc in pred_locs {
+        let stop : bool = {
+            // The stop bit communicates information from st for use below.
+            let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
+            if succ.dirty { true } else {
+                replace(&mut succ.dirty, true);
+                false
+            }} ;
+        if !stop {
+            dirty_pred_observers(st,&pred_loc);
+        } else {}
+    }
+}
+
+pub fn dirty_alloc(st:&mut AdaptonState, loc:&Rc<Loc>) {
+    dirty_pred_observers(st, loc);
+    let pred_locs : Vec<Rc<Loc>> = {
+        let node = st.table.get_mut(loc) ;
+        match node {
+            None => panic!("dangling pointer"),
+            Some(nd) => { nd.preds_alloc().clone() }}}
+    ;
+    for pred_loc in pred_locs {
+        let stop : bool = {
+            // The stop bit communicates information from st for use below.
+            let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
+            if succ.dirty { true } else {
+                replace(&mut succ.dirty, true);
+                false
+            }} ;
+        if !stop {
+            dirty_pred_observers(st,&pred_loc);
+        } else {}
     }
 }
 
