@@ -49,9 +49,9 @@ Rust Q&A
  - The concept of "object safety" seems to bite me a lot in naive designs:
  
  ```
-src/adapton_impl.rs:653:51: 653:111 error: cannot convert to a trait object because trait `adapton_impl::Producer` is not object-safe [E0038]
-src/adapton_impl.rs:653                 let producer : Box<Producer<T>> = Box::new(App{prog_pt:prog_pt,fn_box:fn_box,arg:arg.clone()}) ;
-~~~~~~
-src/adapton_impl.rs:653:51: 653:111 note: method `eq` references the `Self` type in its arguments or return type
-src/adapton_impl.rs:653                 let producer : Box<Producer<T>> = Box::new(App{prog_pt:prog_pt,fn_box:fn_box,arg:arg.clone()}) ;
+ src/adapton_impl.rs:653:51: 653:111 error: cannot convert to a trait object because trait `adapton_impl::Producer` is not object-safe [E0038]
+ src/adapton_impl.rs:653                 let producer : Box<Producer<T>> = Box::new(App{prog_pt:prog_pt,fn_box:fn_box,arg:arg.clone()}) ;
+ ~~~~~~
+ src/adapton_impl.rs:653:51: 653:111 note: method `eq` references the `Self` type in its arguments or return type
+ src/adapton_impl.rs:653                 let producer : Box<Producer<T>> = Box::new(App{prog_pt:prog_pt,fn_box:fn_box,arg:arg.clone()}) ;
 ```
