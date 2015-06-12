@@ -189,14 +189,17 @@ impl<Arg:Hash,Res> Hash for App<Arg,Res> {
 
 // ---------- App implementation of Producer and Consumer traits:
 
-impl<Arg:PartialEq+Eq,Res> Producer<Res> for App<Arg,Res> {
+impl<Arg:'static+PartialEq+Eq,Res:'static> Producer<Res> for App<Arg,Res> {
     fn produce(self:&Self, st:&mut AdaptonState) -> Rc<Res> {
         let f = self.fn_box.clone() ;
         f (st,self.arg.clone())
     }
     fn copy(self:&Self) -> Box<Producer<Res>> {
-        panic!("")
-            // Box::new(self.clone())
+        Box::new(App{
+            prog_pt:self.prog_pt.clone(),
+            fn_box:self.fn_box.clone(),
+            arg:self.arg.clone(),
+        })
     }
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt {
         & self.prog_pt
