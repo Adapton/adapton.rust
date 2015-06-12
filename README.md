@@ -6,28 +6,28 @@ Based on [this OCaml implementation](https://github.com/plum-umd/adapton.ocaml).
 Development Activities
 -----------------------
 
- - Building Adapton in Rust "outwards" from a basic, core interface.
+ - Building Adapton in Rust around core interface, the `Adapton trait`.
 
-   The core library implements this interface.  I will use many baby
-   steps (see below). To check this interface and run experiments, we
-   need to implement user code.  Some ideas are below.
+   The library implements this interface with an imperative structure
+   called `AdaptonState`.
 
  - I am learning Rust in the process.  See detailed Q&A below.
 
-*Next steps:*
+*Written:*
 
  - Lazy Evaluation (simple, pure caching).
 
  - Function Caching:
-   - Nominal/Classical caching, explicit eviction.
-   - Names cannot be "double-used", cells cannot change.
    - Implements Bill Pugh's notion of IC, pure function caching.
 
- - Full Nominal Adapton:
-   - changeable input cells,
-   - Bidirectional DCG structure structure
-   - dirtying traversals, repair traversals.
+ - Structural Adapton:
+   - changeable input cells
+   - bidirectional DCG structure
+   - dirtying traversal; repair traversal.
 
+ - Nominal Adapton:
+   - first-class names
+   - nominal memoization
 
 Future work
 ============
