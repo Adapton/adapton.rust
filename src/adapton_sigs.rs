@@ -9,7 +9,7 @@ use adapton_syntax::{ProgPt};
 // However, I run into problems with rustc accepting associated types for traits that are parameterized (by type T).
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum Art<T,Loc> {
-    Box(Rc<T>),   // No entry in table. No dependency tracking.
+    Rc(Rc<T>),    // No entry in table. No dependency tracking.
     Loc(Rc<Loc>), // Location in table.
 }
 
@@ -23,14 +23,17 @@ pub struct MutArt<T,Loc> {
 // ArtId -- A symbolic identity for an articulation point made by
 // Adapton::thunk.  An ArtId is chosen by the programmer to identify
 // the point during evaluation (and simultaneously, to identify the
-// point during re-evaluation).  None is special, and it means "do not
-// introduce any laziness/memoization overhead here"; when None is
-// used, no thunk is created.
+// point during re-evaluation).
+
+// An `Eager` identity is special, and it means "do not introduce any
+// laziness/memoization overhead here"; when Eager is used, no thunk
+// is created; rather, the computation eagerly produces an articulated
+// value of the form Art::Rc(v), for some value v.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum ArtId<Name> {
-    None,            // Identifies an Art::Box. No dependency tracking.
     Structural(u64), // Identifies an Art::Loc based on hashing content.
     Nominal(Name),   // Identifies an Art::Loc based on a name.
+    Eager,           // Eagerly produce an Art::Rc, no additional indirection is needed/used.
 }
 
 pub trait Adapton {

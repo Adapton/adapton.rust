@@ -219,24 +219,12 @@ impl<Arg:Clone+PartialEq+Eq,Res> Consumer<Arg> for App<Arg,Res> {
     fn get_arg(self:&mut Self) -> Rc<Arg>   { self.arg.clone() }
 }
 
-// // ---------- Ret implementation of Producer:
-
-// #[derive(Debug,PartialEq,Eq)]
-// pub enum Ret<Res> { Ret(Res) }
-
-// impl<Res:Clone> Producer<Res> for Ret<Res> {
-//     fn produce(self:&Self, _st:&mut AdaptonState) -> Res {
-//         let &Ret::Ret(ref val) = self;
-//         val.clone()
-//     }
-// }
-
 // ----------- Location resolution:
 
 pub fn lookup_abs<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<AdaptonNode> {
     match st.table.get_mut( loc ) {
         None => panic!("dangling pointer"),
-        Some(node) => node.be_node() // This is a wierd workaround; TODO-Later: Investigate.
+        Some(node) => node.be_node() // This is a weird workaround; TODO-Later: Investigate.
     }
 }
 
@@ -325,8 +313,7 @@ pub fn produce<Res:'static+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<Loc
                 replace(&mut node.succs, frame.succs) ;
                 replace(&mut node.res, Some(res.clone()))
             },
-            Node::Mut(_) => panic!(""),
-            Node::Pure(_) => panic!("")
+            _ => panic!("internal error"),
         }
     } ;
     if st.stack.is_empty() { } else {
@@ -410,18 +397,13 @@ pub fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
 // The succ edge is returned as a mutable borrow, to permit checking
 // and mutating the dirty bit.
 pub fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
-    let src_node = st.table.get_mut( src_loc ) ;
-    match src_node {
-        None => panic!("src_loc is dangling"),
-        Some(nd) => {
-            for succ in nd.succs().iter_mut() {
-                if (succ.effect == eff) && (&succ.loc == tgt_loc) {
-                    return succ
-                } else {}
-            } ;
-            panic!("tgt_loc is dangling in src_node.dem_succs")
-        }
-    }
+    let nd = lookup_abs( st, src_loc );
+    for succ in nd.succs().iter_mut() {
+        if (succ.effect == eff) && (&succ.loc == tgt_loc) {
+            return succ
+        } else {}
+    } ;
+    panic!("tgt_loc is dangling in src_node.dem_succs")
 }
 
 pub fn dirty_pred_observers(st:&mut AdaptonState, loc:&Rc<Loc>) {
@@ -524,9 +506,7 @@ impl Adapton for AdaptonState {
         x
     }
 
-    fn put<T:Eq> (self:&mut AdaptonState, x:Rc<T>) -> Art<T,Self::Loc> {
-        Art::Box(x)
-    }
+    fn put<T:Eq> (self:&mut AdaptonState, x:Rc<T>) -> Art<T,Self::Loc> { Art::Rc(x) }
 
     fn cell<T:Eq+Debug
         +'static // TODO-Later: Needed on T because of lifetime issues.
@@ -577,7 +557,7 @@ impl Adapton for AdaptonState {
         }
 
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:Rc<T>) {
-        assert!( self.stack.is_empty() );
+        assert!( self.stack.is_empty() ); // outer layer has control.
         let changed : bool = {
             let node = self.table.get_mut(&cell.loc) ;
             match node {
@@ -614,18 +594,19 @@ impl Adapton for AdaptonState {
          -> Art<T,Self::Loc>
     {
         match id {
-            ArtId::None => {
-                Art::Box(fn_box(self,arg))
+            ArtId::Eager => {
+                Art::Rc(fn_box(self,arg))
             },
             ArtId::Structural(hash) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Structural(hash)));
-                {   // If the node exists; there's nothing else to do.
+                {   // If the node exists, return early.
                     let node = self.table.get_mut(&loc);
                     match node { None    => { },
                                  Some(_) => { return Art::Loc(loc) }, // Nothing to do; it already exists.
                     }
                 } ;
+                // assert: node does not exist.
                 let creators =
                     if self.stack.is_empty() { Vec::new() }
                     else {
@@ -638,7 +619,11 @@ impl Adapton for AdaptonState {
                         v.push(pred);
                         v
                     };
-                let producer : Box<Producer<T>> = Box::new(App{prog_pt:prog_pt,fn_box:fn_box,arg:arg.clone()}) ;
+                let producer : Box<Producer<T>> =
+                    Box::new(App{prog_pt:prog_pt,
+                                 fn_box:fn_box,
+                                 arg:arg.clone()})
+                    ;
                 let node : CompNode<T> = CompNode{
                     preds_alloc:creators,
                     preds_obs:Vec::new(),
@@ -654,7 +639,11 @@ impl Adapton for AdaptonState {
             ArtId::Nominal(nm) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Nominal(nm)));
-                let producer : App<Arg,T> = App{prog_pt:prog_pt,fn_box:fn_box,arg:arg.clone()} ;
+                let producer : App<Arg,T> =
+                    App{prog_pt:prog_pt,
+                        fn_box:fn_box,
+                        arg:arg.clone()}
+                ;
                 let do_dirty : bool =
                 { match self.table.get_mut(&loc) {
                     None => panic!("dangling pointer"),
@@ -716,7 +705,7 @@ impl Adapton for AdaptonState {
                                   art:Art<T,Self::Loc>) -> Rc<T>
     {
         match art {
-            Art::Box(b) => b.clone(),
+            Art::Rc(v) => v.clone(),
             Art::Loc(loc) => {
                 let (is_comp, cached_result) : (bool, Option<Rc<T>>) = {
                     let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
