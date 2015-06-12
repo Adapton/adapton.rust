@@ -203,7 +203,8 @@ impl<Arg:PartialEq+Eq,Res> Producer<Res> for App<Arg,Res> {
     }
     fn eq (&self, other:&Producer<Res>) -> bool {
         if &self.prog_pt == other.prog_pt() {
-            let other : &App<Arg,Res> = unsafe { transmute::<_,_>( other ) } ;
+            let other = Box::new(other) ;
+            let other : &Box<App<Arg,Res>> = unsafe { transmute::<_,_>( other ) } ;
             self.arg == other.arg
         } else {
             false
@@ -651,8 +652,9 @@ impl Adapton for AdaptonState {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Nominal(nm)));
                 let producer : App<Arg,T> = App{prog_pt:prog_pt,fn_box:fn_box,arg:arg.clone()} ;
+                let do_dirty : bool =
                 { match self.table.get_mut(&loc) {
-                    None => { },
+                    None => panic!("dangling pointer"),
                     Some(ref mut nd) => {
                         let res_nd: &mut Node<T> = unsafe { transmute::<_,_>( nd ) };
                         let comp_nd: &mut CompNode<T> = match *res_nd {
@@ -667,18 +669,19 @@ impl Adapton for AdaptonState {
                         if equal_producers {
                             if consumer.get_arg() == arg {
                                 // Same argument; Nothing else to do:
-                                return Art::Loc(loc)
+                                false
                             }
                             else {
-                                consumer.consume(arg);
-                                dirty_alloc(self, &loc);
-                                return Art::Loc(loc)
+                                consumer.consume(arg.clone());
+                                true
                             }}
                         else {
                             panic!("TODO-Sometime: producers not equal!")
                         }
-                    }}}
-                ;
+                    }}} ;
+                if do_dirty {
+                    dirty_alloc(self, &loc)
+                } ;
                 let creators = {
                     if self.stack.is_empty() { Vec::new() }
                     else
