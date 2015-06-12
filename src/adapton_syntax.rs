@@ -12,7 +12,7 @@
 // TODO: make a macro for wrapping Fn's as FnObj's, defined below:
 use std::rc::Rc;
 
-#[derive(Clone,Hash,Debug)]
+#[derive(PartialEq,Eq,Clone,Hash,Debug)]
 pub struct ProgPt {
     hash:u64, // hash of all fields below:
 
