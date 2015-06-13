@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::hash::{hash,Hash,Hasher,SipHasher};
 use std::collections::HashMap;
 use std::mem::replace;
 use std::mem::transmute;
@@ -7,8 +6,9 @@ use std::rc::Rc;
 use std::fmt;
 use std::marker::PhantomData;
 use std::fmt::{Formatter,Result};
+use std::hash::{Hash,Hasher};
 
-use adapton_syntax::{ProgPt};
+use adapton_syntax::*;
 
 // use adapton_syntax::*;
 use adapton_sigs::*;
@@ -372,14 +372,6 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq>
 
 // ---------- Node implementation:
 
-pub fn my_hash<T>(obj: T) -> u64
-    where T: Hash
-{
-    let mut hasher = SipHasher::new();
-    obj.hash(&mut hasher);
-    hasher.finish()
-}
-
 pub fn revoke_succs<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
     for succ in succs.iter() {
         let node : &mut Box<AdaptonNode> = lookup_abs(st, &succ.loc) ;
@@ -730,4 +722,32 @@ impl Adapton for AdaptonState {
         }}
 }
 
-pub fn main () { }
+macro_rules! prog_pt {
+    ($symbol:ident) => {
+        {
+            let mut p = ProgPt{
+                hash:0,
+                symbol:stringify!($symbol),
+                file:file!(),
+                line:line!(),
+                column:column!(),                    
+            } ;
+            let h = my_hash(&p) ;
+            replace(&mut p.hash, h);
+            p
+        }
+    }
+}
+
+pub fn fact<'r> (st:&'r mut AdaptonState,x:Rc<u64>) -> Rc<u64> {
+    let res = fact(st, Rc::new(*x-1));
+    Rc::new(*x * *res)
+}
+
+pub fn main () {
+    let st = AdaptonState::new() ;
+    let f = Rc::new(Box::new( fact ));
+    let t = st.thunk(ArtId::Eager,prog_pt!(fact),f,Rc::new(6)) ;
+    let fact_out = st.force(t) ;
+    ()
+}

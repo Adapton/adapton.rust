@@ -56,3 +56,14 @@ Rust Q&A
  src/adapton_impl.rs:653:51: 653:111 note: method `eq` references the `Self` type in its arguments or return type
  src/adapton_impl.rs:653                 let producer : Box<Producer<T>> = Box::new(App{prog_pt:prog_pt,fn_box:fn_box,arg:arg.clone()}) ;
 ```
+
+-
+```
+Compiling adapton v0.0.1 (file:///Users/hammer/homedir/work/umd/adapton.rust)
+src/adapton_state.rs:750:50: 750:51 error: mismatched types:
+expected `alloc::rc::Rc<Box<for<'r> core::ops::Fn(&'r mut adapton_state::AdaptonState, alloc::rc::Rc<_>) -> alloc::rc::Rc<_>>>`,
+found `alloc::rc::Rc<Box<fn(&'r mut adapton_state::AdaptonState, alloc::rc::Rc<u64>) -> alloc::rc::Rc<u64> {adapton_state::fact}>>`
+(expected trait core::ops::Fn,
+found fn item) [E0308]
+src/adapton_state.rs:750     let t = st.thunk(ArtId::Eager,prog_pt!(fact),f,Rc::new(6)) ;
+```

@@ -10,18 +10,26 @@
 // always have two distinct identities).
 //
 // TODO: make a macro for wrapping Fn's as FnObj's, defined below:
-use std::rc::Rc;
+use std::hash::{Hash,Hasher,SipHasher};
 
 #[derive(PartialEq,Eq,Clone,Hash,Debug)]
 pub struct ProgPt {
-    hash:u64, // hash of all fields below:
+    pub hash:u64, // hash of all fields below:
 
     // Symbolic identity, in Rust semantics:
-    symbol:Rc<String>, // via stringify!(...)
-    module:Rc<String>, // via module!()
+    pub symbol:&'static str, // via stringify!(...)
+    // module:Rc<String>, // via module!()
 
     // Location in local filesystem:
-    file:Rc<String>,   // via file!()
-    line:usize,        // via line!()
-    column:usize,      // via column!()
+    pub file:&'static str,   // via file!()
+    pub line:u32,        // via line!()
+    pub column:u32,      // via column!()
+}
+
+pub fn my_hash<T>(obj: T) -> u64
+    where T: Hash
+{
+    let mut hasher = SipHasher::new();
+    obj.hash(&mut hasher);
+    hasher.finish()
 }

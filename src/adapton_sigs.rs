@@ -13,7 +13,9 @@ use adapton_syntax::{ProgPt};
 //
 //  Types:
 //
-//   - Art<Loc,T> : "articulations" that produce a value of type T.
+//   - Art<Loc,T> : An incremental "articulation", in a data structure
+//                  or computation, that when `force`d, produces a value of type T.
+//                  Each articulation is implemented as a node in the DCG.
 //
 //     Examples:
 //      * Pure values (see `Adapton::put`)
