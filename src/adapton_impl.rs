@@ -549,21 +549,17 @@ impl Adapton for AdaptonState {
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:Rc<T>) {
         assert!( self.stack.is_empty() ); // outer layer has control.
         let changed : bool = {
-            let node = self.table.get_mut(&cell.loc) ;
-            match node {
-            None => panic!("dangling location"),
-            Some(nd) => {
-                let node : &mut Node<T> = unsafe { transmute::<_,_>(nd) } ;
-                match *node {
-                    Node::Mut(ref mut nd) => {
-                        if nd.val == val {
-                            false
-                        } else {
-                            replace(&mut nd.val, val) ;
-                            true
-                        }},
-                    _ => unreachable!(),
-                }},
+            let node = lookup_abs( self, &cell.loc ) ;
+            let node : &mut Node<T> = unsafe { transmute::<_,_>(node) } ;
+            match *node {
+                Node::Mut(ref mut nd) => {
+                    if nd.val == val {
+                        false
+                    } else {
+                        replace(&mut nd.val, val) ;
+                        true
+                    }},
+                _ => unreachable!(),
             }} ;
         if changed {
             dirty_alloc(self, &cell.loc)
