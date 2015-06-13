@@ -630,33 +630,31 @@ impl Adapton for AdaptonState {
                         fn_box:fn_box,
                         arg:arg.clone()}
                 ;
-                let do_dirty : bool =
-                { match self.table.get_mut(&loc) {
-                    None => panic!("dangling pointer"),
-                    Some(ref mut nd) => {
-                        let res_nd: &mut Node<T> = unsafe { transmute::<_,_>( nd ) };
-                        let comp_nd: &mut CompNode<T> = match *res_nd {
-                            Node::Pure(_)=> unreachable!(),
-                            Node::Mut(_) => panic!("TODO-Sometime"),
-                            Node::Comp(ref mut comp) => comp
-                        } ;
-                        let equal_producers : bool = comp_nd.producer.eq( &producer ) ;
-                        let consumer:&mut Box<Consumer<Arg>> =
-                            unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
-                        ;
-                        if equal_producers {
-                            if consumer.get_arg() == arg {
-                                // Same argument; Nothing else to do:
-                                false
-                            }
-                            else {
-                                consumer.consume(arg.clone());
-                                true
-                            }}
-                        else {
-                            panic!("TODO-Sometime: producers not equal!")
+                let do_dirty : bool = {
+                    let nd = lookup_abs(self, &loc) ;
+                    let res_nd: &mut Node<T> = unsafe { transmute::<_,_>( nd ) };
+                    let comp_nd: &mut CompNode<T> = match *res_nd {
+                        Node::Pure(_)=> unreachable!(),
+                        Node::Mut(_) => panic!("TODO-Sometime"),
+                        Node::Comp(ref mut comp) => comp
+                    } ;
+                    let equal_producers : bool = comp_nd.producer.eq( &producer ) ;
+                    let consumer:&mut Box<Consumer<Arg>> =
+                        unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
+                    ;
+                    if equal_producers {
+                        if consumer.get_arg() == arg {
+                            // Same argument; Nothing else to do:
+                            false // do_dirty=false.
                         }
-                    }}} ;
+                        else {
+                            consumer.consume(arg.clone());
+                            true // do_dirty=true.
+                        }}
+                    else {
+                        panic!("TODO-Sometime: producers not equal!")
+                    }
+                } ;
                 if do_dirty {
                     dirty_alloc(self, &loc)
                 } ;
