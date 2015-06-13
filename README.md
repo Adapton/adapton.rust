@@ -6,8 +6,9 @@ Based on [this OCaml implementation](https://github.com/plum-umd/adapton.ocaml).
 Development Activities
 -----------------------
 
- - Building Adapton in Rust around core interface, the `Adapton trait`.
-
+ - Building Adapton in Rust around core interface, the
+   [`Adapton trait`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_sigs.rs#L7).
+    
    The library implements this interface with an imperative structure
    called `AdaptonState`.
 
