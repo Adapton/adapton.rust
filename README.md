@@ -9,8 +9,8 @@ Development Activities
  - Building Adapton in Rust around core interface, the
    [`Adapton trait`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_sigs.rs#L7).
     
-   The library implements this interface with an [imperative structure
-   `AdaptonState`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_state.rs).
+ - The library implements this interface with an imperative data structure,
+   [`AdaptonState`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_state.rs).
 
  - I am learning Rust in the process.  See detailed Q&A below.
 
