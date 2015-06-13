@@ -424,12 +424,7 @@ pub fn dirty_pred_observers(st:&mut AdaptonState, loc:&Rc<Loc>) {
 
 pub fn dirty_alloc(st:&mut AdaptonState, loc:&Rc<Loc>) {
     dirty_pred_observers(st, loc);
-    let pred_locs : Vec<Rc<Loc>> = {
-        let node = st.table.get_mut(loc) ;
-        match node {
-            None => panic!("dangling pointer"),
-            Some(nd) => { nd.preds_alloc().clone() }}}
-    ;
+    let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc().clone() ;
     for pred_loc in pred_locs {
         let stop : bool = {
             // The stop bit communicates information from st for use below.
