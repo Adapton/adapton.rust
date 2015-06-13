@@ -10,8 +10,7 @@
 
 pub mod adapton_syntax ;
 pub mod adapton_sigs ;
-pub mod adapton_impl ;
-pub mod adapton_impl_rest ;
+pub mod adapton_state ;
 
 mod adapton {
     pub use super::*;
