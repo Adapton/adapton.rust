@@ -589,10 +589,12 @@ impl Adapton for AdaptonState {
                     if self.stack.is_empty() { Vec::new() }
                     else {
                         let pred = self.stack[0].loc.clone();
-                        self.stack[0].succs.push(Succ{loc:loc.clone(),
-                                                      dep:Rc::new(Box::new(NoDependency)),
-                                                      effect:Effect::Allocate,
-                                                      dirty:false});
+                        let succ =
+                            Succ{loc:loc.clone(),
+                                 dep:Rc::new(Box::new(NoDependency)),
+                                 effect:Effect::Allocate,
+                                 dirty:false};
+                        self.stack[0].succs.push(succ);
                         let mut v = Vec::new();
                         v.push(pred);
                         v
@@ -655,10 +657,12 @@ impl Adapton for AdaptonState {
                     else
                     {
                         let pred = self.stack[0].loc.clone();
-                        self.stack[0].succs.push(Succ{loc:loc.clone(),
-                                                      dep:Rc::new(Box::new(AllocDependency{val:arg})),
-                                                      effect:Effect::Allocate,
-                                                      dirty:false});
+                        let succ =
+                            Succ{loc:loc.clone(),
+                                 dep:Rc::new(Box::new(AllocDependency{val:arg})),
+                                 effect:Effect::Allocate,
+                                 dirty:false};
+                        self.stack[0].succs.push();
                         let mut v = Vec::new();
                         v.push(pred);
                         v
@@ -746,12 +750,16 @@ pub fn fact<'r> (st:&'r mut AdaptonState,x:Rc<u64>) -> Rc<u64> {
     }
 }
 
-
+pub fn test_fact () {
+    let mut st = AdaptonState::new() ;
+    let fact_6 = st.thunk(ArtId::Eager,
+                          prog_pt!(fact),
+                          Rc::new(Box::new(fact)),
+                          Rc::new(6 as u64)) ;
+    let fact_out = st.force( fact_6 ) ;
+    println!("{}", fact_out) ;
+}
 
 pub fn main () {
-    let mut st = AdaptonState::new() ;
-    let f  : Box<Fn(&mut AdaptonState, Rc<u64>) -> Rc<u64>> = Box::new(|st,x| fact(st,x)) ;
-    let t  = st.thunk(ArtId::Eager,prog_pt!(fact),Rc::new(f),Rc::new(6 as u64)) ;
-    let fact_out = st.force(t) ;
-    ()
+    test_fact () ;
 }
