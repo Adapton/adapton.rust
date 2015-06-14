@@ -9,7 +9,6 @@
 // identifies the function pointer (i.e., two distinct functions will
 // always have two distinct identities).
 //
-// TODO: make a macro for wrapping Fn's as FnObj's, defined below:
 use std::hash::{Hash,Hasher,SipHasher};
 
 #[derive(PartialEq,Eq,Clone,Hash,Debug)]
@@ -32,4 +31,22 @@ pub fn my_hash<T>(obj: T) -> u64
     let mut hasher = SipHasher::new();
     obj.hash(&mut hasher);
     hasher.finish()
+}
+
+#[macro_export]
+macro_rules! prog_pt {
+    ($symbol:ident) => {
+        {
+            let mut p = ProgPt{
+                hash:0,
+                symbol:stringify!($symbol),
+                file:file!(),
+                line:line!(),
+                column:column!(),                    
+            } ;
+            let h = my_hash(&p) ;
+            replace(&mut p.hash, h);
+            p
+        }
+    }
 }

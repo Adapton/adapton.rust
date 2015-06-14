@@ -9,8 +9,6 @@ use std::fmt::{Formatter,Result};
 use std::hash::{Hash,Hasher};
 
 use adapton_syntax::*;
-
-// use adapton_syntax::*;
 use adapton_sigs::*;
 
 #[derive(Debug)]
@@ -317,10 +315,11 @@ pub fn produce<Res:'static+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<Loc
         }
     } ;
     if st.stack.is_empty() { } else {
-        st.stack[0].succs.push(Succ{loc:loc.clone(),
-                                    effect:Effect::Observe,
-                                    dep:Rc::new(Box::new(ProducerDep{res:res.clone()})),
-                                    dirty:false});
+        let succ = Succ{loc:loc.clone(),
+                        effect:Effect::Observe,
+                        dep:Rc::new(Box::new(ProducerDep{res:res.clone()})),
+                        dirty:false};
+        st.stack[0].succs.push(succ);
     };
     res
 }
@@ -530,10 +529,12 @@ impl Adapton for AdaptonState {
                 },
             } ;
             if ! self.stack.is_empty () {
-                self.stack[0].succs.push(Succ{loc:loc.clone(),
-                                              dep:Rc::new(Box::new(AllocDependency{val:val})),
-                                              effect:Effect::Allocate,
-                                              dirty:false});
+                let succ =
+                    Succ{loc:loc.clone(),
+                         dep:Rc::new(Box::new(AllocDependency{val:val})),
+                         effect:Effect::Allocate,
+                         dirty:false};
+                self.stack[0].succs.push(succ);
             } ;
             MutArt{loc:loc,phantom:PhantomData}
         }
@@ -662,7 +663,7 @@ impl Adapton for AdaptonState {
                                  dep:Rc::new(Box::new(AllocDependency{val:arg})),
                                  effect:Effect::Allocate,
                                  dirty:false};
-                        self.stack[0].succs.push();
+                        self.stack[0].succs.push(succ);
                         let mut v = Vec::new();
                         v.push(pred);
                         v
@@ -716,31 +717,16 @@ impl Adapton for AdaptonState {
                     }
                 } ;
                 if self.stack.is_empty() { } else {
-                    self.stack[0].succs.push(Succ{loc:loc.clone(),
-                                                  dep:Rc::new(Box::new(ProducerDep{res:result.clone()})),
-                                                  effect:Effect::Observe,
-                                                  dirty:false});
+                    let succ =
+                        Succ{loc:loc.clone(),
+                             dep:Rc::new(Box::new(ProducerDep{res:result.clone()})),
+                             effect:Effect::Observe,
+                             dirty:false};
+                    self.stack[0].succs.push(succ);
                 } ;
                 result
             }
         }}
-}
-
-macro_rules! prog_pt {
-    ($symbol:ident) => {
-        {
-            let mut p = ProgPt{
-                hash:0,
-                symbol:stringify!($symbol),
-                file:file!(),
-                line:line!(),
-                column:column!(),                    
-            } ;
-            let h = my_hash(&p) ;
-            replace(&mut p.hash, h);
-            p
-        }
-    }
 }
 
 pub fn fact<'r> (st:&'r mut AdaptonState,x:Rc<u64>) -> Rc<u64> {
