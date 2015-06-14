@@ -1,5 +1,7 @@
-Incremental Computation with Adapton in Rust
-============================================
+Adapton in Rust
+========================
+
+A general-purpose **Incremental Computation** (IC) library for Rust.
 
 **Based on**:
 
