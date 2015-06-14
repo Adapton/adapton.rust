@@ -1,7 +1,11 @@
-(Nominal) Adapton in Rust
-==========================
+Incremental Computation with Adapton in Rust
+============================================
 
-Based on [this OCaml implementation](https://github.com/plum-umd/adapton.ocaml).
+**Based on**:
+
+ - [the paper _Incremental Computation with Names_, 2015](http://arxiv.org/abs/1503.07792).
+
+ - [an earlier OCaml implementation](https://github.com/plum-umd/adapton.ocaml).
 
 Development Activities
 -----------------------
@@ -14,7 +18,7 @@ Development Activities
 
  - I am learning Rust in the process.  See detailed Q&A below.
 
-*Written:*
+**Testing:**
 
  - Lazy Evaluation (simple, pure caching).
 
