@@ -740,14 +740,18 @@ macro_rules! prog_pt {
 }
 
 pub fn fact<'r> (st:&'r mut AdaptonState,x:Rc<u64>) -> Rc<u64> {
-    let res = fact(st, Rc::new(*x-1));
-    Rc::new(*x * *res)
+    if *x == 0 { Rc::new(1) } else {
+        let res = fact(st, Rc::new(*x-1));
+        Rc::new(*x * *res)
+    }
 }
 
+
+
 pub fn main () {
-    let st = AdaptonState::new() ;
-    let f = Rc::new(Box::new( fact ));
-    let t = st.thunk(ArtId::Eager,prog_pt!(fact),f,Rc::new(6)) ;
+    let mut st = AdaptonState::new() ;
+    let f  : Box<Fn(&mut AdaptonState, Rc<u64>) -> Rc<u64>> = Box::new(|st,x| fact(st,x)) ;
+    let t  = st.thunk(ArtId::Eager,prog_pt!(fact),Rc::new(f),Rc::new(6 as u64)) ;
     let fact_out = st.force(t) ;
     ()
 }
