@@ -729,23 +729,4 @@ impl Adapton for AdaptonState {
         }}
 }
 
-pub fn fact<'r> (st:&'r mut AdaptonState,x:Rc<u64>) -> Rc<u64> {
-    if *x == 0 { Rc::new(1) } else {
-        let res = fact(st, Rc::new(*x-1));
-        Rc::new(*x * *res)
-    }
-}
-
-pub fn test_fact () {
-    let mut st = AdaptonState::new() ;
-    let fact_6 = st.thunk(ArtId::Eager,
-                          prog_pt!(fact),
-                          Rc::new(Box::new(fact)),
-                          Rc::new(6 as u64)) ;
-    let fact_out = st.force( fact_6 ) ;
-    println!("{}", fact_out) ;
-}
-
-pub fn main () {
-    test_fact () ;
-}
+pub fn main () { }
