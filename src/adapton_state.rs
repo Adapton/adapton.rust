@@ -633,10 +633,10 @@ impl Adapton for AdaptonState {
                         Node::Comp(ref mut comp) => comp
                     } ;
                     let equal_producers : bool = comp_nd.producer.eq( &producer ) ;
-                    let consumer:&mut Box<Consumer<Arg>> =
-                        unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
-                    ;
-                    if equal_producers {
+                    if equal_producers { // => safe cast to Box<Consumer<Arg>>
+                        let consumer:&mut Box<Consumer<Arg>> =
+                            unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
+                        ;
                         if consumer.get_arg() == arg {
                             // Same argument; Nothing else to do:
                             false // do_dirty=false.
