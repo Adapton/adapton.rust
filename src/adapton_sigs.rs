@@ -90,7 +90,6 @@ pub struct MutArt<T,Loc> {
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum ArtId<Name> {
     Structural(u64), // Identifies an Art::Loc based on hashing content.
-    Nominal(Name),   // Identifies an Art::Loc based on a name.
+    Nominal(Name),   // Identifies an Art::Loc based on a programmer-chosen name.
     Eager,           // Eagerly produce an Art::Rc, no additional indirection is needed/used.
 }
-
