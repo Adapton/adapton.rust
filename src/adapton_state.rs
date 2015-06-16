@@ -730,3 +730,4 @@ impl Adapton for AdaptonState {
 }
 
 pub fn main () { }
+

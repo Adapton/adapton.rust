@@ -7,11 +7,16 @@
 // #![feature(old_orphan_check)]
 
 //! Adapton for Rust
+// #![feature(test)]
 
 #[macro_use]
 pub mod adapton_syntax ;
 pub mod adapton_sigs ;
 pub mod adapton_state ;
+
+pub mod structures ;
+
+// pub mod fact ;
 
 mod adapton {
     pub use super::*;
