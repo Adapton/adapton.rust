@@ -682,11 +682,11 @@ impl Adapton for AdaptonState {
     }
 
     fn force<T:'static+Eq+Debug> (self:&mut AdaptonState,
-                                  art:Art<T,Self::Loc>) -> Rc<T>
+                                  art:&Art<T,Self::Loc>) -> Rc<T>
     {
-        match art {
-            Art::Rc(v) => v.clone(),
-            Art::Loc(loc) => {
+        match *art {
+            Art::Rc(ref v) => v.clone(),
+            Art::Loc(ref loc) => {
                 let (is_comp, cached_result) : (bool, Option<Rc<T>>) = {
                     let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
                     match *node {

@@ -27,8 +27,8 @@ use adapton_syntax::{ProgPt};
 //
 // 
 pub trait Adapton {
-    type Name;
-    type Loc;
+    type Name : Debug+PartialEq+Eq+Hash;
+    type Loc  : Debug+PartialEq+Eq+Hash;
     
     fn new () -> Self ;
 
@@ -59,7 +59,7 @@ pub trait Adapton {
          -> Art<T,Self::Loc> ;
 
     // Demand & observe arts (all kinds): force
-    fn force<T:Eq+Debug> (self:&mut Self, Art<T,Self::Loc>) -> Rc<T> ;
+    fn force<T:Eq+Debug> (self:&mut Self, &Art<T,Self::Loc>) -> Rc<T> ;
 }
 
 // TODO: I'd like the Art<T> definition to live within the Adapton trait below.
