@@ -1,7 +1,6 @@
 //#[macro_use]
 //use adapton_syntax::* ;
 use adapton_sigs::* ;
-// use adapton_state::AdaptonState ;
 
 trait List {
     type Hd ;
@@ -37,3 +36,6 @@ trait Tree {
         where Leaf:Fn(&mut A, Arg, Self::Leaf) -> Res
         ,      Bin:Fn(&mut A, Arg, Self::Bin, Res, Res ) -> Res ;
 }
+
+// Questions: Do these Fn's for fold need to be passed in Rc<Box<_>>'s ?
+// 

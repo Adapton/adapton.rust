@@ -11,28 +11,6 @@ use std::hash::{Hash,Hasher};
 use adapton_syntax::*;
 use adapton_sigs::*;
 
-#[derive(Debug)]
-pub struct Frame {
-    loc   : Rc<Loc>,    // The currently-executing node
-    path  : Rc<Path>,   // The current path for creating new nodes; invariant: (prefix-of frame.loc.path frame.path)
-    succs : Vec<Succ>,  // The currently-executing node's effects (viz., the nodes it demands)
-}
-
-// Each location identifies a node in the DCG.
-#[derive(Hash,Debug,PartialEq,Eq,Clone)]
-pub struct Loc {
-    path : Rc<Path>,
-    id   : Rc<ArtId<Name>>,
-    hash : u64, // hash of (path,id)
-}
-
-// Paths are built using the ns command.
-#[derive(Hash,Debug,PartialEq,Eq,Clone)]
-pub enum Path {
-    Empty,
-    Child(Rc<Path>,Name),
-}
-
 // Names provide a symbolic way to identify nodes.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub struct Name {
@@ -40,13 +18,25 @@ pub struct Name {
     symbol : Rc<Symbol>,
 }
 
-// Symbols
-//
-// For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
+// Each location identifies a node in the DCG.
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+pub struct Loc {
+    hash : u64, // hash of (path,id)
+    path : Rc<Path>,
+    id   : Rc<ArtId<Name>>,
+}
+
+#[derive(Debug)]
+pub struct AdaptonState {
+    table : HashMap<Rc<Loc>, Box<AdaptonNode>>,
+    stack : Vec<Frame>
+}
+
+// Symbols: For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
 // http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf
 //
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
-pub enum Symbol {
+enum Symbol {
     Root, // Root identifies the outside environment of Rust code.
     Nil,  // Nil for non-symbolic, hash-based names.
     String(String), U64(u64),   // Strings and U64s are unique symbols.
@@ -56,52 +46,67 @@ pub enum Symbol {
     //Rc(Rc<Symbol>),
 }
 
-#[derive(PartialEq,Eq,Debug,Clone)]
-pub enum Effect {
-    Observe,
-    Allocate,
+// Paths are built implicitly via the Adapton::ns command.
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+enum Path {
+    Empty,
+    Child(Rc<Path>,Name),
 }
 
-#[derive(Debug,Clone)]
-pub struct Succ {
-    effect : Effect,
-    dep    : Rc<Box<AdaptonDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
-    loc    : Rc<Loc>, // Target of the effect, aka, the successor, by this edge
-    dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change
-}
-
-
-// AdaptonDep abstracts over the value produced by a dependency, as
-// well as mechanisms to update and/or re-produce it.
-pub trait AdaptonDep : Debug {
-    fn change_prop (self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes ;
-}
-
-#[derive(Debug)]
-pub struct NoDependency;
-impl AdaptonDep for NoDependency {
-    fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:false} }
-}
-
-#[derive(Debug)]
-pub struct AllocDependency<T> { val:Rc<T> }
-impl<T:Debug> AdaptonDep for AllocDependency<T> {
-    fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:true} } // TODO-Later: Make this a little better.
-}
-
-pub struct AdaptonRes {
-    changed : bool,
-}
-
-pub trait AdaptonNode {
-    // DCG structure:
+// The DCG structure consists of `AdaptonNode`s:
+trait AdaptonNode {
     fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn succs_def<'r>   (self:&'r mut Self) -> bool ;
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ> ;
 }
 
-pub trait ShapeShifter {
+#[derive(Debug)]
+struct Frame {
+    loc   : Rc<Loc>,    // The currently-executing node
+    path  : Rc<Path>,   // The current path for creating new nodes; invariant: (prefix-of frame.loc.path frame.path)
+    succs : Vec<Succ>,  // The currently-executing node's effects (viz., the nodes it demands)
+}
+
+#[derive(Debug,Clone)]
+struct Succ {
+    effect : Effect,
+    dep    : Rc<Box<AdaptonDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
+    loc    : Rc<Loc>, // Target of the effect, aka, the successor, by this edge
+    dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change
+}
+
+#[derive(PartialEq,Eq,Debug,Clone)]
+enum Effect {
+    Observe,
+    Allocate,
+}
+struct AdaptonRes {
+    changed : bool,
+}
+// AdaptonDep abstracts over the value produced by a dependency, as
+// well as mechanisms to update and/or re-produce it.
+trait AdaptonDep : Debug {
+    fn change_prop (self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes ;
+}
+
+
+// ----------------------------------------------------------------------------------------------------
+
+#[derive(Debug)]
+struct NoDependency;
+impl AdaptonDep for NoDependency {
+    fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:false} }
+}
+
+#[derive(Debug)]
+struct AllocDependency<T> { val:Rc<T> }
+impl<T:Debug> AdaptonDep for AllocDependency<T> {
+    fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:true} } // TODO-Later: Make this a little better.
+}
+
+
+trait ShapeShifter {
     fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<AdaptonNode> ;
 }
 
@@ -111,15 +116,10 @@ impl fmt::Debug for AdaptonNode {
     }
 }
 
-#[derive(Debug)]
-pub struct AdaptonState {
-    table : HashMap<Rc<Loc>, Box<AdaptonNode>>,
-    stack : Vec<Frame>
-}
-
 // Structureful (Non-opaque) nodes:
+#[allow(dead_code)] // Pure case: not introduced currently.
 #[derive(Debug)]
-pub enum Node<Res> {
+enum Node<Res> {
     Pure(PureNode<Res>),
     Mut(MutNode<Res>),
     Comp(CompNode<Res>),
@@ -128,7 +128,7 @@ pub enum Node<Res> {
 // PureNode<T> for pure hash-consing of T's.
 // Location in table never changes value.
 #[derive(Debug)]
-pub struct PureNode<T> {
+struct PureNode<T> {
     val : Rc<T>,
 }
 
@@ -137,7 +137,7 @@ pub struct PureNode<T> {
 // Its notable that the CompNodes' producers do not directly change the value of MutNodes with set.
 // They may indirectly mutate these nodes by performing nominal allocation; mutation is limited to "one-shot" changes.
 #[derive(Debug)]
-pub struct MutNode<T> {
+struct MutNode<T> {
     preds_alloc : Vec<Rc<Loc>>,
     preds_obs   : Vec<Rc<Loc>>,
     val         : Rc<T>,
@@ -148,7 +148,7 @@ pub struct MutNode<T> {
 // (1) producer may change, which may affect the result and (2) the
 // values produced by the successors may change, indirectly
 // influencing how the producer produces its resulting value.
-pub struct CompNode<Res> {
+struct CompNode<Res> {
     preds_alloc : Vec<Rc<Loc>>,
     preds_obs   : Vec<Rc<Loc>>,
     succs       : Vec<Succ>,
@@ -156,20 +156,20 @@ pub struct CompNode<Res> {
     res         : Option<Rc<Res>>,
 }
 // Produce a value of type Res.
-pub trait Producer<Res> {
+trait Producer<Res> {
     fn produce(self:&Self, st:&mut AdaptonState) -> Rc<Res>;
     fn copy(self:&Self) -> Box<Producer<Res>>;
     fn eq(self:&Self, other:&Producer<Res>) -> bool;
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
 }
 // Consume a value of type Arg.
-pub trait Consumer<Arg> {
+trait Consumer<Arg> {
     fn consume(self:&mut Self, Rc<Arg>);
     fn get_arg(self:&mut Self) -> Rc<Arg>;
 }
 // struct App is hidden by traits Comp<Res> and CompWithArg<Res>, below.
 #[derive(Clone)]
-pub struct App<Arg,Res> {
+struct App<Arg,Res> {
     prog_pt: ProgPt,
     fn_box:  Rc<Box<Fn(&mut AdaptonState, Rc<Arg>) -> Rc<Res>>>,
     arg:     Rc<Arg>,
@@ -219,7 +219,7 @@ impl<Arg:Clone+PartialEq+Eq,Res> Consumer<Arg> for App<Arg,Res> {
 
 // ----------- Location resolution:
 
-pub fn lookup_abs<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<AdaptonNode> {
+fn lookup_abs<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<AdaptonNode> {
     match st.table.get_mut( loc ) {
         None => panic!("dangling pointer"),
         Some(node) => node.be_node() // This is a weird workaround; TODO-Later: Investigate.
@@ -228,7 +228,7 @@ pub fn lookup_abs<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<Adap
 
 // This only is safe in contexts where the type of loc is known.
 // Unintended double-uses of names and hashes will generally cause uncaught type errors.
-pub fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
+fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
     let abs_node = lookup_abs(st, loc) ;
     unsafe { transmute::<_,_>(abs_node) }
 }
@@ -281,7 +281,7 @@ impl<Res> fmt::Debug for CompNode<Res> {
 
 // Performs the computation at loc, produces a result of type Res.
 // Error if loc is not a Node::Comp.
-pub fn produce<Res:'static+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<Loc>) -> Rc<Res>
+fn produce<Res:'static+Debug+PartialEq+Eq>(st:&mut AdaptonState, loc:&Rc<Loc>) -> Rc<Res>
 {
     let succs : Vec<Succ> = {
         let succs : Vec<Succ> = Vec::new();
@@ -334,7 +334,7 @@ fn re_produce<Res:'static+Debug+PartialEq+Eq>(dep:&ProducerDep<Res>, st:&mut Ada
 // ---------- AdaptonDep implementation:
 
 #[derive(Debug)]
-pub struct ProducerDep<T> { res:Rc<T> }
+struct ProducerDep<T> { res:Rc<T> }
 impl <Res:'static+Sized+Debug+PartialEq+Eq>
     AdaptonDep for ProducerDep<Res>
 {
@@ -371,7 +371,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq>
 
 // ---------- Node implementation:
 
-pub fn revoke_succs<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
+fn revoke_succs<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
     for succ in succs.iter() {
         let node : &mut Box<AdaptonNode> = lookup_abs(st, &succ.loc) ;
         node.preds_obs().retain  (|ref pred| **pred != *src);
@@ -379,7 +379,7 @@ pub fn revoke_succs<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
     }
 }
 
-pub fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
+fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
     let hash = my_hash(&(&path,&id));
     Rc::new(Loc{path:path,id:id,hash:hash})
 }
@@ -387,7 +387,7 @@ pub fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
 // Implement "sharing" of the dirty bit.
 // The succ edge is returned as a mutable borrow, to permit checking
 // and mutating the dirty bit.
-pub fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
+fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
     let nd = lookup_abs( st, src_loc );
     for succ in nd.succs().iter_mut() {
         if (succ.effect == eff) && (&succ.loc == tgt_loc) {
@@ -397,7 +397,7 @@ pub fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Rc<Loc>, eff:Effect, t
     panic!("tgt_loc is dangling in src_node.dem_succs")
 }
 
-pub fn dirty_pred_observers(st:&mut AdaptonState, loc:&Rc<Loc>) {
+fn dirty_pred_observers(st:&mut AdaptonState, loc:&Rc<Loc>) {
     let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs().clone() ;
     for pred_loc in pred_locs {
         let stop : bool = {
@@ -413,7 +413,7 @@ pub fn dirty_pred_observers(st:&mut AdaptonState, loc:&Rc<Loc>) {
     }
 }
 
-pub fn dirty_alloc(st:&mut AdaptonState, loc:&Rc<Loc>) {
+fn dirty_alloc(st:&mut AdaptonState, loc:&Rc<Loc>) {
     dirty_pred_observers(st, loc);
     let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc().clone() ;
     for pred_loc in pred_locs {
@@ -439,7 +439,6 @@ impl Adapton for AdaptonState {
         let symbol = Rc::new(Symbol::Root);
         let hash   = my_hash(&symbol);
         let name   = Name{symbol:symbol,hash:hash};
-
         let id     = Rc::new(ArtId::Nominal(name));
         let hash   = my_hash(&(&path,&id));
         let loc    = Rc::new(Loc{path:path.clone(),id:id,hash:hash});
@@ -540,7 +539,7 @@ impl Adapton for AdaptonState {
         }
 
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:Rc<T>) {
-        assert!( self.stack.is_empty() ); // outer layer has control.
+        assert!( self.stack.is_empty() ); // => outer layer has control.
         let changed : bool = {
             let node = lookup_abs( self, &cell.loc ) ;
             let node : &mut Node<T> = unsafe { transmute::<_,_>(node) } ;
