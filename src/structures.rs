@@ -83,6 +83,7 @@ impl<A:Adapton+Debug+PartialEq+Eq+Hash,Hd:Debug+PartialEq+Eq+Hash> ListT<A,Hd> f
             }
         }
     }
+
     fn fold<Res,Cons> (self:&Self, st:&mut A, list:&Self::List, res:Res, consf:Cons) -> Res
         where Cons:Fn(&mut A, Res, &Hd) -> Res
     {
@@ -102,31 +103,33 @@ impl<A:Adapton+Debug+PartialEq+Eq+Hash,Hd:Debug+PartialEq+Eq+Hash> ListT<A,Hd> f
 }
 
 pub fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
-    (l:&L, st:&mut A, list:&Rc<L::List>, left_tree:&Rc<T::Tree>)
+    (l:&L, st:&mut A, list:&Rc<L::List>, left_tree:&Rc<T::Tree>, left_tree_lev:u32, parent_lev:u32)
      -> (Rc<T::Tree>, Rc<L::List>)
 {
     l.elim (
         st, &list,
         /* Nil */  |st| ( Rc::new(T::nil(st)), Rc::new(L::nil(st)) ),
         /* Cons */ |st, hd, rest| {
-            if my_hash( hd ) == 0 {
+            let lev_hd = (1 + (my_hash(hd).leading_zeros())) as u32 ;
+            if left_tree_lev <= lev_hd && lev_hd <= parent_lev {
                 let nil = Rc::new(T::nil(st)) ;
-                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( l, st, rest, &nil ) ;
+                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( l, st, rest, &nil, 0 as u32, lev_hd ) ;
                 let tree = Rc::new(T::bin ( st, hd.clone(), left_tree.clone(), right_tree )) ;
-                tree_of_list_rec::<A,X,T,L> ( l, st, &rest, &tree )
+                tree_of_list_rec::<A,X,T,L> ( l, st, &rest, &tree, lev_hd, parent_lev )
             }
             else {
                 let rest = Rc::new(L::cons(st, hd.clone(), rest.clone())) ;
                 (left_tree.clone(), rest)
             }},
         /* Name */ |st, nm, rest| {
-            if my_hash( nm ) == 0 {
+            let lev_nm = (1 + 64 + (my_hash(nm).leading_zeros())) as u32 ;
+            if left_tree_lev <= lev_nm && lev_nm <= parent_lev {
                 let nil = Rc::new(T::nil(st)) ;
-                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( l, st, rest, &nil ) ;
+                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( l, st, rest, &nil, 0 as u32, lev_nm ) ;
                 // TODO: Place left_ and right_ trees into articulations, named by name.
                 // TODO: Memoize the recursive calls to tree_of_list_rec.
                 let tree = Rc::new(T::name( st, nm.clone(), left_tree.clone(), right_tree )) ;
-                tree_of_list_rec::<A,X,T,L> ( l, st, &rest, &tree )
+                tree_of_list_rec::<A,X,T,L> ( l, st, &rest, &tree, lev_nm, parent_lev )
             }
             else {
                 let rest = Rc::new(L::name(st, nm.clone(), rest.clone())) ;
