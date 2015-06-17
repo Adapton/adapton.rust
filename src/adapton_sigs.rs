@@ -27,8 +27,8 @@ use adapton_syntax::{ProgPt};
 //
 // 
 pub trait Adapton {
-    type Name : Debug+PartialEq+Eq+Hash;
-    type Loc  : Debug+PartialEq+Eq+Hash;
+    type Name : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
+    type Loc  : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
     
     fn new () -> Self ;
 
