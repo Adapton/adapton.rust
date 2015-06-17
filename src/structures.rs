@@ -20,10 +20,14 @@ pub trait ListT<A:Adapton,Hd> {
         where Nil:FnOnce(&mut A) -> Res
         ,    Cons:FnOnce(&mut A, &Hd, &Rc<Self::List>) -> Res
         ,    Name:FnOnce(&mut A, &A::Name, &Rc<Self::List>) -> Res ;
-        
-    fn fold<Res,Cons> (self:&Self, &mut A, &Self::List, Res, Cons) -> Res
+
+    fn fold<Res,Cons> (self:&Self, &mut A, &Rc<Self::List>, Res, Cons) -> Res
         where Cons:Fn(&mut A, Res, &Hd) -> Res ;
 
+    fn is_empty (self:&Self, st:&mut A, list:&Self::List) -> bool {
+        self.elim(st, &list, |_|true, |_,_,_|false, |_,_,_|false)
+    }
+    
     // TODO: Add derived operations (max, min, sum, etc.)
 }
 
@@ -60,7 +64,7 @@ enum List<A:Adapton,Hd> {
     Art(Art<List<A,Hd>, A::Loc>),
 }
 
-impl<A:Adapton+Debug+PartialEq+Eq+Hash,Hd:Debug+PartialEq+Eq+Hash> ListT<A,Hd> for List<A,Hd> {
+impl<A:Adapton+Debug+PartialEq+Eq+Hash,Hd:Debug+PartialEq+Eq+Hash+Clone> ListT<A,Hd> for List<A,Hd> {
     type List = List<A,Hd>;
 
     fn nil  (_:&mut A)                                 -> Self::List { List::Nil }
@@ -84,10 +88,10 @@ impl<A:Adapton+Debug+PartialEq+Eq+Hash,Hd:Debug+PartialEq+Eq+Hash> ListT<A,Hd> f
         }
     }
 
-    fn fold<Res,Cons> (self:&Self, st:&mut A, list:&Self::List, res:Res, consf:Cons) -> Res
+    fn fold<Res,Cons> (self:&Self, st:&mut A, list:&Rc<Self::List>, res:Res, consf:Cons) -> Res
         where Cons:Fn(&mut A, Res, &Hd) -> Res
-    {
-        match *list {
+    {        
+        match **list {
             List::Nil => res,
             List::Cons(ref hd, ref tl) => {
                 let res = consf(st, res, hd) ;
@@ -96,13 +100,13 @@ impl<A:Adapton+Debug+PartialEq+Eq+Hash,Hd:Debug+PartialEq+Eq+Hash> ListT<A,Hd> f
             List::Name(_, ref tl) => self.fold(st, &*tl, res, consf),
             List::Art(ref art) => {
                 let list = st.force(art) ;
-                self.fold(st, &*list, res, consf)
+                self.fold(st, &list, res, consf)
             }
         }
     }
 }
 
-pub fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
+fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
     (l:&L, st:&mut A, list:&Rc<L::List>, left_tree:&Rc<T::Tree>, left_tree_lev:u32, parent_lev:u32)
      -> (Rc<T::Tree>, Rc<L::List>)
 {
@@ -136,4 +140,14 @@ pub fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
                 (left_tree.clone(), rest)
             }}
         )
+}
+
+pub fn tree_of_list <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
+    (l:&L, st:&mut A, list:&Rc<L::List>)
+     -> Rc<T::Tree>
+{
+    let nil = Rc::new(T::nil(st)) ;
+    let (tree, rest) = tree_of_list_rec::<A,X,T,L> (l, st, list, &nil, 0 as u32, u32::max_value()) ;
+    assert!( l.is_empty( st, &*rest ) );
+    tree
 }
