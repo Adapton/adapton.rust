@@ -97,13 +97,25 @@ impl<A:Adapton+Debug+PartialEq+Eq+Hash,Hd:Debug+PartialEq+Eq+Hash> ListT<A> for 
     }
 }
 
-pub fn tree_of_list_rec <A:Adapton, X:Hash, T:TreeT<A>, L:ListT<A>>
-    (st:&mut A, list:&L::List, left_tree:T::Tree) -> (T::Tree, L::List)
+pub fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
+    (st:&mut A, list:&L::List, left_tree:T::Tree)
+     -> (T::Tree, L::List)
+    where X=L::Hd, X=T::Bin
 {
     L::elim (
         st, &list,
         /* Nil */  |st| ( T::nil(st), L::nil(st) ),
-        /* Cons */ |st, hd, rest| { panic!("") },
+        /* Cons */ |st, hd, rest| {
+            if my_hash( hd ) == 0 {
+                let nil = T::nil(st) ;
+                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( st, rest, nil ) ;
+                let tree = T::bin ( st, hd, left_tree, right_tree ) ;
+                tree_of_list_rec::<A,X,T,L> ( st, &rest, tree )
+            }
+            else {
+                let c = L::cons(st, hd.clone(), rest.clone()) ;
+                (left_tree, c)
+            }},
         /* Name */ |st, nm, rest| {
             if my_hash( nm ) == 0 {
                 let nil = T::nil(st) ;
@@ -115,6 +127,6 @@ pub fn tree_of_list_rec <A:Adapton, X:Hash, T:TreeT<A>, L:ListT<A>>
             else {
                 let c = L::name(st, nm.clone(), rest.clone()) ;
                 (left_tree, c)
-            }
-        })
+            }}
+        )
 }
