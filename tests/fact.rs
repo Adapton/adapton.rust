@@ -15,10 +15,10 @@ pub fn fact<'r> (st:&'r mut AdaptonState, x:Rc<u64>) -> Rc<u64> {
 pub fn run_fact (x:u64) -> u64 {
     let mut st = AdaptonState::new() ;
     let t = st.thunk(ArtId::Eager,
-                     prog_pt!(fact),
+                     panic!("prog_pt!(fact)"),
                      Rc::new(Box::new(fact)),
                      Rc::new(x)) ;
-    *(st.force(t))
+    *(st.force(&t))
 }
 
 #[cfg(test)]
