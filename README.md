@@ -48,6 +48,20 @@ Basic Data Structures and Algorithms
  - balanced trees to represent sets
  - graph exploration algorithms (e.g., search)
 
+
+Technical Debt
+================
+
+Pending issues:
+-----------------
+ - List/Tree intro forms should take references, not boxes?
+ - Try to write `merge` for generic lists;
+ - Try to write `mergesort` for generic trees/lists;
+ - Why does `ListT::is_empty` need `self` to call `ListT::elim`?
+ ```
+ error: type annotations required: cannot resolve `<_ as structures::ListT<A, _>>::List == _` [E0284]
+ ```
+
 Rust Q&A
 ---------
 
@@ -55,21 +69,14 @@ Rust Q&A
 
  - The concept of "object safety" seems to bite me a lot in naive designs:
  
- ```
- src/adapton_impl.rs:653:51: 653:111 error: cannot convert to a trait object because trait `adapton_impl::Producer` is not object-safe [E0038]
- src/adapton_impl.rs:653                 let producer : Box<Producer<T>> = Box::new(App{prog_pt:prog_pt,fn_box:fn_box,arg:arg.clone()}) ;
- ~~~~~~
- src/adapton_impl.rs:653:51: 653:111 note: method `eq` references the `Self` type in its arguments or return type
- src/adapton_impl.rs:653                 let producer : Box<Producer<T>> = Box::new(App{prog_pt:prog_pt,fn_box:fn_box,arg:arg.clone()}) ;
+```
+src/adapton_impl.rs:653:51: 653:111 error: cannot convert to a trait object because trait `adapton_impl::Producer` is not object-safe [E0038]
+...
+src/adapton_impl.rs:653:51: 653:111 note: method `eq` references the `Self` type in its arguments or return type
 ```
 
--
-```
-Compiling adapton v0.0.1 (file:///Users/hammer/homedir/work/umd/adapton.rust)
-src/adapton_state.rs:750:50: 750:51 error: mismatched types:
-expected `alloc::rc::Rc<Box<for<'r> core::ops::Fn(&'r mut adapton_state::AdaptonState, alloc::rc::Rc<_>) -> alloc::rc::Rc<_>>>`,
-found `alloc::rc::Rc<Box<fn(&'r mut adapton_state::AdaptonState, alloc::rc::Rc<u64>) -> alloc::rc::Rc<u64> {adapton_state::fact}>>`
-(expected trait core::ops::Fn,
-found fn item) [E0308]
-src/adapton_state.rs:750     let t = st.thunk(ArtId::Eager,prog_pt!(fact),f,Rc::new(6)) ;
-```
+ I sidestepped this problem in `adapton_state.rs` twice: by writing `Producer::copy` and the `ShapeShifter` trait.  Both avoid returning a `Self`.
+
+ - Do I need really need `Rc<Box<Fn (_) -> _>>` instead of `Rc<Fn (_) -> _>`? (Why?)
+
+ 
