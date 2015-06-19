@@ -4,6 +4,9 @@ use std::rc::Rc;
 use std::marker::PhantomData;
 use adapton_syntax::{ProgPt};
 
+pub trait AdaptonData : Debug+Hash+PartialEq+Eq+Clone {}
+impl<X:Debug+Hash+PartialEq+Eq+Clone> AdaptonData for X { }
+
 // The `Adapton` trait provides a language of
 // dependence-graph-building operations based on the core calculus
 // described here:
@@ -27,6 +30,7 @@ use adapton_syntax::{ProgPt};
 //
 // 
 pub trait Adapton {
+    // TODO-later: Report ICE: If I replace the trait combinations below with `AdaptonData`:
     type Name : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
     type Loc  : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
     
@@ -43,23 +47,23 @@ pub trait Adapton {
         where F:FnOnce(&mut Self) -> T ;
 
     // Create immutable, eager arts: put
-    fn put<T:Eq+Debug> (self:&mut Self, Rc<T>) -> Art<T,Self::Loc> ;
+    fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> Art<T,Self::Loc> ;
 
     // Mutable arts: cell and set
-    fn cell<T:Eq+Debug> (self:&mut Self, ArtId<Self::Name>, Rc<T>) -> MutArt<T,Self::Loc> ;
-    fn set<T:Eq+Debug> (self:&mut Self, MutArt<T,Self::Loc>, Rc<T>) ;
+    fn cell<T:Eq+Debug+Clone> (self:&mut Self, ArtId<Self::Name>, T) -> MutArt<T,Self::Loc> ;
+    fn set<T:Eq+Debug+Clone> (self:&mut Self, MutArt<T,Self::Loc>, T) ;
 
     // Computation arts: thunk
-    fn thunk<Arg:Eq+Hash+Debug,T:Eq+Debug>
+    fn thunk<Arg:Eq+Hash+Debug+Clone,T:Eq+Debug+Clone>
         (self:&mut Self,
          id:ArtId<Self::Name>,
          prog_pt:ProgPt,
-         fn_box:Rc<Box<Fn(&mut Self, Rc<Arg>) -> Rc<T>>>,
-         arg:Rc<Arg>)
+         fn_box:Rc<Box< Fn(&mut Self, Arg)->T >>,
+         arg:Arg)
          -> Art<T,Self::Loc> ;
 
     // Demand & observe arts (all kinds): force
-    fn force<T:Eq+Debug> (self:&mut Self, &Art<T,Self::Loc>) -> Rc<T> ;
+    fn force<T:Eq+Debug+Clone> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
 }
 
 // TODO: I'd like the Art<T> definition to live within the Adapton trait below.
