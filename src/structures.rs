@@ -121,9 +121,9 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
             let lev_hd = (1 + (my_hash(hd).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_hd && lev_hd <= parent_lev {
                 let nil = T::nil(st) ;
-                let (right_tree, rest) = tree_of_list_rec_memo::<A,X,T,L> ( st, l, rest, &nil, 0 as u32, lev_hd ) ;
+                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( st, l, rest, &nil, 0 as u32, lev_hd ) ;
                 let tree = T::bin ( st, hd.clone(), Box::new(left_tree.clone()), Box::new(right_tree) ) ;
-                tree_of_list_rec_memo::<A,X,T,L> ( st, l, &rest, &tree, lev_hd, parent_lev )
+                tree_of_list_rec::<A,X,T,L> ( st, l, &rest, &tree, lev_hd, parent_lev )
             }
             else {
                 let rest = L::cons(st, hd.clone(), rest.clone()) ;
@@ -133,11 +133,11 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
             let lev_nm = (1 + 64 + (my_hash(nm).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_nm && lev_nm <= parent_lev {
                 let nil = T::nil(st) ;
-                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( st, l, rest, &nil, 0 as u32, lev_nm ) ;
-                // TODO: Place left_ and right_ trees into articulations, named by name.
-                // TODO: Memoize the recursive calls to tree_of_list_rec.
+                // Done: Memoized the recursive calls to tree_of_list_rec.
+                let (right_tree, rest) = tree_of_list_rec_memo::<A,X,T,L> ( st, l, rest, &nil, 0 as u32, lev_nm ) ;
+                // TODO: Place left_ and right_ trees into articulations (not Boxes), named by name.
                 let tree = T::name( st, nm.clone(), Box::new(left_tree.clone()), Box::new(right_tree) ) ;
-                tree_of_list_rec::<A,X,T,L> ( st, l, &rest, &tree, lev_nm, parent_lev )
+                tree_of_list_rec_memo::<A,X,T,L> ( st, l, &rest, &tree, lev_nm, parent_lev )
             }
             else {
                 let rest = L::name(st, nm.clone(), rest.clone()) ;
