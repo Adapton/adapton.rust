@@ -7,8 +7,8 @@ use std::mem::replace;
 use adapton_syntax::* ;
 use adapton_sigs::* ;
 
-pub trait ListT<A:Adapton,Hd> : AdaptonData {
-    type List : AdaptonData ;
+pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
+    type List : Debug+Hash+PartialEq+Eq+Clone ;
     
     fn nil  (&mut A) -> Self::List ;
     fn cons (&mut A, Hd, Box<Self::List>) -> Self::List ;
@@ -33,8 +33,8 @@ pub trait ListT<A:Adapton,Hd> : AdaptonData {
 //  - Should `Name`s always be passed by reference?
 //  - Do these Fn argss for fold need to be passed in `Rc<Box<_>>`s ?
 
-pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : AdaptonData {
-    type Tree : AdaptonData ;
+pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
+    type Tree : Debug+Hash+PartialEq+Eq+Clone ;
 
     fn nil  (&mut A) -> Self::Tree ;
     fn leaf (&mut A, Leaf) -> Self::Tree ;
@@ -68,7 +68,7 @@ enum List<A:Adapton,Hd> {
 // TODO: Why Does Adapton have to implement all of these?
 //       It's not actually *contained* within the List structure; it cannot be ecountered there.
 //       It's only ever present in a negative position (as a function parameter).
-impl<A:Adapton+AdaptonData,Hd:AdaptonData> ListT<A,Hd> for List<A,Hd> {
+impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> ListT<A,Hd> for List<A,Hd> {
     type List = List<A,Hd>;
 
     fn nil  (_:&mut A)                                  -> Self::List { List::Nil }
