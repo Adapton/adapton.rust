@@ -3,7 +3,6 @@ use std::hash::Hash;
 use std::rc::Rc;
 use std::mem::replace;
 
-#[macro_use]
 use adapton_syntax::* ;
 use adapton_sigs::* ;
 
