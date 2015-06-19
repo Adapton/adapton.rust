@@ -86,6 +86,7 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> L
             List::Nil => nilf(st),
             List::Cons(ref hd, ref tl) => consf(st, hd, tl),
             List::Name(ref nm, ref tl) => namef(st, nm, tl),
+            List::Rc(ref rc) => self.elim(st, &*rc, nilf, consf, namef),
             List::Art(ref art) => {
                 let list = st.force(art);
                 self.elim(st, &list, nilf, consf, namef)
@@ -146,8 +147,7 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
 }
 
 pub fn tree_of_list <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
-    (l:&L, st:&mut A, list:&Rc<L::List>)
-     -> Rc<T::Tree>
+    (l:&L, st:&mut A, list:&L::List) -> T::Tree
 {
     let nil = T::nil(st) ;
     let (tree, rest) = tree_of_list_rec::<A,X,T,L> (st, l, list, &nil, 0 as u32, u32::max_value()) ;
