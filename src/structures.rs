@@ -121,7 +121,7 @@ fn tree_of_list_rec_memo <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
                           tree_of_list_rec
                               (st, l, list, left_tree, left_tree_lev, parent_lev)
                       })),
-                      (l,list,left_tree,left_tree_lev,parent_lev)
+                      (l, list, left_tree, left_tree_lev, parent_lev)
                       ) ;
     st.force( &t )
 }
@@ -137,9 +137,9 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
             let lev_hd = (1 + (my_hash(hd).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_hd && lev_hd <= parent_lev {
                 let nil = Rc::new(T::nil(st)) ;
-                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( st, l, rest, &nil, 0 as u32, lev_hd ) ;
+                let (right_tree, rest) = tree_of_list_rec_memo::<A,X,T,L> ( st, l, rest, &nil, 0 as u32, lev_hd ) ;
                 let tree = Rc::new(T::bin ( st, hd.clone(), left_tree.clone(), right_tree )) ;
-                tree_of_list_rec::<A,X,T,L> ( st, l, &rest, &tree, lev_hd, parent_lev )
+                tree_of_list_rec_memo::<A,X,T,L> ( st, l, &rest, &tree, lev_hd, parent_lev )
             }
             else {
                 let rest = Rc::new(L::cons(st, hd.clone(), rest.clone())) ;
