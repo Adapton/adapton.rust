@@ -17,6 +17,7 @@ pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
     fn name (&mut A, A::Name, Box<Self::List>) -> Self::List ;
     fn art  (&mut A, Art<Self::List,A::Loc>) -> Self::List ;
 
+    // ** Want/need to express a negative product here among Nil, Cons and Name!
     fn elim<Res,Nil,Cons,Name> (self:&Self, &mut A, &Self::List, Nil, Cons, Name) -> Res
         where Nil:FnOnce(&mut A) -> Res
         ,    Cons:FnOnce(&mut A, &Hd, &Box<Self::List>) -> Res
