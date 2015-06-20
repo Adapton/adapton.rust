@@ -58,9 +58,8 @@ Pending issues:
  - Try to write `merge` for generic lists;
  - Try to write `mergesort` for generic trees/lists;
  - Why does `ListT::is_empty` need `self` to call `ListT::elim`?
- ```
- error: type annotations required: cannot resolve `<_ as structures::ListT<A, _>>::List == _` [E0284]
- ```
+   error: type annotations required: cannot resolve `<_ as structures::ListT<A, _>>::List == _` [E0284]
+ - Implement `ArtId::Structural` for cell and thunk to do hashing internally, not externally.
 
 Rust Q&A
 ---------

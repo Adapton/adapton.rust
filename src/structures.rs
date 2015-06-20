@@ -22,7 +22,7 @@ pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
         ,    Cons:FnOnce(&mut A, &Hd, &Box<Self::List>) -> Res
         ,    Name:FnOnce(&mut A, &A::Name, &Box<Self::List>) -> Res ;
 
-    // Derived from above:    
+    // Derived from `elim` above:
     fn is_empty (self:&Self, st:&mut A, list:&Self::List) -> bool {
         self.elim(st, &list, |_|true, |_,_,_|false, |_,_,_|false)
     }
@@ -93,6 +93,38 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> L
         }
     }
 }
+
+// https://doc.rust-lang.org/book/macros.html
+//
+// macro_rules! o_O {
+//     (
+//         $(
+//             $x:expr; [ $( $y:expr ),* ]
+//          );*
+//     ) => {
+//         &[ $($( $x + $y ),*),* ]
+//     }
+// }
+//
+// fn main() {
+//     let a: &[i32]
+//         = o_O!(10; [1, 2, 3];
+//                20; [4, 5, 6]);
+//
+//     assert_eq!(a, [11, 12, 13, 24, 25, 26]);
+// }
+
+// TODO: Need to gensym a variable for each argument below:
+//
+// macro_rules! thunk {
+//     ( $f:ident , $st:expr , $( $arg:expr ),* ) => {
+//         let fval = Rc::new(Box::new(
+//             |st, args|{
+//                 let $( $arg ),* = args ;
+//                 f(st, l, list, left_tree, left_tree_lev, parent_lev)
+//             })) ;
+//         ($st).thunk (ArtId::Eager, prog_pt!(f), fval, $( $arg ),* )
+//     }}
 
 fn tree_of_list_rec_memo <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
     (st:&mut A, l:&L, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32) ->
