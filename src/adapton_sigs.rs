@@ -4,9 +4,6 @@ use std::rc::Rc;
 use std::marker::PhantomData;
 use adapton_syntax::{ProgPt};
 
-pub trait AdaptonData : Debug+Hash+PartialEq+Eq+Clone {}
-impl<X:Debug+Hash+PartialEq+Eq+Clone> AdaptonData for X { }
-
 // The `Adapton` trait provides a language of
 // dependence-graph-building operations based on the core calculus
 // described here:
@@ -65,6 +62,10 @@ pub trait Adapton {
     // Demand & observe arts (all kinds): force
     fn force<T:Eq+Debug+Clone> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
 }
+
+// I wanted to have a shorthand, but I get an ICE if I use this.
+pub trait AdaptonData : Debug+Hash+PartialEq+Eq+Clone {}
+impl<X:Debug+Hash+PartialEq+Eq+Clone> AdaptonData for X { }
 
 // TODO: I'd like the Art<T> definition to live within the Adapton trait below.
 // Then, it need not be parameterized by Loc. It can simply use Adapton::Loc.
