@@ -41,52 +41,53 @@ pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
 }
 
 #[allow(dead_code)]
-fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
-    (st:&mut A, l:&L,
+pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
+    (st:&mut A,
      xo:Option<&X>, // xo is useful for merging binary trees.
      n1:Option<&A::Name>, l1:&L::List,
      n2:Option<&A::Name>, l2:&L::List  ) -> L::List
 {
     L::elim2(st, l1,
-            |_| l2.clone(),
-            |st,h1,t1|
-            L::elim2(st, l2,
-                    |st| L::nil(st),
-                    |st, h2, t2|
-                    if match xo {
-                        None => false,
-                        Some(x) => ( x <= h1 && x <= h2 ) }
-                    {
-                        let rest = list_merge(st, l, None, n1, l1, n2, l2);
-                        L::cons(st, xo.unwrap().clone(), rest)
-                    }
-                    else if h1 <= h2 {
-                        //TODO: Nominal memoization with n1:
-                        let rest = list_merge(st, l, xo, None, t1, n2, l2);
-                        L::cons(st, (*h1).clone(), rest)
-                    }
-                    else {
-                        //TODO: Nominal memoization with n2:
-                        let rest = list_merge(st, l, xo, n1, l1, None, t2);
-                        L::cons(st, (*h2).clone(), rest)
-                    },
-                    |st, m2, t2| list_merge(st, l, xo, n1, l1, Some(m2), t2)
-                    ),
-            |st,n1,t1| list_merge(st, l, xo, Some(n1), t1, n2, l2)
-            )
+             |_| l2.clone(),
+             |st,h1,t1|
+             L::elim2(st, l2,
+                      |st| L::nil(st),
+                      |st, h2, t2|
+                      if match xo {
+                          None => false,
+                          Some(x) => ( x <= h1 && x <= h2 ) }
+                      {
+                          let rest = list_merge::<A,X,L>(st, None, n1, l1, n2, l2);
+                          L::cons(st, xo.unwrap().clone(), rest)
+                      }
+                      else if h1 <= h2 {
+                          //TODO: Nominal memoization with n1:
+                          let rest = list_merge::<A,X,L>(st, xo, None, t1, n2, l2);
+                          L::cons(st, (*h1).clone(), rest)
+                      }
+                      else {
+                          //TODO: Nominal memoization with n2:
+                          let rest = list_merge::<A,X,L>(st, xo, n1, l1, None, t2);
+                          L::cons(st, (*h2).clone(), rest)
+                      },
+                      |st, m2, t2| list_merge::<A,X,L>(st, xo, n1, l1, Some(m2), t2)
+                      ),
+             |st,n1,t1| list_merge::<A,X,L>(st, xo, Some(n1), t1, n2, l2)
+             )
 }
 
 
-fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,X>>
-    (st:&mut A, l:&L, list:&L::List) -> L::List
+pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,X>>
+    (st:&mut A, list:&L::List) -> L::List
 {
     let tree = tree_of_list::<A,X,T,L>(st, list);
-    T::fold_up (st, tree,
-                |st, x|
+    T::fold_up (st, tree,                
+                |st, x| // Nil:
                 L::singleton(st, x),
-                
-                |st, x, left, right|
-                list_merge(st, l, Some(&x), None, &left, None, &right)
+                |st, x, left, right| {
+                    let left = L::cons(st, x,left);
+                    list_merge::<A,X,L>(st, None, None, &left, None, &right)
+                }
                 )
 }
 
