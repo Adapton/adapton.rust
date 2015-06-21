@@ -47,6 +47,13 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
     // requisite "adaptonic" constructors: `name` and `art`:
     fn name (&mut A, A::Name, Self::Tree, Self::Tree) -> Self::Tree ;
     fn art  (&mut A, Art<Self::Tree,A::Loc>) -> Self::Tree ;
+
+    fn elim<Res,NilC,LeafC,BinC,NameC> (&mut A, &Self::Tree, NilC, LeafC, BinC, NameC) -> Res
+        where NilC  : Fn(&mut A) -> Res
+        ,     LeafC : Fn(&mut A, &Leaf) -> Res
+        ,     BinC  : Fn(&mut A, &Bin,  &Self::Tree, &Self::Tree) -> Res
+        ,     NameC : Fn(&mut A, &Name, &Self::Tree, &Self:Tree) -> Res
+        ;
     
     fn fold<Res,LeafC,BinC,NameC> (&mut A, Self::Tree, Res, LeafC, BinC, NameC) -> Res
         where LeafC:Fn(&mut A, Res, &Leaf    ) -> Res
