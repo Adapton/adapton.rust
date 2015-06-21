@@ -36,15 +36,17 @@ Development Activities
    - first-class names
    - nominal memoization
 
+ - Incremental Structures and Algorithms:
+   - lazy, memoized lists
+   - mergesort
+   - balanced trees to represent sequences
+
 Future work
 ============
 
 Basic Data Structures and Algorithms
 -------------------------------------------
- - lazy, memoized lists
- - mergesort
  - generic fixed-point loop
- - balanced trees to represent sequences
  - balanced trees to represent sets
  - graph exploration algorithms (e.g., search)
 

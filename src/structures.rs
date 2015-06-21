@@ -26,66 +26,16 @@ pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
     fn singleton (st:&mut A, hd:Hd) -> Self::List {
         let nil = Self::nil(st);
         Self::cons(st, hd, nil)
-    }    
+    }
 
     // Derived from `elim` above:
     fn is_empty (st:&mut A, list:&Self::List) -> bool {
-        Self::elim(st, &list, |_|true, |_,_,_|false, |_,_,_|false)
+        Self::elim(st, &list,
+                   |_|       true,
+                   |_,_,_|   false,
+                   |st,_,tl| Self::is_empty(st,tl))
     }
 }
-
-#[allow(dead_code)]
-pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
-    (st:&mut A,
-     xo:Option<&X>, // xo is useful for merging binary trees; does 3-way merge on (xo, hd(l1), hd(l2)).
-     n1:Option<&A::Name>, l1:&L::List,
-     n2:Option<&A::Name>, l2:&L::List  ) -> L::List
-{
-    L::elim(st, l1,
-            |_| l2.clone(),
-            |st,h1,t1|
-            L::elim(st, l2,
-                    |st| L::nil(st),
-                    |st, h2, t2|
-                    if match xo {
-                        None => false,
-                        Some(x) => ( x <= h1 && x <= h2 ) }
-                    {
-                        let rest = list_merge::<A,X,L>(st, None, n1, l1, n2, l2);
-                        L::cons(st, xo.unwrap().clone(), rest)
-                    }
-                    else if h1 <= h2 {
-                        //TODO: Nominal memoization with n1:
-                        let rest = list_merge::<A,X,L>(st, xo, None, t1, n2, l2);
-                        L::cons(st, (*h1).clone(), rest)
-                    }
-                    else {
-                        //TODO: Nominal memoization with n2:
-                        let rest = list_merge::<A,X,L>(st, xo, n1, l1, None, t2);
-                        L::cons(st, (*h2).clone(), rest)
-                    },
-                    |st, m2, t2| list_merge::<A,X,L>(st, xo, n1, l1, Some(m2), t2)
-                    ),
-            |st,n1,t1| list_merge::<A,X,L>(st, xo, Some(n1), t1, n2, l2)
-            )
-}
-
-
-pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,X>>
-    (st:&mut A, list:&L::List) -> L::List
-{
-    let tree = tree_of_list::<A,X,T,L>(st, list);
-    T::fold_up (st, tree,                
-                |st, x| // Nil:
-                L::singleton(st, x),
-                |st, x, left, right| // Bin:
-                list_merge::<A,X,L>(st, Some(&x), None, &left, None, &right)
-                )
-}
-
-// Questions:
-//  - Should `Name`s always be passed by reference?
-//  - Do these Fn argss for fold need to be passed in `Rc<Box<_>>`s ?
 
 pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
     type Tree : Debug+Hash+PartialEq+Eq+Clone ;
@@ -98,17 +48,20 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
     fn name (&mut A, A::Name, Self::Tree, Self::Tree) -> Self::Tree ;
     fn art  (&mut A, Art<Self::Tree,A::Loc>) -> Self::Tree ;
     
-    fn fold<Res,LeafC,BinC> (&mut A, Self::Tree, Res, LeafC, BinC) -> Res
-        where LeafC:Fn(&mut A, Res, Leaf) -> Res
-        ,      BinC:Fn(&mut A, Res, Bin ) -> Res ;
+    fn fold<Res,LeafC,BinC,NameC> (&mut A, Self::Tree, Res, LeafC, BinC, NameC) -> Res
+        where LeafC:Fn(&mut A, Res, &Leaf    ) -> Res
+        ,      BinC:Fn(&mut A, Res, &Bin     ) -> Res
+        ,     NameC:Fn(&mut A, Res, &A::Name ) -> Res
+        ;
 
-    fn fold_up<Res,LeafC,BinC> (&mut A, Self::Tree, LeafC, BinC) -> Res
-        where LeafC:Fn(&mut A, Leaf) -> Res
-        ,      BinC:Fn(&mut A, Bin, Res, Res ) -> Res ;
+    fn fold_up<Res,LeafC,BinC,NameC> (&mut A, Self::Tree, LeafC, BinC, NameC) -> Res
+        where LeafC:Fn(&mut A, &Leaf              ) -> Res
+        ,      BinC:Fn(&mut A, &Bin,     Res, Res ) -> Res
+        ,     NameC:Fn(&mut A, &A::Name, Res, Res ) -> Res
+        ;
     
     // TODO: Add derived operations (max, min, sum, etc.) for fold_up.
 }
-
 
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
 enum List<A:Adapton,Hd> {
@@ -147,7 +100,6 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> L
             }
         }
     }
-
 }
 
 // https://doc.rust-lang.org/book/macros.html
@@ -240,4 +192,53 @@ pub fn tree_of_list <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
     let (tree, rest) = tree_of_list_rec::<A,X,T,L> (st, list, &nil, 0 as u32, u32::max_value()) ;
     assert!( L::is_empty( st, &rest ) );
     tree
+}
+
+pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
+    (st:&mut A,
+     xo:Option<&X>, // for 3-way merge on (xo.unwrap(), hd(l1), hd(l2)).
+     n1:Option<&A::Name>, l1:&L::List,
+     n2:Option<&A::Name>, l2:&L::List  ) -> L::List
+{
+    L::elim(st, l1,
+            |_| l2.clone(),
+            |st,h1,t1|
+            L::elim(st, l2,
+                    |st| L::nil(st),
+                    |st, h2, t2|
+                    if match xo {
+                        None => false,
+                        Some(x) => ( x <= h1 && x <= h2 ) }
+                    {
+                        let rest = list_merge::<A,X,L>(st, None, n1, l1, n2, l2);
+                        L::cons(st, xo.unwrap().clone(), rest)
+                    }
+                    else if h1 <= h2 {
+                        //TODO: Nominal memoization with n1:
+                        let rest = list_merge::<A,X,L>(st, xo, None, t1, n2, l2);
+                        L::cons(st, (*h1).clone(), rest)
+                    }
+                    else {
+                        //TODO: Nominal memoization with n2:
+                        let rest = list_merge::<A,X,L>(st, xo, n1, l1, None, t2);
+                        L::cons(st, (*h2).clone(), rest)
+                    },
+                    |st, m2, t2| list_merge::<A,X,L>(st, xo, n1, l1, Some(m2), t2)
+                    ),
+            |st,n1,t1| list_merge::<A,X,L>(st, xo, Some(n1), t1, n2, l2)
+            )
+}
+
+pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,X>>
+    (st:&mut A, list:&L::List) -> L::List
+{
+    let tree = tree_of_list::<A,X,T,L>(st, list);
+    T::fold_up (st, tree,
+                |st, x| // Nil:
+                L::singleton(st, x.clone()),
+                |st, x, left, right| // Bin:
+                list_merge::<A,X,L>(st, Some(x), None, &left, None, &right),
+                |st, _, left, right| // Name:
+                list_merge::<A,X,L>(st, None, None, &left, None, &right)
+                )
 }
