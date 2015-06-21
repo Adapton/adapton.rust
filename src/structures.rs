@@ -10,50 +10,84 @@ pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
     type List : Debug+Hash+PartialEq+Eq+Clone ;
     
     fn nil  (&mut A) -> Self::List ;
-    fn cons (&mut A, Hd, Box<Self::List>) -> Self::List ;
+    fn cons (&mut A, Hd, Self::List) -> Self::List ;
     fn rc   (&mut A, Rc<Self::List>) -> Self::List ;
     
     // requisite "adaptonic" constructors: `name` and `art`:
-    fn name (&mut A, A::Name, Box<Self::List>) -> Self::List ;
+    fn name (&mut A, A::Name, Self::List) -> Self::List ;
     fn art  (&mut A, Art<Self::List,A::Loc>) -> Self::List ;
 
     // ** Want/need to express a negative product here among Nil, Cons and Name!
-    fn elim<Res,Nil,Cons,Name> (self:&Self, &mut A, &Self::List, Nil, Cons, Name) -> Res
+    // fn elim<Res,Nil,Cons,Name> (self:&Self, &mut A, &Self::List, Nil, Cons, Name) -> Res
+    //     where Nil:FnOnce(&mut A) -> Res
+    //     ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
+    //     ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res ;
+
+    // Derived from `cons` and `nil` above:
+    fn singleton (st:&mut A, hd:Hd) -> Self::List {
+        let nil = Self::nil(st);
+        Self::cons(st, hd, nil)
+    }    
+
+    fn elim2<Res,Nil,Cons,Name> (&mut A, &Self::List, Nil, Cons, Name) -> Res
         where Nil:FnOnce(&mut A) -> Res
-        ,    Cons:FnOnce(&mut A, &Hd, &Box<Self::List>) -> Res
-        ,    Name:FnOnce(&mut A, &A::Name, &Box<Self::List>) -> Res ;
+        ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
+        ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res ;
 
     // Derived from `elim` above:
     fn is_empty (self:&Self, st:&mut A, list:&Self::List) -> bool {
-        self.elim(st, &list, |_|true, |_,_,_|false, |_,_,_|false)
+        Self::elim2(st, &list, |_|true, |_,_,_|false, |_,_,_|false)
     }
 }
 
 #[allow(dead_code)]
 fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
     (st:&mut A, l:&L,
+     xo:Option<&X>, // xo is useful for merging binary trees.
      n1:Option<&A::Name>, l1:&L::List,
      n2:Option<&A::Name>, l2:&L::List  ) -> L::List
 {
-    l.elim(st, l1,
-           |_| l2.clone(),
-           |st,h1,t1| {
-               l.elim(st, l2,
-                      |st| L::nil(st),
-                      |st, h2, t2| {
-                          if h1 <= h2 {
-                              let rest = list_merge(st, l, None, t1, n2, l2);
-                              L::cons(st, (*h1).clone(), Box::new(rest))
-                          }
-                          else {
-                              let rest = list_merge(st, l, n1, l1, None, t2);
-                              L::cons(st, (*h2).clone(), Box::new(rest))
-                          }
-                      },
-                      |st, m2, t2| list_merge(st, l, n1, l1, Some(m2), t2)
-                      )},
-           |st,n1,t1| list_merge(st, l, Some(n1), t1, n2, l2)
-           )
+    L::elim2(st, l1,
+            |_| l2.clone(),
+            |st,h1,t1|
+            L::elim2(st, l2,
+                    |st| L::nil(st),
+                    |st, h2, t2|
+                    if match xo {
+                        None => false,
+                        Some(x) => ( x <= h1 && x <= h2 ) }
+                    {
+                        let rest = list_merge(st, l, None, n1, l1, n2, l2);
+                        L::cons(st, xo.unwrap().clone(), rest)
+                    }
+                    else if h1 <= h2 {
+                        //TODO: Nominal memoization with n1:
+                        let rest = list_merge(st, l, xo, None, t1, n2, l2);
+                        L::cons(st, (*h1).clone(), rest)
+                    }
+                    else {
+                        //TODO: Nominal memoization with n2:
+                        let rest = list_merge(st, l, xo, n1, l1, None, t2);
+                        L::cons(st, (*h2).clone(), rest)
+                    },
+                    |st, m2, t2| list_merge(st, l, xo, n1, l1, Some(m2), t2)
+                    ),
+            |st,n1,t1| list_merge(st, l, xo, Some(n1), t1, n2, l2)
+            )
+}
+
+
+fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,X>>
+    (st:&mut A, l:&L, list:&L::List) -> L::List
+{
+    let tree = tree_of_list::<A,X,T,L>(st, l, list);
+    T::fold_up (st, tree,
+                |st, x|
+                L::singleton(st, x),
+                
+                |st, x, left, right|
+                list_merge(st, l, Some(&x), None, &left, None, &right)
+                )
 }
 
 // Questions:
@@ -75,7 +109,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
         where LeafC:Fn(&mut A, Res, Leaf) -> Res
         ,      BinC:Fn(&mut A, Res, Bin ) -> Res ;
 
-    fn fold_up<Arg,Res,LeafC,BinC> (&mut A, Self::Tree, LeafC, BinC) -> Res
+    fn fold_up<Res,LeafC,BinC> (&mut A, Self::Tree, LeafC, BinC) -> Res
         where LeafC:Fn(&mut A, Leaf) -> Res
         ,      BinC:Fn(&mut A, Bin, Res, Res ) -> Res ;
     
@@ -98,28 +132,46 @@ enum List<A:Adapton,Hd> {
 impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> ListT<A,Hd> for List<A,Hd> {
     type List = List<A,Hd>;
 
-    fn nil  (_:&mut A)                                  -> Self::List { List::Nil }
-    fn cons (_:&mut A, hd:Hd, tl:Box<Self::List>)       -> Self::List { List::Cons(hd,tl) }
-    fn name (_:&mut A, nm:A::Name, tl:Box<Self::List>)  -> Self::List { List::Name(nm, tl) }
-    fn rc   (_:&mut A, rc:Rc<List<A,Hd>>)               -> Self::List { List::Rc(rc) }
-    fn art  (_:&mut A, art:Art<List<A,Hd>,A::Loc>)      -> Self::List { List::Art(art) }
+    fn nil  (_:&mut A)                             -> Self::List { List::Nil }
+    fn cons (_:&mut A, hd:Hd, tl:Self::List)       -> Self::List { List::Cons(hd,Box::new(tl)) }
+    fn name (_:&mut A, nm:A::Name, tl:Self::List)  -> Self::List { List::Name(nm, Box::new(tl)) }
+    fn rc   (_:&mut A, rc:Rc<List<A,Hd>>)          -> Self::List { List::Rc(rc) }
+    fn art  (_:&mut A, art:Art<List<A,Hd>,A::Loc>) -> Self::List { List::Art(art) }
 
-    fn elim<Res,Nil,Cons,Name> (self:&Self, st:&mut A, list:&Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
+    // fn elim<Res,Nil,Cons,Name> (self:&Self, st:&mut A, list:&Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
+    //     where Nil:FnOnce(&mut A) -> Res
+    //     ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
+    //     ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res
+    // {
+    //     match *list {
+    //         List::Nil => nilf(st),
+    //         List::Cons(ref hd, ref tl) => consf(st, hd, &*tl),
+    //         List::Name(ref nm, ref tl) => namef(st, nm, &*tl),
+    //         List::Rc(ref rc) => self.elim(st, &*rc, nilf, consf, namef),
+    //         List::Art(ref art) => {
+    //             let list = st.force(art);
+    //             self.elim(st, &list, nilf, consf, namef)
+    //         }
+    //     }
+    // }
+
+    fn elim2<Res,Nil,Cons,Name> (st:&mut A, list:&Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
         where Nil:FnOnce(&mut A) -> Res
-        ,    Cons:FnOnce(&mut A, &Hd, &Box<Self::List>) -> Res
-        ,    Name:FnOnce(&mut A, &A::Name, &Box<Self::List>) -> Res
+        ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
+        ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res
     {
         match *list {
             List::Nil => nilf(st),
-            List::Cons(ref hd, ref tl) => consf(st, hd, tl),
-            List::Name(ref nm, ref tl) => namef(st, nm, tl),
-            List::Rc(ref rc) => self.elim(st, &*rc, nilf, consf, namef),
+            List::Cons(ref hd, ref tl) => consf(st, hd, &*tl),
+            List::Name(ref nm, ref tl) => namef(st, nm, &*tl),
+            List::Rc(ref rc) => Self::elim2(st, &*rc, nilf, consf, namef),
             List::Art(ref art) => {
                 let list = st.force(art);
-                self.elim(st, &list, nilf, consf, namef)
+                Self::elim2(st, &list, nilf, consf, namef)
             }
         }
     }
+
 }
 
 // https://doc.rust-lang.org/book/macros.html
@@ -174,7 +226,7 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
     (st:&mut A, l:&L, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32)
      -> (T::Tree, L::List)
 {
-    l.elim (
+    L::elim2 (
         st, &list,
         /* Nil */  |st| ( T::nil(st), L::nil(st) ),
         /* Cons */ |st, hd, rest| {
@@ -206,7 +258,7 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
 }
 
 pub fn tree_of_list <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
-    (l:&L, st:&mut A, list:&L::List) -> T::Tree
+    (st:&mut A, l:&L, list:&L::List) -> T::Tree
 {
     let nil = T::nil(st) ;
     let (tree, rest) = tree_of_list_rec::<A,X,T,L> (st, l, list, &nil, 0 as u32, u32::max_value()) ;
