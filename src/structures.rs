@@ -17,22 +17,16 @@ pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
     fn name (&mut A, A::Name, Self::List) -> Self::List ;
     fn art  (&mut A, Art<Self::List,A::Loc>) -> Self::List ;
 
-    // ** Want/need to express a negative product here among Nil, Cons and Name!
-    // fn elim<Res,Nil,Cons,Name> (self:&Self, &mut A, &Self::List, Nil, Cons, Name) -> Res
-    //     where Nil:FnOnce(&mut A) -> Res
-    //     ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
-    //     ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res ;
+    fn elim<Res,Nil,Cons,Name> (&mut A, &Self::List, Nil, Cons, Name) -> Res
+        where Nil:FnOnce(&mut A) -> Res
+        ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
+        ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res ;
 
     // Derived from `cons` and `nil` above:
     fn singleton (st:&mut A, hd:Hd) -> Self::List {
         let nil = Self::nil(st);
         Self::cons(st, hd, nil)
     }    
-
-    fn elim<Res,Nil,Cons,Name> (&mut A, &Self::List, Nil, Cons, Name) -> Res
-        where Nil:FnOnce(&mut A) -> Res
-        ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
-        ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res ;
 
     // Derived from `elim` above:
     fn is_empty (st:&mut A, list:&Self::List) -> bool {
@@ -136,23 +130,6 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> L
     fn name (_:&mut A, nm:A::Name, tl:Self::List)  -> Self::List { List::Name(nm, Box::new(tl)) }
     fn rc   (_:&mut A, rc:Rc<List<A,Hd>>)          -> Self::List { List::Rc(rc) }
     fn art  (_:&mut A, art:Art<List<A,Hd>,A::Loc>) -> Self::List { List::Art(art) }
-
-    // fn elim<Res,Nil,Cons,Name> (self:&Self, st:&mut A, list:&Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
-    //     where Nil:FnOnce(&mut A) -> Res
-    //     ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
-    //     ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res
-    // {
-    //     match *list {
-    //         List::Nil => nilf(st),
-    //         List::Cons(ref hd, ref tl) => consf(st, hd, &*tl),
-    //         List::Name(ref nm, ref tl) => namef(st, nm, &*tl),
-    //         List::Rc(ref rc) => self.elim(st, &*rc, nilf, consf, namef),
-    //         List::Art(ref art) => {
-    //             let list = st.force(art);
-    //             self.elim(st, &list, nilf, consf, namef)
-    //         }
-    //     }
-    // }
 
     fn elim<Res,Nil,Cons,Name> (st:&mut A, list:&Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
         where Nil:FnOnce(&mut A) -> Res
