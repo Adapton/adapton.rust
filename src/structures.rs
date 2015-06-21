@@ -29,6 +29,33 @@ pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
     }
 }
 
+#[allow(dead_code)]
+fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
+    (st:&mut A, l:&L,
+     n1:Option<&A::Name>, l1:&L::List,
+     n2:Option<&A::Name>, l2:&L::List  ) -> L::List
+{
+    l.elim(st, l1,
+           |_| l2.clone(),
+           |st,h1,t1| {
+               l.elim(st, l2,
+                      |st| L::nil(st),
+                      |st, h2, t2| {
+                          if h1 <= h2 {
+                              let rest = list_merge(st, l, None, t1, n2, l2);
+                              L::cons(st, (*h1).clone(), Box::new(rest))
+                          }
+                          else {
+                              let rest = list_merge(st, l, n1, l1, None, t2);
+                              L::cons(st, (*h2).clone(), Box::new(rest))
+                          }
+                      },
+                      |st, m2, t2| list_merge(st, l, n1, l1, Some(m2), t2)
+                      )},
+           |st,n1,t1| list_merge(st, l, Some(n1), t1, n2, l2)
+           )
+}
+
 // Questions:
 //  - Should `Name`s always be passed by reference?
 //  - Do these Fn argss for fold need to be passed in `Rc<Box<_>>`s ?
@@ -121,8 +148,8 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> L
 //     ( $f:ident , $st:expr , $( $arg:expr ),* ) => {
 //         let fval = Rc::new(Box::new(
 //             |st, args|{
-//                 let $( $arg ),* = args ;
-//                 f(st, l, list, left_tree, left_tree_lev, parent_lev)
+//                 let ($( $arg ),*) = args ;
+//                 f( st, $( $arg ),* )
 //             })) ;
 //         ($st).thunk (ArtId::Eager, prog_pt!(f), fval, $( $arg ),* )
 //     }}
@@ -166,7 +193,6 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
             let lev_nm = (1 + 64 + (my_hash(nm).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_nm && lev_nm <= parent_lev {
                 let nil = T::nil(st) ;
-                // Done: Memoized the recursive calls to tree_of_list_rec.
                 let (right_tree, rest) = tree_of_list_rec_memo::<A,X,T,L> ( st, l, rest, &nil, 0 as u32, lev_nm ) ;
                 // TODO: Place left_ and right_ trees into articulations (not Boxes), named by name.
                 let tree = T::name( st, nm.clone(), left_tree.clone(), right_tree ) ;
