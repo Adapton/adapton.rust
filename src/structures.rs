@@ -52,14 +52,31 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
         where NilC  : Fn(&mut A) -> Res
         ,     LeafC : Fn(&mut A, &Leaf) -> Res
         ,     BinC  : Fn(&mut A, &Bin,  &Self::Tree, &Self::Tree) -> Res
-        ,     NameC : Fn(&mut A, &Name, &Self::Tree, &Self:Tree) -> Res
+        ,     NameC : Fn(&mut A, &A::Name, &Self::Tree, &Self::Tree) -> Res
         ;
     
-    fn fold<Res,LeafC,BinC,NameC> (&mut A, Self::Tree, Res, LeafC, BinC, NameC) -> Res
-        where LeafC:Fn(&mut A, Res, &Leaf    ) -> Res
-        ,      BinC:Fn(&mut A, Res, &Bin     ) -> Res
-        ,     NameC:Fn(&mut A, Res, &A::Name ) -> Res
-        ;
+    fn fold<Res:Clone,LeafC,BinC,NameC> (st:&mut A, tree:&Self::Tree, res:&Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+        where LeafC:Fn(&mut A, &Res, &Leaf    ) -> Res
+        ,      BinC:Fn(&mut A, &Res, &Bin     ) -> Res
+        ,     NameC:Fn(&mut A, &Res, &A::Name ) -> Res
+    {
+        Self::elim(st, tree,
+                   |_| res.clone(),
+                   |st,x| leaf(st, res, x),
+                   |st,x,l,r| {
+                       let res = Self::fold(st, l, res, leaf, bin, name);
+                       let res = bin(st, &res, x);
+                       let res = Self::fold(st, r, &res, leaf, bin, name);
+                       res
+                   },
+                   |st,n,l,r| {
+                       let res = Self::fold(st, l, res, leaf, bin, name);
+                       let res = name(st, &res, n);
+                       let res = Self::fold(st, r, &res, leaf, bin, name);
+                       res
+                   }
+                   )
+    }
 
     fn fold_up<Res,LeafC,BinC,NameC> (&mut A, Self::Tree, LeafC, BinC, NameC) -> Res
         where LeafC:Fn(&mut A, &Leaf              ) -> Res
