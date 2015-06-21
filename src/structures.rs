@@ -35,7 +35,7 @@ pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
         ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res ;
 
     // Derived from `elim` above:
-    fn is_empty (self:&Self, st:&mut A, list:&Self::List) -> bool {
+    fn is_empty (st:&mut A, list:&Self::List) -> bool {
         Self::elim2(st, &list, |_|true, |_,_,_|false, |_,_,_|false)
     }
 }
@@ -80,7 +80,7 @@ fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
 fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,X>>
     (st:&mut A, l:&L, list:&L::List) -> L::List
 {
-    let tree = tree_of_list::<A,X,T,L>(st, l, list);
+    let tree = tree_of_list::<A,X,T,L>(st, list);
     T::fold_up (st, tree,
                 |st, x|
                 L::singleton(st, x),
@@ -207,23 +207,23 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> L
 //     }}
 
 fn tree_of_list_rec_memo <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
-    (st:&mut A, l:&L, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32) ->
+    (st:&mut A, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32) ->
     (T::Tree, L::List)
 {
     let t = st.thunk (ArtId::Eager,
                       prog_pt!(tree_of_list_rec),
                       Rc::new(Box::new(|st, args|{
-                          let (l, list, left_tree, left_tree_lev, parent_lev) = args ;
+                          let (list, left_tree, left_tree_lev, parent_lev) = args ;
                           tree_of_list_rec::<A,X,T,L>
-                              (st, l, list, left_tree, left_tree_lev, parent_lev)
+                              (st, list, left_tree, left_tree_lev, parent_lev)
                       })),
-                      (l, list, left_tree, left_tree_lev, parent_lev)
+                      (list, left_tree, left_tree_lev, parent_lev)
                       ) ;
     st.force( &t )
 }
 
 fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
-    (st:&mut A, l:&L, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32)
+    (st:&mut A, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32)
      -> (T::Tree, L::List)
 {
     L::elim2 (
@@ -233,9 +233,9 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
             let lev_hd = (1 + (my_hash(hd).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_hd && lev_hd <= parent_lev {
                 let nil = T::nil(st) ;
-                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( st, l, rest, &nil, 0 as u32, lev_hd ) ;
+                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( st, rest, &nil, 0 as u32, lev_hd ) ;
                 let tree = T::bin ( st, hd.clone(), left_tree.clone(), right_tree ) ;
-                tree_of_list_rec::<A,X,T,L> ( st, l, &rest, &tree, lev_hd, parent_lev )
+                tree_of_list_rec::<A,X,T,L> ( st, &rest, &tree, lev_hd, parent_lev )
             }
             else {
                 let rest = L::cons(st, hd.clone(), rest.clone()) ;
@@ -245,10 +245,10 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
             let lev_nm = (1 + 64 + (my_hash(nm).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_nm && lev_nm <= parent_lev {
                 let nil = T::nil(st) ;
-                let (right_tree, rest) = tree_of_list_rec_memo::<A,X,T,L> ( st, l, rest, &nil, 0 as u32, lev_nm ) ;
+                let (right_tree, rest) = tree_of_list_rec_memo::<A,X,T,L> ( st, rest, &nil, 0 as u32, lev_nm ) ;
                 // TODO: Place left_ and right_ trees into articulations (not Boxes), named by name.
                 let tree = T::name( st, nm.clone(), left_tree.clone(), right_tree ) ;
-                tree_of_list_rec_memo::<A,X,T,L> ( st, l, &rest, &tree, lev_nm, parent_lev )
+                tree_of_list_rec_memo::<A,X,T,L> ( st, &rest, &tree, lev_nm, parent_lev )
             }
             else {
                 let rest = L::name(st, nm.clone(), rest.clone()) ;
@@ -258,10 +258,10 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
 }
 
 pub fn tree_of_list <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
-    (st:&mut A, l:&L, list:&L::List) -> T::Tree
+    (st:&mut A, list:&L::List) -> T::Tree
 {
     let nil = T::nil(st) ;
-    let (tree, rest) = tree_of_list_rec::<A,X,T,L> (st, l, list, &nil, 0 as u32, u32::max_value()) ;
-    assert!( l.is_empty( st, &rest ) );
+    let (tree, rest) = tree_of_list_rec::<A,X,T,L> (st, list, &nil, 0 as u32, u32::max_value()) ;
+    assert!( L::is_empty( st, &rest ) );
     tree
 }
