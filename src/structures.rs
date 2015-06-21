@@ -84,10 +84,8 @@ pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,X>>
     T::fold_up (st, tree,                
                 |st, x| // Nil:
                 L::singleton(st, x),
-                |st, x, left, right| {
-                    let left = L::cons(st, x,left);
-                    list_merge::<A,X,L>(st, None, None, &left, None, &right)
-                }
+                |st, x, left, right| // Bin:
+                list_merge::<A,X,L>(st, Some(&x), None, &left, None, &right)
                 )
 }
 
