@@ -49,10 +49,10 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
     fn art  (&mut A, Art<Self::Tree,A::Loc>) -> Self::Tree ;
 
     fn elim<Res,NilC,LeafC,BinC,NameC> (&mut A, &Self::Tree, NilC, LeafC, BinC, NameC) -> Res
-        where NilC  : Fn(&mut A) -> Res
-        ,     LeafC : Fn(&mut A, &Leaf) -> Res
-        ,     BinC  : Fn(&mut A, &Bin,  &Self::Tree, &Self::Tree) -> Res
-        ,     NameC : Fn(&mut A, &A::Name, &Self::Tree, &Self::Tree) -> Res
+        where NilC  : FnOnce(&mut A) -> Res
+        ,     LeafC : FnOnce(&mut A, &Leaf) -> Res
+        ,     BinC  : FnOnce(&mut A, &Bin,  &Self::Tree, &Self::Tree) -> Res
+        ,     NameC : FnOnce(&mut A, &A::Name, &Self::Tree, &Self::Tree) -> Res
         ;
     
     fn fold<Res:Clone,LeafC,BinC,NameC> (st:&mut A, tree:&Self::Tree, res:&Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
@@ -78,11 +78,29 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
                    )
     }
 
-    fn fold_up<Res,LeafC,BinC,NameC> (&mut A, Self::Tree, LeafC, BinC, NameC) -> Res
-        where LeafC:Fn(&mut A, &Leaf              ) -> Res
+    fn fold_up<Res:Clone,NilC,LeafC,BinC,NameC> (st:&mut A, tree:&Self::Tree, nil:&NilC, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+        where  NilC:Fn(&mut A) -> Res
+        ,     LeafC:Fn(&mut A, &Leaf              ) -> Res
         ,      BinC:Fn(&mut A, &Bin,     Res, Res ) -> Res
         ,     NameC:Fn(&mut A, &A::Name, Res, Res ) -> Res
-        ;
+    {
+        Self::elim(st, tree,
+                   |st| nil(st),
+                   |st,x| leaf(st, x),
+                   |st,x,l,r| {
+                       let resl = Self::fold_up(st, l, nil, leaf, bin, name);
+                       let resr = Self::fold_up(st, r, nil, leaf, bin, name);
+                       let res = bin(st, x, resl, resr);
+                       res
+                   },
+                   |st,n,l,r| {
+                       let resl = Self::fold_up(st, l, nil, leaf, bin, name);
+                       let resr = Self::fold_up(st, r, nil, leaf, bin, name);
+                       let res = name(st, n, resl, resr);
+                       res
+                   }
+                   )
+    }
     
     // TODO: Add derived operations (max, min, sum, etc.) for fold_up.
 }
@@ -257,12 +275,10 @@ pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,X>>
     (st:&mut A, list:&L::List) -> L::List
 {
     let tree = tree_of_list::<A,X,T,L>(st, list);
-    T::fold_up (st, tree,
-                |st, x| // Nil:
-                L::singleton(st, x.clone()),
-                |st, x, left, right| // Bin:
-                list_merge::<A,X,L>(st, Some(x), None, &left, None, &right),
-                |st, _, left, right| // Name:
-                list_merge::<A,X,L>(st, None, None, &left, None, &right)
+    T::fold_up (st, &tree,
+                &|st|                 L::nil(st),
+                &|st, x|              L::singleton(st, x.clone()),
+                &|st, x, left, right| list_merge::<A,X,L>(st, Some(x), None, &left, None, &right),
+                &|st, _, left, right| list_merge::<A,X,L>(st, None, None, &left, None, &right),
                 )
 }
