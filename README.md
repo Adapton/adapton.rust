@@ -56,7 +56,7 @@ Technical Debt
 
 Pending issues:
 -----------------
- - List/Tree intro forms should take references, not boxes?
+ - List/Tree intro forms should take unboxed, references, or boxes?
    error: type annotations required: cannot resolve `<_ as structures::ListT<A, _>>::List == _` [E0284]
  - Implement `ArtId::Structural` for cell and thunk to do hashing internally, not externally.
 
