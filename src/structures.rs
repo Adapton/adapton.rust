@@ -367,7 +367,8 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
     (st:&mut A, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32)
      -> (T::Tree, L::List)
 {
-    L::elim (
+    // TODO: Use 'elim_with' pattern to avoid cloning left_tree.
+    L::elim (        
         st, &list,
         /* Nil */  |st| ( T::nil(st), L::nil(st) ),
         /* Cons */ |st, hd, rest| {
