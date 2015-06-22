@@ -36,7 +36,7 @@ Development Activities
    - first-class names
    - nominal memoization
 
- - Incremental Data Structures and Algorithms:
+ - [`Incremental Data Structures and Algorithms`](https://github.com/plum-umd/adapton.rust/blob/master/src/structures.rs).
    - generic list and tree traits
    - balanced trees from lists ("unfold")
    - tree folds (lr, rl, up)
