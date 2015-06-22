@@ -102,8 +102,26 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
                    }
                    )
     }
-    
-    // TODO: Add derived operations (max, min, sum, etc.) for fold_up.
+}
+
+pub fn tree_reduce_monoid<A:Adapton,Elm:Hash+Clone,T:TreeT<A,Elm,()>,BinOp>
+    (st:&mut A, tree:&T::Tree, zero:&Elm, binop:&BinOp) -> Elm
+    where BinOp:Fn(&mut A, &Elm, &Elm) -> Elm
+{
+    T::fold_up(st, tree,
+               &|_|        zero.clone(),
+               &|_,leaf|   leaf.clone(),
+               &|st,_,l,r| binop(st,&l,&r),
+               &|st,_,l,r| binop(st,&l,&r),
+               )
+}
+
+pub fn list_reduce_monoid<A:Adapton,Elm:Hash+Clone,L:ListT<A,Elm>,BinOp,T:TreeT<A,Elm,()>>
+    (st:&mut A, list:&L::List, zero:&Elm, binop:&BinOp) -> Elm
+    where BinOp:Fn(&mut A, &Elm, &Elm) -> Elm
+{
+    let tree = panic!("tree_of_list(st, list);");
+    tree_reduce_monoid::<A,Elm,T,BinOp>(st, &tree, zero, binop);
 }
 
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]

@@ -56,6 +56,7 @@ Technical Debt
 
 Pending issues:
 -----------------
+ - Canonical balanced trees for sequences: Where should data go? Only at leaves (B-Tree style)?
  - List/Tree intro forms should take unboxed, references, or boxes?
    error: type annotations required: cannot resolve `<_ as structures::ListT<A, _>>::List == _` [E0284]
  - Implement `ArtId::Structural` for cell and thunk to do hashing internally, not externally.
