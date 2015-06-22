@@ -6,7 +6,7 @@ use std::mem::replace;
 use adapton_syntax::* ;
 use adapton_sigs::* ;
 
-pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
+pub trait ListT<A:Adapton,Hd> {
     type List : Debug+Hash+PartialEq+Eq+Clone ;
     
     fn nil  (&mut A) -> Self::List ;
@@ -37,7 +37,7 @@ pub trait ListT<A:Adapton,Hd> : Debug+Hash+PartialEq+Eq+Clone {
     }
 }
 
-pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
+pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
     type Tree : Debug+Hash+PartialEq+Eq+Clone ;
 
     fn nil  (&mut A) -> Self::Tree ;
@@ -56,7 +56,8 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
         ,     NameC : FnOnce(&mut A, &A::Name, &Self::Tree, &Self::Tree) -> Res
         ;
     
-    fn fold<Res:Clone,LeafC,BinC,NameC> (st:&mut A, tree:&Self::Tree, res:&Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+    fn fold<Res:Clone,LeafC,BinC,NameC>
+        (st:&mut A, tree:&Self::Tree, res:&Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
         where LeafC:Fn(&mut A, &Res, &Leaf    ) -> Res
         ,      BinC:Fn(&mut A, &Res, &Bin     ) -> Res
         ,     NameC:Fn(&mut A, &Res, &A::Name ) -> Res
@@ -79,7 +80,8 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> : Debug+Hash+PartialEq+Eq+Clone {
                    )
     }
 
-    fn fold_up<Res:Clone,NilC,LeafC,BinC,NameC> (st:&mut A, tree:&Self::Tree, nil:&NilC, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+    fn fold_up<Res:Clone,NilC,LeafC,BinC,NameC>
+        (st:&mut A, tree:&Self::Tree, nil:&NilC, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
         where  NilC:Fn(&mut A) -> Res
         ,     LeafC:Fn(&mut A, &Leaf              ) -> Res
         ,      BinC:Fn(&mut A, &Bin,     Res, Res ) -> Res
@@ -124,6 +126,43 @@ pub fn list_reduce_monoid<A:Adapton,Elm:Hash+Clone,L:ListT<A,Elm>,BinOp,T:TreeT<
     tree_reduce_monoid::<A,Elm,T,BinOp>(st, &tree, zero, binop);
 }
 
+pub fn tree_map<A:Adapton,X:Hash+Clone,Y:Hash+Clone,T:TreeT<A,X,Y>,FX:Hash+Clone,GY:Hash+Clone,FGT:TreeT<A,FX,GY>,F,G>
+    (st:&mut A, tree:&T::Tree, f:&F, g:&G) -> FGT::Tree
+    where F:Fn(&mut A, &X) -> FX
+    ,     G:Fn(&mut A, &Y) -> GY
+{
+    T::fold_up(st, tree,
+               &|st|       FGT::nil(st),
+               &|st,x|     {let fx = f(st,x);  FGT::leaf(st, fx)},
+               &|st,y,l,r| {let gy = g(st, y); FGT::bin(st, gy, l, r)},
+               &|st,n,l,r| FGT::name(st, n.clone(), l, r)
+               )
+}
+
+pub fn tree_filter<A:Adapton,X:Hash+Clone,T:TreeT<A,X,()>,F>
+    (st:&mut A, tree:&T::Tree, f:&F) -> T::Tree
+    where F:Fn(&mut A, &X) -> bool
+{
+    T::fold_up(st, tree,
+               &|st|       T::nil(st),
+               &|st,x|     {let fx = f(st,x);  if fx { T::leaf(st, x.clone()) } else { T::nil(st) }},
+               &|st,_,l,r| T::bin(st, (), l, r),
+               &|st,n,l,r| T::name(st, n.clone(), l, r)
+               )
+}
+
+pub fn list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
+    (st:&mut A, tree:&T::Tree) -> L::List
+{
+    panic!("")
+}
+
+pub fn reversed_list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
+    (st:&mut A, tree:&T::Tree) -> L::List
+{
+    panic!("")
+}
+
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
 enum List<A:Adapton,Hd> {
     Nil,
@@ -145,7 +184,8 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> L
     fn rc   (_:&mut A, rc:Rc<List<A,Hd>>)          -> Self::List { List::Rc(rc) }
     fn art  (_:&mut A, art:Art<List<A,Hd>,A::Loc>) -> Self::List { List::Art(art) }
 
-    fn elim<Res,Nil,Cons,Name> (st:&mut A, list:&Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
+    fn elim<Res,Nil,Cons,Name>
+        (st:&mut A, list:&Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
         where Nil:FnOnce(&mut A) -> Res
         ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
         ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res
@@ -186,7 +226,8 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
     fn rc   (_:&mut A, rc:Rc<Self::Tree>)                     -> Self::Tree { Tree::Rc(rc) }
     fn art  (_:&mut A, art:Art<Self::Tree,A::Loc>)            -> Self::Tree { Tree::Art(art) }
 
-    fn elim<Res,NilC,LeafC,BinC,NameC> (st:&mut A, tree:&Self::Tree, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
+    fn elim<Res,NilC,LeafC,BinC,NameC>
+        (st:&mut A, tree:&Self::Tree, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
         where NilC  : FnOnce(&mut A) -> Res
         ,     LeafC : FnOnce(&mut A, &Leaf) -> Res
         ,     BinC  : FnOnce(&mut A, &Bin,  &Self::Tree, &Self::Tree) -> Res
