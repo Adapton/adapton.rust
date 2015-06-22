@@ -13,7 +13,7 @@ Development Activities
 -----------------------
 
  - Building Adapton in Rust around core interface, the
-   [`Adapton trait`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_sigs.rs#L7).
+   [`Adapton` trait](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_sigs.rs#L7).
     
  - The library implements this interface with an imperative data structure,
    [`AdaptonState`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_state.rs).
@@ -36,10 +36,10 @@ Development Activities
    - first-class names
    - nominal memoization
 
- - [`Incremental Data Structures and Algorithms`](https://github.com/plum-umd/adapton.rust/blob/master/src/structures.rs).
+ - [**Incremental Data Structures and Algorithms**](https://github.com/plum-umd/adapton.rust/blob/master/src/structures.rs).
    - generic list and tree traits
    - balanced trees from lists ("unfold")
-   - tree folds (lr, rl, up)
+   - tree folds (left-to-right, right-to-left, bottom-up)
    - mergesort
 
 Future work
