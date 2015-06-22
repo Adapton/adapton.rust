@@ -57,48 +57,48 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
         ;
     
     fn fold_lr<Res:Clone,LeafC,BinC,NameC>
-        (st:&mut A, tree:&Self::Tree, res:&Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
-        where LeafC:Fn(&mut A, &Leaf,    &Res ) -> Res
-        ,      BinC:Fn(&mut A, &Bin,     &Res ) -> Res
-        ,     NameC:Fn(&mut A, &A::Name, &Res ) -> Res
+        (st:&mut A, tree:&Self::Tree, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+        where LeafC:Fn(&mut A, &Leaf,    Res ) -> Res
+        ,      BinC:Fn(&mut A, &Bin,     Res ) -> Res
+        ,     NameC:Fn(&mut A, &A::Name, Res ) -> Res
     {
         Self::elim(st, tree,
                    |_| res.clone(),
                    |st,x| leaf(st, x, res),
                    |st,x,l,r| {
                        let res = Self::fold_lr(st, l, res, leaf, bin, name);
-                       let res = bin(st, x, &res);
-                       let res = Self::fold_lr(st, r, &res, leaf, bin, name);
+                       let res = bin(st, x, res);
+                       let res = Self::fold_lr(st, r, res, leaf, bin, name);
                        res
                    },
                    |st,n,l,r| {
                        let res = Self::fold_lr(st, l, res, leaf, bin, name);
-                       let res = name(st, n, &res);
-                       let res = Self::fold_lr(st, r, &res, leaf, bin, name);
+                       let res = name(st, n, res);
+                       let res = Self::fold_lr(st, r, res, leaf, bin, name);
                        res
                    }
                    )
     }
 
     fn fold_rl<Res:Clone,LeafC,BinC,NameC>
-        (st:&mut A, tree:&Self::Tree, res:&Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
-        where LeafC:Fn(&mut A, &Leaf,    &Res ) -> Res
-        ,      BinC:Fn(&mut A, &Bin,     &Res ) -> Res
-        ,     NameC:Fn(&mut A, &A::Name, &Res ) -> Res
+        (st:&mut A, tree:&Self::Tree, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+        where LeafC:Fn(&mut A, &Leaf,    Res ) -> Res
+        ,      BinC:Fn(&mut A, &Bin,     Res ) -> Res
+        ,     NameC:Fn(&mut A, &A::Name, Res ) -> Res
     {
         Self::elim(st, tree,
                    |_| res.clone(),
                    |st,x| leaf(st, x, res),
                    |st,x,l,r| {
                        let res = Self::fold_rl(st, r, res, leaf, bin, name);
-                       let res = bin(st, x, &res);
-                       let res = Self::fold_rl(st, l, &res, leaf, bin, name);
+                       let res = bin(st, x, res);
+                       let res = Self::fold_rl(st, l, res, leaf, bin, name);
                        res
                    },
                    |st,n,l,r| {
                        let res = Self::fold_rl(st, r, res, leaf, bin, name);
-                       let res = name(st, n, &res);
-                       let res = Self::fold_rl(st, l, &res, leaf, bin, name);
+                       let res = name(st, n, res);
+                       let res = Self::fold_rl(st, l, res, leaf, bin, name);
                        res
                    }
                    )
@@ -181,10 +181,10 @@ pub fn list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
     (st:&mut A, tree:&T::Tree) -> L::List
 {
     let nil = L::nil(st);
-    T::fold_rl(st, tree, &nil,
-               &|st,x,xs| L::cons(st,x.clone(),xs.clone()),
-               &|_,_,xs|  xs.clone(),
-               &|st,n,xs| L::name(st,n.clone(),xs.clone())
+    T::fold_rl(st, tree, nil,
+               &|st,x,xs| L::cons(st,x.clone(),xs),
+               &|_,_,xs|  xs,
+               &|st,n,xs| L::name(st,n.clone(),xs)
                )
 }
 
@@ -192,10 +192,10 @@ pub fn reversed_list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>
     (st:&mut A, tree:&T::Tree) -> L::List
 {
     let nil = L::nil(st);
-    T::fold_lr(st, tree, &nil,
-               &|st,x,xs| L::cons(st,x.clone(),xs.clone()),
-               &|_,_,xs|  xs.clone(),
-               &|st,n,xs| L::name(st,n.clone(),xs.clone())
+    T::fold_lr(st, tree, nil,
+               &|st,x,xs| L::cons(st,x.clone(),xs),
+               &|_,_,xs|  xs,
+               &|st,n,xs| L::name(st,n.clone(),xs)
                )    
 }
 
