@@ -57,7 +57,8 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
         ,     NameC : FnOnce(&mut A, &A::Name, &Self::Tree, &Self::Tree, Arg) -> Res
         ;
 
-    fn elim<Res,NilC,LeafC,BinC,NameC> (&mut A, &Self::Tree, NilC, LeafC, BinC, NameC) -> Res
+    fn elim<Res,NilC,LeafC,BinC,NameC>
+        (&mut A, &Self::Tree, NilC, LeafC, BinC, NameC) -> Res
         where NilC  : FnOnce(&mut A) -> Res
         ,     LeafC : FnOnce(&mut A, &Leaf) -> Res
         ,     BinC  : FnOnce(&mut A, &Bin,  &Self::Tree, &Self::Tree) -> Res
