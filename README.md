@@ -37,8 +37,8 @@ Development Activities
    - nominal memoization
 
  - Incremental Data Structures and Algorithms:
-   - lazy, memoized lists
-   - balanced trees to/from lists
+   - generic list and tree traits
+   - balanced trees from lists ("unfold")
    - tree folds (lr, rl, up)
    - mergesort
 
