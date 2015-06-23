@@ -371,19 +371,45 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
 //         ($st).thunk (ArtId::Eager, prog_pt!(f), fval, $( $arg ),* )
 //     }}
 
+macro_rules! thunk {
+    ( $st:expr , $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+        ($st).thunk
+            (ArtId::Eager,
+             prog_pt!(f),
+             Rc::new(Box::new(
+                 |st, args|{
+                     let ($( $lab ),*) = args ;
+                     $f :: < $( $ty ),* >( st, $( $lab ),* )
+                 })),
+             ( $( $arg ),* )
+             )
+    }}
+    ;
+    ( $st:expr , $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+        ($st).thunk
+            (ArtId::Eager,
+             prog_pt!(f),
+             Rc::new(Box::new(
+                 |st, args|{
+                     let ($( $lab ),*) = args ;
+                     $f ( st, $( $lab ),* )
+                 })),
+             ( $( $arg ),* )
+             )        
+    }}
+    ;
+}
+
 fn tree_of_list_rec_memo <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A, list:&L::List, left_tree:T::Tree, left_tree_lev:u32, parent_lev:u32) ->
     (T::Tree, L::List)
 {
-    let t = st.thunk (ArtId::Eager,
-                      prog_pt!(tree_of_list_rec),
-                      Rc::new(Box::new(|st, args|{
-                          let (list, left_tree, left_tree_lev, parent_lev) = args ;
-                          tree_of_list_rec::<A,X,T,L>
-                              (st, list, left_tree, left_tree_lev, parent_lev)
-                      })),
-                      (list, left_tree, left_tree_lev, parent_lev)
-                      ) ;
+    let t = thunk!( st, tree_of_list_rec::<A,X,T,L>,
+                    list:list,
+                    left_tree:left_tree,
+                    left_tree_lev:left_tree_lev,
+                    parent_lev:parent_lev
+                    ) ;
     st.force( &t )
 }
 
