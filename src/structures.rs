@@ -87,8 +87,11 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
                  res
              },
              |st,n,l,r,res| {
+                 let (n1,n2,n3) = st.name_fork3(n.clone());
+                 // let res = memo!(st, n1 =>
+                 //                 Self::fold_lr, l:l, res:res, leaf:leaf, bin:bin, name:name);
                  let res = Self::fold_lr(st, l, res, leaf, bin, name);
-                 let res = name(st, n, res);
+                 let res = name(st, &n2, res);
                  let res = Self::fold_lr(st, r, res, leaf, bin, name);
                  res
              }

@@ -39,6 +39,23 @@ pub trait Adapton {
     fn name_pair      (self:&mut Self, Self::Name, Self::Name) -> Self::Name               ;
     fn name_fork      (self:&mut Self, Self::Name)             -> (Self::Name, Self::Name) ;
 
+    fn name_fork3 (self:&mut Self, n:Self::Name)
+                   -> (Self::Name,Self::Name,Self::Name)
+    {
+        let (n1,n)  = self.name_fork(n);
+        let (n2,n3) = self.name_fork(n);
+        (n1,n2,n3)
+    }
+    
+    fn name_fork4 (self:&mut Self, n:Self::Name)
+                   -> (Self::Name,Self::Name,Self::Name,Self::Name)
+    {
+        let (n1,n)  = self.name_fork(n);
+        let (n2,n)  = self.name_fork(n);
+        let (n3,n4) = self.name_fork(n);
+        (n1,n2,n3,n4)
+    }
+    
     // Namespaces
     fn ns<T,F> (self: &mut Self, Self::Name, body:F) -> T
         where F:FnOnce(&mut Self) -> T ;
