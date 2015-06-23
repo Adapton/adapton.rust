@@ -22,6 +22,11 @@ pub trait ListT<A:Adapton,Hd> {
         ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
         ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res ;
 
+    fn elim_with<Arg,Res,Nil,Cons,Name> (&mut A, &Self::List, Arg, Nil, Cons, Name) -> Res
+        where Nil:FnOnce(&mut A, Arg) -> Res
+        ,    Cons:FnOnce(&mut A, &Hd, &Self::List, Arg) -> Res
+        ,    Name:FnOnce(&mut A, &A::Name, &Self::List, Arg) -> Res ;
+
     // Derived from `cons` and `nil` above:
     fn singleton (st:&mut A, hd:Hd) -> Self::List {
         let nil = Self::nil(st);
@@ -249,6 +254,24 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> L
             }
         }
     }
+
+    fn elim_with<Arg,Res,Nil,Cons,Name>
+        (st:&mut A, list:&Self::List, arg:Arg, nilf:Nil, consf:Cons, namef:Name) -> Res
+        where Nil:FnOnce(&mut A, Arg) -> Res
+        ,    Cons:FnOnce(&mut A, &Hd, &Self::List, Arg) -> Res
+        ,    Name:FnOnce(&mut A, &A::Name, &Self::List, Arg) -> Res
+    {
+        match *list {
+            List::Nil => nilf(st, arg),
+            List::Cons(ref hd, ref tl) => consf(st, hd, &*tl, arg),
+            List::Name(ref nm, ref tl) => namef(st, nm, &*tl, arg),
+            List::Rc(ref rc) => Self::elim_with(st, &*rc, arg, nilf, consf, namef),
+            List::Art(ref art) => {
+                let list = st.force(art);
+                Self::elim_with(st, &list, arg, nilf, consf, namef)
+            }
+        }
+    }
 }
 
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
@@ -314,7 +337,6 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
         }
     }
 
-
 }
 
 // https://doc.rust-lang.org/book/macros.html
@@ -350,7 +372,7 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
 //     }}
 
 fn tree_of_list_rec_memo <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
-    (st:&mut A, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32) ->
+    (st:&mut A, list:&L::List, left_tree:T::Tree, left_tree_lev:u32, parent_lev:u32) ->
     (T::Tree, L::List)
 {
     let t = st.thunk (ArtId::Eager,
@@ -366,37 +388,35 @@ fn tree_of_list_rec_memo <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>
 }
 
 fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
-    (st:&mut A, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32)
+    (st:&mut A, list:&L::List, left_tree:T::Tree, left_tree_lev:u32, parent_lev:u32)
      -> (T::Tree, L::List)
 {
     // TODO: Use 'elim_with' pattern to avoid cloning left_tree.
-    L::elim (        
-        st, &list,
-        /* Nil */  |st| ( T::nil(st), L::nil(st) ),
-        /* Cons */ |st, hd, rest| {
+    L::elim_with (
+        st, &list, left_tree,
+        /* Nil */  |st, left_tree| ( left_tree, L::nil(st) ),
+        /* Cons */ |st, hd, rest, left_tree| {
             let lev_hd = (1 + (my_hash(hd).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_hd && lev_hd <= parent_lev {
                 let leaf = T::leaf(st, hd.clone()) ;
-                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( st, rest, &leaf, 0 as u32, lev_hd ) ;
-                let tree = T::bin ( st, (), left_tree.clone(), right_tree ) ;
-                tree_of_list_rec::<A,X,T,L> ( st, &rest, &tree, lev_hd, parent_lev )
+                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( st, rest, leaf, 0 as u32, lev_hd ) ;
+                let tree = T::bin ( st, (), left_tree, right_tree ) ;
+                tree_of_list_rec::<A,X,T,L> ( st, &rest, tree, lev_hd, parent_lev )
             }
             else {
-                let rest = L::cons(st, hd.clone(), rest.clone()) ;
-                (left_tree.clone(), rest)
+                (left_tree, list.clone())
             }},
-        /* Name */ |st, nm, rest| {
+        /* Name */ |st, nm, rest, left_tree| {
             let lev_nm = (1 + 64 + (my_hash(nm).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_nm && lev_nm <= parent_lev {
                 let nil = T::nil(st) ;
-                let (right_tree, rest) = tree_of_list_rec_memo::<A,X,T,L> ( st, rest, &nil, 0 as u32, lev_nm ) ;
+                let (right_tree, rest) = tree_of_list_rec_memo::<A,X,T,L> ( st, rest, nil, 0 as u32, lev_nm ) ;
                 // TODO: Place left_ and right_ trees into articulations (not Boxes), named by name.
-                let tree = T::name( st, nm.clone(), left_tree.clone(), right_tree ) ;
-                tree_of_list_rec_memo::<A,X,T,L> ( st, &rest, &tree, lev_nm, parent_lev )
+                let tree = T::name( st, nm.clone(), left_tree, right_tree ) ;
+                tree_of_list_rec_memo::<A,X,T,L> ( st, &rest, tree, lev_nm, parent_lev )
             }
             else {
-                let rest = L::name(st, nm.clone(), rest.clone()) ;
-                (left_tree.clone(), rest)
+                (left_tree, list.clone())
             }}
         )
 }
@@ -405,14 +425,13 @@ pub fn tree_of_list <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A, list:&L::List) -> T::Tree
 {
     let nil = T::nil(st) ;
-    let (tree, rest) = tree_of_list_rec::<A,X,T,L> (st, list, &nil, 0 as u32, u32::max_value()) ;
+    let (tree, rest) = tree_of_list_rec::<A,X,T,L> (st, list, nil, 0 as u32, u32::max_value()) ;
     assert!( L::is_empty( st, &rest ) );
     tree
 }
 
 pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
     (st:&mut A,
-     xo:Option<&X>, // for 3-way merge on (xo.unwrap(), hd(l1), hd(l2)).
      n1:Option<&A::Name>, l1:&L::List,
      n2:Option<&A::Name>, l2:&L::List  ) -> L::List
 {
@@ -422,26 +441,19 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
             L::elim(st, l2,
                     |st| L::nil(st),
                     |st, h2, t2|
-                    if match xo {
-                        None => false,
-                        Some(x) => ( x <= h1 && x <= h2 ) }
-                    {
-                        let rest = list_merge::<A,X,L>(st, None, n1, l1, n2, l2);
-                        L::cons(st, xo.unwrap().clone(), rest)
-                    }
-                    else if h1 <= h2 {
+                    if h1 <= h2 {
                         //TODO: Nominal memoization with n1:
-                        let rest = list_merge::<A,X,L>(st, xo, None, t1, n2, l2);
+                        let rest = list_merge::<A,X,L>(st, None, t1, n2, l2);
                         L::cons(st, (*h1).clone(), rest)
                     }
                     else {
                         //TODO: Nominal memoization with n2:
-                        let rest = list_merge::<A,X,L>(st, xo, n1, l1, None, t2);
+                        let rest = list_merge::<A,X,L>(st, n1, l1, None, t2);
                         L::cons(st, (*h2).clone(), rest)
                     },
-                    |st, m2, t2| list_merge::<A,X,L>(st, xo, n1, l1, Some(m2), t2)
+                    |st, m2, t2| list_merge::<A,X,L>(st, n1, l1, Some(m2), t2)
                     ),
-            |st,n1,t1| list_merge::<A,X,L>(st, xo, Some(n1), t1, n2, l2)
+            |st,n1,t1| list_merge::<A,X,L>(st, Some(n1), t1, n2, l2)
             )
 }
 
@@ -452,7 +464,7 @@ pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
     T::fold_up (st, &tree,
                 &|st|                 L::nil(st),
                 &|st, x|              L::singleton(st, x.clone()),
-                &|st, _, left, right| list_merge::<A,X,L>(st, None, None, &left, None, &right),
-                &|st, _, left, right| list_merge::<A,X,L>(st, None, None, &left, None, &right),
+                &|st, _, left, right| list_merge::<A,X,L>(st, None, &left, None, &right),
+                &|st, _, left, right| list_merge::<A,X,L>(st, None, &left, None, &right),
                 )
 }
