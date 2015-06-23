@@ -396,44 +396,49 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
      n1:Option<&A::Name>, l1:&L::List,
      n2:Option<&A::Name>, l2:&L::List  ) -> L::List
 {
-    L::elim(st, l1,
-            |_| l2.clone(),
-            |st,h1,t1|
-            L::elim(st, l2,
-                    |st| L::nil(st),
-                    |st, h2, t2|
-                    if h1 <= h2 {
-                        match n1 {
-                            None => {
-                                let rest = list_merge::<A,X,L>(st, None, t1, n2, l2);
-                                L::cons(st, (*h1).clone(), rest)
-                            }
-                            Some(n1) => {
-                                let (n1a, n1b) = st.name_fork(n1.clone());
-                                let rest = memo!(st, n1a => list_merge::<A,X,L>, n1:None, l1:t1, n2:n2, l2:l2);
-                                let rest = L::cons(st, (*h1).clone(), rest);
-                                L::name(st, n1b, rest)
-                            }
-                        }
-                    }
-                    else {
-                        match n2 {
-                            None => {
-                                let rest = list_merge::<A,X,L>(st, n1, l1, None, t2);
-                                L::cons(st, (*h2).clone(), rest)
-                            }
-                            Some(n2) => {
-                                let (n2a, n2b) = st.name_fork(n2.clone());
-                                let rest = memo!(st, n2a => list_merge::<A,X,L>, n1:n1, l1:l1, n2:None, l2:t2);
-                                let rest = L::cons(st, (*h2).clone(), rest);
-                                L::name(st, n2b, rest)
-                            }
-                        }
-                    },
-                    |st, m2, t2| list_merge::<A,X,L>(st, n1, l1, Some(m2), t2)
-                    ),
-            |st,n1,t1| list_merge::<A,X,L>(st, Some(n1), t1, n2, l2)
-            )
+    L::elim
+        (st, l1,
+         |_| l2.clone(),
+         |st,h1,t1| L::elim
+         (st, l2,
+          |st| L::nil(st),
+          |st, h2, t2|
+          if h1 <= h2 {
+              match n1 {
+                  None => {
+                      let rest = list_merge::<A,X,L>(st, None, t1, n2, l2);
+                      L::cons(st, (*h1).clone(), rest)
+                  }
+                  Some(n1) => {
+                      let (n1a, n1b) = st.name_fork(n1.clone());
+                      let rest = memo!(st, n1a =>
+                                       list_merge::<A,X,L>,
+                                       n1:None, l1:t1, n2:n2, l2:l2);
+                      let rest = L::cons(st, (*h1).clone(), rest);
+                      L::name(st, n1b, rest)
+                  }
+              }
+          }
+          else {
+              match n2 {
+                  None => {
+                      let rest = list_merge::<A,X,L>(st, n1, l1, None, t2);
+                      L::cons(st, (*h2).clone(), rest)
+                  }
+                  Some(n2) => {
+                      let (n2a, n2b) = st.name_fork(n2.clone());
+                      let rest = memo!(st, n2a =>
+                                       list_merge::<A,X,L>,
+                                       n1:n1, l1:l1, n2:None, l2:t2);
+                      let rest = L::cons(st, (*h2).clone(), rest);
+                      L::name(st, n2b, rest)
+                  }
+              }
+          },
+          |st,m2,t2| list_merge::<A,X,L>(st, n1, l1, Some(m2), t2)
+          ),
+         |st,n1,t1| list_merge::<A,X,L>(st, Some(n1), t1, n2, l2)
+         )
 }
 
 pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
@@ -444,6 +449,7 @@ pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
                 &|st|                 L::nil(st),
                 &|st, x|              L::singleton(st, x.clone()),
                 &|st, _, left, right| list_merge::<A,X,L>(st, None, &left, None, &right),
-                &|st, _, left, right| list_merge::<A,X,L>(st, None, &left, None, &right),
+                &|st, n, left, right| { let (n1,n2) = st.name_fork(n.clone());
+                                        list_merge::<A,X,L>(st, Some(&n1), &left, Some(&n2), &right) },
                 )
 }
