@@ -5,11 +5,11 @@ authors = ["hammer <hammer@cs.umd.edu>"]
 
 # A short blurb about the package. This is not rendered in any format when
 # uploaded to crates.io (aka this is not markdown)
-description = ""
+description = "Library for Incremental Computation (implicit dependency graphs & memoization)"
 
 # These URLs point to more information about the repository
-documentation = "..."
-homepage = "adapton.org"
+documentation = "https://github.com/plum-umd/adapton.rust/"
+homepage = "https://adapton.org"
 repository = "https://github.com/plum-umd/adapton.rust/"
 
 # This points to a file in the repository (relative to this Cargo.toml). The
@@ -18,13 +18,13 @@ readme = "README.md"
 
 # This is a small list of keywords used to categorize and search for this
 # package.
-keywords = ["Incremental", "Memoization", "Dependency graph"]
+keywords = ["Incremental", "Memoization", "DependencyGraph"]
 
 # This is a string description of the license for this package. Currently
 # crates.io will validate the license provided against a whitelist of known
 # license identifiers from http://spdx.org/licenses/. Multiple licenses can
 # be separated with a `/`
-license = "MPL2.0"
+license = "MPL-2.0"
 
 # If a project is using a nonstandard license, then this key may be specified in
 # lieu of the above key and must point to a file relative to this manifest
