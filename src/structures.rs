@@ -339,67 +339,6 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
 
 }
 
-// https://doc.rust-lang.org/book/macros.html
-//
-// macro_rules! o_O {
-//     (
-//         $(
-//             $x:expr; [ $( $y:expr ),* ]
-//          );*
-//     ) => {
-//         &[ $($( $x + $y ),*),* ]
-//     }
-// }
-//
-// fn main() {
-//     let a: &[i32]
-//         = o_O!(10; [1, 2, 3];
-//                20; [4, 5, 6]);
-//
-//     assert_eq!(a, [11, 12, 13, 24, 25, 26]);
-// }
-
-// TODO: Need to gensym a variable for each argument below:
-//
-// macro_rules! thunk {
-//     ( $f:ident , $st:expr , $( $arg:expr ),* ) => {
-//         let fval = Rc::new(Box::new(
-//             |st, args|{
-//                 let ($( $arg ),*) = args ;
-//                 f( st, $( $arg ),* )
-//             })) ;
-//         ($st).thunk (ArtId::Eager, prog_pt!(f), fval, $( $arg ),* )
-//     }}
-
-macro_rules! thunk {
-    ( $st:expr , $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-        ($st).thunk
-            (ArtId::Eager,
-             prog_pt!(f),
-             Rc::new(Box::new(
-                 |st, args|{
-                     let ($( $lab ),*) = args ;
-                     $f :: < $( $ty ),* >( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),* )
-             )
-    }}
-    ;
-    ( $st:expr , $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-        ($st).thunk
-            (ArtId::Eager,
-             prog_pt!(f),
-             Rc::new(Box::new(
-                 |st, args|{
-                     let ($( $lab ),*) = args ;
-                     $f ( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),* )
-             )        
-    }}
-    ;
-}
-
 fn tree_of_list_rec_memo <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A, list:&L::List, left_tree:T::Tree, left_tree_lev:u32, parent_lev:u32) ->
     (T::Tree, L::List)

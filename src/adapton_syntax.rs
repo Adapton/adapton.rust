@@ -1,5 +1,6 @@
 // Adapton uses memoization under the covers, which needs an efficient
-// mechanism to search for function pointers and them for equality.
+// mechanism to search for function pointers and compare them for
+// equality.
 //
 // Meanwhile, Rust does not provide Eq and Hash implementations for
 // trait Fn.  So, to identify Rust functions as values that we can
@@ -50,3 +51,64 @@ macro_rules! prog_pt {
         }
     }
 }
+
+macro_rules! thunk {
+    ( $st:expr , $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+        ($st).thunk
+            (ArtId::Eager,
+             prog_pt!(f),
+             Rc::new(Box::new(
+                 |st, args|{
+                     let ($( $lab ),*) = args ;
+                     $f :: < $( $ty ),* >( st, $( $lab ),* )
+                 })),
+             ( $( $arg ),* )
+             )
+    }}
+    ;
+    ( $st:expr , $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+        ($st).thunk
+            (ArtId::Eager,
+             prog_pt!(f),
+             Rc::new(Box::new(
+                 |st, args|{
+                     let ($( $lab ),*) = args ;
+                     $f ( st, $( $lab ),* )
+                 })),
+             ( $( $arg ),* )
+             )        
+    }}
+    ;
+}
+
+// https://doc.rust-lang.org/book/macros.html
+//
+// macro_rules! o_O {
+//     (
+//         $(
+//             $x:expr; [ $( $y:expr ),* ]
+//          );*
+//     ) => {
+//         &[ $($( $x + $y ),*),* ]
+//     }
+// }
+//
+// fn main() {
+//     let a: &[i32]
+//         = o_O!(10; [1, 2, 3];
+//                20; [4, 5, 6]);
+//
+//     assert_eq!(a, [11, 12, 13, 24, 25, 26]);
+// }
+
+// TODO: Need to gensym a variable for each argument below:
+//
+// macro_rules! thunk {
+//     ( $f:ident , $st:expr , $( $arg:expr ),* ) => {
+//         let fval = Rc::new(Box::new(
+//             |st, args|{
+//                 let ($( $arg ),*) = args ;
+//                 f( st, $( $arg ),* )
+//             })) ;
+//         ($st).thunk (ArtId::Eager, prog_pt!(f), fval, $( $arg ),* )
+//     }}
