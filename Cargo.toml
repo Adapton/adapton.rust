@@ -29,4 +29,4 @@ license = "MPL-2.0"
 # If a project is using a nonstandard license, then this key may be specified in
 # lieu of the above key and must point to a file relative to this manifest
 # (similar to the readme key)
-license-file = "LICENSE-MPL2.0"
+# license-file = "LICENSE-MPL2.0"

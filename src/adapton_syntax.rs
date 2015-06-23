@@ -52,6 +52,7 @@ macro_rules! prog_pt {
     }
 }
 
+#[macro_export]
 macro_rules! thunk {
     ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
         ($st).thunk
@@ -107,6 +108,7 @@ macro_rules! thunk {
     ;
 }
 
+#[macro_export]
 macro_rules! memo {
     ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
         let t = ($st).thunk
