@@ -70,11 +70,14 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
         ,     NameC : FnOnce(&mut A, &A::Name, &Self::Tree, &Self::Tree) -> Res
         ;
     
-    fn fold_lr<Res:Clone,LeafC,BinC,NameC>
+    fn fold_lr<Res:Hash+Debug+Eq+Clone,
+               LeafC:Hash+Eq+Debug+Clone,
+               BinC:Hash+Eq+Debug+Clone,
+               NameC:Hash+Eq+Debug+Clone>
         (st:&mut A, tree:&Self::Tree, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
         where LeafC:Fn(&mut A, &Leaf,    Res ) -> Res
-        ,      BinC:Fn(&mut A, &Bin,     Res ) -> Res
-        ,     NameC:Fn(&mut A, &A::Name, Res ) -> Res
+        ,      BinC:Fn(&mut A, &Bin,     Res ) -> Res 
+        ,     NameC:Fn(&mut A, &A::Name, Res ) -> Res 
     {
         Self::elim_with
             (st, tree, res,
@@ -89,9 +92,9 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
              |st,n,l,r,res| {
                  let (n1,n2,n3) = st.name_fork3(n.clone());
                  // TODO: Fix this macro:
-                 // let res = memo!(st, n1 =>
-                 //                 Self::fold_lr, l:l, res:res, leaf:leaf, bin:bin, name:name);
-                 let res = Self::fold_lr(st, l, res, leaf, bin, name);
+                 let res = memo!(st, n1 =>
+                                 Self::fold_lr, l:l, res:res, leaf:leaf, bin:bin, name:name);
+                 //let res = Self::fold_lr(st, l, res, leaf, bin, name);
                  let res = name(st, &n2, res);
                  let res = Self::fold_lr(st, r, res, leaf, bin, name);
                  res
@@ -141,7 +144,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
                  let res = bin(st, x, resl, resr);
                  res
              },
-             |st,n,l,r| {
+             |st,n,l,r| {                 
                  let resl = Self::fold_up(st, l, nil, leaf, bin, name);
                  let resr = Self::fold_up(st, r, nil, leaf, bin, name);
                  let res = name(st, n, resl, resr);

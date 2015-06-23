@@ -122,6 +122,20 @@ macro_rules! memo {
         ($st).force(&t)
     }}
     ;
+    ( $st:expr , $nm:expr => $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+        let t = ($st).thunk
+            (ArtIdChoice::Nominal($nm),
+             prog_pt!(f),
+             Rc::new(Box::new(
+                 |st, args|{
+                     let ($( $lab ),*) = args ;
+                     $f ( st, $( $lab ),* )
+                 })),
+             ( $( $arg ),* )
+             );
+        ($st).force(&t)
+    }}
+    ;
     ( $st:expr , $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
         let t = ($st).thunk
             (ArtIdChoice::Structural,
