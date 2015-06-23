@@ -91,12 +91,9 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
              },
              |st,n,l,r,res| {
                  let (n1,n2,n3) = st.name_fork3(n.clone());
-                 // TODO: Fix this macro:
-                 let res = memo!(st, n1 =>
-                                 Self::fold_lr, l:l, res:res, leaf:leaf, bin:bin, name:name);
-                 //let res = Self::fold_lr(st, l, res, leaf, bin, name);
+                 let res = memo!(st, n1 =>> Self::fold_lr, l:l, res:res, leaf:leaf, bin:bin, name:name);
                  let res = name(st, &n2, res);
-                 let res = Self::fold_lr(st, r, res, leaf, bin, name);
+                 let res = memo!(st, n3 =>> Self::fold_lr, l:r, res:res, leaf:leaf, bin:bin, name:name);
                  res
              }
              )
@@ -216,7 +213,7 @@ pub fn rev_list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
     (st:&mut A, tree:&T::Tree) -> L::List
 {
     let nil = L::nil(st);
-    T::fold_lr(st, tree, nil,
+    T::fold_rl(st, tree, nil,
                &|st,x,xs| L::cons(st,x.clone(),xs),
                &|_,_,xs|  xs,
                &|st,n,xs| L::name(st,n.clone(),xs)
@@ -414,7 +411,7 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
                   }
                   Some(n1) => {
                       let (n1a, n1b) = st.name_fork(n1.clone());
-                      let rest = memo!(st, n1a =>
+                      let rest = memo!(st, n1a =>>
                                        list_merge::<A,X,L>,
                                        n1:None, l1:t1, n2:n2, l2:l2);
                       let rest = L::cons(st, (*h1).clone(), rest);
@@ -430,7 +427,7 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
                   }
                   Some(n2) => {
                       let (n2a, n2b) = st.name_fork(n2.clone());
-                      let rest = memo!(st, n2a =>
+                      let rest = memo!(st, n2a =>>
                                        list_merge::<A,X,L>,
                                        n1:n1, l1:l1, n2:None, l2:t2);
                       let rest = L::cons(st, (*h2).clone(), rest);

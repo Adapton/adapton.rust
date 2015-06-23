@@ -53,7 +53,7 @@ macro_rules! prog_pt {
 }
 
 macro_rules! thunk {
-    ( $st:expr , $nm:expr => $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+    ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
         ($st).thunk
             (ArtIdChoice::Nominal($nm),
              prog_pt!(f),
@@ -66,7 +66,7 @@ macro_rules! thunk {
              )
     }}
     ;
-    ( $st:expr , $nm:expr => $f:ident , $( $lab:ident : $arg:expr ),* ) => {{
+    ( $st:expr , $nm:expr =>> $f:ident , $( $lab:ident : $arg:expr ),* ) => {{
         ($st).thunk
             (ArtIdChoice::Nominal($nm),
              prog_pt!(f),
@@ -108,7 +108,7 @@ macro_rules! thunk {
 }
 
 macro_rules! memo {
-    ( $st:expr , $nm:expr => $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+    ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
         let t = ($st).thunk
             (ArtIdChoice::Nominal($nm),
              prog_pt!(f),
@@ -122,7 +122,7 @@ macro_rules! memo {
         ($st).force(&t)
     }}
     ;
-    ( $st:expr , $nm:expr => $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+    ( $st:expr , $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
         let t = ($st).thunk
             (ArtIdChoice::Nominal($nm),
              prog_pt!(f),
