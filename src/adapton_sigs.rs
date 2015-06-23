@@ -47,13 +47,13 @@ pub trait Adapton {
     fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> Art<T,Self::Loc> ;
 
     // Mutable arts: cell and set
-    fn cell<T:Eq+Debug+Clone> (self:&mut Self, ArtId<Self::Name>, T) -> MutArt<T,Self::Loc> ;
+    fn cell<T:Eq+Debug+Clone> (self:&mut Self, Self::Name, T) -> MutArt<T,Self::Loc> ;
     fn set<T:Eq+Debug+Clone> (self:&mut Self, MutArt<T,Self::Loc>, T) ;
 
     // Computation arts: thunk
     fn thunk<Arg:Eq+Hash+Debug+Clone,T:Eq+Debug+Clone>
         (self:&mut Self,
-         id:ArtId<Self::Name>,
+         id:ArtIdChoice<Self::Name>,
          prog_pt:ProgPt,
          fn_box:Rc<Box< Fn(&mut Self, Arg)->T >>,
          arg:Arg)
@@ -93,8 +93,8 @@ pub struct MutArt<T,Loc> {
 // is created; rather, the computation eagerly produces an articulated
 // value of the form Art::Rc(v), for some value v.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
-pub enum ArtId<Name> {
-    Structural(u64), // Identifies an Art::Loc based on hashing content.
-    Nominal(Name),   // Identifies an Art::Loc based on a programmer-chosen name.
-    Eager,           // Eagerly produce an Art::Rc, no additional indirection is needed/used.
+pub enum ArtIdChoice<Name> {
+    Eager,         // Eagerly produce an Art::Rc, no additional indirection is needed/used.
+    Structural,    // Identifies an Art::Loc based on hashing content (prog_pt and arg).
+    Nominal(Name), // Identifies an Art::Loc based on a programmer-chosen name.
 }

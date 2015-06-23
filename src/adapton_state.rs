@@ -26,6 +26,12 @@ pub struct Loc {
     id   : Rc<ArtId<Name>>,
 }
 
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+enum ArtId<Name> {
+    Structural(u64), // Identifies an Art::Loc based on hashing content.
+    Nominal(Name),   // Identifies an Art::Loc based on a programmer-chosen name.
+}
+
 #[derive(Debug)]
 pub struct AdaptonState {
     table : HashMap<Rc<Loc>, Box<AdaptonNode>>,
@@ -492,9 +498,9 @@ impl Adapton for AdaptonState {
     fn cell<T:Eq+Debug+Clone
         +'static // TODO-Later: Needed on T because of lifetime issues.
         >
-        (self:&mut AdaptonState, id:ArtId<Self::Name>, val:T) -> MutArt<T,Self::Loc> {
+        (self:&mut AdaptonState, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
             let path = self.stack[0].path.clone();
-            let id   = Rc::new(id);
+            let id   = Rc::new(ArtId::Nominal(nm));
             let hash = my_hash(&(&path,&id));
             let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
             let cell = match self.table.get_mut(&loc) {
@@ -566,17 +572,18 @@ impl Adapton for AdaptonState {
         +'static // Needed on T because of lifetime issues.
         >
         (self:&mut AdaptonState,
-         id:ArtId<Self::Name>,
+         id:ArtIdChoice<Self::Name>,
          prog_pt:ProgPt,
          fn_box:Rc<Box<Fn(&mut AdaptonState, Arg) -> T>>,
          arg:Arg)
          -> Art<T,Self::Loc>
     {
         match id {
-            ArtId::Eager => {
+            ArtIdChoice::Eager => {
                 Art::Rc(Rc::new(fn_box(self,arg)))
             },
-            ArtId::Structural(hash) => {
+            ArtIdChoice::Structural => {
+                let hash = my_hash (&(&prog_pt, &arg)) ;
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Structural(hash)));
                 {   // If the node exists, return early.
@@ -617,7 +624,7 @@ impl Adapton for AdaptonState {
                 Art::Loc(loc)
             },
             
-            ArtId::Nominal(nm) => {
+            ArtIdChoice::Nominal(nm) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Nominal(nm)));
                 let producer : App<Arg,T> =
