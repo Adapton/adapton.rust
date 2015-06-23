@@ -81,6 +81,37 @@ macro_rules! thunk {
     ;
 }
 
+macro_rules! memo {
+    ( $st:expr , $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+        let t = ($st).thunk
+            (ArtId::Eager,
+             prog_pt!(f),
+             Rc::new(Box::new(
+                 |st, args|{
+                     let ($( $lab ),*) = args ;
+                     $f :: < $( $ty ),* >( st, $( $lab ),* )
+                 })),
+             ( $( $arg ),* )
+             );
+        ($st).force(&t)
+    }}
+    ;
+    ( $st:expr , $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+        let t = ($st).thunk
+            (ArtId::Eager,
+             prog_pt!(f),
+             Rc::new(Box::new(
+                 |st, args|{
+                     let ($( $lab ),*) = args ;
+                     $f ( st, $( $lab ),* )
+                 })),
+             ( $( $arg ),* )
+             );
+        ($st).force(&t)
+    }}
+    ;
+}
+
 // https://doc.rust-lang.org/book/macros.html
 //
 // macro_rules! o_O {

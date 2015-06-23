@@ -375,10 +375,14 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
             let lev_nm = (1 + 64 + (my_hash(nm).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_nm && lev_nm <= parent_lev {
                 let nil = T::nil(st) ;
-                let (right_tree, rest) = tree_of_list_rec_memo::<A,X,T,L> ( st, rest, nil, 0 as u32, lev_nm ) ;
+                let (right_tree, rest) =
+                    memo!(st, tree_of_list_rec_memo::<A,X,T,L>,
+                          list:rest, left_tree:nil, left_tree_lev:0 as u32, parent_lev:lev_nm ) ;
                 // TODO: Place left_ and right_ trees into articulations (not Boxes), named by name.
                 let tree = T::name( st, nm.clone(), left_tree, right_tree ) ;
-                tree_of_list_rec_memo::<A,X,T,L> ( st, &rest, tree, lev_nm, parent_lev )
+                memo!(st, tree_of_list_rec_memo::<A,X,T,L>,
+                      list:&rest, left_tree:tree,
+                      left_tree_lev:lev_nm, parent_lev:parent_lev )
             }
             else {
                 (left_tree, list.clone())
