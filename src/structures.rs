@@ -122,22 +122,23 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
         ,      BinC:Fn(&mut A, &Bin,     Res, Res ) -> Res
         ,     NameC:Fn(&mut A, &A::Name, Res, Res ) -> Res
     {
-        Self::elim(st, tree,
-                   |st| nil(st),
-                   |st,x| leaf(st, x),
-                   |st,x,l,r| {
-                       let resl = Self::fold_up(st, l, nil, leaf, bin, name);
-                       let resr = Self::fold_up(st, r, nil, leaf, bin, name);
-                       let res = bin(st, x, resl, resr);
-                       res
-                   },
-                   |st,n,l,r| {
-                       let resl = Self::fold_up(st, l, nil, leaf, bin, name);
-                       let resr = Self::fold_up(st, r, nil, leaf, bin, name);
-                       let res = name(st, n, resl, resr);
-                       res
-                   }
-                   )
+        Self::elim
+            (st, tree,
+             |st| nil(st),
+             |st,x| leaf(st, x),
+             |st,x,l,r| {
+                 let resl = Self::fold_up(st, l, nil, leaf, bin, name);
+                 let resr = Self::fold_up(st, r, nil, leaf, bin, name);
+                 let res = bin(st, x, resl, resr);
+                 res
+             },
+             |st,n,l,r| {
+                 let resl = Self::fold_up(st, l, nil, leaf, bin, name);
+                 let resr = Self::fold_up(st, r, nil, leaf, bin, name);
+                 let res = name(st, n, resl, resr);
+                 res
+             }
+             )
     }
 }
 
@@ -157,8 +158,8 @@ pub fn list_reduce_monoid<A:Adapton,Elm:Hash+Clone,L:ListT<A,Elm>,BinOp,T:TreeT<
     (st:&mut A, list:&L::List, zero:&Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
-    let tree = panic!("tree_of_list(st, list);");
-    tree_reduce_monoid::<A,Elm,T,BinOp>(st, &tree, zero, binop);
+    let tree = tree_of_list::<A,Elm,T,L>(st, list);
+    tree_reduce_monoid::<A,Elm,T,BinOp>(st, &tree, zero, binop)
 }
 
 pub fn tree_map<A:Adapton,X:Hash+Clone,Y:Hash+Clone,T:TreeT<A,X,Y>,FX:Hash+Clone,GY:Hash+Clone,FGT:TreeT<A,FX,GY>,F,G>
@@ -348,7 +349,7 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
 //         ($st).thunk (ArtId::Eager, prog_pt!(f), fval, $( $arg ),* )
 //     }}
 
-fn tree_of_list_rec_memo <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
+fn tree_of_list_rec_memo <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32) ->
     (T::Tree, L::List)
 {
@@ -364,7 +365,7 @@ fn tree_of_list_rec_memo <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
     st.force( &t )
 }
 
-fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
+fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A, list:&L::List, left_tree:&T::Tree, left_tree_lev:u32, parent_lev:u32)
      -> (T::Tree, L::List)
 {
@@ -375,9 +376,9 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
         /* Cons */ |st, hd, rest| {
             let lev_hd = (1 + (my_hash(hd).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_hd && lev_hd <= parent_lev {
-                let nil = T::nil(st) ;
-                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( st, rest, &nil, 0 as u32, lev_hd ) ;
-                let tree = T::bin ( st, hd.clone(), left_tree.clone(), right_tree ) ;
+                let leaf = T::leaf(st, hd.clone()) ;
+                let (right_tree, rest) = tree_of_list_rec::<A,X,T,L> ( st, rest, &leaf, 0 as u32, lev_hd ) ;
+                let tree = T::bin ( st, (), left_tree.clone(), right_tree ) ;
                 tree_of_list_rec::<A,X,T,L> ( st, &rest, &tree, lev_hd, parent_lev )
             }
             else {
@@ -400,7 +401,7 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
         )
 }
 
-pub fn tree_of_list <A:Adapton, X:Hash+Clone, T:TreeT<A,X,X>, L:ListT<A,X>>
+pub fn tree_of_list <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A, list:&L::List) -> T::Tree
 {
     let nil = T::nil(st) ;
@@ -444,14 +445,14 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
             )
 }
 
-pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,X>>
+pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
     (st:&mut A, list:&L::List) -> L::List
 {
     let tree = tree_of_list::<A,X,T,L>(st, list);
     T::fold_up (st, &tree,
                 &|st|                 L::nil(st),
                 &|st, x|              L::singleton(st, x.clone()),
-                &|st, x, left, right| list_merge::<A,X,L>(st, Some(x), None, &left, None, &right),
+                &|st, _, left, right| list_merge::<A,X,L>(st, None, None, &left, None, &right),
                 &|st, _, left, right| list_merge::<A,X,L>(st, None, None, &left, None, &right),
                 )
 }
