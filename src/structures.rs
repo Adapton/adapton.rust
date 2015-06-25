@@ -453,3 +453,69 @@ pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
                                         list_merge::<A,X,L>(st, Some(&n1), &left, Some(&n2), &right) },
                 )
 }
+
+trait SetT<A:Adapton,Elm:Ord+Hash+Clone> {
+    type Set;
+
+    // Intro forms:
+    fn empty(st:&mut A);
+    fn add_elm(st:&mut A, set:&Self::Set, elm:&Elm) -> (Self::Set, bool);
+    fn rem_elm(st:&mut A, set:&Self::Set, elm:&Elm) -> (Self::Set, bool);
+
+    // Elim forms:
+    fn elim_with<Arg,Res,NilC,ElmC,UnionC>(st:&mut A, set:&Self::Set, arg:Arg,
+                                           nil:&NilC, elm:&ElmC, union:&UnionC)
+        where NilC:FnOnce(&mut A, Arg) -> Res
+        ,     ElmC:FnOnce(&mut A, &Elm, Arg) -> Res
+        ,   UnionC:FnOnce(&mut A, &Self::Set, &Self::Set, Arg) -> Res
+        ;
+
+    fn is_mem(st:&mut A, set:&Self::Set, elm:&Elm) -> bool;                                
+    fn is_empty(st:&mut A, set:&Self::Set) -> bool; // TODO
+}
+
+trait MapT<A:Adapton,Dom:Ord+Hash+Clone,Cod:Ord+Hash+Clone> {
+    type Map;
+    
+    // Intro forms:
+    fn empty(st:&mut A);
+
+    fn add<Merge,Arg,Res>
+        (st:&mut A, map:&Self::Map,
+         x:&Dom, y:&Cod,
+         merge:&Merge) -> (Self::Map, Res)
+        where Merge:FnOnce(&mut A, &Cod, &Cod) -> (Cod, Res)
+        ;
+
+    // Special elims:
+    fn rem(st:&mut A, map:&Self::Map, x:&Dom) -> (Cod, Self::Map);
+    fn get(st:&mut A, set:&Self::Map, x:&Dom) -> Cod;
+
+    // General elim form:
+    fn elim_with<Arg,Res,NilC,ElmC,UnionC>
+        (st:&mut A, map:&Self::Map, arg:Arg,
+         nil:&NilC, elm:&ElmC, union:&UnionC)
+        where NilC:FnOnce(&mut A, Arg) -> Res
+        ,     ElmC:FnOnce(&mut A, &Dom, &Cod) -> Res
+        ,   UnionC:FnOnce(&mut A, &Self::Map, &Self::Map, Arg) -> Res
+        ;
+}
+
+trait GraphT<A:Adapton,NodeLab:Ord+Hash+Clone,EdgeLab:Ord+Hash+Clone> {
+    type Graph;
+    type Edge=(NodeLab,EdgeLab,NodeLab);    
+
+    // Intro forms:
+    fn empty(st:&mut A);
+    fn add_edge(st:&mut A, graph:&Self::Graph, edge:&Self::Edge) -> Self::Graph;
+    fn rem_edge(st:&mut A, graph:&Self::Graph, edge:&Self::Edge) -> Self::Graph;
+    fn add_node(st:&mut A, graph:&Self::Graph, node:&NodeLab) -> Self::Graph;
+    fn rem_node(st:&mut A, graph:&Self::Graph, node:&NodeLab) -> Self::Graph;
+
+    // Elim forms:
+    fn elim_with<Arg,Res,NodeC,EdgeC>
+        (st:&mut A, graph:&Self::Graph, node:&NodeLab, node:&NodeC, edge:&EdgeC) -> Res
+        where NodeC:FnOnce(&mut A, &NodeLab,    Arg) -> Res
+        ,     EdgeC:FnOnce(&mut A, &Self::Edge, Arg) -> Res
+        ;
+}
