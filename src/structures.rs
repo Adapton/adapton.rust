@@ -70,10 +70,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
         ,     NameC : FnOnce(&mut A, &A::Name, &Self::Tree, &Self::Tree) -> Res
         ;
     
-    fn fold_lr<Res:Hash+Debug+Eq+Clone,
-               LeafC:Hash+Eq+Debug+Clone,
-               BinC:Hash+Eq+Debug+Clone,
-               NameC:Hash+Eq+Debug+Clone>
+    fn fold_lr<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
         (st:&mut A, tree:&Self::Tree, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
         where LeafC:Fn(&mut A, &Leaf,    Res ) -> Res
         ,      BinC:Fn(&mut A, &Bin,     Res ) -> Res 
@@ -91,15 +88,15 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
              },
              |st,n,l,r,res| {
                  let (n1,n2,n3) = st.name_fork3(n.clone());
-                 let res = memo!(st, n1 =>> Self::fold_lr, tree:l, res:res, leaf:leaf, bin:bin, name:name);
+                 let res = memo!(st, n1 =>> Self::fold_lr, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
                  let res = name(st, &n2, res);
-                 let res = memo!(st, n3 =>> Self::fold_lr, tree:r, res:res, leaf:leaf, bin:bin, name:name);
+                 let res = memo!(st, n3 =>> Self::fold_lr, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
                  res
              }
              )
     }
 
-    fn fold_rl<Res:Clone,LeafC,BinC,NameC>
+    fn fold_rl<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
         (st:&mut A, tree:&Self::Tree, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
         where LeafC:Fn(&mut A, &Leaf,    Res ) -> Res
         ,      BinC:Fn(&mut A, &Bin,     Res ) -> Res
@@ -116,16 +113,17 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
                  res
              },
              |st,n,l,r,res| {
-                 let res = Self::fold_rl(st, r, res, leaf, bin, name);
-                 let res = name(st, n, res);
-                 let res = Self::fold_rl(st, l, res, leaf, bin, name);
+                 let (n1,n2,n3) = st.name_fork3(n.clone());
+                 let res = memo!(st, n1 =>> Self::fold_rl, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
+                 let res = name(st, &n2, res);
+                 let res = memo!(st, n3 =>> Self::fold_rl, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
                  res
              }
              )
     }
 
-    fn fold_up<Res:Clone,NilC,LeafC,BinC,NameC>
-        (st:&mut A, tree:&Self::Tree, nil:&NilC, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+    fn fold_up<Res:Hash+Debug+Eq+Clone,NilC,LeafC,BinC,NameC>
+        (st:&mut A, tree:&Self::Tree, dum:u8, nil:&NilC, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
         where  NilC:Fn(&mut A) -> Res
         ,     LeafC:Fn(&mut A, &Leaf              ) -> Res
         ,      BinC:Fn(&mut A, &Bin,     Res, Res ) -> Res
@@ -136,26 +134,27 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
              |st| nil(st),
              |st,x| leaf(st, x),
              |st,x,l,r| {
-                 let resl = Self::fold_up(st, l, nil, leaf, bin, name);
-                 let resr = Self::fold_up(st, r, nil, leaf, bin, name);
+                 let resl = Self::fold_up(st, l, dum, nil, leaf, bin, name);
+                 let resr = Self::fold_up(st, r, dum, nil, leaf, bin, name);
                  let res = bin(st, x, resl, resr);
                  res
              },
-             |st,n,l,r| {                 
-                 let resl = Self::fold_up(st, l, nil, leaf, bin, name);
-                 let resr = Self::fold_up(st, r, nil, leaf, bin, name);
-                 let res = name(st, n, resl, resr);
+             |st,n,l,r| {
+                 let (n1,n2,n3) = st.name_fork3(n.clone());
+                 let resl = memo!(st, n1 =>> Self::fold_up, tree:l, dum:dum ;; nil:nil, leaf:leaf, bin:bin, name:name);
+                 let resr = memo!(st, n2 =>> Self::fold_up, tree:r, dum:dum ;; nil:nil, leaf:leaf, bin:bin, name:name);
+                 let res = name(st, &n3, resl, resr);
                  res
              }
              )
     }
 }
 
-pub fn tree_reduce_monoid<A:Adapton,Elm:Hash+Clone,T:TreeT<A,Elm,()>,BinOp>
+pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm,()>,BinOp>
     (st:&mut A, tree:&T::Tree, zero:&Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
-    T::fold_up(st, tree,
+    T::fold_up(st, tree, 0,
                &|_|        zero.clone(),
                &|_,leaf|   leaf.clone(),
                &|st,_,l,r| binop(st,l,r),
@@ -163,7 +162,7 @@ pub fn tree_reduce_monoid<A:Adapton,Elm:Hash+Clone,T:TreeT<A,Elm,()>,BinOp>
                )
 }
 
-pub fn list_reduce_monoid<A:Adapton,Elm:Hash+Clone,L:ListT<A,Elm>,BinOp,T:TreeT<A,Elm,()>>
+pub fn list_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,L:ListT<A,Elm>,BinOp,T:TreeT<A,Elm,()>>
     (st:&mut A, list:&L::List, zero:&Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
@@ -176,7 +175,7 @@ pub fn tree_map<A:Adapton,X:Hash+Clone,Y:Hash+Clone,T:TreeT<A,X,Y>,FX:Hash+Clone
     where F:Fn(&mut A, &X) -> FX
     ,     G:Fn(&mut A, &Y) -> GY
 {
-    T::fold_up(st, tree,
+    T::fold_up(st, tree, 0,
                &|st|       FGT::nil(st),
                &|st,x|     {let fx = f(st,x);  FGT::leaf(st, fx)},
                &|st,y,l,r| {let gy = g(st, y); FGT::bin(st, gy, l, r)},
@@ -188,7 +187,7 @@ pub fn tree_filter<A:Adapton,X:Hash+Clone,T:TreeT<A,X,()>,F>
     (st:&mut A, tree:&T::Tree, f:&F) -> T::Tree
     where F:Fn(&mut A, &X) -> bool
 {
-    T::fold_up(st, tree,
+    T::fold_up(st, tree, 0,
                &|st|       T::nil(st),
                &|st,x|     { let fx = f(st,x);
                              if fx { T::leaf(st, x.clone()) }
@@ -445,7 +444,7 @@ pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
     (st:&mut A, list:&L::List) -> L::List
 {
     let tree = tree_of_list::<A,X,T,L>(st, list);
-    T::fold_up (st, &tree,
+    T::fold_up (st, &tree, 0,
                 &|st|                 L::nil(st),
                 &|st, x|              L::singleton(st, x.clone()),
                 &|st, _, left, right| list_merge::<A,X,L>(st, None, &left, None, &right),

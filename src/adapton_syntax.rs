@@ -174,6 +174,22 @@ macro_rules! memo {
         ($st).force(&t)
     }}
     ;
+    ( $st:expr , $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+        let t = ($st).thunk
+            (ArtIdChoice::Nominal($nm),
+             prog_pt!(f),
+             Rc::new(Box::new(
+                 |st, args1, args2|{
+                     let ($( $lab1 ),*) = args1 ;
+                     let ($( $lab2 ),*) = args2 ;
+                     $f ( st, $( $lab1 ),* , $( $lab2 ),* )
+                 })),
+             ( $( $arg1 ),* ),
+             ( $( $arg2 ),* ),
+             );
+        ($st).force(&t)
+    }}
+    ;
 }
 
 // https://doc.rust-lang.org/book/macros.html
