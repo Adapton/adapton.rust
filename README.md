@@ -1,4 +1,4 @@
-Adapton in Rust
+Adapton in Rust  ![Travis](https://api.travis-ci.org/plum-umd/adapton.rust.svg?branch=master)
 ========================
 
 A general-purpose **Incremental Computation** (IC) library for Rust.
@@ -10,8 +10,7 @@ A general-purpose **Incremental Computation** (IC) library for Rust.
  - [an earlier OCaml implementation](https://github.com/plum-umd/adapton.ocaml).
 
 Development Activities
------------------------
-![Travis](https://api.travis-ci.org/plum-umd/adapton.rust.svg?branch=master)
+----------------------- 
 
  - Building Adapton in Rust around core interface, the
    [`Adapton` trait](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_sigs.rs#L7).
