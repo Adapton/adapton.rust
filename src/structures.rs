@@ -213,7 +213,7 @@ pub fn rev_list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
     (st:&mut A, tree:&T::Tree) -> L::List
 {
     let nil = L::nil(st);
-    T::fold_rl(st, tree, nil,
+    T::fold_lr(st, tree, nil,
                &|st,x,xs| L::cons(st,x.clone(),xs),
                &|_,_,xs|  xs,
                &|st,n,xs| L::name(st,n.clone(),xs)
