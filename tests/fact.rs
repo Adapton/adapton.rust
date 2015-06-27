@@ -1,6 +1,8 @@
 use std::rc::Rc;
 use std::mem::replace;
 
+extern crate adapton;
+
 use adapton::adapton_syntax::* ;
 use adapton::adapton_sigs::* ;
 use adapton::adapton_state::* ;
@@ -14,7 +16,7 @@ pub fn fact<'r> (st:&'r mut AdaptonState, x:Rc<u64>) -> Rc<u64> {
 
 pub fn run_fact (x:u64) -> u64 {
     let mut st = AdaptonState::new() ;
-    let t = st.thunk(ArtId::Eager,
+    let t = st.thunk(ArtIdChoice::Eager,
                      panic!("prog_pt!(fact)"),
                      Rc::new(Box::new(fact)),
                      Rc::new(x)) ;
@@ -23,6 +25,7 @@ pub fn run_fact (x:u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
+
     extern crate test;
     use super::*;
     use self::test::Bencher;

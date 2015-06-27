@@ -91,9 +91,9 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
              },
              |st,n,l,r,res| {
                  let (n1,n2,n3) = st.name_fork3(n.clone());
-                 let res = memo!(st, n1 =>> Self::fold_lr, tree:l, res:res ; leaf:leaf, bin:bin, name:name);
+                 let res = memo!(st, n1 =>> Self::fold_lr, tree:l, res:res, leaf:leaf, bin:bin, name:name);
                  let res = name(st, &n2, res);
-                 let res = memo!(st, n3 =>> Self::fold_lr, tree:r, res:res ; leaf:leaf, bin:bin, name:name);
+                 let res = memo!(st, n3 =>> Self::fold_lr, tree:r, res:res, leaf:leaf, bin:bin, name:name);
                  res
              }
              )
@@ -501,25 +501,25 @@ trait MapT<A:Adapton,Dom:Hash+Clone,Cod:Hash+Clone> {
         ;
 }
 
-trait GraphT<A:Adapton,NodeLab:Hash+Clone,EdgeLab:Hash+Clone> {
-    type Graph;
-    type Edge=(NodeLab,EdgeLab,NodeLab);    
+// trait GraphT<A:Adapton,NodeLab:Hash+Clone,EdgeLab:Hash+Clone> {
+//     type Graph;
+//     type Edge=(NodeLab,EdgeLab,NodeLab);    
 
-    // Intro forms:
-    fn empty(st:&mut A);
-    fn add_edge(st:&mut A, graph:&Self::Graph, edge:&Self::Edge) -> Self::Graph;
-    fn add_node(st:&mut A, graph:&Self::Graph, node:&NodeLab) -> Self::Graph;
-    fn get_succs(st: &mut A, graph:&Self::Graph, node:&Self::Node) -> SetT<A,Edge>; // Q: What return type to use here?
+//     // Intro forms:
+//     fn empty(st:&mut A);
+//     fn add_edge(st:&mut A, graph:&Self::Graph, edge:&Self::Edge) -> Self::Graph;
+//     fn add_node(st:&mut A, graph:&Self::Graph, node:&NodeLab) -> Self::Graph;
+//     fn get_succs(st: &mut A, graph:&Self::Graph, node:&Self::Node) -> SetT<A,Edge>; // Q: What return type to use here?
 
-    // Other forms:
-    fn rem_node(st:&mut A, graph:&Self::Graph, node:&NodeLab) -> Self::Graph;
-    fn rem_edge(st:&mut A, graph:&Self::Graph, edge:&Self::Edge) -> Self::Graph;
+//     // Other forms:
+//     fn rem_node(st:&mut A, graph:&Self::Graph, node:&NodeLab) -> Self::Graph;
+//     fn rem_edge(st:&mut A, graph:&Self::Graph, edge:&Self::Edge) -> Self::Graph;
     
-    // Elim forms (?):
-    // TODO: This elim form doesn't make a lot of sense for graphs.
-    fn elim_with<Arg,Res,NodeC,EdgeC>
-        (st:&mut A, graph:&Self::Graph, node:&NodeLab, node:&NodeC, edge:&EdgeC) -> Res
-        where NodeC:FnOnce(&mut A, &NodeLab,    Arg) -> Res
-        ,     EdgeC:FnOnce(&mut A, &Self::Edge, Arg) -> Res
-        ;
-}
+//     // Elim forms (?):
+//     // TODO: This elim form doesn't make a lot of sense for graphs.
+//     fn elim_with<Arg,Res,NodeC,EdgeC>
+//         (st:&mut A, graph:&Self::Graph, node:&NodeLab, node:&NodeC, edge:&EdgeC) -> Res
+//         where NodeC:FnOnce(&mut A, &NodeLab,    Arg) -> Res
+//         ,     EdgeC:FnOnce(&mut A, &Self::Edge, Arg) -> Res
+//         ;
+// }
