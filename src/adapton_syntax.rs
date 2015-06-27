@@ -59,11 +59,12 @@ macro_rules! thunk {
             (ArtIdChoice::Nominal($nm),
              prog_pt!(f),
              Rc::new(Box::new(
-                 |st, args|{
+                 |st, args, _|{
                      let ($( $lab ),*) = args ;
                      $f :: < $( $ty ),* >( st, $( $lab ),* )
                  })),
-             ( $( $arg ),* )
+             ( $( $arg ),* ),
+             ()
              )
     }}
     ;
@@ -72,11 +73,12 @@ macro_rules! thunk {
             (ArtIdChoice::Nominal($nm),
              prog_pt!(f),
              Rc::new(Box::new(
-                 |st, args|{
+                 |st, args, _|{
                      let ($( $lab ),*) = args ;
                      $f ( st, $( $lab ),* )
                  })),
-             ( $( $arg ),* )
+             ( $( $arg ),* ),
+             ()
              )
     }}
     ;
@@ -85,11 +87,12 @@ macro_rules! thunk {
             (ArtIdChoice::Structural,
              prog_pt!(f),
              Rc::new(Box::new(
-                 |st, args|{
+                 |st, args, _|{
                      let ($( $lab ),*) = args ;
                      $f :: < $( $ty ),* >( st, $( $lab ),* )
                  })),
-             ( $( $arg ),* )
+             ( $( $arg ),* ),
+             ()
              )
     }}
     ;
@@ -98,11 +101,12 @@ macro_rules! thunk {
             (ArtIdChoice::Structural,
              prog_pt!(f),
              Rc::new(Box::new(
-                 |st, args|{
+                 |st, args, _|{
                      let ($( $lab ),*) = args ;
-                     $f ( st, $( $lab ),* )
+                     $f ( st, $( $lab ),* () )
                  })),
-             ( $( $arg ),* )
+             ( $( $arg ),* ),
+             ()
              )        
     }}
     ;
@@ -115,11 +119,12 @@ macro_rules! memo {
             (ArtIdChoice::Nominal($nm),
              prog_pt!(f),
              Rc::new(Box::new(
-                 |st, args|{
+                 |st, args, _|{
                      let ($( $lab ),*) = args ;
                      $f :: < $( $ty ),* >( st, $( $lab ),* )
                  })),
-             ( $( $arg ),* )
+             ( $( $arg ),*, ),
+             ()
              );
         ($st).force(&t)
     }}
@@ -129,11 +134,12 @@ macro_rules! memo {
             (ArtIdChoice::Nominal($nm),
              prog_pt!(f),
              Rc::new(Box::new(
-                 |st, args|{
+                 |st, args, _|{
                      let ($( $lab ),*) = args ;
                      $f ( st, $( $lab ),* )
                  })),
-             ( $( $arg ),* )
+             ( $( $arg ),* ),
+             ()
              );
         ($st).force(&t)
     }}
@@ -143,11 +149,12 @@ macro_rules! memo {
             (ArtIdChoice::Structural,
              prog_pt!(f),
              Rc::new(Box::new(
-                 |st, args|{
+                 |st, args, _|{
                      let ($( $lab ),*) = args ;
                      $f :: < $( $ty ),* >( st, $( $lab ),* )
                  })),
-             ( $( $arg ),* )
+             ( $( $arg ),* ),
+             ()
              );
         ($st).force(&t)
     }}
@@ -157,11 +164,12 @@ macro_rules! memo {
             (ArtIdChoice::Structural,
              prog_pt!(f),
              Rc::new(Box::new(
-                 |st, args|{
+                 |st, args, _|{
                      let ($( $lab ),*) = args ;
                      $f ( st, $( $lab ),* )
                  })),
-             ( $( $arg ),* )
+             ( $( $arg ),* ),
+             ()
              );
         ($st).force(&t)
     }}
