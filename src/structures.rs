@@ -221,7 +221,7 @@ pub fn rev_list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
 }
 
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
-enum List<A:Adapton,Hd> {
+pub enum List<A:Adapton,Hd> {
     Nil,
     Cons(Hd,      Box<List<A,Hd>>),
     Rc(           Rc<List<A,Hd>>),
@@ -279,7 +279,7 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> L
 }
 
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
-enum Tree<A:Adapton,X,Y> {
+pub enum Tree<A:Adapton,X,Y> {
     Nil,
     Leaf(X),
     Bin(Y,        Box<Tree<A,X,Y>>, Box<Tree<A,X,Y>> ),
@@ -456,72 +456,84 @@ pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
                 )
 }
 
-trait SetT<A:Adapton,Elm:Hash+Clone> {
+pub trait SetT
+    <A:Adapton
+    ,Elm:Hash+Clone>
+{
     type Set;
 
     // Intro forms:
     fn empty(st:&mut A);
-    fn add_elm(st:&mut A, set:&Self::Set, elm:&Elm) -> (Self::Set, bool);
-    fn rem_elm(st:&mut A, set:&Self::Set, elm:&Elm) -> (Self::Set, bool);
 
+    fn update_elm<Update,Res>
+        (st:&mut A, set:&Self::Set, elm:&Elm,
+         update:&Update)
+         -> (Self::Set, Res)
+        where Update:FnOnce(&mut A, Option<Elm>, &Elm) -> (Option<Elm>, Res)
+        ;
+    
     // Elim forms:
-    fn elim_with<Arg,Res,NilC,ElmC,UnionC>(st:&mut A, set:&Self::Set, arg:Arg,
-                                           nil:&NilC, elm:&ElmC, union:&UnionC)
+    fn elim_with<Arg,Res,NilC,ElmC,UnionC>
+        (st:&mut A, set:&Self::Set, arg:Arg,
+         nil:&NilC, elm:&ElmC, union:&UnionC)
+         -> Res
         where NilC:FnOnce(&mut A, Arg) -> Res
         ,     ElmC:FnOnce(&mut A, &Elm, Arg) -> Res
         ,   UnionC:FnOnce(&mut A, &Self::Set, &Self::Set, Arg) -> Res
         ;
 
-    fn is_mem(st:&mut A, set:&Self::Set, elm:&Elm) -> bool;
-    fn is_empty(st:&mut A, set:&Self::Set) -> bool; // TODO
+    fn is_mem(st:&mut A, set:&Self::Set, elm:&Elm) -> bool; // TODO: Write based on update, above.
+    fn is_empty(st:&mut A, set:&Self::Set) -> bool; // TODO: Write based on elim_with, above.
 }
 
-trait MapT<A:Adapton,Dom:Hash+Clone,Cod:Hash+Clone> {
+pub trait MapT
+    <A:Adapton
+    ,Dom:Hash+Clone
+    ,Cod:Hash+Clone>
+{
     type Map;
     
     // Intro forms:
     fn empty(st:&mut A);
 
-    fn add<Merge,Arg,Res>
+    fn update_pt<Update,Res>
         (st:&mut A, map:&Self::Map,
-         x:&Dom, y:&Cod,
-         merge:&Merge) -> (Self::Map, Res)
-        where Merge:FnOnce(&mut A, &Cod, &Cod) -> (Cod, Res)
+         pt:&Dom, cod:&Option<Cod>, update:&Update) -> (Self::Map, Res)
+        where Update:FnOnce(&mut A, Option<Cod>, Option<Cod>) -> (Option<Cod>, Res)
         ;
-
-    // Special elims:
-    fn rem(st:&mut A, map:&Self::Map, x:&Dom) -> (Cod, Self::Map);
-    fn get(st:&mut A, set:&Self::Map, x:&Dom) -> Cod;
 
     // General elim form:
     fn elim_with<Arg,Res,NilC,ElmC,UnionC>
         (st:&mut A, map:&Self::Map, arg:Arg,
          nil:&NilC, elm:&ElmC, union:&UnionC)
         where NilC:FnOnce(&mut A, Arg) -> Res
-        ,     ElmC:FnOnce(&mut A, &Dom, &Cod) -> Res
+        ,     ElmC:FnOnce(&mut A, &Dom, &Option<Cod>) -> Res
         ,   UnionC:FnOnce(&mut A, &Self::Map, &Self::Map, Arg) -> Res
         ;
+    
+    // Special, convenient update_pts:
+    fn rem(st:&mut A, map:&Self::Map, x:&Dom) -> (Option<Cod>, Self::Map); // TODO: Implement with update_pt
+    fn get(st:&mut A, set:&Self::Map, x:&Dom) -> Option<Cod>; // TODO: Implement with update_pt
 }
 
-// trait GraphT<A:Adapton,NodeLab:Hash+Clone,EdgeLab:Hash+Clone> {
-//     type Graph;
-//     type Edge=(NodeLab,EdgeLab,NodeLab);    
+pub trait GraphT
+    <A:Adapton
+    ,Node:Hash+Eq+Clone+Debug
+    ,NodeSet:SetT<A,Node>
+    ,NodeMap:MapT<A,Node,NodeSet>>
+{
+    type Graph : Hash+Eq+Clone+Debug;
 
-//     // Intro forms:
-//     fn empty(st:&mut A);
-//     fn add_edge(st:&mut A, graph:&Self::Graph, edge:&Self::Edge) -> Self::Graph;
-//     fn add_node(st:&mut A, graph:&Self::Graph, node:&NodeLab) -> Self::Graph;
-//     fn get_succs(st: &mut A, graph:&Self::Graph, node:&Self::Node) -> SetT<A,Edge>; // Q: What return type to use here?
+    // Intro forms:
+    fn empty(st:&mut A);
+    fn add_node(st:&mut A, graph:&Self::Graph, node:&Node) -> Self::Graph;
+    fn add_edge(st:&mut A, graph:&Self::Graph, src:&Node, tgt:&Node) -> Self::Graph;
+    fn add_succs(st: &mut A, graph:&Self::Graph, node:&Node, succs:&NodeSet) -> Self::Graph;
 
-//     // Other forms:
-//     fn rem_node(st:&mut A, graph:&Self::Graph, node:&NodeLab) -> Self::Graph;
-//     fn rem_edge(st:&mut A, graph:&Self::Graph, edge:&Self::Edge) -> Self::Graph;
+    // Query forms:
+    fn get_succs(st: &mut A, graph:&Self::Graph, node:&Node) -> NodeSet;
     
-//     // Elim forms (?):
-//     // TODO: This elim form doesn't make a lot of sense for graphs.
-//     fn elim_with<Arg,Res,NodeC,EdgeC>
-//         (st:&mut A, graph:&Self::Graph, node:&NodeLab, node:&NodeC, edge:&EdgeC) -> Res
-//         where NodeC:FnOnce(&mut A, &NodeLab,    Arg) -> Res
-//         ,     EdgeC:FnOnce(&mut A, &Self::Edge, Arg) -> Res
-//         ;
-// }
+    // Other forms:
+    // fn rem_node(st:&mut A, graph:&Self::Graph, node:&NodeLab) -> Self::Graph;
+    // fn rem_edge(st:&mut A, graph:&Self::Graph, edge:&Self::Edge) -> Self::Graph;    
+}
