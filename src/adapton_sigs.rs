@@ -38,23 +38,6 @@ pub trait Adapton {
     fn name_of_string (self:&mut Self, String) -> Self::Name ;
     fn name_pair      (self:&mut Self, Self::Name, Self::Name) -> Self::Name               ;
     fn name_fork      (self:&mut Self, Self::Name)             -> (Self::Name, Self::Name) ;
-
-    fn name_fork3 (self:&mut Self, n:Self::Name)
-                   -> (Self::Name,Self::Name,Self::Name)
-    {
-        let (n1,n)  = self.name_fork(n);
-        let (n2,n3) = self.name_fork(n);
-        (n1,n2,n3)
-    }
-    
-    fn name_fork4 (self:&mut Self, n:Self::Name)
-                   -> (Self::Name,Self::Name,Self::Name,Self::Name)
-    {
-        let (n1,n)  = self.name_fork(n);
-        let (n2,n)  = self.name_fork(n);
-        let (n3,n4) = self.name_fork(n);
-        (n1,n2,n3,n4)
-    }
     
     // Namespaces
     fn ns<T,F> (self: &mut Self, Self::Name, body:F) -> T
@@ -68,16 +51,30 @@ pub trait Adapton {
     fn set<T:Eq+Debug+Clone> (self:&mut Self, MutArt<T,Self::Loc>, T) ;
 
     // Computation arts: thunk
-    fn thunk<Arg:Eq+Hash+Debug+Clone,T:Eq+Debug+Clone>
+    fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone>
         (self:&mut Self,
          id:ArtIdChoice<Self::Name>,
          prog_pt:ProgPt,
-         fn_box:Rc<Box< Fn(&mut Self, Arg)->T >>,
-         arg:Arg)
-         -> Art<T,Self::Loc> ;
+         fn_box:Rc<Box< Fn(&mut Self, Arg, Spurious) -> Res >>,
+         arg:Arg, spurious:Spurious)
+         -> Art<Res,Self::Loc> ;
 
     // Demand & observe arts (all kinds): force
     fn force<T:Eq+Debug+Clone> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
+
+    fn name_fork3 (self:&mut Self, n:Self::Name)
+                   -> (Self::Name,Self::Name,Self::Name) {
+        let (n1,n)  = self.name_fork(n);
+        let (n2,n3) = self.name_fork(n);
+        (n1,n2,n3)
+    }
+    
+    fn name_fork4 (self:&mut Self, n:Self::Name)
+                   -> (Self::Name,Self::Name,Self::Name,Self::Name) {
+        let (n1,n2,n) = self.name_fork3(n);
+        let (n3,n4)   = self.name_fork(n);
+        (n1,n2,n3,n4)
+    }
 }
 
 // I wanted to have a shorthand, but I get an ICE if I use this.

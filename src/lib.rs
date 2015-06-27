@@ -14,7 +14,7 @@ pub mod adapton_syntax ;
 pub mod adapton_sigs ;
 pub mod adapton_state ;
 
-pub mod structures ;
+// pub mod structures ;
 
 // pub mod fact ;
 

@@ -175,34 +175,38 @@ trait Consumer<Arg> {
 }
 // struct App is hidden by traits Comp<Res> and CompWithArg<Res>, below.
 #[derive(Clone)]
-struct App<Arg,Res> {
+struct App<Arg,Spurious,Res> {
     prog_pt: ProgPt,
-    fn_box:  Rc<Box<Fn(&mut AdaptonState, Arg) -> Res>>,
-    arg:     Arg,
+    fn_box:   Rc<Box<Fn(&mut AdaptonState, Arg, Spurious) -> Res>>,
+    arg:      Arg,
+    spurious: Spurious,
 }
 
 // ---------- App implementation of Debug and Hash
 
-impl<Arg,Res> Debug for App<Arg,Res> {
+impl<Arg,Spurious,Res> Debug for App<Arg,Spurious,Res> {
     fn fmt(&self, f: &mut Formatter) -> Result { self.prog_pt.fmt(f) }
 }
 
-impl<Arg:Hash,Res> Hash for App<Arg,Res> {
+impl<Arg:Hash,Spurious,Res> Hash for App<Arg,Spurious,Res> {
     fn hash<H>(&self, state: &mut H) where H: Hasher { (&self.prog_pt,&self.arg).hash(state) }
 }
 
 // ---------- App implementation of Producer and Consumer traits:
 
-impl<Arg:'static+PartialEq+Eq+Clone,Res:'static> Producer<Res> for App<Arg,Res> {
+impl<Arg:'static+PartialEq+Eq+Clone,Spurious:'static+Clone,Res:'static> Producer<Res>
+    for App<Arg,Spurious,Res>
+{
     fn produce(self:&Self, st:&mut AdaptonState) -> Res {
         let f = self.fn_box.clone() ;
-        f (st,self.arg.clone())
+        f (st,self.arg.clone(),self.spurious.clone())
     }
     fn copy(self:&Self) -> Box<Producer<Res>> {
         Box::new(App{
             prog_pt:self.prog_pt.clone(),
             fn_box:self.fn_box.clone(),
             arg:self.arg.clone(),
+            spurious:self.spurious.clone(),
         })
     }
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt {
@@ -211,14 +215,15 @@ impl<Arg:'static+PartialEq+Eq+Clone,Res:'static> Producer<Res> for App<Arg,Res> 
     fn eq (&self, other:&Producer<Res>) -> bool {
         if &self.prog_pt == other.prog_pt() {
             let other = Box::new(other) ;
-            let other : &Box<App<Arg,Res>> = unsafe { transmute::<_,_>( other ) } ;
+            // This is safe if the prog_pt implies unique Arg and Res types.
+            let other : &Box<App<Arg,Spurious,Res>> = unsafe { transmute::<_,_>( other ) } ;
             self.arg == other.arg
         } else {
             false
         }
     }
 }
-impl<Arg:Clone+PartialEq+Eq,Res> Consumer<Arg> for App<Arg,Res> {
+impl<Arg:Clone+PartialEq+Eq,Spurious,Res> Consumer<Arg> for App<Arg,Spurious,Res> {
     fn consume(self:&mut Self, arg:Arg) { replace(&mut self.arg, arg); }
     fn get_arg(self:&mut Self) -> Arg   { self.arg.clone() }
 }
@@ -566,21 +571,17 @@ impl Adapton for AdaptonState {
         else { }
     }
 
-    fn thunk<Arg:Eq+Hash+Debug+Clone
-        +'static // Needed on Arg because of lifetime issues.
-        ,T:Eq+Debug+Clone
-        +'static // Needed on T because of lifetime issues.
-        >
+    fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+'static>
         (self:&mut AdaptonState,
          id:ArtIdChoice<Self::Name>,
          prog_pt:ProgPt,
-         fn_box:Rc<Box<Fn(&mut AdaptonState, Arg) -> T>>,
-         arg:Arg)
-         -> Art<T,Self::Loc>
+         fn_box:Rc<Box<Fn(&mut AdaptonState, Arg, Spurious) -> Res>>,
+         arg:Arg, spurious:Spurious)
+         -> Art<Res,Self::Loc>
     {
         match id {
             ArtIdChoice::Eager => {
-                Art::Rc(Rc::new(fn_box(self,arg)))
+                Art::Rc(Rc::new(fn_box(self,arg,spurious)))
             },
             ArtIdChoice::Structural => {
                 let hash = my_hash (&(&prog_pt, &arg)) ;
@@ -607,12 +608,13 @@ impl Adapton for AdaptonState {
                         v.push(pred);
                         v
                     };
-                let producer : Box<Producer<T>> =
+                let producer : Box<Producer<Res>> =
                     Box::new(App{prog_pt:prog_pt,
                                  fn_box:fn_box,
-                                 arg:arg.clone()})
+                                 arg:arg.clone(),
+                                 spurious:spurious.clone()})
                     ;
-                let node : CompNode<T> = CompNode{
+                let node : CompNode<Res> = CompNode{
                     preds_alloc:creators,
                     preds_obs:Vec::new(),
                     succs:Vec::new(),
@@ -627,15 +629,17 @@ impl Adapton for AdaptonState {
             ArtIdChoice::Nominal(nm) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Nominal(nm)));
-                let producer : App<Arg,T> =
+                let producer : App<Arg,Spurious,Res> =
                     App{prog_pt:prog_pt,
                         fn_box:fn_box,
-                        arg:arg.clone()}
+                        arg:arg.clone(),
+                        spurious:spurious.clone(),
+                    }
                 ;
                 let do_dirty : bool = {
                     let nd = lookup_abs(self, &loc) ;
-                    let res_nd: &mut Node<T> = unsafe { transmute::<_,_>( nd ) };
-                    let comp_nd: &mut CompNode<T> = match *res_nd {
+                    let res_nd: &mut Node<Res> = unsafe { transmute::<_,_>( nd ) };
+                    let comp_nd: &mut CompNode<Res> = match *res_nd {
                         Node::Pure(_)=> unreachable!(),
                         Node::Mut(_) => panic!("TODO-Sometime"),
                         Node::Comp(ref mut comp) => comp
@@ -675,7 +679,7 @@ impl Adapton for AdaptonState {
                         v.push(pred);
                         v
                     }};
-                let node : CompNode<T> = CompNode{
+                let node : CompNode<Res> = CompNode{
                     preds_alloc:creators,
                     preds_obs:Vec::new(),
                     succs:Vec::new(),
