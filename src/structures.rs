@@ -141,6 +141,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
              },
              |st,n,l,r| {
                  let (n1,n2,n3) = st.name_fork3(n.clone());
+                 // FIXME: the dum arg is used below to fix the macro expansion error for the case where there's only one non-spurious arg.
                  let resl = memo!(st, n1 =>> Self::fold_up, tree:l, dum:dum ;; nil:nil, leaf:leaf, bin:bin, name:name);
                  let resr = memo!(st, n2 =>> Self::fold_up, tree:r, dum:dum ;; nil:nil, leaf:leaf, bin:bin, name:name);
                  let res = name(st, &n3, resl, resr);
