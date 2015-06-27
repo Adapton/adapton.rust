@@ -412,7 +412,7 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
                   Some(n1) => {
                       let (n1a, n1b) = st.name_fork(n1.clone());
                       let rest = thunk!(st, n1a =>>
-                                       list_merge::<A,X,L>,
+                                        list_merge::<A,X,L>,
                                         n1:None, l1:t1, n2:n2, l2:l2);
                       let rest = L::art(st, rest);
                       let rest = L::cons(st, (*h1).clone(), rest);
@@ -429,7 +429,7 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
                   Some(n2) => {
                       let (n2a, n2b) = st.name_fork(n2.clone());
                       let rest = thunk!(st, n2a =>>
-                                       list_merge::<A,X,L>,
+                                        list_merge::<A,X,L>,
                                         n1:n1, l1:l1, n2:None, l2:t2);
                       let rest = L::art(st, rest);
                       let rest = L::cons(st, (*h2).clone(), rest);
