@@ -70,9 +70,10 @@ Rust-Specific:
 --------------------
 - The concept of "object safety" seems to bite me a lot in naive designs.
 I sidestepped this problem in `adapton_state.rs` twice: by writing `Producer::copy` and the `ShapeShifter` trait.  Both avoid returning a `Self`.  
-Is there a better way?  
+Is there a better way?
+See also: https://github.com/rust-lang/rfcs/blob/master/text/0255-object-safety.md
 - Do I need really need `Rc<Box<Fn (_) -> _>>` instead of `Rc<Fn (_) -> _>`? (Why?)  
 - Done:
-  - http://users.rust-lang.org/t/trait-objects-with-associated-types/746/16?u=matthewhammer  
+  - [trait-objects-with-associated-types](http://users.rust-lang.org/t/trait-objects-with-associated-types/746/16?u=matthewhammer)
 
  
