@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
-use std::mem::replace;
 
 use adapton_syntax::* ;
 use adapton_sigs::* ;

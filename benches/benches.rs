@@ -54,7 +54,6 @@ mod fib {
         extern crate test;
         use self::test::Bencher;
 
-        use std::mem::replace;
         use std::rc::Rc;
         
         use adapton::adapton_syntax::* ;
@@ -148,7 +147,6 @@ mod fact {
         extern crate test;
         use self::test::Bencher;
 
-        use std::mem::replace;
         use std::rc::Rc;
         
         use adapton::adapton_syntax::* ;

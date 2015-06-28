@@ -16,8 +16,6 @@ use std::hash::{Hash,Hasher,SipHasher};
 
 #[derive(PartialEq,Eq,Clone,Hash,Debug)]
 pub struct ProgPt {
-    pub hash:u64, // hash of all fields below:
-
     // Symbolic identity, in Rust semantics:
     pub symbol:&'static str, // via stringify!(...)
     // module:Rc<String>, // via module!()
@@ -38,20 +36,14 @@ pub fn my_hash<T>(obj: T) -> u64
 
 #[macro_export]
 macro_rules! prog_pt {
-    ($symbol:ident) => {
-        {
-            let mut p = ProgPt{
-                hash:0,
-                symbol:stringify!($symbol),
-                file:file!(),
-                line:line!(),
-                column:column!(),                    
-            } ;
-            let h = my_hash(&p) ;
-            replace(&mut p.hash, h);
-            p
+    ($symbol:ident) => {{
+        ProgPt{
+            symbol:stringify!($symbol),
+            file:file!(),
+            line:line!(),
+            column:column!(),                    
         }
-    }
+    }}
 }
 
 #[macro_export]
