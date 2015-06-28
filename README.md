@@ -5,20 +5,21 @@ A general-purpose **Incremental Computation** (IC) library for Rust.
 
 **Based on**:
 
- - [the paper _Incremental Computation with Names_, 2015](http://arxiv.org/abs/1503.07792).
+ - The paper [_Incremental Computation with Names_, 2015](http://arxiv.org/abs/1503.07792).
 
- - [an earlier OCaml implementation](https://github.com/plum-umd/adapton.ocaml).
+ - A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).
 
 Development Activities
------------------------ 
+-----------------------
+ - The library exposes a small core interface.  
+   See the [`Adapton` trait](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_sigs.rs#L7).  
 
- - Building Adapton in Rust around core interface, the
-   [`Adapton` trait](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_sigs.rs#L7).
-    
- - The library implements this interface with an imperative data structure,
-   [`AdaptonState`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_state.rs).
+ - The library implements this interface with an imperative data structure.  
+   See [`AdaptonState`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_state.rs).  
+   See also: [_Incremental Computation with Names_, 2015](http://arxiv.org/abs/1503.07792).
 
- - I am learning Rust in the process.  See detailed Q&A below.
+ - Rust macros provide syntactic sugar.  
+   See [`adapton_syntax`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_syntax.rs).  
 
 **Testing:**
 

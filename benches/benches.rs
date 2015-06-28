@@ -2,42 +2,81 @@
 #[macro_use]
 extern crate adapton ;
 
-use std::mem::replace;
-use std::rc::Rc;
+mod fact {
+    #[cfg(test)]
+    mod no_caching {
+        extern crate test;
+        use self::test::Bencher;
+        
+        pub fn fact (x:u64) -> u64 {
+            if x == 0 { 1 } else { x * fact(x-1) }
+        }
+        
+        pub fn fact_repeat (x:u64, n:u64) -> u64 {
+            for _ in 1..(n-1) {
+                fact(x);
+            }
+            fact(x)
+        }
 
-use adapton::adapton_syntax::* ;
-use adapton::adapton_sigs::* ;
-use adapton::adapton_state::* ;
+        #[test]
+        fn it_works() {
+            assert_eq!(120 as u64, fact(5));
+        }
+        
+        #[bench]
+        fn bench_fact(b: &mut Bencher) {
+            b.iter(|| fact(1000));
+        }
 
-pub fn fact<'r> (st:&'r mut AdaptonState, x:Rc<u64>, _:() ) -> Rc<u64> {
-    if *x == 0 { Rc::new(1) } else {
-        let res = fact(st, Rc::new(*x-1), ());
-        Rc::new(*x * *res)
+        #[bench]
+        fn bench_fact_repeat(b: &mut Bencher) {
+            b.iter(|| fact_repeat(100, 1000));
+        }
     }
-}
 
-pub fn run_fact (x:u64) -> u64 {
-    let mut st = AdaptonState::new() ;
-    let t = st.thunk(ArtIdChoice::Structural,
-                     prog_pt!(fact),
-                     Rc::new(Box::new(fact)),
-                     Rc::new(x), ()) ;
-    *(st.force(&t))
-}
+    #[cfg(test)]
+    mod pure_caching {
+        extern crate test;
+        use self::test::Bencher;
 
-#[cfg(test)]
-mod tests {
-    extern crate test;
-    use super::*;
-    use self::test::Bencher;
-    
-    #[test]
-    fn it_works() {
-        assert_eq!(120 as u64, run_fact(5));
-    }
-    
-    #[bench]
-    fn bench_fact_5(b: &mut Bencher) {
-        b.iter(|| run_fact(5));
+        use std::mem::replace;
+        use std::rc::Rc;
+        
+        use adapton::adapton_syntax::* ;
+        use adapton::adapton_sigs::* ;
+        use adapton::adapton_state::* ;
+        
+        pub fn fact<A:Adapton> (st:&mut A, x:u64, _n:() ) -> u64 {
+            if x == 0 { 1 } else { x * (memo!(st, fact, x:x-1, _n:())) }
+        }
+        
+        pub fn run_fact (x:u64) -> u64 {
+            let mut st = &mut (AdaptonState::new()) ;
+            memo!(st, fact, x:x, _n:())
+        }
+
+        pub fn run_fact_repeat (x:u64, n:u64) -> u64 {
+            let mut st = &mut (AdaptonState::new()) ;
+            for _ in 1..(n-1) {
+                memo!(st, fact, x:x, _n:());
+            }
+            memo!(st, fact, x:x, _n:())
+        }
+
+        #[test]
+        fn it_works() {
+            assert_eq!(120 as u64, run_fact(5));
+        }
+        
+        #[bench]
+        fn bench_fact(b: &mut Bencher) {
+            b.iter(|| run_fact(100));
+        }
+
+        #[bench]
+        fn bench_fact_repeat(b: &mut Bencher) {
+            b.iter(|| run_fact_repeat(100, 100));
+        }
     }
 }
