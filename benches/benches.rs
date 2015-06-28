@@ -9,12 +9,12 @@ mod fact {
         use self::test::Bencher;
         
         pub fn fact (x:u64) -> u64 {
-            if x == 0 { 1 } else { x * fact(x-1) }
+            if x == 0 { 1 } else { test::black_box(x) * fact(x-1) }
         }
         
         pub fn fact_repeat (x:u64, n:u64) -> u64 {
             for _ in 1..(n-1) {
-                fact(x);
+                test::black_box(fact(x));
             }
             fact(x)
         }
@@ -26,12 +26,12 @@ mod fact {
         
         #[bench]
         fn bench_fact(b: &mut Bencher) {
-            b.iter(|| fact(1000));
+            b.iter(|| test::black_box(fact(100)));
         }
 
         #[bench]
         fn bench_fact_repeat(b: &mut Bencher) {
-            b.iter(|| fact_repeat(100, 1000));
+            b.iter(|| test::black_box(fact_repeat(100, 100)));
         }
     }
 
@@ -71,12 +71,12 @@ mod fact {
         
         #[bench]
         fn bench_fact(b: &mut Bencher) {
-            b.iter(|| run_fact(100));
+            b.iter(|| test::black_box(run_fact(100)));
         }
 
         #[bench]
         fn bench_fact_repeat(b: &mut Bencher) {
-            b.iter(|| run_fact_repeat(100, 100));
+            b.iter(|| test::black_box(run_fact_repeat(100, 100)));
         }
     }
 }
