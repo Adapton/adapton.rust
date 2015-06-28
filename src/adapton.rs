@@ -1,12 +1,7 @@
-// #![feature(unsafe_destructor, macro_rules, phase, globs, default_type_params)]
-// #![feature(unboxed_closures)]
-// #![feature(box_syntax)]
-// #![feature(box_patterns)]
-// #![feature(hash)]
+// Adapton for Rust
 
-// #![feature(old_orphan_check)]
-
-//! Adapton for Rust
+#![crate_name = "adapton"]
+#![crate_type = "lib"]
 
 #[macro_use]
 pub mod adapton_syntax ;
