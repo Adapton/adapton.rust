@@ -62,24 +62,17 @@ Data Structures and Algorithms
 Technical Debt
 ================
 
-Pending issues
+Design Issues:
 ---------------
 - canonical balanced trees for sequences: Data only at leaves (B-Tree style).
 
-Rust Q&A
----------
-
-- http://users.rust-lang.org/t/trait-objects-with-associated-types/746/16?u=matthewhammer  
-- The concept of "object safety" seems to bite me a lot in naive designs:  
- 
-```
-src/adapton_impl.rs:653:51: 653:111 error: cannot convert to a trait object because trait `adapton_impl::Producer` is not object-safe [E0038]
-...
-src/adapton_impl.rs:653:51: 653:111 note: method `eq` references the `Self` type in its arguments or return type
-```
-
-I sidestepped this problem in `adapton_state.rs` twice: by writing `Producer::copy` and the `ShapeShifter` trait.  Both avoid returning a `Self`.
-
+Rust-Specific:
+--------------------
+- The concept of "object safety" seems to bite me a lot in naive designs.
+I sidestepped this problem in `adapton_state.rs` twice: by writing `Producer::copy` and the `ShapeShifter` trait.  Both avoid returning a `Self`.  
+Is there a better way?  
 - Do I need really need `Rc<Box<Fn (_) -> _>>` instead of `Rc<Fn (_) -> _>`? (Why?)  
+- Done:
+  - http://users.rust-lang.org/t/trait-objects-with-associated-types/746/16?u=matthewhammer  
 
  
