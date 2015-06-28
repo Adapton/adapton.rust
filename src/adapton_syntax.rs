@@ -11,8 +11,8 @@
 // always have two distinct identities).
 //
 use std::hash::{Hash,Hasher,SipHasher};
-use std::rc::Rc;
-use std::mem::replace;
+//use std::rc::Rc;
+//use std::mem::replace;
 
 #[derive(PartialEq,Eq,Clone,Hash,Debug)]
 pub struct ProgPt {

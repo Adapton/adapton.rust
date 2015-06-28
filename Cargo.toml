@@ -1,6 +1,6 @@
 [package]
 name = "adapton"
-version = "0.0.1"
+version = "0.1.1"
 authors = ["hammer <hammer@cs.umd.edu>"]
 
 # A short blurb about the package. This is not rendered in any format when
@@ -9,7 +9,7 @@ description = "Library for Incremental Computation (implicit dependency graphs &
 
 # These URLs point to more information about the repository
 documentation = "https://github.com/plum-umd/adapton.rust/"
-homepage = "http://plum-umd.github.io/adapton/"
+homepage = "http://adapton.org"
 repository = "https://github.com/plum-umd/adapton.rust/"
 
 # This points to a file in the repository (relative to this Cargo.toml). The

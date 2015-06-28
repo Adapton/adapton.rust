@@ -44,7 +44,7 @@ pub struct AdaptonState {
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 enum Symbol {
     Root, // Root identifies the outside environment of Rust code.
-    Nil,  // Nil for non-symbolic, hash-based names.
+    //Nil,  // Nil for non-symbolic, hash-based names.
     String(String), U64(u64),   // Strings and U64s are unique symbols.
     Pair(Rc<Symbol>,Rc<Symbol>),
     ForkL(Rc<Symbol>),
