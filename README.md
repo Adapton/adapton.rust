@@ -1,5 +1,5 @@
-Adapton in Rust  [![Travis](https://api.travis-ci.org/plum-umd/adapton.rust.svg?branch=master)](https://travis-ci.org/plum-umd/adapton.rust)
-========================
+[Adapton](http://adapton.org) in Rust  [![Travis](https://api.travis-ci.org/plum-umd/adapton.rust.svg?branch=master)](https://travis-ci.org/plum-umd/adapton.rust)
+====================================================================================
 
 A general-purpose **Incremental Computation** (IC) library for Rust.  
 [available on crates.io](https://crates.io/crates/adapton)  
