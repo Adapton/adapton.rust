@@ -21,9 +21,9 @@ pub struct ProgPt {
     // module:Rc<String>, // via module!()
 
     // Location in local filesystem:
-    pub file:&'static str,   // via file!()
-    pub line:u32,        // via line!()
-    pub column:u32,      // via column!()
+    //pub file:&'static str,   // via file!()
+    //pub line:u32,        // via line!()
+    //pub column:u32,      // via column!()
 }
 
 pub fn my_hash<T>(obj: T) -> u64
@@ -39,9 +39,9 @@ macro_rules! prog_pt {
     ($symbol:ident) => {{
         ProgPt{
             symbol:stringify!($symbol),
-            file:file!(),
-            line:line!(),
-            column:column!(),                    
+            //file:file!(),
+            //line:line!(),
+            //column:column!(),
         }
     }}
 }
@@ -54,7 +54,7 @@ macro_rules! thunk {
              prog_pt!(f),
              Rc::new(Box::new(
                  |st, args, _|{
-                     let ($( $lab ),*) = args ;
+                     let ($( $lab ),*, ) = args ;
                      $f :: < $( $ty ),* >( st, $( $lab ),* )
                  })),
              ( $( $arg ),* ),
