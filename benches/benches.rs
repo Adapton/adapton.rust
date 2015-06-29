@@ -3,7 +3,7 @@
 extern crate adapton ;
 
 mod fib {
-    const INPUT_SIZE:u64 = 21;
+    const INPUT_SIZE:u64 = 20;
     const REPEAT_COUNT:u64 = 100;
     
     #[cfg(test)]
@@ -14,20 +14,19 @@ mod fib {
         extern crate test;
         use self::test::Bencher;
         
-        pub fn fib (x:u64) -> u64 {
-            test::black_box(
-                match x {
-                    0 => 1,
-                    1 => 1,
-                    x => fib(x-1) + fib(x-2)
-                })
+        pub fn fib (x:u64) -> u64 { test::black_box (
+            match x {
+                0 => 1,
+                1 => 1,
+                x => fib(x-1) + fib(x-2)
+            })
         }
         
         pub fn fib_repeat (x:u64, n:u64) -> u64 {
             for _ in 1..(n-1) {
                 test::black_box(fib(x));
             }
-            fib(x)
+            test::black_box(fib(x))
         }
 
         #[test]
@@ -60,26 +59,26 @@ mod fib {
         use adapton::adapton_sigs::* ;
         use adapton::adapton_state::* ;
         
-        pub fn fib<A:Adapton> (st:&mut A, x:u64, _n:() ) -> u64 {
+        pub fn fib<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
             match x {
                 0 => 1,
                 1 => 1,
-                x => { memo!(st, fib, x:x-1, _n:())
+                x => { memo!(st, fib, x:x-1)
                        +
-                       memo!(st, fib, x:x-2, _n:()) }}
+                       memo!(st, fib, x:x-2) }}
         }
         
         pub fn run_fib (x:u64) -> u64 {
             let mut st = &mut (AdaptonState::new()) ;
-            memo!(st, fib, x:x, _n:())
+            memo!(st, fib, x:x )
         }
 
         pub fn run_fib_repeat (x:u64, n:u64) -> u64 {
             let mut st = &mut (AdaptonState::new()) ;
             for _ in 1..(n-1) {
-                memo!(st, fib, x:x, _n:());
+                memo!(st, fib, x:x );
             }
-            memo!(st, fib, x:x, _n:())
+            memo!(st, fib, x:x )
         }
 
         #[test]
@@ -153,21 +152,21 @@ mod fact {
         use adapton::adapton_sigs::* ;
         use adapton::adapton_state::* ;
         
-        pub fn fact<A:Adapton> (st:&mut A, x:u64, _n:() ) -> u64 {
-            if x == 0 { 1 } else { x * (memo!(st, fact, x:x-1, _n:())) }
+        pub fn fact<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
+            if x == 0 { 1 } else { x * (memo!(st, fact, x:x-1 )) }
         }
         
         pub fn run_fact (x:u64) -> u64 {
             let mut st = &mut (AdaptonState::new()) ;
-            memo!(st, fact, x:x, _n:())
+            memo!(st, fact, x:x )
         }
 
         pub fn run_fact_repeat (x:u64, n:u64) -> u64 {
             let mut st = &mut (AdaptonState::new()) ;
             for _ in 1..(n-1) {
-                memo!(st, fact, x:x, _n:());
+                memo!(st, fact, x:x );
             }
-            memo!(st, fact, x:x, _n:())
+            memo!(st, fact, x:x )
         }
 
         #[test]

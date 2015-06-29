@@ -159,10 +159,10 @@ macro_rules! memo {
              prog_pt!(f),
              Rc::new(Box::new(
                  |st, args, _|{
-                     let ($( $lab ),*) = args ;
+                     let ($( $lab ),*, _) = args ;
                      $f ( st, $( $lab ),* )
                  })),
-             ( $( $arg ),* ),
+             ( $( $arg ),*, () ),
              ()
              );
         ($st).force(&t)
