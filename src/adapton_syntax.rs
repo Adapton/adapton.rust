@@ -174,12 +174,12 @@ macro_rules! memo {
              prog_pt!(f),
              Rc::new(Box::new(
                  |st, args1, args2|{
-                     let ($( $lab1 ),*) = args1 ;
-                     let ($( $lab2 ),*) = args2 ;
+                     let ($( $lab1 ),*, _) = args1 ;
+                     let ($( $lab2 ),*, _) = args2 ;
                      $f ( st, $( $lab1 ),* , $( $lab2 ),* )
                  })),
-             ( $( $arg1 ),* ),
-             ( $( $arg2 ),* ),
+             ( $( $arg1 ),*, () ),
+             ( $( $arg2 ),*, () ),
              );
         ($st).force(&t)
     }}
