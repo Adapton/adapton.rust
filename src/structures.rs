@@ -18,7 +18,7 @@ pub trait ListEdit<A:Adapton,X,L:ListT<A,X>> {
     fn remove  (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
     fn replace (&mut A, Self::State, Self::Dir, X) -> (Self::State, X, bool);
     fn goto    (&mut A, Self::State, Self::Dir)    -> (Self::State, bool);
-    fn observe (&mut A, Self::State, Self::Dir)    -> Option<X>;
+    fn observe (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
     fn get_list(&mut A, Self::State, Self::Dir)    -> L::List;
 }
 /// Lists are one-dimensional structures; movement admits two possible directions.
@@ -65,29 +65,61 @@ impl<A:Adapton
     
     fn remove  (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, Option<X>) {
         match dir {
-            ListEditDir::Left =>
-                L::elim_move
+            ListEditDir::Left => L::elim_move
                 (st, zip.left, zip.right,
                  |st,right|         (ListZipper{left:L::nil(st), right:right}, None   ),
-                 |st,x,left,right|  (ListZipper{left:left,right:right},        Some(x)),
-                 |st,nm,left,right| Self::remove (st, ListZipper{left:left, right:right}, ListEditDir::Left)
+                 |_,x,left,right|   (ListZipper{left:left,       right:right}, Some(x)),
+                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right)};
+                                     Self::remove (st, zip, ListEditDir::Left)}
                  ),
-            ListEditDir::Right =>
-                L::elim_move
+            ListEditDir::Right => L::elim_move
                 (st, zip.right, zip.left,
                  |st,left|          (ListZipper{left:left, right:L::nil(st)}, None   ),
-                 |st,x,right,left|  (ListZipper{left:left,right:right},       Some(x)),
-                 |st,nm,right,left| Self::remove (st, ListZipper{left:left, right:right}, ListEditDir::Right)
+                 |_,x,right,left|   (ListZipper{left:left, right:right},      Some(x)),
+                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right};
+                                     Self::remove (st, zip, ListEditDir::Right)}
                  ),
         }
     }
 
     fn goto (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, bool) {
-        panic!("")
+        match dir {
+            ListEditDir::Left => L::elim_move
+                (st, zip.left, zip.right,
+                 |st,right|         (ListZipper{left:L::nil(st), right:right},        false ),
+                 |st,x,left,right|  (ListZipper{left:left,right:L::cons(st,x,right)}, true  ),
+                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right)};
+                                     Self::goto (st, zip, ListEditDir::Left)}
+                 ),
+            ListEditDir::Right => L::elim_move
+                (st, zip.right, zip.left,
+                 |st,left|          (ListZipper{left:left, right:L::nil(st)},         false   ),
+                 |st,x,right,left|  (ListZipper{left:L::cons(st,x,left),right:right}, true),
+                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right};
+                                     Self::goto (st, zip, ListEditDir::Right)}
+                 ),
+        }
     }
 
-    fn observe (st:&mut A, zip:Self::State, dir:Self::Dir) -> Option<X> {
-        panic!("")
+    fn observe (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State,Option<X>) {
+        match dir {
+            ListEditDir::Left => L::elim_move
+                (st, zip.left, zip.right,
+                 |st,right|         (ListZipper{left:L::nil(st), right:right}, None),
+                 |st,x,left,right| {let x2 = x.clone();
+                                    (ListZipper{left:L::cons(st,x,left), right:right}, Some(x2))},
+                 |st,nm,left,right|{let zip = ListZipper{left:left,right:L::name(st,nm,right)};
+                                    Self::observe (st, zip, ListEditDir::Left)}
+                 ),
+            ListEditDir::Right => L::elim_move
+                (st, zip.right, zip.left,
+                 |st,left|         (ListZipper{left:left, right:L::nil(st)}, None),
+                 |st,x,right,left| {let x2 = x.clone();
+                                    (ListZipper{left:left, right:L::cons(st,x,right)}, Some(x2))},
+                 |st,nm,right,left|{let zip = ListZipper{left:L::name(st,nm,left),right:right};
+                                    Self::observe (st, zip, ListEditDir::Right)}
+                 ),
+        }
     }
 
     fn replace (st:&mut A, zip:Self::State, dir:Self::Dir, x:X) -> (Self::State, X, bool) {
