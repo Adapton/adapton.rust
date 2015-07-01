@@ -72,7 +72,13 @@ impl<A:Adapton
                  |st,x,left,right|  (ListZipper{left:left,right:right},        Some(x)),
                  |st,nm,left,right| Self::remove (st, ListZipper{left:left, right:right}, ListEditDir::Left)
                  ),
-            ListEditDir::Right => panic!("")
+            ListEditDir::Right =>
+                L::elim_move
+                (st, zip.right, zip.left,
+                 |st,left|          (ListZipper{left:left, right:L::nil(st)}, None   ),
+                 |st,x,right,left|  (ListZipper{left:left,right:right},       Some(x)),
+                 |st,nm,right,left| Self::remove (st, ListZipper{left:left, right:right}, ListEditDir::Right)
+                 ),
         }
     }
     
