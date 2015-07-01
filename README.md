@@ -64,6 +64,7 @@ Test Infrastructure
   - generate random inputs, edits
   - generate random observations
 
+- [report memory statistics](http://stackoverflow.com/questions/30869007/how-to-benchmark-memory-usage-of-a-function)
 
 Technical Debt
 ================

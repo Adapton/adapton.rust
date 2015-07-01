@@ -1,4 +1,6 @@
 #![feature(test)]
+#![feature(alloc)]
+#![feature(heap_api)]
 #[macro_use]
 extern crate adapton ;
 
@@ -16,7 +18,7 @@ mod fib {
         
         pub fn fib (x:u64) -> u64 { test::black_box (
             match x {
-                0 => 1,
+                0 => 0,
                 1 => 1,
                 x => fib(x-1) + fib(x-2)
             })
@@ -31,7 +33,7 @@ mod fib {
 
         #[test]
         fn it_works() {
-            assert_eq!(120 as u64, fib(5));
+            assert_eq!(5 as u64, fib(5));
         }
         
         #[bench]
@@ -53,15 +55,15 @@ mod fib {
         extern crate test;
         use self::test::Bencher;
 
+        extern crate alloc;
         use std::rc::Rc;
-        
         use adapton::adapton_syntax::* ;
         use adapton::adapton_sigs::* ;
         use adapton::adapton_state::* ;
         
         pub fn fib<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
             match x {
-                0 => 1,
+                0 => 0,
                 1 => 1,
                 x => { memo!(st, fib, x:x-1)
                        +
@@ -70,7 +72,7 @@ mod fib {
         
         pub fn run_fib (x:u64) -> u64 {
             let mut st = &mut (AdaptonState::new()) ;
-            memo!(st, fib, x:x )
+            memo!(st, fib, x:x )                
         }
 
         pub fn run_fib_repeat (x:u64, n:u64) -> u64 {
@@ -83,7 +85,7 @@ mod fib {
 
         #[test]
         fn it_works() {
-            assert_eq!(120 as u64, run_fib(5));
+            assert_eq!(5 as u64, run_fib(5));
         }
         
         #[bench]
