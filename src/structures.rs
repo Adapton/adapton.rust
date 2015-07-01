@@ -14,12 +14,12 @@ pub trait ListEdit<A:Adapton,X,L:ListT<A,X>> {
     /// Lists with focui admit two directions for movement.
     type Dir=ListEditDir;
     fn empty   (&mut A) -> Self::State;
-    fn insert  (&mut A, &Self::State, Self::Dir, X) -> Self::State;
-    fn remove  (&mut A, &Self::State, Self::Dir)    -> (Self::State, Option<X>);
-    fn replace (&mut A, &Self::State, Self::Dir, X) -> (Self::State, X, bool);
-    fn goto    (&mut A, &Self::State, Self::Dir)    -> (Self::State, bool);
-    fn observe (&mut A, &Self::State, Self::Dir)    -> Option<X>;
-    fn get_list(&mut A, &Self::State, Self::Dir)    -> L::List;
+    fn insert  (&mut A, Self::State, Self::Dir, X) -> Self::State;
+    fn remove  (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
+    fn replace (&mut A, Self::State, Self::Dir, X) -> (Self::State, X, bool);
+    fn goto    (&mut A, Self::State, Self::Dir)    -> (Self::State, bool);
+    fn observe (&mut A, Self::State, Self::Dir)    -> Option<X>;
+    fn get_list(&mut A, Self::State, Self::Dir)    -> L::List;
 }
 /// Lists are one-dimensional structures; movement admits two possible directions.
 pub enum ListEditDir { Left, Right }
@@ -52,27 +52,43 @@ impl<A:Adapton
         ListZipper{left:nil1, right:nil2}
     }
     
-    fn insert (st:&mut A, zip:&Self::State, dir:Self::Dir, x:X) -> Self::State {
+    fn insert (st:&mut A, zip:Self::State, dir:Self::Dir, x:X) -> Self::State {
+        match dir {
+            ListEditDir::Left =>
+                ListZipper{left:L::cons(st, x, zip.left),
+                           right:zip.right},
+            ListEditDir::Right =>
+                ListZipper{left:zip.left,
+                           right:L::cons(st, x, zip.right)},
+        }
+    }
+    
+    fn remove  (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, Option<X>) {
+        match dir {
+            ListEditDir::Left =>
+                L::elim_move
+                (st, zip.left, zip.right,
+                 |st,right|         (ListZipper{left:L::nil(st), right:right}, None   ),
+                 |st,x,left,right|  (ListZipper{left:left,right:right},        Some(x)),
+                 |st,nm,left,right| Self::remove (st, ListZipper{left:left, right:right}, ListEditDir::Left)
+                 ),
+            ListEditDir::Right => panic!("")
+        }
+    }
+    
+    fn replace (st:&mut A, zip:Self::State, dir:Self::Dir, x:X) -> (Self::State, X, bool) {
         panic!("")
     }
     
-    fn remove  (st:&mut A, zip:&Self::State, dir:Self::Dir) -> (Self::State, Option<X>) {
+    fn goto (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, bool) {
         panic!("")
     }
     
-    fn replace (st:&mut A, zip:&Self::State, dir:Self::Dir, x:X) -> (Self::State, X, bool) {
-        panic!("")
-    }
-    
-    fn goto (st:&mut A, zip:&Self::State, dir:Self::Dir) -> (Self::State, bool) {
-        panic!("")
-    }
-    
-    fn observe (st:&mut A, zip:&Self::State, dir:Self::Dir) -> Option<X> {
+    fn observe (st:&mut A, zip:Self::State, dir:Self::Dir) -> Option<X> {
         panic!("")
     }
 
-    fn get_list (st:&mut A, zip:&Self::State, dir:Self::Dir) -> L::List {
+    fn get_list (st:&mut A, zip:Self::State, dir:Self::Dir) -> L::List {
         panic!("")
     }
 }
@@ -97,6 +113,11 @@ pub trait ListT<A:Adapton,Hd> {
         where Nil:FnOnce(&mut A, Arg) -> Res
         ,    Cons:FnOnce(&mut A, &Hd, &Self::List, Arg) -> Res
         ,    Name:FnOnce(&mut A, &A::Name, &Self::List, Arg) -> Res ;
+    
+    fn elim_move<Arg,Res,Nil,Cons,Name> (&mut A, Self::List, Arg, Nil, Cons, Name) -> Res
+        where Nil:FnOnce(&mut A, Arg) -> Res
+        ,    Cons:FnOnce(&mut A, Hd, Self::List, Arg) -> Res
+        ,    Name:FnOnce(&mut A, A::Name, Self::List, Arg) -> Res ;
 
     // Derived from `cons` and `nil` above:
     fn singleton (st:&mut A, hd:Hd) -> Self::List {
@@ -124,6 +145,14 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
     fn name (&mut A, A::Name, Self::Tree, Self::Tree) -> Self::Tree ;
     fn art  (&mut A, Art<Self::Tree,A::Loc>) -> Self::Tree ;
     fn rc   (&mut A, Rc<Self::Tree>) -> Self::Tree ;
+
+    // fn elim_move<Arg,Res,NilC,LeafC,BinC,NameC>
+    //     (&mut A, Self::Tree, Arg, NilC, LeafC, BinC, NameC) -> Res
+    //     where NilC  : FnOnce(&mut A, Arg) -> Res
+    //     ,     LeafC : FnOnce(&mut A, Leaf, Arg) -> Res
+    //     ,     BinC  : FnOnce(&mut A, Bin,  Self::Tree, Self::Tree, Arg) -> Res
+    //     ,     NameC : FnOnce(&mut A, A::Name, Self::Tree, Self::Tree, Arg) -> Res
+    //     ;
 
     fn elim_with<Arg,Res,NilC,LeafC,BinC,NameC>
         (&mut A, &Self::Tree, Arg, NilC, LeafC, BinC, NameC) -> Res
@@ -357,6 +386,24 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> L
             List::Art(ref art) => {
                 let list = st.force(art);
                 Self::elim_with(st, &list, arg, nilf, consf, namef)
+            }
+        }
+    }
+
+    fn elim_move<Arg,Res,Nil,Cons,Name>
+        (st:&mut A, list:Self::List, arg:Arg, nilf:Nil, consf:Cons, namef:Name) -> Res
+        where Nil:FnOnce(&mut A, Arg) -> Res
+        ,    Cons:FnOnce(&mut A, Hd, Self::List, Arg) -> Res
+        ,    Name:FnOnce(&mut A, A::Name, Self::List, Arg) -> Res
+    {
+        match list {
+            List::Nil => nilf(st, arg),
+            List::Cons(hd, tl) => consf(st, hd, *tl, arg),
+            List::Name(nm, tl) => namef(st, nm, *tl, arg),
+            List::Rc(rc) => Self::elim_move(st, (*rc).clone(), arg, nilf, consf, namef),
+            List::Art(ref art) => {
+                let list = st.force(art);
+                Self::elim_move(st, list, arg, nilf, consf, namef)
             }
         }
     }
