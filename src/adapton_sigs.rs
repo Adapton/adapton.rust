@@ -39,18 +39,20 @@ pub trait Adapton {
     fn name_pair      (self:&mut Self, Self::Name, Self::Name) -> Self::Name               ;
     fn name_fork      (self:&mut Self, Self::Name)             -> (Self::Name, Self::Name) ;
     
-    // Namespaces
+    /// Creates or re-enters a given namespace; performs the given computation there.
     fn ns<T,F> (self: &mut Self, Self::Name, body:F) -> T
         where F:FnOnce(&mut Self) -> T ;
 
-    // Create immutable, eager arts: put
+    /// Creates immutable, eager articulation.
     fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> Art<T,Self::Loc> ;
 
-    // Mutable arts: cell and set
+    /// Creates a mutable articulation.
     fn cell<T:Eq+Debug+Clone> (self:&mut Self, Self::Name, T) -> MutArt<T,Self::Loc> ;
+
+    /// Mutates a mutable articulation.
     fn set<T:Eq+Debug+Clone> (self:&mut Self, MutArt<T,Self::Loc>, T) ;
 
-    // Computation arts: thunk
+    /// Creates an articulated computation.
     fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone>
         (self:&mut Self,
          id:ArtIdChoice<Self::Name>,
@@ -59,9 +61,12 @@ pub trait Adapton {
          arg:Arg, spurious:Spurious)
          -> Art<Res,Self::Loc> ;
 
-    // Demand & observe arts (all kinds): force
+    /// Demand & observe arts (all kinds): force
     fn force<T:Eq+Debug+Clone> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
 
+
+    ///  # Derived fork functions:
+    
     fn name_fork3 (self:&mut Self, n:Self::Name)
                    -> (Self::Name,Self::Name,Self::Name) {
         let (n1,n)  = self.name_fork(n);

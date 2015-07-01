@@ -5,6 +5,78 @@ use std::rc::Rc;
 use adapton_syntax::* ;
 use adapton_sigs::* ;
 
+/// `ListEdit<A,X,L>` gives a simple notion of list-editing that is
+/// generic with respect to adapton implementation `A`, list element
+/// type `X`, and list implementation `L`.
+pub trait ListEdit<A:Adapton,X,L:ListT<A,X>> {
+    /// The State of the Editor is abstract.
+    type State;
+    /// Lists with focui admit two directions for movement.
+    type Dir=ListEditDir;
+    fn empty   (&mut A) -> Self::State;
+    fn insert  (&mut A, &Self::State, Self::Dir, X) -> Self::State;
+    fn remove  (&mut A, &Self::State, Self::Dir)    -> (Self::State, Option<X>);
+    fn replace (&mut A, &Self::State, Self::Dir, X) -> (Self::State, X, bool);
+    fn goto    (&mut A, &Self::State, Self::Dir)    -> (Self::State, bool);
+    fn observe (&mut A, &Self::State, Self::Dir)    -> Option<X>;
+    fn get_list(&mut A, &Self::State, Self::Dir)    -> L::List;
+}
+/// Lists are one-dimensional structures; movement admits two possible directions.
+pub enum ListEditDir { Left, Right }
+
+/// Lists with a focus; suitable to implement `ListEdit`.
+pub struct ListZipper<A:Adapton,X,L:ListT<A,X>> {
+    /// Elements to the left of the focus, nearest to furthest.
+    pub left: L::List,
+    /// Elements to the right of the focus, nearest to furthest.
+    pub right: L::List
+}
+
+/// Implement `ListEdit` for `ListZipper` generically with respect to
+/// adapton implementation `A`, list element type `X`, and list
+/// implementation `L`.
+impl<A:Adapton
+    ,X:Debug+Hash+PartialEq+Eq+Clone
+    ,L:ListT<A,X>
+    >
+    ListEdit<A,X,L>
+    for
+    ListZipper<A,X,L>
+{
+    type State=ListZipper<A,X,L>;
+    type Dir=ListEditDir;
+    
+    fn empty (st: &mut A) -> Self::State {
+        let nil1 = L::nil(st);
+        let nil2 = nil1.clone();
+        ListZipper{left:nil1, right:nil2}
+    }
+    
+    fn insert (st:&mut A, zip:&Self::State, dir:Self::Dir, x:X) -> Self::State {
+        panic!("")
+    }
+    
+    fn remove  (st:&mut A, zip:&Self::State, dir:Self::Dir) -> (Self::State, Option<X>) {
+        panic!("")
+    }
+    
+    fn replace (st:&mut A, zip:&Self::State, dir:Self::Dir, x:X) -> (Self::State, X, bool) {
+        panic!("")
+    }
+    
+    fn goto (st:&mut A, zip:&Self::State, dir:Self::Dir) -> (Self::State, bool) {
+        panic!("")
+    }
+    
+    fn observe (st:&mut A, zip:&Self::State, dir:Self::Dir) -> Option<X> {
+        panic!("")
+    }
+
+    fn get_list (st:&mut A, zip:&Self::State, dir:Self::Dir) -> L::List {
+        panic!("")
+    }
+}
+
 pub trait ListT<A:Adapton,Hd> {
     type List : Debug+Hash+PartialEq+Eq+Clone ;
     
@@ -148,6 +220,20 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
              )
     }
 }
+
+// // TODO: Need a way of getting "the next name"; maybe they should be given as another vector?
+// pub fn list_of_vec<A:Adapton,X:Clone,L:List<A,X>>
+//     (st:&mut A, &vec:Vec<X>) -> List<A,X> 
+// {
+//     let mut l = L::nil(st);
+//     for x in vec.iter() {
+//         if false {
+//             l = L::name(panic!(""), l);
+//         };
+//         l = L::cons(x, l);
+//     };
+//     return l
+// }
 
 pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm,()>,BinOp>
     (st:&mut A, tree:&T::Tree, zero:&Elm, binop:&BinOp) -> Elm
