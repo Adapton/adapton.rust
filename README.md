@@ -20,7 +20,6 @@ See [`adapton_syntax`](https://github.com/plum-umd/adapton.rust/blob/master/src/
 
 - The library implements this interface with an **imperative data structure**, and **without garbage collection**.  
 See [`AdaptonState`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_state.rs).  
-See also: [_Incremental Computation with Names_, 2015](http://arxiv.org/abs/1503.07792).
 
 - The library provides generic **incremental data structures and algorithms**.  
 See also: [`structures.rs`](https://github.com/plum-umd/adapton.rust/blob/master/src/structures.rs):  
@@ -43,14 +42,16 @@ Supported IC Paradigms:
   - hash-cons'd, purely-functional data structures
   - memoized function calls (to pure computations)
 
-- **Structural Adapton**:  
-*Matthew A. Hammer, Yit Phang Khoo, Michael Hicks and Jeffrey S. Foster, PLDI 2014.*
+- **(Structural) Adapton**: Composable, Demand-Driven Incremental Computation.  
+*Matthew A. Hammer, Yit Phang Khoo, Michael Hicks and Jeffrey S. Foster.*  
+**PLDI 2014.**  
   - changeable input cells
   - bidirectional DCG structure
   - dirtying traversal; repair traversal.
 
-- **Nominal Adapton:**  
-*Matthew A. Hammer, Joshua Dunfield, Kyle Headley, Nicholas Labich, Jeffrey S. Foster, Michael Hicks, David Van Horn, March 2015.*
+- **Nominal Adapton:** Incremental Computation with Names  
+*Matthew A. Hammer, Joshua Dunfield, Kyle Headley, Nicholas Labich, Jeffrey S. Foster, Michael Hicks, David Van Horn.*  
+*March 2015.*  
   - first-class names
   - nominal memoization
   

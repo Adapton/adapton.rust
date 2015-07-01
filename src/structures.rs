@@ -11,7 +11,7 @@ use adapton_sigs::* ;
 pub trait ListEdit<A:Adapton,X,L:ListT<A,X>> {
     /// The State of the Editor is abstract.
     type State;
-    /// Lists with focui admit two directions for movement.
+    /// Lists with foci admit two directions for movement.
     type Dir=ListEditDir;
     fn empty   (&mut A) -> Self::State;
     fn insert  (&mut A, Self::State, Self::Dir, X) -> Self::State;
@@ -81,16 +81,16 @@ impl<A:Adapton
                  ),
         }
     }
-    
-    fn replace (st:&mut A, zip:Self::State, dir:Self::Dir, x:X) -> (Self::State, X, bool) {
-        panic!("")
-    }
-    
+
     fn goto (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, bool) {
         panic!("")
     }
-    
+
     fn observe (st:&mut A, zip:Self::State, dir:Self::Dir) -> Option<X> {
+        panic!("")
+    }
+
+    fn replace (st:&mut A, zip:Self::State, dir:Self::Dir, x:X) -> (Self::State, X, bool) {
         panic!("")
     }
 
