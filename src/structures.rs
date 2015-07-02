@@ -8,18 +8,20 @@ use adapton_sigs::* ;
 /// `ListEdit<A,X,L>` gives a simple notion of list-editing that is
 /// generic with respect to adapton implementation `A`, list element
 /// type `X`, and list implementation `L`.
-pub trait ListEdit<A:Adapton,X,L:ListT<A,X>> {
+pub trait ListEdit<A:Adapton,X> {
     /// The State of the Editor is abstract.
     type State;
     /// Lists with foci admit two directions for movement.
     type Dir=ListEditDir;
-    fn empty   (&mut A) -> Self::State;
-    fn insert  (&mut A, Self::State, Self::Dir, X) -> Self::State;
-    fn remove  (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
-    fn replace (&mut A, Self::State, Self::Dir, X) -> (Self::State, X, bool);
-    fn goto    (&mut A, Self::State, Self::Dir)    -> (Self::State, bool);
-    fn observe (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
-    fn get_list(&mut A, Self::State, Self::Dir)    -> L::List;
+    fn empty    (&mut A) -> Self::State;
+    fn insert   (&mut A, Self::State, Self::Dir, X) -> Self::State;
+    fn remove   (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
+    fn replace  (&mut A, Self::State, Self::Dir, X) -> (Self::State, X, bool);
+    fn goto     (&mut A, Self::State, Self::Dir)    -> (Self::State, bool);
+    fn observe  (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
+
+    fn get_list<L:ListT<A,X>>    (&mut A, Self::State, Self::Dir) -> L::List;
+    fn get_tree<T:TreeT<A,X,()>> (&mut A, Self::State, Self::Dir) -> T::Tree;
 }
 /// Lists are one-dimensional structures; movement admits two possible directions.
 pub enum ListEditDir { Left, Right }
@@ -39,7 +41,7 @@ impl<A:Adapton
     ,X:Debug+Hash+PartialEq+Eq+Clone
     ,L:ListT<A,X>
     >
-    ListEdit<A,X,L>
+    ListEdit<A,X>
     for
     ListZipper<A,X,L>
 {
@@ -126,8 +128,15 @@ impl<A:Adapton
         panic!("")
     }
 
-    fn get_list (st:&mut A, zip:Self::State, dir:Self::Dir) -> L::List {
+    fn get_list<M:ListT<A,X>> (st:&mut A, zip:Self::State, dir:Self::Dir) -> M::List {
         panic!("")
+    }
+    
+    fn get_tree<T:TreeT<A,X,()>> (st:&mut A, zip:Self::State, dir:Self::Dir) -> T::Tree {
+        match dir {
+            ListEditDir::Left => panic!(""),
+            ListEditDir::Right => panic!(""),
+        }
     }
 }
 
@@ -512,11 +521,85 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
 
 }
 
+pub fn tree_of_list_lr <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
+    (st:&mut A, list:L::List, left_tree:T::Tree, left_tree_lev:u32, parent_lev:u32)
+     -> (T::Tree, L::List)
+{
+    L::elim_move (
+        st, list, left_tree,
+        /* Nil */  |st, left_tree| ( left_tree, L::nil(st) ),
+        /* Cons */ |st, hd, rest, left_tree| {
+            let lev_hd = (1 + (my_hash(&hd).leading_zeros())) as u32 ;
+            if left_tree_lev <= lev_hd && lev_hd <= parent_lev {
+                let leaf = T::leaf(st, hd) ;
+                let (right_tree, rest) =
+                    tree_of_list_lr::<A,X,T,L> ( st, rest, leaf, 0 as u32, lev_hd ) ;
+                let tree = T::bin ( st, (), left_tree, right_tree ) ;
+                tree_of_list_lr::<A,X,T,L> ( st, rest, tree, lev_hd, parent_lev )
+            }
+            else {
+                (left_tree, L::cons(st,hd,rest))
+            }},
+        /* Name */ |st, nm, rest, left_tree| {
+            let lev_nm = (1 + 64 + (my_hash(&nm).leading_zeros())) as u32 ;
+            if left_tree_lev <= lev_nm && lev_nm <= parent_lev {
+                let nil = T::nil(st) ;
+                let (right_tree, rest) =
+                    memo!(st, tree_of_list_lr::<A,X,T,L>,
+                          list:rest, left_tree:nil, left_tree_lev:0 as u32, parent_lev:lev_nm ) ;
+                let tree = T::name( st, nm, left_tree, right_tree ) ;
+                memo!(st, tree_of_list_lr::<A,X,T,L>,
+                      list:rest, left_tree:tree,
+                      left_tree_lev:lev_nm, parent_lev:parent_lev )
+            }
+            else {
+                (left_tree, L::name(st,nm,rest))
+            }}
+        )
+}
+
+pub fn tree_of_list_rl <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
+    (st:&mut A, list:L::List, right_tree:T::Tree, right_tree_lev:u32, parent_lev:u32)
+     -> (T::Tree, L::List)
+{
+    L::elim_move (
+        st, list, right_tree,
+        /* Nil */  |st, right_tree| ( right_tree, L::nil(st) ),
+        /* Cons */ |st, hd, rest, right_tree| {
+            let lev_hd = (1 + (my_hash(&hd).leading_zeros())) as u32 ;
+            if right_tree_lev <= lev_hd && lev_hd <= parent_lev {
+                let leaf = T::leaf(st, hd) ;
+                let (left_tree, rest) =
+                    tree_of_list_rl::<A,X,T,L> ( st, rest, leaf, 0 as u32, lev_hd ) ;
+                let tree = T::bin ( st, (), left_tree, right_tree ) ;
+                tree_of_list_rl::<A,X,T,L> ( st, rest, tree, lev_hd, parent_lev )
+            }
+            else {
+                (right_tree, L::cons(st,hd,rest))
+            }},
+        /* Name */ |st, nm, rest, right_tree| {
+            let lev_nm = (1 + 64 + (my_hash(&nm).leading_zeros())) as u32 ;
+            if right_tree_lev <= lev_nm && lev_nm <= parent_lev {
+                let nil = T::nil(st) ;
+                let (left_tree, rest) =
+                    memo!(st, tree_of_list_lr::<A,X,T,L>,
+                          list:rest, right_tree:nil, right_tree_lev:0 as u32, parent_lev:lev_nm ) ;
+                let tree = T::name( st, nm, left_tree, right_tree ) ;
+                memo!(st, tree_of_list_lr::<A,X,T,L>,
+                      list:rest, right_tree:tree,
+                      right_tree_lev:lev_nm, parent_lev:parent_lev )
+            }
+            else {
+                (right_tree, L::name(st,nm,rest))
+            }}
+        )
+}
+
+
 fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A, list:&L::List, left_tree:T::Tree, left_tree_lev:u32, parent_lev:u32)
      -> (T::Tree, L::List)
 {
-    // TODO: Use 'elim_with' pattern to avoid cloning left_tree.
     L::elim_with (
         st, &list, left_tree,
         /* Nil */  |st, left_tree| ( left_tree, L::nil(st) ),
@@ -539,7 +622,6 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
                 let (right_tree, rest) =
                     memo!(st, tree_of_list_rec::<A,X,T,L>,
                           list:rest, left_tree:nil, left_tree_lev:0 as u32, parent_lev:lev_nm ) ;
-                // TODO: Place left_ and right_ trees into articulations (not Boxes), named by name.
                 let tree = T::name( st, nm.clone(), left_tree, right_tree ) ;
                 memo!(st, tree_of_list_rec::<A,X,T,L>,
                       list:&rest, left_tree:tree,
