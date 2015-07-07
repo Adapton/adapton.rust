@@ -82,7 +82,7 @@ macro_rules! thunk {
              prog_pt!(f),
              Rc::new(Box::new(
                  |st, args, _|{
-                     let ($( $lab ),*) = args ;
+                     let ($( $lab ),*,_) = args ;
                      $f :: < $( $ty ),* >( st, $( $lab ),* )
                  })),
              ( $( $arg ),* ),
@@ -96,7 +96,7 @@ macro_rules! thunk {
              prog_pt!(f),
              Rc::new(Box::new(
                  |st, args, _|{
-                     let ($( $lab ),*) = args ;
+                     let ($( $lab ),*,_) = args ;
                      $f ( st, $( $lab ),* () )
                  })),
              ( $( $arg ),* ),
