@@ -3,6 +3,7 @@ use adapton_syntax::*;
 use adapton_sigs::*;
 use std::rc::Rc;
 use std::hash::{Hash,Hasher};
+use std::fmt::{Formatter,Result};
 
 pub type Loc = usize;
 
@@ -59,5 +60,37 @@ impl Adapton for AdaptonFromScratch {
                                         art:&Art<T,Loc>) -> T
     {
         panic!("")
+    }
+}
+
+
+
+// Produce a value of type Res.
+trait Producer<Res> {
+    fn produce(self:&Self, st:&mut AdaptonFromScratch) -> Res;
+}
+
+#[derive(Clone)]
+struct App<Arg,Spurious,Res> {
+    prog_pt:  ProgPt,
+    fn_box:   Rc<Box<Fn(&mut AdaptonFromScratch, Arg, Spurious) -> Res>>,
+    arg:      Arg,
+    spurious: Spurious,
+}
+
+impl<Arg,Spurious,Res> Debug for App<Arg,Spurious,Res> {
+    fn fmt(&self, f: &mut Formatter) -> Result { self.prog_pt.fmt(f) }
+}
+
+impl<Arg:Hash,Spurious,Res> Hash for App<Arg,Spurious,Res> {
+    fn hash<H>(&self, state: &mut H) where H: Hasher { (&self.prog_pt,&self.arg).hash(state) }
+}
+
+impl<Arg:'static+PartialEq+Eq+Clone,Spurious:'static+Clone,Res:'static> Producer<Res>
+    for App<Arg,Spurious,Res>
+{
+    fn produce(self:&Self, st:&mut AdaptonFromScratch) -> Res {
+        let f = self.fn_box.clone() ;
+        f (st,self.arg.clone(),self.spurious.clone())
     }
 }
