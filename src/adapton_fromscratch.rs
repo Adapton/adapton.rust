@@ -4,17 +4,19 @@ use adapton_sigs::*;
 use std::rc::Rc;
 use std::hash::{Hash,Hasher};
 use std::fmt::{Formatter,Result};
+use std::mem::transmute;
+use std::marker::PhantomData;
 
 pub type Loc = usize;
 
 #[derive(Debug,Clone,Hash,Eq,PartialEq)]
 pub struct Name;
 
-#[derive(Debug)]
-pub struct Whatever;
+trait Void { }
+
 pub struct AdaptonFromScratch {
-    /// just need a store; the Adapton trait provides a store semantics
-    store : Vec<Box<Whatever>>
+    /// need a store; the Adapton trait provides a store semantics (viz., see `set` and `force`).
+    store : Vec<Box<Void>>
 }
 
 impl Adapton for AdaptonFromScratch {
@@ -53,13 +55,41 @@ impl Adapton for AdaptonFromScratch {
          arg:Arg, spurious:Spurious)
          -> Art<Res,Loc>
     {
-        panic!("")
+        let producer : Box<Producer<Res>> =
+            Box::new(App{prog_pt:prog_pt,
+                         fn_box:fn_box,
+                         arg:arg.clone(),
+                         spurious:spurious.clone()});
+        let producer : Box<Void> = 
+            unsafe {
+                // This transmute is always safe: `Void`s have no information.
+                // `force`'s transmute from `Void` to a `Producer<Res>` does require justification.
+                // The justification is the phantom type `Res` in the `Art<Res,Loc>` type.
+                transmute::<_,_>(producer)
+            };
+        self.store.push( producer );
+        Art::Loc( Rc::new( self.store.len() ) )
     }
 
-    fn force<T:'static+Eq+Debug+Clone> (self:&mut AdaptonFromScratch,
-                                        art:&Art<T,Loc>) -> T
+    fn force<Res:'static+Eq+Debug+Clone> (self:&mut AdaptonFromScratch,
+                                          art:&Art<Res,Loc>) -> Res
     {
-        panic!("")
+        match *art {
+            Art::Loc(ref index) => {
+                let producer = {
+                    let producer : &Box<Void> = & self.store[ **index ] ;
+                    let producer : &Box<Producer<Res>> = 
+                        unsafe {
+                            // This transmute is always safe:
+                            // The justification is the phantom type `Res` in the `Art<Res,Loc>` type.
+                            transmute::<_,_>(producer)
+                        };
+                    producer.copy()
+                };
+                producer.produce(self)
+            },
+            Art::Rc(ref rc) => (**rc).clone(),
+        }            
     }
 }
 
@@ -68,6 +98,7 @@ impl Adapton for AdaptonFromScratch {
 // Produce a value of type Res.
 trait Producer<Res> {
     fn produce(self:&Self, st:&mut AdaptonFromScratch) -> Res;
+    fn copy(self:&Self) -> Box<Producer<Res>>;
 }
 
 #[derive(Clone)]
@@ -92,5 +123,13 @@ impl<Arg:'static+PartialEq+Eq+Clone,Spurious:'static+Clone,Res:'static> Producer
     fn produce(self:&Self, st:&mut AdaptonFromScratch) -> Res {
         let f = self.fn_box.clone() ;
         f (st,self.arg.clone(),self.spurious.clone())
+    }
+    fn copy(self:&Self) -> Box<Producer<Res>> {
+        Box::new(App{
+            prog_pt:self.prog_pt.clone(),
+            fn_box:self.fn_box.clone(),
+            arg:self.arg.clone(),
+            spurious:self.spurious.clone(),
+        })
     }
 }
