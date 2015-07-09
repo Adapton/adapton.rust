@@ -39,12 +39,22 @@ impl Adapton for AdaptonFromScratch {
     fn cell<T:Eq+Debug+Clone
         +'static // TODO-Later: Needed on T because of lifetime issues.
         >
-        (self:&mut AdaptonFromScratch, nm:Name, val:T) -> MutArt<T,Loc> {
-            panic!("")
+        (self:&mut AdaptonFromScratch, nm:Name, val:T) -> MutArt<T,Loc>
+    {
+        let val : Box<Producer<T>> = Box::new( Val{val:Rc::new(val)} ) ;
+        let val : Box<Void> = unsafe { transmute::<_,_>( val ) } ;
+        MutArt{loc:{ self.store.push( val );
+                     Rc::new(self.store.len())},
+               phantom:PhantomData
         }
+    }
 
-    fn set<T:Eq+Debug> (self:&mut AdaptonFromScratch, cell:MutArt<T,Loc>, val:T) {
-        panic!("")
+    fn set<T:'static+Eq+Debug+Clone>
+        (self:&mut AdaptonFromScratch, cell:MutArt<T,Loc>, val:T)
+    {
+        let val : Box<Producer<T>> = Box::new( Val{val:Rc::new( val )} ) ;
+        let val : Box<Void>  = unsafe { transmute::<_,_>( val ) } ;
+        self.store.insert( *cell.loc, val );
     }
 
     fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+'static>
@@ -60,10 +70,10 @@ impl Adapton for AdaptonFromScratch {
                          fn_box:fn_box,
                          arg:arg.clone(),
                          spurious:spurious.clone()});
-        let producer : Box<Void> = 
+        let producer : Box<Void> =
             unsafe {
                 // This transmute is always safe: `Void`s have no information.
-                // `force`'s transmute from `Void` to a `Producer<Res>` does require justification.
+                // However, transmute in `force` from `Void` to a `Producer<Res>` does require justification.
                 // The justification is the phantom type `Res` in the `Art<Res,Loc>` type.
                 transmute::<_,_>(producer)
             };
@@ -78,7 +88,7 @@ impl Adapton for AdaptonFromScratch {
             Art::Loc(ref index) => {
                 let producer = {
                     let producer : &Box<Void> = & self.store[ **index ] ;
-                    let producer : &Box<Producer<Res>> = 
+                    let producer : &Box<Producer<Res>> =
                         unsafe {
                             // This transmute is always safe:
                             // The justification is the phantom type `Res` in the `Art<Res,Loc>` type.
@@ -89,16 +99,30 @@ impl Adapton for AdaptonFromScratch {
                 producer.produce(self)
             },
             Art::Rc(ref rc) => (**rc).clone(),
-        }            
+        }
     }
 }
-
-
 
 // Produce a value of type Res.
 trait Producer<Res> {
     fn produce(self:&Self, st:&mut AdaptonFromScratch) -> Res;
     fn copy(self:&Self) -> Box<Producer<Res>>;
+}
+
+#[derive(Clone,Hash,Eq,PartialEq,Debug)]
+struct Val<Res> {
+    val:Rc<Res>
+}
+
+impl<Res:Clone+'static>
+    Producer<Res> for Val<Res>
+{
+    fn produce(self:&Self, st:&mut AdaptonFromScratch) -> Res {
+        (*self.val).clone()
+    }
+    fn copy(self:&Self) -> Box<Producer<Res>> {
+        Box::new(Val{val:self.val.clone()})
+    }
 }
 
 #[derive(Clone)]
@@ -109,15 +133,20 @@ struct App<Arg,Spurious,Res> {
     spurious: Spurious,
 }
 
-impl<Arg,Spurious,Res> Debug for App<Arg,Spurious,Res> {
+impl<Arg,Spurious,Res>
+    Debug for App<Arg,Spurious,Res>
+{
     fn fmt(&self, f: &mut Formatter) -> Result { self.prog_pt.fmt(f) }
 }
 
-impl<Arg:Hash,Spurious,Res> Hash for App<Arg,Spurious,Res> {
+impl<Arg:Hash,Spurious,Res>
+    Hash for App<Arg,Spurious,Res>
+{
     fn hash<H>(&self, state: &mut H) where H: Hasher { (&self.prog_pt,&self.arg).hash(state) }
 }
 
-impl<Arg:'static+PartialEq+Eq+Clone,Spurious:'static+Clone,Res:'static> Producer<Res>
+impl<Arg:'static+PartialEq+Eq+Clone,Spurious:'static+Clone,Res:'static>
+    Producer<Res>
     for App<Arg,Spurious,Res>
 {
     fn produce(self:&Self, st:&mut AdaptonFromScratch) -> Res {
