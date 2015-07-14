@@ -187,3 +187,120 @@ mod fact {
         }
     }
 }
+
+mod hourglass {
+    //const INPUT_ARRAY:Vec<u64> = vec![2; 64]; 
+    const REPEAT_COUNT:u64 = 100;
+    
+    #[cfg(test)]
+    mod eager_ids {
+        //use super::INPUT_ARRAY;
+        use super::REPEAT_COUNT;
+
+        extern crate test;
+        use self::test::Bencher;
+
+        use std::rc::Rc;
+        
+        use adapton::adapton_syntax::* ;
+        use adapton::adapton_sigs::* ;
+        use adapton::adapton_fromscratch::* ;
+
+        fn ident<A:Adapton,T>(st:&mut A, x:T) -> T {x}
+
+        fn depend_mult<A:Adapton>(st:&mut A, x: &Art<u64,A::Loc>,y: &Art<u64,A::Loc>) -> u64 { 
+            st.force(x) * st.force(y)
+        }
+
+        fn depend_add<A:Adapton>(st:&mut A, x: &Art<u64,A::Loc>,y: &Art<u64,A::Loc>) -> u64 {
+            st.force(x) + st.force(y)
+        }
+
+/*
+        pub fn hourglass_old<A:Adapton> (st:&mut A) -> u64 {
+            let cells = vec![2;64];
+            let nodes64 = cells.iter().map(|x| thunk!(st, ident, x:*x));
+            let nodes32 = nodes64.take(32).zip(nodes64.skip(32)).map(
+                |(x,y)| thunk!(st, depend_mult, x:&x, y:&y)
+            );
+            let nodes16 = nodes32.take(16).zip(nodes32.skip(16)).map(
+                |(x,y)| thunk!(st, depend_add, x:&x, y:&y)
+            );
+            let nodes8 = nodes16.take(8).zip(nodes16.skip(8)).map(
+                |(x,y)| thunk!(st, depend_mult, x:&x, y:&y)
+            );
+            let nodes4 = nodes8.take(4).zip(nodes8.skip(4)).map(
+                |(x,y)| thunk!(st, depend_add, x:&x, y:&y)
+            );
+            let nodes2 = nodes4.take(2).zip(nodes4.skip(2)).map(
+                |(x,y)| thunk!(st, depend_mult, x:&x, y:&y)
+            );
+            let pivot = nodes2.take(1).zip(nodes2.skip(1)).map(
+                |(x,y)| thunk!(st, depend_add, x:&x, y:&y)
+            );
+            let fake_result = vec!(thunk!(st, ident, x:2));
+            let mut pivot = nodes2;
+            let default = thunk!(st, ident, x:2);
+            let chokepoint = match pivot.next() {
+                None => default,
+                Some(a) => a
+            };
+            st.force(&chokepoint)
+            //now do second half, deriving multiple results from this one
+        }
+*/
+
+        pub fn hourglass<A:Adapton> (st:&mut A) -> u64 {
+            let cells = vec![2;64];
+            let mut nodes = vec![];
+            for i in 0..64 {
+                nodes.push(thunk!(st, ident, x:cells[i]));
+            }
+            let mut item_num = 0;
+            loop {
+                if nodes.len() - item_num < 2 { break; }
+                let first = nodes[item_num].clone();
+                let second = nodes[item_num+1].clone();
+                //why don't we have lifetime issues here?
+                nodes.push(thunk!(st, depend_add, x:&first, y:&second));
+                item_num += 2;
+                //println!("At: {}", item_num);
+            }
+            //this line gives an index out of bounds error!!
+            //let thk = &nodes[nodes.len()-1];
+            let thk = &nodes[&nodes.len()-2];
+            println!("past checkpoint");
+            st.force(thk)
+        }
+
+        pub fn run_hourglass () -> u64 {
+            let mut st = &mut (AdaptonFromScratch::new());
+            hourglass(st)
+        }
+
+        pub fn run_hourglass_repeat (n:u64) -> u64 {
+            let mut st = &mut (AdaptonFromScratch::new());
+            for _ in 1..(n-1) {
+                test::black_box(hourglass(st));
+            }
+            hourglass(st)
+        }
+
+        #[test]
+        fn it_works() {
+            assert_eq!(2 as u64, run_hourglass());
+        }
+        
+        #[bench]
+        fn bench_hourglass(b: &mut Bencher) {
+            b.iter(|| test::black_box(run_hourglass()));
+        }
+
+        #[bench]
+        fn bench_hourglass_repeat(b: &mut Bencher) {
+            b.iter(|| test::black_box(run_hourglass_repeat(REPEAT_COUNT)));
+        }
+        
+    }
+
+}
