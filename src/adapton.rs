@@ -7,6 +7,7 @@
 pub mod adapton_syntax ;
 pub mod adapton_sigs ;
 pub mod adapton_state ;
+pub mod adapton_fromscratch ;
 
 pub mod structures ;
 
