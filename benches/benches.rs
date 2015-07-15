@@ -296,7 +296,7 @@ mod hourglass {
                 if nodes.len() == 126 { break; }
                 let first = nodes[item_num].clone();
                 let second = nodes[item_num+1].clone();
-                println!("{} --> {}, {}", nodes.len()-1, item_num, item_num+1);
+                //println!("{} --> {}, {}", nodes.len()-1, item_num, item_num+1);
                 //why don't we have lifetime issues here?
                 nodes.push(thunk!(st, depend_add, x:&first, y:&second));
                 if item_num < 122 { item_num += 2 } else { item_num += 1 }
