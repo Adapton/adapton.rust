@@ -301,9 +301,7 @@ mod hourglass {
                 nodes.push(thunk!(st, depend_add, x:&first, y:&second));
                 if item_num < 122 { item_num += 2 } else { item_num += 1 }
             }
-            //this line gives an index out of bounds error!!
             let thk = &nodes[nodes.len()-1];
-            //let thk = &nodes[&nodes.len()-2];
             println!("past checkpoint");
             st.force(thk)
         }
