@@ -76,9 +76,11 @@ impl Adapton for AdaptonFromScratch {
                 // However, transmute in `force` from `Void` to a `Producer<Res>` does require justification.
                 // The justification is the phantom type `Res` in the `Art<Res,Loc>` type.
                 transmute::<_,_>(producer)
-            };
+            };        
         self.store.push( producer );
-        Art::Loc( Rc::new( self.store.len()-1) )
+        let index = self.store.len()-1;
+        println!("allocated {}", index);
+        Art::Loc( Rc::new( index ) )
     }
 
     fn force<Res:'static+Eq+Debug+Clone> (self:&mut AdaptonFromScratch,
@@ -96,6 +98,7 @@ impl Adapton for AdaptonFromScratch {
                         };
                     producer.copy()
                 };
+                println!("forcing {}", index);
                 producer.produce(self)
             },
             Art::Rc(ref rc) => (**rc).clone(),
