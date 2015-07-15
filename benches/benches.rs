@@ -63,75 +63,107 @@ mod fib {
 
     #[cfg(test)]
     mod adapton {
-        use super::INPUT_SIZE;
-        use super::REPEAT_COUNT;
-
-        extern crate test;
-        use self::test::Bencher;
-
-        extern crate alloc;
-        use std::rc::Rc;
-        use adapton::adapton_syntax::* ;
-        use adapton::adapton_sigs::* ;
-        //use adapton::adapton_state::* ;
-
         mod fs {
-            use super::*;
+            extern crate test;
+            use self::test::Bencher;
+            
+            extern crate alloc;
+            use std::rc::Rc;
+            use adapton::adapton_syntax::* ;
+            use adapton::adapton_sigs::* ;
+            //use adapton::adapton_state::* ;
             use adapton::adapton_fromscratch::* ;
-        
-        pub fn fib<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
-            match x {
-                0 => 0,
-                1 => 1,
-                x => { memo!(st, fib, x:x-1)
-                       +
-                       memo!(st, fib, x:x-2) }}
-        }
-        
-        pub fn fs_run_fib (x:u64) -> u64 {
-            let mut st = &mut AdaptonFromScratch::new() ;
-            memo!(st, fib, x:x )                
-        }
-
-        pub fn fs_run_fib_repeat (x:u64, n:u64) -> u64 {
-            let mut st = &mut AdaptonFromScratch::new() ;
-            for _ in 1..(n-1) {
-                memo!(st, fib, x:x );
+            use super::super::INPUT_SIZE;
+            use super::super::REPEAT_COUNT;
+            
+            pub fn fib<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
+                match x {
+                    0 => 0,
+                    1 => 1,
+                    x => { memo!(st, fib, x:x-1)
+                           +
+                           memo!(st, fib, x:x-2) }}
             }
-            memo!(st, fib, x:x )
-        }
-
-        pub fn run_fib (x:u64) -> u64 {
-            let mut st = &mut AdaptonState::new() ;
-            memo!(st, fib, x:x )                
-        }
-
-        pub fn run_fib_repeat (x:u64, n:u64) -> u64 {
-            let mut st = &mut AdaptonState::new() ;
-            for _ in 1..(n-1) {
-                memo!(st, fib, x:x );
+            
+            pub fn run_fib (x:u64) -> u64 {
+                let mut st = &mut AdaptonFromScratch::new() ;
+                memo!(st, fib, x:x )                
             }
-            memo!(st, fib, x:x )
+            
+            pub fn run_fib_repeat (x:u64, n:u64) -> u64 {
+                let mut st = &mut AdaptonFromScratch::new() ;
+                for _ in 1..(n-1) {
+                    memo!(st, fib, x:x );
+                }
+                memo!(st, fib, x:x )
+            }
+
+            #[test]
+            fn it_works() {
+                assert_eq!(5 as u64, run_fib(5));
+            }
+            
+            #[bench]
+            fn bench_fib(b: &mut Bencher) {
+                b.iter(|| test::black_box(run_fib(INPUT_SIZE)));
+            }
+                        
+            #[bench]
+            fn bench_fib_repeat(b: &mut Bencher) {
+                b.iter(|| test::black_box(run_fib_repeat(INPUT_SIZE, REPEAT_COUNT)));
+            }
+            
         }
 
-        #[test]
-        fn it_works() {
-            assert_eq!(5 as u64, run_fib(5));
-        }
-
-        #[bench]
-        fn fs_bench_fib(b: &mut Bencher) {
-            b.iter(|| test::black_box(fs_run_fib(INPUT_SIZE)));
-        }
-
-        #[bench]
-        fn bench_fib(b: &mut Bencher) {
-            b.iter(|| test::black_box(run_fib(INPUT_SIZE)));
-        }
-
-        #[bench]
-        fn bench_fib_repeat(b: &mut Bencher) {
-            b.iter(|| test::black_box(run_fib_repeat(INPUT_SIZE, REPEAT_COUNT)));
+        mod state {
+            extern crate test;
+            use self::test::Bencher;
+            
+            extern crate alloc;
+            use std::rc::Rc;
+            use adapton::adapton_syntax::* ;
+            use adapton::adapton_sigs::* ;
+            use adapton::adapton_state::* ;
+            //use adapton::adapton_fromscratch::* ;
+            use super::super::INPUT_SIZE;
+            use super::super::REPEAT_COUNT;
+            
+            pub fn fib<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
+                match x {
+                    0 => 0,
+                    1 => 1,
+                    x => { memo!(st, fib, x:x-1)
+                           +
+                           memo!(st, fib, x:x-2) }}
+            }
+                            
+            pub fn run_fib (x:u64) -> u64 {
+                let mut st = &mut AdaptonState::new() ;
+                memo!(st, fib, x:x )                
+            }
+            
+            pub fn run_fib_repeat (x:u64, n:u64) -> u64 {
+                let mut st = &mut AdaptonState::new() ;
+                for _ in 1..(n-1) {
+                    memo!(st, fib, x:x );
+                }
+                memo!(st, fib, x:x )
+            }
+            
+            #[test]
+            fn it_works() {
+                assert_eq!(5 as u64, run_fib(5));
+            }
+                        
+            #[bench]
+            fn bench_fib(b: &mut Bencher) {
+                b.iter(|| test::black_box(run_fib(INPUT_SIZE)));
+            }
+            
+            #[bench]
+            fn bench_fib_repeat(b: &mut Bencher) {
+                b.iter(|| test::black_box(run_fib_repeat(INPUT_SIZE, REPEAT_COUNT)));
+            }
         }
     }
 }
