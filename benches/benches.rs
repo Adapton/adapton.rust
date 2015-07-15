@@ -4,12 +4,26 @@
 #[macro_use]
 extern crate adapton ;
 
+// mod AAAzip {
+//     fn doit() {
+//             let mut st = &mut (AdaptonState::new()) ;
+//             for _ in 1..(n-1) {
+//                 memo!(st, fib, x:x );
+//             }
+//             memo!(st, fib, x:x )        
+//     }    
+//     #[bench]
+//     fn bench(b:&mut Bencher) {
+//         b.iter(||doit());
+//     }
+// }
+
 mod fib {
     const INPUT_SIZE:u64 = 20;
     const REPEAT_COUNT:u64 = 100;
     
     #[cfg(test)]
-    mod no_caching {
+    mod rust {
         use super::INPUT_SIZE;
         use super::REPEAT_COUNT;
         
@@ -48,7 +62,7 @@ mod fib {
     }
 
     #[cfg(test)]
-    mod pure_caching {
+    mod adapton {
         use super::INPUT_SIZE;
         use super::REPEAT_COUNT;
 
@@ -59,7 +73,11 @@ mod fib {
         use std::rc::Rc;
         use adapton::adapton_syntax::* ;
         use adapton::adapton_sigs::* ;
-        use adapton::adapton_state::* ;
+        //use adapton::adapton_state::* ;
+
+        mod fs {
+            use super::*;
+            use adapton::adapton_fromscratch::* ;
         
         pub fn fib<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
             match x {
@@ -70,13 +88,26 @@ mod fib {
                        memo!(st, fib, x:x-2) }}
         }
         
+        pub fn fs_run_fib (x:u64) -> u64 {
+            let mut st = &mut AdaptonFromScratch::new() ;
+            memo!(st, fib, x:x )                
+        }
+
+        pub fn fs_run_fib_repeat (x:u64, n:u64) -> u64 {
+            let mut st = &mut AdaptonFromScratch::new() ;
+            for _ in 1..(n-1) {
+                memo!(st, fib, x:x );
+            }
+            memo!(st, fib, x:x )
+        }
+
         pub fn run_fib (x:u64) -> u64 {
-            let mut st = &mut (AdaptonState::new()) ;
+            let mut st = &mut AdaptonState::new() ;
             memo!(st, fib, x:x )                
         }
 
         pub fn run_fib_repeat (x:u64, n:u64) -> u64 {
-            let mut st = &mut (AdaptonState::new()) ;
+            let mut st = &mut AdaptonState::new() ;
             for _ in 1..(n-1) {
                 memo!(st, fib, x:x );
             }
@@ -87,7 +118,12 @@ mod fib {
         fn it_works() {
             assert_eq!(5 as u64, run_fib(5));
         }
-        
+
+        #[bench]
+        fn fs_bench_fib(b: &mut Bencher) {
+            b.iter(|| test::black_box(fs_run_fib(INPUT_SIZE)));
+        }
+
         #[bench]
         fn bench_fib(b: &mut Bencher) {
             b.iter(|| test::black_box(run_fib(INPUT_SIZE)));

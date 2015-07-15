@@ -44,7 +44,7 @@ impl Adapton for AdaptonFromScratch {
         let val : Box<Producer<T>> = Box::new( Val{val:Rc::new(val)} ) ;
         let val : Box<Void> = unsafe { transmute::<_,_>( val ) } ;
         MutArt{loc:{ self.store.push( val );
-                     Rc::new(self.store.len())},
+                     Rc::new(self.store.len()-1)},
                phantom:PhantomData
         }
     }
@@ -78,7 +78,7 @@ impl Adapton for AdaptonFromScratch {
                 transmute::<_,_>(producer)
             };
         self.store.push( producer );
-        Art::Loc( Rc::new( self.store.len() ) )
+        Art::Loc( Rc::new( self.store.len()-1) )
     }
 
     fn force<Res:'static+Eq+Debug+Clone> (self:&mut AdaptonFromScratch,
