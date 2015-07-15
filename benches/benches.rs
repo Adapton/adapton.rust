@@ -282,6 +282,7 @@ mod hourglass {
         }
 
         fn depend_add<A:Adapton>(st:&mut A, x: &Art<u64,A::Loc>,y: &Art<u64,A::Loc>) -> u64 {
+            println!("depend_add:({:?},{:?})", x, y);
             st.force(x) + st.force(y)
         }
 
