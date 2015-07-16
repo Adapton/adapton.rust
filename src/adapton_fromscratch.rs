@@ -79,7 +79,7 @@ impl Adapton for AdaptonFromScratch {
             };        
         self.store.push( producer );
         let index = self.store.len()-1;
-        println!("allocated {} as {:?}", index, arg);
+        //println!("allocated {} as {:?}", index, arg);
         Art::Loc( Rc::new( index ) )
     }
 
@@ -98,7 +98,7 @@ impl Adapton for AdaptonFromScratch {
                         };
                     producer.copy()
                 };
-                println!("forcing {}", index);
+                //println!("forcing {}", index);
                 producer.produce(self)
             },
             Art::Rc(ref rc) => (**rc).clone(),

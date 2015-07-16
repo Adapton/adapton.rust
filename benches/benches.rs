@@ -282,7 +282,7 @@ mod hourglass {
         }
 
         fn depend_add<A:Adapton>(st:&mut A, x: Art<u64,A::Loc>,y: Art<u64,A::Loc>) -> u64 {
-            println!("depend_add:({:?},{:?})", x, y);
+            //println!("depend_add:({:?},{:?})", x, y);
             st.force(&x) + st.force(&y)
         }
         
@@ -298,12 +298,12 @@ mod hourglass {
                 let second = nodes[item_num+1].clone();
                 //why don't we have lifetime issues here?
                 nodes.push(thunk!(st, depend_add, x:first, y:second));
-                println!("{} --> {}, {}", nodes.len()-1, item_num, item_num+1);
+                //println!("{} --> {}, {}", nodes.len()-1, item_num, item_num+1);
                 if nodes.len() == 7 { break; }
                 else { item_num += 2 }
             }
             let thk = &nodes[nodes.len()-1];
-            println!("past checkpoint");
+            //println!("past checkpoint");
             st.force(thk)
         }
 
@@ -320,18 +320,20 @@ mod hourglass {
                 let second = nodes[item_num+1].clone();
                 //why don't we have lifetime issues here?
                 nodes.push(thunk!(st, depend_add, x:first, y:second));
-                println!("{} --> {}, {}", nodes.len()-1, item_num, item_num+1);
+                //println!("{} --> {}, {}", nodes.len()-1, item_num, item_num+1);
 
                 if item_num < 122 { item_num += 2 } else { item_num += 1 }
             }
             let thk = &nodes[nodes.len()-1];
-            println!("past checkpoint");
+            //println!("past checkpoint");
             st.force(thk)
         }
 
         pub fn run_hourglass () -> u64 {
             let mut st = &mut (AdaptonFromScratch::new());
-            hourglass(st)
+            let res = hourglass(st);
+            assert!(res == 8);
+            res
         }
 
         pub fn run_hourglass_repeat (n:u64) -> u64 {
