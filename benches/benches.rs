@@ -277,13 +277,13 @@ mod hourglass {
 
         fn ident<A:Adapton,T>(st:&mut A, x:T) -> T {x}
 
-        fn depend_mult<A:Adapton>(st:&mut A, x: &Art<u64,A::Loc>,y: &Art<u64,A::Loc>) -> u64 {
-            st.force(x) * st.force(y)
+        fn depend_mult<A:Adapton>(st:&mut A, x: Art<u64,A::Loc>,y: Art<u64,A::Loc>) -> u64 {
+            st.force(&x) * st.force(&y)
         }
 
-        fn depend_add<A:Adapton>(st:&mut A, x: &Art<u64,A::Loc>,y: &Art<u64,A::Loc>) -> u64 {
+        fn depend_add<A:Adapton>(st:&mut A, x: Art<u64,A::Loc>,y: Art<u64,A::Loc>) -> u64 {
             println!("depend_add:({:?},{:?})", x, y);
-            st.force(x) + st.force(y)
+            st.force(&x) + st.force(&y)
         }
         
         pub fn hourglass<A:Adapton> (st:&mut A) -> u64 {
@@ -297,7 +297,7 @@ mod hourglass {
                 let first = nodes[item_num].clone();
                 let second = nodes[item_num+1].clone();
                 //why don't we have lifetime issues here?
-                nodes.push(thunk!(st, depend_add, x:&first, y:&second));
+                nodes.push(thunk!(st, depend_add, x:first, y:second));
                 println!("{} --> {}, {}", nodes.len()-1, item_num, item_num+1);
                 if nodes.len() == 7 { break; }
                 else { item_num += 2 }
@@ -319,7 +319,7 @@ mod hourglass {
                 let first = nodes[item_num].clone();
                 let second = nodes[item_num+1].clone();
                 //why don't we have lifetime issues here?
-                nodes.push(thunk!(st, depend_add, x:&first, y:&second));
+                nodes.push(thunk!(st, depend_add, x:first, y:second));
                 println!("{} --> {}, {}", nodes.len()-1, item_num, item_num+1);
 
                 if item_num < 122 { item_num += 2 } else { item_num += 1 }
