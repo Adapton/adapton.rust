@@ -285,8 +285,29 @@ mod hourglass {
             println!("depend_add:({:?},{:?})", x, y);
             st.force(x) + st.force(y)
         }
-
+        
         pub fn hourglass<A:Adapton> (st:&mut A) -> u64 {
+            let cells = vec![2;4];
+            let mut nodes = vec![];
+            for i in 0..4 {
+                nodes.push(thunk!(st, ident, x:cells[i]));
+            }
+            let mut item_num = 0;
+            loop {
+                let first = nodes[item_num].clone();
+                let second = nodes[item_num+1].clone();
+                //why don't we have lifetime issues here?
+                nodes.push(thunk!(st, depend_add, x:&first, y:&second));
+                println!("{} --> {}, {}", nodes.len()-1, item_num, item_num+1);
+                if nodes.len() == 7 { break; }
+                else { item_num += 2 }
+            }
+            let thk = &nodes[nodes.len()-1];
+            println!("past checkpoint");
+            st.force(thk)
+        }
+
+        pub fn hourglass_big<A:Adapton> (st:&mut A) -> u64 {
             let cells = vec![2;64];
             let mut nodes = vec![];
             for i in 0..64 {
