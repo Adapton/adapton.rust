@@ -318,10 +318,12 @@ mod hourglass {
                 if nodes.len() == 126 { break; }
                 let first = nodes[item_num].clone();
                 let second = nodes[item_num+1].clone();
-                //why don't we have lifetime issues here?
+                // why don't we have lifetime issues here?
+                // We do!!! That's the source of the bug.
+                // The thunk needs to *own* the arguments we give it.
                 nodes.push(thunk!(st, depend_add, x:first, y:second));
+                //nodes.push(thunk!(st, depend_add, x:&first, y:&second));
                 //println!("{} --> {}, {}", nodes.len()-1, item_num, item_num+1);
-
                 if item_num < 122 { item_num += 2 } else { item_num += 1 }
             }
             let thk = &nodes[nodes.len()-1];
