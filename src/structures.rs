@@ -5,6 +5,54 @@ use std::rc::Rc;
 use adapton_syntax::* ;
 use adapton_sigs::* ;
 
+// Why Zippers?
+// -------------
+
+// Zippers provide a simple, yet expressive functional model for
+// incremental editing.  We consider a list editor below.
+
+// Capturing the notion of "incremental editing" is essential for
+// effective incremental computation.  Specifically, the editor
+// metaphor is the right IO interface to the "outside user" of the
+// incremental computation, since it directly captures the process by
+// which the user edits and it gives a language to these edits.
+
+// Zippers efficiently implement functional editors for many common
+// data structures.  This efficiency comes from avoiding unnecessary
+// traversals, allocations, and garbage collection.  The design of
+// zippers ammortize the work of focusing and unfocusing the structure
+// (typically linear in cost), over a large number of edits, rather
+// than pay the linear cost for each edit individually.  Just like
+// other functional data structures, and unlike imperative editors,
+// zippers enjoy referential transparency, meaning that new states of
+// the editor do not destructively update old states, but instead they
+// co-exist and share internal structure, which is the key to their
+// efficiency.
+
+// Unfortunately, zippers appear to have a fundemental limitation:
+// They implement efficient single-cursor editing, but do not
+// efficiently implement concurrent (multi-cursor) editing.  To
+// interleave multiple edits at different cursors within a single
+// timeline, a naive zipper user would focus and unfocus each time the
+// "current cursor" changes in the (linearized) edit stream.  The
+// alternative to repeated focusing and unfocusing are designs for
+// specialized multi-cursor zippers (e.g., a two-cursor zipper, a
+// three-cursor zipper, etc.).  These designs consist of comparatively
+// little research, and unfortunately, significantly more complexity
+// compared with the single-cursor counterparts.  Hence, the presence
+// of multiple cursors seems to present a fundamental, insurmountable
+// limitation for the zipper, which otherwise works simply, and
+// beautifully.
+
+// Claim: Using nominal IC, the single-focus zipper is powerful enough
+// to refocus in (amortized) sub-linear time.
+
+// Key idea: Choose a canonical form for the unfocused structure based
+// on probabilistically-balanced trees, and use nominal IC to memoize
+// the transformations between this canonical form and a single-focus
+// zipper at each cursor.  See `tree_of_2lists` below for the specific
+// algorithm I'm currently trying out.
+
 /// `ListEdit<A,X,L>` gives a simple notion of list-editing that is
 /// generic with respect to adapton implementation `A`, list element
 /// type `X`, and list implementation `L`.
@@ -28,6 +76,7 @@ pub trait ListEdit<A:Adapton,X> {
 pub enum ListEditDir { Left, Right }
 
 /// Lists with a focus; suitable to implement `ListEdit`.
+#[derive(Debug,Hash,PartialEq,Eq,Clone)]
 pub struct ListZipper<A:Adapton,X,L:ListT<A,X>> {
     /// Elements to the left of the focus, nearest to furthest.
     pub left: L::List,
@@ -324,20 +373,6 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
              )
     }
 }
-
-// // TODO: Need a way of getting "the next name"; maybe they should be given as another vector?
-// pub fn list_of_vec<A:Adapton,X:Clone,L:List<A,X>>
-//     (st:&mut A, &vec:Vec<X>) -> List<A,X> 
-// {
-//     let mut l = L::nil(st);
-//     for x in vec.iter() {
-//         if false {
-//             l = L::name(panic!(""), l);
-//         };
-//         l = L::cons(x, l);
-//     };
-//     return l
-// }
 
 pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm,()>,BinOp>
     (st:&mut A, tree:&T::Tree, zero:&Elm, binop:&BinOp) -> Elm

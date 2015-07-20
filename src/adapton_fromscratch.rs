@@ -12,8 +12,9 @@ pub type Loc = usize;
 #[derive(Debug,Clone,Hash,Eq,PartialEq)]
 pub struct Name;
 
-trait Void { }
+trait Void : Debug { }
 
+#[derive(Debug)]
 pub struct AdaptonFromScratch {
     /// need a store; the Adapton trait provides a store semantics (viz., see `set` and `force`).
     store : Vec<Box<Void>>
@@ -29,17 +30,17 @@ impl Adapton for AdaptonFromScratch {
         }
     }
 
-    fn name_of_string (self:&mut AdaptonFromScratch, sym:String) -> Name { Name }
-    fn name_of_u64 (self:&mut AdaptonFromScratch, sym:u64) -> Name { Name }
-    fn name_pair (self: &mut AdaptonFromScratch, fst:Name, snd:Name) -> Name { Name }
-    fn name_fork (self:&mut AdaptonFromScratch, nm:Name) -> (Name, Name) { (Name,Name) }
-    fn ns<T,F> (self: &mut AdaptonFromScratch, nm:Name, body:F) -> T where F:FnOnce(&mut AdaptonFromScratch) -> T { body(self) }
+    fn name_of_string (self:&mut AdaptonFromScratch, _sym:String) -> Name { Name }
+    fn name_of_u64 (self:&mut AdaptonFromScratch, _sym:u64) -> Name { Name }
+    fn name_pair (self: &mut AdaptonFromScratch, _fst:Name, _snd:Name) -> Name { Name }
+    fn name_fork (self:&mut AdaptonFromScratch, _nm:Name) -> (Name, Name) { (Name,Name) }
+    fn ns<T,F> (self: &mut AdaptonFromScratch, _nm:Name, body:F) -> T where F:FnOnce(&mut AdaptonFromScratch) -> T { body(self) }
     fn put<T:Eq> (self:&mut AdaptonFromScratch, x:T) -> Art<T,Loc> { Art::Rc(Rc::new(x)) }
 
     fn cell<T:Eq+Debug+Clone
         +'static // TODO-Later: Needed on T because of lifetime issues.
         >
-        (self:&mut AdaptonFromScratch, nm:Name, val:T) -> MutArt<T,Loc>
+        (self:&mut AdaptonFromScratch, _nm:Name, val:T) -> MutArt<T,Loc>
     {
         let val : Box<Producer<T>> = Box::new( Val{val:Rc::new(val)} ) ;
         let val : Box<Void> = unsafe { transmute::<_,_>( val ) } ;
@@ -59,7 +60,7 @@ impl Adapton for AdaptonFromScratch {
 
     fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+'static>
         (self:&mut AdaptonFromScratch,
-         id:ArtIdChoice<Name>,
+         _id:ArtIdChoice<Name>,
          prog_pt:ProgPt,
          fn_box:Rc<Box<Fn(&mut AdaptonFromScratch, Arg, Spurious) -> Res>>,
          arg:Arg, spurious:Spurious)
@@ -120,7 +121,7 @@ struct Val<Res> {
 impl<Res:Clone+'static>
     Producer<Res> for Val<Res>
 {
-    fn produce(self:&Self, st:&mut AdaptonFromScratch) -> Res {
+    fn produce(self:&Self, _st:&mut AdaptonFromScratch) -> Res {
         (*self.val).clone()
     }
     fn copy(self:&Self) -> Box<Producer<Res>> {

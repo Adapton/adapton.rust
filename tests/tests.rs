@@ -2,13 +2,33 @@
 #[macro_use]
 extern crate adapton ;
 
+mod zipper {
+    extern crate test;
+    use adapton::adapton_syntax::* ;
+    use adapton::adapton_sigs::* ;
+    //use adapton::adapton_state::* ;
+    use adapton::adapton_fromscratch::* ;
+    use adapton::structures::* ;
+    
+    pub fn zipper_edits<A:Adapton,L:ListT<A,u64>> (st:&mut A, nil:L) {
+        let z = ListZipper::<A,u64,L>::empty(&mut st);
+        println!("{:?}", z)
+    }
+    
+    #[test]
+    pub fn zipper_test () {
+        let mut st = AdaptonFromScratch::new();
+        let nil = List::nil(st);
+        zipper_edits (&mut st, nil)
+    }
+}
+
+
 #[cfg(test)]
 mod pure_caching {
     extern crate test;
     use self::test::Bencher;
-
-    use std::rc::Rc;
-    
+    use std::rc::Rc;   
     use adapton::adapton_syntax::* ;
     use adapton::adapton_sigs::* ;
     use adapton::adapton_state::* ;

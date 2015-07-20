@@ -274,6 +274,7 @@ mod hourglass {
         use adapton::adapton_syntax::* ;
         use adapton::adapton_sigs::* ;
         use adapton::adapton_fromscratch::* ;
+        use adapton::structures::* ;
 
         fn ident<A:Adapton,T>(st:&mut A, x:T) -> T {x}
 
