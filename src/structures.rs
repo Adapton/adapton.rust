@@ -21,12 +21,12 @@ use adapton_sigs::* ;
 // data structures.  This efficiency comes from avoiding unnecessary
 // traversals, allocations, and garbage collection.  The design of
 // zippers ammortize the work of focusing and unfocusing the structure
-// (typically linear in cost), over a large number of edits, rather
+// (linear in cost for lists), over a large number of edits, rather
 // than pay the linear cost for each edit individually.  Just like
 // other functional data structures, and unlike imperative editors,
 // zippers enjoy referential transparency, meaning that new states of
 // the editor do not destructively update old states, but instead they
-// co-exist and share internal structure, which is the key to their
+// co-exist and share internal structure, which is also key to their
 // efficiency.
 
 // Unfortunately, zippers appear to have a fundemental limitation:
@@ -44,14 +44,22 @@ use adapton_sigs::* ;
 // fundamental, insurmountable limitation for the zipper, which
 // otherwise works simply, and beautifully.
 
+// Nominal incremental computation can help:
+
 // Claim 1: Using nominal IC, the single-focus list zipper can refocus
 // in amortized O(log n) time, for list structures of length n.
 
 // Key idea: Choose a canonical form for the unfocused structure based
 // on probabilistically-balanced trees, and use nominal IC to memoize
 // the transformations between this canonical form and a single-focus
-// zipper at the cursor.  See `tree_of_2lists` below for the specific
-// algorithm I'm currently trying out.
+// zipper at the desired cursor.  See `tree_of_2lists` below for the
+// specific algorithm I'm currently trying out.
+
+// Questions for future designs: To what extent can we exploit
+// laziness and function inverses?  For instance, we want to avoid
+// building zipperized views for parts of the structure that are not
+// edited.  When we canonicalize these parts of the zipper structure,
+// it'd be nice to just apply the identity function, i.e., do nothing.
 
 /// `ListEdit<A,X,L>` gives a simple notion of list-editing that is
 /// generic with respect to adapton implementation `A`, list element
