@@ -15,7 +15,7 @@ use adapton_sigs::* ;
 // effective incremental computation.  Specifically, the editor
 // metaphor is the right IO interface to the "outside user" of the
 // incremental computation, since it directly captures the process by
-// which the user edits and it gives a language to these edits.
+// which the user edits, and it gives a language to these edits.
 
 // Zippers efficiently implement functional editors for many common
 // data structures.  This efficiency comes from avoiding unnecessary
@@ -37,20 +37,20 @@ use adapton_sigs::* ;
 // "current cursor" changes in the (linearized) edit stream.  The
 // alternative to repeated focusing and unfocusing are designs for
 // specialized multi-cursor zippers (e.g., a two-cursor zipper, a
-// three-cursor zipper, etc.).  These designs consist of comparatively
-// little research, and unfortunately, significantly more complexity
-// compared with the single-cursor counterparts.  Hence, the presence
-// of multiple cursors seems to present a fundamental, insurmountable
-// limitation for the zipper, which otherwise works simply, and
-// beautifully.
+// three-cursor zipper, etc.).  These designs are supported by
+// comparatively little research, and unfortunately, they are
+// significantly more complex than their single-cursor counterparts.
+// Hence, the presence of multiple cursors seems to present a
+// fundamental, insurmountable limitation for the zipper, which
+// otherwise works simply, and beautifully.
 
-// Claim: Using nominal IC, the single-focus zipper is powerful enough
-// to refocus in (amortized) sub-linear time.
+// Claim 1: Using nominal IC, the single-focus list zipper can refocus
+// in amortized O(log n) time, for list structures of length n.
 
 // Key idea: Choose a canonical form for the unfocused structure based
 // on probabilistically-balanced trees, and use nominal IC to memoize
 // the transformations between this canonical form and a single-focus
-// zipper at each cursor.  See `tree_of_2lists` below for the specific
+// zipper at the cursor.  See `tree_of_2lists` below for the specific
 // algorithm I'm currently trying out.
 
 /// `ListEdit<A,X,L>` gives a simple notion of list-editing that is
