@@ -273,8 +273,8 @@ mod hourglass {
 
         use adapton::adapton_syntax::* ;
         use adapton::adapton_sigs::* ;
-        use adapton::adapton_fromscratch::* ;
-        //use adapton::adapton_state::* ;
+        //use adapton::adapton_fromscratch::* ;
+        use adapton::adapton_state::* ;
         use adapton::structures::* ;
 
         // Thunks needs to *own* the arguments we give them.
