@@ -38,6 +38,12 @@ pub struct AdaptonState {
     stack : Vec<Frame>
 }
 
+impl Hash  for     AdaptonState { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
+//impl Debug for     AdaptonState { fn fmt(&self, _f:&mut Formatter) -> Result { unimplemented!() } }
+impl Eq    for     AdaptonState { }
+impl PartialEq for AdaptonState { fn eq(&self, _other:&Self) -> bool { unimplemented!() } }
+impl Clone for     AdaptonState { fn clone(&self) -> Self { unimplemented!() } }
+
 // Symbols: For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
 // http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf
 //

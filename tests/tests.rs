@@ -9,17 +9,48 @@ mod zipper {
     //use adapton::adapton_state::* ;
     use adapton::adapton_fromscratch::* ;
     use adapton::structures::* ;
+
     
-    pub fn zipper_edits<A:Adapton,L:ListT<A,u64>> (st:&mut A, nil:L) {
-        let z = ListZipper::<A,u64,L>::empty(&mut st);
-        println!("{:?}", z)
+    pub fn zipper_get_tree<A:Adapton,L:ListT<A,u64>> (st:&mut A, nil:L) {
+        let z = ListZipper::<A,u64,L>::empty(st);
+        let z = ListZipper::insert(st, z, ListEditDir::Left,  1);
+        let z = ListZipper::insert(st, z, ListEditDir::Right, 2);
+        let z = ListZipper::insert(st, z, ListEditDir::Left,  3);
+        let z = ListZipper::insert(st, z, ListEditDir::Right, 4);
+        let z = ListZipper::insert(st, z, ListEditDir::Left,  5);
+        let z = ListZipper::insert(st, z, ListEditDir::Right, 6);
+        let z = ListZipper::insert(st, z, ListEditDir::Left,  7);
+        let z = ListZipper::insert(st, z, ListEditDir::Right, 8);
+        let z = ListZipper::insert(st, z, ListEditDir::Left,  9);
+        let z = ListZipper::insert(st, z, ListEditDir::Right, 10);
+        let z = ListZipper::insert(st, z, ListEditDir::Left,  11);
+        let z = ListZipper::insert(st, z, ListEditDir::Right, 12);
+        let z = ListZipper::insert(st, z, ListEditDir::Left,  13);
+        let z = ListZipper::insert(st, z, ListEditDir::Right, 14);
+        let z = ListZipper::insert(st, z, ListEditDir::Left,  15);
+        let z = ListZipper::insert(st, z, ListEditDir::Right, 16);
+        println!("z = {:?}\n", z);
+        {
+            let t = ListZipper::get_tree::<Tree<A,u64,()>>(st, z.clone(), ListEditDir::Left);
+            println!("t = {:?}\n", t);
+            let l = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t);
+            println!("l = {:?}\n", l);
+            let l_spec = list_of_vec::<A,u64,L>(st, vec![1,3,5,7,9,11,13,15, /*cursor*/ 16,14,12,10,8,6,4,2]);
+            //assert_eq!(l, l_spec);
+        }
+        {
+            let t = ListZipper::get_tree::<Tree<A,u64,()>>(st, z.clone(), ListEditDir::Right);
+            let l = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t);
+            let l_spec = list_of_vec::<A,u64,L>(st, vec![2,4,6,8,10,12,14,16,1,3,5,7,9,11,13,15]);
+            //assert_eq!(l, l_spec);
+        }
     }
     
     #[test]
     pub fn zipper_test () {
         let mut st = AdaptonFromScratch::new();
-        let nil = List::nil(st);
-        zipper_edits (&mut st, nil)
+        let nil = List::nil(&mut st);
+        zipper_get_tree (&mut st, nil);
     }
 }
 

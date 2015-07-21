@@ -14,11 +14,16 @@ pub struct Name;
 
 trait Void : Debug { }
 
-#[derive(Debug)]
 pub struct AdaptonFromScratch {
     /// need a store; the Adapton trait provides a store semantics (viz., see `set` and `force`).
     store : Vec<Box<Void>>
 }
+
+impl Hash  for     AdaptonFromScratch { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
+impl Debug for     AdaptonFromScratch { fn fmt(&self, _f:&mut Formatter) -> Result { unimplemented!() } }
+impl Eq    for     AdaptonFromScratch { }
+impl PartialEq for AdaptonFromScratch { fn eq(&self, _other:&Self) -> bool { unimplemented!() } }
+impl Clone for     AdaptonFromScratch { fn clone(&self) -> Self { unimplemented!() } }
 
 impl Adapton for AdaptonFromScratch {
     type Name = Name;

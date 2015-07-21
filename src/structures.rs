@@ -16,19 +16,22 @@ use adapton_sigs::* ;
 // metaphor is the right input-output interface to the "outside user"
 // of the incremental computation, since it directly captures the
 // process by which the user edits, and it gives a language to these
-// edits, viz., the primitive operations supported by the zipper..
+// edits, viz., the primitive operations supported by the zipper.
 
 // Zippers efficiently implement functional editors for many common
 // data structures.  This efficiency comes from avoiding unnecessary
-// traversals, allocations, and garbage collection.  The design of
-// zippers ammortize the work of focusing and unfocusing the structure
-// (linear in cost for lists), over a large number of edits, rather
-// than pay the linear cost for each edit individually.  Just like
-// other functional data structures, and unlike imperative editors,
-// zippers enjoy referential transparency, meaning that new states of
-// the editor do not destructively update old states, but instead they
-// co-exist and share internal structure, which is also key to their
-// efficiency.
+// traversals.  In functional programming, traversals consist of both
+// allocation and garbage collection, e.g., to reverse pointers along
+// the path to the focused sublist or subtree.  The design of zippers
+// ammortize the work of focusing and unfocusing the structure, over a
+// large number of edits, rather than pay the linear cost for each
+// edit individually.  Just like other functional data structures, and
+// unlike imperative editors, zippers enjoy **referential
+// transparency**, meaning that new states of the editor do not arise
+// by destructively updating the old states.  Instead, new and old
+// states co-exist, and they typically share internal structure
+// wherever the sub-structure before and after the edit are unchanged,
+// and thus common.  This sharing is key to their efficiency.
 
 // Unfortunately, zippers appear to have a fundemental limitation:
 // They implement efficient single-cursor editing, but do not
@@ -41,10 +44,11 @@ use adapton_sigs::* ;
 // three-cursor zipper, etc.).  These designs are supported by
 // comparatively little research, and unfortunately, they also appear
 // to be significantly more complex than their single-cursor
-// counterparts, as the number of cases explode as cursors are added.
-// Hence, the presence of multiple cursors seems to present a
-// fundamental, insurmountable limitation for the zipper, which
-// otherwise works simply, and beautifully.
+// counterparts, as the number of structural cases to consider for
+// each operation explodes as cursors are added.  Hence, the presence
+// of multiple cursors seems to present a fundamental, insurmountable
+// limitation for the zipper, which otherwise works simply, and
+// beautifully.
 
 // Nominal incremental computation can help:
 
@@ -68,7 +72,7 @@ use adapton_sigs::* ;
 /// type `X`, and list implementation `L`.
 pub trait ListEdit<A:Adapton,X> {
     /// The State of the Editor is abstract.
-    type State;
+    type State ;
     /// Lists with foci admit two directions for movement.
     type Dir=ListEditDir;
     fn empty    (&mut A) -> Self::State;
@@ -143,7 +147,7 @@ impl<A:Adapton
                  ),
         }
     }
-1
+
     fn goto (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, bool) {
         match dir {
             ListEditDir::Left => L::elim_move
@@ -221,13 +225,13 @@ impl<A:Adapton
                 ,
             ListEditDir::Right =>
                 tree_of_2lists::<A,X,T,L> (st,
-                                           ListEditDir::Left,  zip.right,
-                                           ListEditDir::Right, zip.left)
+                                           ListEditDir::Right, zip.right,
+                                           ListEditDir::Left,  zip.left)
         }
     }
 }
 
-pub trait ListT<A:Adapton,Hd> {
+pub trait ListT<A:Adapton,Hd> : Debug+Clone {
     type List : Debug+Hash+PartialEq+Eq+Clone ;
     
     fn nil  (&mut A) -> Self::List ;
@@ -451,6 +455,18 @@ pub fn rev_list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
                &|_,_,xs|  xs,
                &|st,n,xs| L::name(st,n.clone(),xs)
                )    
+}
+
+pub fn list_of_vec<A:Adapton,X:Clone,L:ListT<A,X>> (st:&mut A, v:Vec<X>) -> L::List {
+    let mut l = L::nil(st);
+    for x in v.iter().rev() { l = L::cons(st,x.clone(),l) }
+    return l
+}
+
+pub fn rev_list_of_vec<A:Adapton,X:Clone,L:ListT<A,X>> (st:&mut A, v:Vec<X>) -> L::List {
+    let mut l = L::nil(st);
+    for x in v.iter() { l = L::cons(st,x.clone(), l) }
+    return l
 }
 
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
