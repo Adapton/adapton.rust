@@ -13,9 +13,10 @@ use adapton_sigs::* ;
 
 // Capturing the notion of "incremental editing" is essential for
 // effective incremental computation.  Specifically, the editor
-// metaphor is the right IO interface to the "outside user" of the
-// incremental computation, since it directly captures the process by
-// which the user edits, and it gives a language to these edits.
+// metaphor is the right input-output interface to the "outside user"
+// of the incremental computation, since it directly captures the
+// process by which the user edits, and it gives a language to these
+// edits, viz., the primitive operations supported by the zipper..
 
 // Zippers efficiently implement functional editors for many common
 // data structures.  This efficiency comes from avoiding unnecessary
@@ -31,15 +32,16 @@ use adapton_sigs::* ;
 
 // Unfortunately, zippers appear to have a fundemental limitation:
 // They implement efficient single-cursor editing, but do not
-// efficiently implement concurrent (multi-cursor) editing.  To
+// efficiently implement concurrent, multi-cursor editing.  To
 // interleave multiple edits at different cursors within a single
 // timeline, a naive zipper user would focus and unfocus each time the
-// "current cursor" changes in the (linearized) edit stream.  The
+// "current cursor" changes in a linearized edit stream.  The
 // alternative to repeated focusing and unfocusing are designs for
 // specialized multi-cursor zippers (e.g., a two-cursor zipper, a
 // three-cursor zipper, etc.).  These designs are supported by
-// comparatively little research, and unfortunately, they are
-// significantly more complex than their single-cursor counterparts.
+// comparatively little research, and unfortunately, they also appear
+// to be significantly more complex than their single-cursor
+// counterparts, as the number of cases explode as cursors are added.
 // Hence, the presence of multiple cursors seems to present a
 // fundamental, insurmountable limitation for the zipper, which
 // otherwise works simply, and beautifully.
@@ -141,7 +143,7 @@ impl<A:Adapton
                  ),
         }
     }
-
+1
     fn goto (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, bool) {
         match dir {
             ListEditDir::Left => L::elim_move
