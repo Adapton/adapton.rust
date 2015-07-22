@@ -213,23 +213,49 @@ impl<A:Adapton
         let tree = Self::get_tree::<T>(st, zip, dir);
         list_of_tree::<A,X,M,T>(st, &tree)
     }
+
+    // rev left @ right
+    // = rev (left @ rev right)
     
+    /// When `dir=Left`,  the tree's leaves are ordered as (rev left) @ right.
+    /// When `dir=Right`, the tree's leaves are ordered as (rev right) @ left.
     fn get_tree<T:TreeT<A,X,()>>
         (st:&mut A, zip:Self::State, dir:Self::Dir) -> T::Tree
     {
         match dir {
             ListEditDir::Left =>
                 tree_of_2lists::<A,X,T,L> (st,
-                                           ListEditDir::Right, zip.left,
-                                           ListEditDir::Left,  zip.right)
+                                           ListEditDir::Right /* rev */, zip.left,
+                                           ListEditDir::Left  /* fwd */, zip.right)
                 ,
             ListEditDir::Right =>
                 tree_of_2lists::<A,X,T,L> (st,
-                                           ListEditDir::Right, zip.right,
-                                           ListEditDir::Left,  zip.left)
+                                           ListEditDir::Right /* rev */, zip.right,
+                                           ListEditDir::Left  /* fwd */, zip.left)
         }
     }
 }
+
+pub fn tree_of_2lists <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
+    (st:&mut A,
+     dir1:ListEditDir,list1:L::List,
+     dir2:ListEditDir,list2:L::List) -> T::Tree
+{
+    let nil = T::nil(st) ;
+    let (tree, rest, next) = 
+        match dir1 {
+            ListEditDir::Left =>
+                tree_of_list_lr::<A,X,T,L>
+                (st, list1, Some((dir2,list2)), nil, 0 as u32, u32::max_value()),
+            ListEditDir::Right =>
+                tree_of_list_rl::<A,X,T,L>
+                (st, list1, Some((dir2,list2)), nil, 0 as u32, u32::max_value()),
+        };
+    assert!( L::is_empty( st, &rest ) );
+    assert!( next == None );
+    tree
+}
+
 
 pub trait ListT<A:Adapton,Hd> : Debug+Clone {
     type List : Debug+Hash+PartialEq+Eq+Clone ;
@@ -609,24 +635,23 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
     }
 }
 
-pub fn tree_of_2lists <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
+pub fn tree_of_list_dir
+    <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A,
-     dir1:ListEditDir,list1:L::List,
-     dir2:ListEditDir,list2:L::List) -> T::Tree
+     next:Option<(ListEditDir,L::List)>,
+     tree:T::Tree, tree_lev:u32, parent_lev:u32)
+     -> (T::Tree, L::List, Option<(ListEditDir,L::List)>)
 {
-    let nil = T::nil(st) ;
-    let (tree, rest, next) = 
-        match dir1 {
-            ListEditDir::Left =>
-                tree_of_list_lr::<A,X,T,L>
-                (st, list1, Some((dir2,list2)), nil, 0 as u32, u32::max_value()),
-            ListEditDir::Right =>
-                tree_of_list_rl::<A,X,T,L>
-                (st, list1, Some((dir2,list2)), nil, 0 as u32, u32::max_value()),
-        };
-    assert!( L::is_empty( st, &rest ) );
-    assert!( next == None );
-    tree
+    match next {
+        None => (tree, L::nil(st), None),
+        Some((ListEditDir::Left,rest)) =>
+            tree_of_list_lr::<A,X,T,L>
+            (st, rest, None, tree, tree_lev, parent_lev)
+            ,
+        Some((ListEditDir::Right,rest)) =>
+            tree_of_list_rl::<A,X,T,L>
+            (st, rest, None, tree, tree_lev, parent_lev)
+    }
 }
 
 pub fn tree_of_list_lr <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
@@ -637,16 +662,10 @@ pub fn tree_of_list_lr <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
 {
     L::elim_move (
         st, list, (left_tree, next),
-        /* Nil */  |st, (left_tree, next)|{ match next {
-            None => (left_tree, L::nil(st), None),
-            Some((ListEditDir::Left,rest)) =>
-                tree_of_list_lr::<A,X,T,L>
-                (st, rest, None, left_tree, left_tree_lev, parent_lev)
-                ,
-            Some((ListEditDir::Right,rest)) =>
-                tree_of_list_rl::<A,X,T,L>
-                (st, rest, None, left_tree, left_tree_lev, parent_lev)
-        }},      
+
+        /* Nil */  |st, (left_tree, next)|
+        tree_of_list_dir::<A,X,T,L>(st, next, left_tree, left_tree_lev, parent_lev),
+        
         /* Cons */ |st, hd, rest, (left_tree, next)| {
             let lev_hd = (1 + (my_hash(&hd).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_hd && lev_hd <= parent_lev {
@@ -659,6 +678,7 @@ pub fn tree_of_list_lr <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
             else {
                 (left_tree, L::cons(st,hd,rest), next)
             }},
+
         /* Name */ |st, nm, rest, (left_tree, next)| {
             let lev_nm = (1 + 64 + (my_hash(&nm).leading_zeros())) as u32 ;
             if left_tree_lev <= lev_nm && lev_nm <= parent_lev {
@@ -690,16 +710,10 @@ pub fn tree_of_list_rl <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
 {
     L::elim_move (
         st, list, (right_tree, next),
-        /* Nil */  |st, (right_tree, next)|{ match next {
-            None => (right_tree, L::nil(st), None),
-            Some((ListEditDir::Left,rest)) =>
-                tree_of_list_lr::<A,X,T,L>
-                (st, rest, None, right_tree, right_tree_lev, parent_lev)
-                ,
-            Some((ListEditDir::Right,rest)) =>
-                tree_of_list_rl::<A,X,T,L>
-                (st, rest, None, right_tree, right_tree_lev, parent_lev)
-        }},
+        
+        /* Nil */  |st, (right_tree, next)|
+        tree_of_list_dir::<A,X,T,L>(st, next, right_tree, right_tree_lev, parent_lev),
+        
         /* Cons */ |st, hd, rest, (right_tree, next)| {
             let lev_hd = (1 + (my_hash(&hd).leading_zeros())) as u32 ;
             if right_tree_lev <= lev_hd && lev_hd <= parent_lev {
@@ -712,6 +726,7 @@ pub fn tree_of_list_rl <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
             else {
                 (right_tree, L::cons(st,hd,rest), next)
             }},
+
         /* Name */ |st, nm, rest, (right_tree, next)| {
             let lev_nm = (1 + 64 + (my_hash(&nm).leading_zeros())) as u32 ;
             if right_tree_lev <= lev_nm && lev_nm <= parent_lev {
