@@ -31,13 +31,13 @@ mod zipper {
         let z = ListZipper::insert(st, z, ListEditDir::Right, 16);
         println!("z = {:?}\n", z);
         {
-            let t = ListZipper::get_tree::<Tree<A,u64,()>>(st, z.clone(), ListEditDir::Left);
+            let t = ListZipper::get_tree::<Tree<A,u64,()>>(st, z.clone(), ListEditDir::Right);
             println!("t = get_tree z = {:?}\n", t);
 
             let l = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t);
             println!("l  = list_of_tree t = {:?}\n", l);
 
-            let l_spec = list_of_vec::<A,u64,L>(st, vec![1,3,5,7,9,11,13,15, /*cursor*/ 16,14,12,10,8,6,4,2]);
+            let l_spec = rev_list_of_vec::<A,u64,L>(st, vec![1,3,5,7,9,11,13,15, /*cursor*/ 16,14,12,10,8,6,4,2]);
             println!("l_spec  = {:?}", l_spec);
             println!("l == l_spec = {}\n", l == l_spec); // BUG: `tree_of_2lists` doesn't order elements correctly.
 
