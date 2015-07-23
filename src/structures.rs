@@ -635,6 +635,44 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
     }
 }
 
+
+pub fn tree_of_lists <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>, M:ListT<(ListEditDir,A),L>>
+    (st:&mut A,
+     dir:ListEditDir, list:L::List,
+     tree:T::Tree, tree_lev:u32, parent_lev:u32,
+     next:M::List)
+     -> (ListEditDir, T::Tree, L::List, M::List)
+{
+    L::elim_move (
+        st, list, (tree, next),
+
+        /* Nil */
+        |st, (tree, next)|        
+        panic!("tree_of_list_dir::<A,X,T,L>(st, next, left_tree, left_tree_lev, parent_lev),"),
+        
+        /* Cons */
+        |st, hd, rest, (tree, next)| {
+            let lev_hd = (1 + (my_hash(&hd).leading_zeros())) as u32 ;
+            if tree_lev <= lev_hd && lev_hd <= parent_lev {
+                let leaf = T::leaf(st, hd) ;
+                let (dir, tree2, rest, next) =
+                    tree_of_lists::<A,X,T,L,M> ( st, dir, rest, leaf, 0 as u32, lev_hd, next ) ;
+                let tree = match dir {
+                    ListEditDir::Left  => T::bin ( st, (), tree,  tree2 ),
+                    ListEditDir::Right => T::bin ( st, (), tree2, tree  ),
+                } ;
+                tree_of_lists::<A,X,T,L,M> ( st, dir, rest, tree, lev_hd, parent_lev, next )
+            }
+            else {
+                (dir, tree, L::cons(st,hd,rest), next)
+            }},
+
+        /* Name */
+        |st, nm, rest, (left_tree, next)|{
+            panic!("")
+        })
+}
+
 pub fn tree_of_list_dir
     <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A,
