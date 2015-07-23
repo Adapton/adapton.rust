@@ -592,9 +592,11 @@ pub fn tree_of_lists
             /* Cons */ |st, (dir_list,list), next, (_dir_list, _dir_tree, tree)|{
                 /* ignore _dir_list: That directionality is now "shadowed" by dir_list. */
                 /* ignore _dir_tree: We always append inner lists in left-to-right order. */
-                tree_of_lists::<A,X,T,L,M>(st, dir_list, list,
-                                           ListEditDir::Left, tree,
-                                           tree_lev, parent_lev, next)
+                let (dir_list, list, _dir_tree, tree, next) =
+                    tree_of_lists::<A,X,T,L,M>(st, dir_list, list,
+                                               ListEditDir::Left, tree,
+                                               tree_lev, parent_lev, next);
+                (dir_list, list, ListEditDir::Left, tree, next)
             },
             /* Name */ |st, nm, next, (dir_list, dir_tree, tree)| {
                 let nil1 = L::nil(st);

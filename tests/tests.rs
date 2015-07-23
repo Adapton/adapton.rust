@@ -22,28 +22,32 @@ mod zipper {
         let z = ListZipper::insert(st, z, ListEditDir::Left,  7);
         let z = ListZipper::insert(st, z, ListEditDir::Right, 8);
         println!("z = {:?}\n", z);
+
         for get_tree_dir in vec![ListEditDir::Left,ListEditDir::Right].iter()
         {
             let t = ListZipper::get_tree::<Tree<A,u64,()>>(st, z.clone(), get_tree_dir.clone());
             println!("t = get_tree z = {:?}\n", t);
 
-            let l = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t);
-            println!("l  = list_of_tree t = {:?}\n", l);
-
             let l_spec = match *get_tree_dir {
                 ListEditDir::Left  =>     list_of_vec::<A,u64,L>(st, vec![1,3,5,7, /*cursor*/ 8,6,4,2]),
                 ListEditDir::Right => rev_list_of_vec::<A,u64,L>(st, vec![1,3,5,7, /*cursor*/ 8,6,4,2]),
             };
-                
+
+            let l = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t);
+            println!("l  = list_of_tree t = {:?}\n", l);
+
             println!("l_spec  = {:?}", l_spec);
             println!("l == l_spec = {}\n", l == l_spec);
-            assert_eq!(l, l_spec);
-
+            //assert_eq!(l, l_spec);
+            
             let t2 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, l.clone());
             println!("t2 = tree_of_list l = {:?}", t2);
             println!("t2 == t = {}\n", t2 == t);
             //assert_eq!(t2, t);
 
+            let t_spec = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, l_spec.clone());
+            println!("t_spec = tree_of_list l_spec = {:?}\n", t_spec);
+            
             let l2 = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t2);
             println!("l2 = list_of_tree t2 = {:?}", l2);
             println!("l2 == l = {}\n", l2 == l); // Tests `list_of_tree o tree_of_list = id`.
@@ -53,6 +57,8 @@ mod zipper {
             println!("t3 = tree_of_list l2 = {:?}", t3);
             println!("t3 == l = {}\n", t3 == t2); // Tests `tree_of_list o list_of_tree = id`.
             assert_eq!(t3, t2);            
+
+            assert_eq!(l, l_spec);
         }
     }
     
