@@ -437,7 +437,7 @@ pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm,()>,Bi
 }
 
 pub fn list_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,L:ListT<A,Elm>,BinOp,T:TreeT<A,Elm,()>>
-    (st:&mut A, list:&L::List, zero:&Elm, binop:&BinOp) -> Elm
+    (st:&mut A, list:L::List, zero:&Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
     let tree = tree_of_list::<A,Elm,T,L>(st, list);
@@ -645,7 +645,6 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
     }
 }
 
-
 pub fn tree_of_lists
     < A:Adapton
     , X:Hash+Clone
@@ -733,7 +732,8 @@ pub fn tree_of_lists
         )
 }
 
-pub fn tree_of_list_dir
+#[warn(dead_code)]
+fn tree_of_list_dir
     <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A,
      next:Option<(ListEditDir,L::List)>,
@@ -752,7 +752,8 @@ pub fn tree_of_list_dir
     }
 }
 
-pub fn tree_of_list_lr <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
+#[warn(dead_code)]
+fn tree_of_list_lr <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A, list:L::List,
      next:Option<(ListEditDir,L::List)>,
      left_tree:T::Tree, left_tree_lev:u32, parent_lev:u32)
@@ -800,7 +801,8 @@ pub fn tree_of_list_lr <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
         )
 }
 
-pub fn tree_of_list_rl <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
+#[warn(dead_code)]
+fn tree_of_list_rl <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A, list:L::List,
      next:Option<(ListEditDir,L::List)>,
      right_tree:T::Tree, right_tree_lev:u32, parent_lev:u32)
@@ -849,6 +851,7 @@ pub fn tree_of_list_rl <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
 }
 
 
+#[warn(dead_code)]
 fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
     (st:&mut A, list:&L::List, left_tree:T::Tree, left_tree_lev:u32, parent_lev:u32)
      -> (T::Tree, L::List)
@@ -886,12 +889,18 @@ fn tree_of_list_rec <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
         )
 }
 
-pub fn tree_of_list <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>>
-    (st:&mut A, list:&L::List) -> T::Tree
+pub fn tree_of_list <A:Adapton, X:Hash+Clone+Debug+Eq+PartialEq, T:TreeT<A,X,()>, L:ListT<A,X>>
+    (st:&mut A, list:L::List) -> T::Tree
 {
-    let nil = T::nil(st) ;
-    let (tree, rest) = tree_of_list_rec::<A,X,T,L> (st, list, nil, 0 as u32, u32::max_value()) ;
+    let nil1 = T::nil(st) ;
+    let nil2 = List::<A,(ListEditDir,L::List)>::nil(st) ;
+    let (_, tree, _, rest, next) = tree_of_lists::<A,X,T,L,List<A,(ListEditDir,L::List)>>
+        (st,
+         ListEditDir::Left, list,
+         ListEditDir::Left, nil1, 0 as u32, u32::max_value(),
+         nil2) ;
     assert!( L::is_empty( st, &rest ) );
+    assert!( List::<A,(ListEditDir,L::List)>::is_empty( st, &next ) );
     tree
 }
 
@@ -947,8 +956,8 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
          )
 }
 
-pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
-    (st:&mut A, list:&L::List) -> L::List
+pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone+Debug,L:ListT<A,X>,T:TreeT<A,X,()>>
+    (st:&mut A, list:L::List) -> L::List
 {
     let tree = tree_of_list::<A,X,T,L>(st, list);
     T::fold_up (st, &tree,

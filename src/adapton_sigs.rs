@@ -63,7 +63,7 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
 
     /// Demand & observe arts (all kinds): force
     fn force<T:Eq+Debug+Clone> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
-
+  
 
     ///  # Derived fork functions:
     
