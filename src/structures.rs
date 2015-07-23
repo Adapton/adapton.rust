@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
+use std::marker::PhantomData;
 
 use adapton_syntax::* ;
 use adapton_sigs::* ;
@@ -91,11 +92,12 @@ pub enum ListEditDir { Left, Right }
 
 /// Lists with a focus; suitable to implement `ListEdit`.
 #[derive(Debug,Hash,PartialEq,Eq,Clone)]
-pub struct ListZipper<A:Adapton,X,L:ListT<A,X>> {
+pub struct ListZipper<A:Adapton,X,L:ListT<A,X>,M:ListT<A,(ListEditDir,L::List)>> {
     /// Elements to the left of the focus, nearest to furthest.
     pub left: L::List,
     /// Elements to the right of the focus, nearest to furthest.
-    pub right: L::List
+    pub right: L::List,
+    pub phantom:PhantomData<M>,
 }
 
 /// Implement `ListEdit` for `ListZipper` generically with respect to
@@ -104,28 +106,31 @@ pub struct ListZipper<A:Adapton,X,L:ListT<A,X>> {
 impl<A:Adapton
     ,X:Debug+Hash+PartialEq+Eq+Clone
     ,L:ListT<A,X>
+    ,M:ListT<A,(ListEditDir,L::List)>
     >
     ListEdit<A,X>
     for
-    ListZipper<A,X,L>
+    ListZipper<A,X,L,M>
 {
-    type State=ListZipper<A,X,L>;
+    type State=ListZipper<A,X,L,M>;
     type Dir=ListEditDir;
     
     fn empty (st: &mut A) -> Self::State {
         let nil1 = L::nil(st);
         let nil2 = nil1.clone();
-        ListZipper{left:nil1, right:nil2}
+        ListZipper{left:nil1, right:nil2, phantom:PhantomData}
     }
     
     fn insert (st:&mut A, zip:Self::State, dir:Self::Dir, x:X) -> Self::State {
         match dir {
             ListEditDir::Left =>
                 ListZipper{left:L::cons(st, x, zip.left),
-                           right:zip.right},
+                           right:zip.right,
+                           phantom:PhantomData},
             ListEditDir::Right =>
                 ListZipper{left:zip.left,
-                           right:L::cons(st, x, zip.right)},
+                           right:L::cons(st, x, zip.right),
+                           phantom:PhantomData},
         }
     }
     
@@ -133,16 +138,16 @@ impl<A:Adapton
         match dir {
             ListEditDir::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right|         (ListZipper{left:L::nil(st), right:right}, None   ),
-                 |_,x,left,right|   (ListZipper{left:left,       right:right}, Some(x)),
-                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right)};
+                 |st,right|         (ListZipper{left:L::nil(st), right:right, phantom:PhantomData}, None   ),
+                 |_,x,left,right|   (ListZipper{left:left,       right:right, phantom:PhantomData}, Some(x)),
+                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right), phantom:PhantomData};
                                      Self::remove (st, zip, ListEditDir::Left)}
                  ),
             ListEditDir::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left|          (ListZipper{left:left, right:L::nil(st)}, None   ),
-                 |_,x,right,left|   (ListZipper{left:left, right:right},      Some(x)),
-                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right};
+                 |st,left|          (ListZipper{left:left, right:L::nil(st), phantom:PhantomData}, None   ),
+                 |_,x,right,left|   (ListZipper{left:left, right:right,      phantom:PhantomData}, Some(x)),
+                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right, phantom:PhantomData};
                                      Self::remove (st, zip, ListEditDir::Right)}
                  ),
         }
@@ -152,16 +157,16 @@ impl<A:Adapton
         match dir {
             ListEditDir::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right|         (ListZipper{left:L::nil(st), right:right},               false ),
-                 |st,x,left,right|  (ListZipper{left:left,       right:L::cons(st,x,right)}, true  ),
-                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right)};
+                 |st,right|         (ListZipper{left:L::nil(st), right:right,               phantom:PhantomData}, false ),
+                 |st,x,left,right|  (ListZipper{left:left,       right:L::cons(st,x,right), phantom:PhantomData}, true  ),
+                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right), phantom:PhantomData};
                                      Self::goto (st, zip, ListEditDir::Left)}
                  ),
             ListEditDir::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left|          (ListZipper{left:left,              right:L::nil(st)}, false ),
-                 |st,x,right,left|  (ListZipper{left:L::cons(st,x,left),right:right},      true  ),
-                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right};
+                 |st,left|          (ListZipper{left:left,              right:L::nil(st), phantom:PhantomData}, false ),
+                 |st,x,right,left|  (ListZipper{left:L::cons(st,x,left),right:right,      phantom:PhantomData}, true  ),
+                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right, phantom:PhantomData};
                                      Self::goto (st, zip, ListEditDir::Right)}
                  ),
         }
@@ -171,18 +176,18 @@ impl<A:Adapton
         match dir {
             ListEditDir::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right|         (ListZipper{left:L::nil(st), right:right}, None),
+                 |st,right|         (ListZipper{left:L::nil(st), right:right, phantom:PhantomData}, None),
                  |st,x,left,right| {let x2 = x.clone();
-                                    (ListZipper{left:L::cons(st,x,left), right:right}, Some(x2))},
-                 |st,nm,left,right|{let zip = ListZipper{left:left,right:L::name(st,nm,right)};
+                                    (ListZipper{left:L::cons(st,x,left), right:right, phantom:PhantomData}, Some(x2))},
+                 |st,nm,left,right|{let zip = ListZipper{left:left,right:L::name(st,nm,right), phantom:PhantomData};
                                     Self::observe (st, zip, ListEditDir::Left)}
                  ),
             ListEditDir::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left|         (ListZipper{left:left, right:L::nil(st)}, None),
+                 |st,left|         (ListZipper{left:left, right:L::nil(st), phantom:PhantomData}, None),
                  |st,x,right,left| {let x2 = x.clone();
-                                    (ListZipper{left:left, right:L::cons(st,x,right)}, Some(x2))},
-                 |st,nm,right,left|{let zip = ListZipper{left:L::name(st,nm,left),right:right};
+                                    (ListZipper{left:left, right:L::cons(st,x,right), phantom:PhantomData}, Some(x2))},
+                 |st,nm,right,left|{let zip = ListZipper{left:L::name(st,nm,left),right:right, phantom:PhantomData};
                                     Self::observe (st, zip, ListEditDir::Right)}
                  ),
         }
@@ -192,26 +197,26 @@ impl<A:Adapton
         match dir {
             ListEditDir::Left => L::elim_move
                 (st, zip.left, (zip.right, y),
-                 |st,(right,y)|        (ListZipper{left:L::nil(st),         right:right}, y, false),
-                 |st,x,left,(right,y)| (ListZipper{left:L::cons(st,y,left), right:right}, x, true ),
-                 |st,nm,left,(right,y)|{let zip = ListZipper{left:left,right:L::name(st,nm,right)};
+                 |st,(right,y)|        (ListZipper{left:L::nil(st),         right:right, phantom:PhantomData}, y, false),
+                 |st,x,left,(right,y)| (ListZipper{left:L::cons(st,y,left), right:right, phantom:PhantomData}, x, true ),
+                 |st,nm,left,(right,y)|{let zip = ListZipper{left:left,right:L::name(st,nm,right),phantom:PhantomData};
                                         Self::replace (st, zip, ListEditDir::Left, y)}
                  ),
             ListEditDir::Right => L::elim_move
                 (st, zip.right, (zip.left,y),
-                 |st,(left,y)|         (ListZipper{left:left, right:L::nil(st)},          y, false),
-                 |st,x,right,(left,y)| (ListZipper{left:left, right:L::cons(st,y,right)}, x, true ),
-                 |st,nm,right,(left,y)|{let zip = ListZipper{left:L::name(st,nm,left),right:right};
+                 |st,(left,y)|         (ListZipper{left:left, right:L::nil(st), phantom:PhantomData},          y, false),
+                 |st,x,right,(left,y)| (ListZipper{left:left, right:L::cons(st,y,right), phantom:PhantomData}, x, true ),
+                 |st,nm,right,(left,y)|{let zip = ListZipper{left:L::name(st,nm,left),right:right, phantom:PhantomData};
                                         Self::replace (st, zip, ListEditDir::Right, y)}
                  ),
         }
     }
 
-    fn get_list<M:ListT<A,X>,T:TreeT<A,X,()>>
-        (st:&mut A, zip:Self::State, dir:Self::Dir) -> M::List
+    fn get_list<N:ListT<A,X>,T:TreeT<A,X,()>>
+        (st:&mut A, zip:Self::State, dir:Self::Dir) -> N::List
     {
         let tree = Self::get_tree::<T>(st, zip, dir);
-        list_of_tree::<A,X,M,T>(st, &tree)
+        list_of_tree::<A,X,N,T>(st, &tree)
     }
 
     // rev left @ right
@@ -222,16 +227,21 @@ impl<A:Adapton
     fn get_tree<T:TreeT<A,X,()>>
         (st:&mut A, zip:Self::State, dir:Self::Dir) -> T::Tree
     {
+        let nil_tree = T::nil(st);
+        let nil_list = M::nil(st);
         match dir {
-            ListEditDir::Left =>
-                tree_of_2lists::<A,X,T,L> (st,
-                                           ListEditDir::Right /* rev */, zip.left,
-                                           ListEditDir::Left  /* fwd */, zip.right)
-                ,
-            ListEditDir::Right =>
-                tree_of_2lists::<A,X,T,L> (st,
-                                           ListEditDir::Right /* rev */, zip.right,
-                                           ListEditDir::Left  /* fwd */, zip.left)
+            ListEditDir::Left => {
+                let next = M::cons(st, (ListEditDir::Right, zip.right), nil_list);
+                let (_, tree, _, _) =
+                    tree_of_lists::<A,X,T,L,M> (st, ListEditDir::Left, zip.left, nil_tree, 0 as u32, u32::max_value(), next);
+                tree
+            },
+            ListEditDir::Right => {
+                let next = M::cons(st, (ListEditDir::Right, zip.left), nil_list);
+                let (_, tree, _, _) =
+                    tree_of_lists::<A,X,T,L,M> (st, ListEditDir::Left, zip.right, nil_tree, 0 as u32, u32::max_value(), next);
+                tree
+            }
         }
     }
 }
@@ -636,7 +646,7 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
 }
 
 
-pub fn tree_of_lists <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>, M:ListT<(ListEditDir,A),L>>
+pub fn tree_of_lists <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>, M:ListT<A,(ListEditDir,L::List)>>
     (st:&mut A,
      dir:ListEditDir, list:L::List,
      tree:T::Tree, tree_lev:u32, parent_lev:u32,
@@ -644,33 +654,66 @@ pub fn tree_of_lists <A:Adapton, X:Hash+Clone, T:TreeT<A,X,()>, L:ListT<A,X>, M:
      -> (ListEditDir, T::Tree, L::List, M::List)
 {
     L::elim_move (
-        st, list, (tree, next),
+        st, list, (dir, tree, next),
 
         /* Nil */
-        |st, (tree, next)|        
-        panic!("tree_of_list_dir::<A,X,T,L>(st, next, left_tree, left_tree_lev, parent_lev),"),
-        
+        |st, (dir, tree, next)| M::elim_move (
+            st, next, (dir, tree),
+
+            /* Nil */ |st, (dir, tree)| {
+                let nil1 = L::nil(st);
+                let nil2 = M::nil(st);
+                (dir, tree, nil1, nil2)
+            },            
+            /* Cons */ |st, (dir,list), next, (_dir, tree)|{
+                tree_of_lists::<A,X,T,L,M>(st, dir, list, tree, tree_lev, parent_lev, next)
+            },
+            /* Name */ |st, nm, next, (dir, tree)| {
+                let nil1 = L::nil(st);
+                memo!(st, nm =>> tree_of_lists::<A,X,T,L,M>,
+                      dir:dir, list:nil1, tree:tree, tree_lev:tree_lev, parent_lev:parent_lev, next:next)
+            }),
+            
         /* Cons */
-        |st, hd, rest, (tree, next)| {
+        |st, hd, rest, (dir, tree, next)| {
             let lev_hd = (1 + (my_hash(&hd).leading_zeros())) as u32 ;
             if tree_lev <= lev_hd && lev_hd <= parent_lev {
                 let leaf = T::leaf(st, hd) ;
                 let (dir, tree2, rest, next) =
                     tree_of_lists::<A,X,T,L,M> ( st, dir, rest, leaf, 0 as u32, lev_hd, next ) ;
-                let tree = match dir {
+                let tree3 = match dir {
                     ListEditDir::Left  => T::bin ( st, (), tree,  tree2 ),
                     ListEditDir::Right => T::bin ( st, (), tree2, tree  ),
                 } ;
-                tree_of_lists::<A,X,T,L,M> ( st, dir, rest, tree, lev_hd, parent_lev, next )
+                tree_of_lists::<A,X,T,L,M> ( st, dir, rest, tree3, lev_hd, parent_lev, next )
             }
             else {
                 (dir, tree, L::cons(st,hd,rest), next)
             }},
 
         /* Name */
-        |st, nm, rest, (left_tree, next)|{
-            panic!("")
-        })
+        |st, nm, rest, (dir, tree, next)|{
+            let lev_nm = (1 + (my_hash(&nm).leading_zeros())) as u32 ;
+            if tree_lev <= lev_nm && lev_nm <= parent_lev {
+                let nil = T::nil(st) ;
+                let nm_ = nm.clone () ;
+                let (nm1, nm2) = st.name_fork(nm);
+                let (dir, tree2, rest, next) =
+                    memo!(st, nm1 =>> tree_of_lists::<A,X,T,L,M>,
+                          dir:dir, list:rest, tree:nil, tree_lev:0 as u32,
+                          parent_lev:lev_nm, next:next ) ;
+                let tree3 = match dir {
+                    ListEditDir::Left  => T::name ( st, nm_, tree,  tree2 ),
+                    ListEditDir::Right => T::name ( st, nm_, tree2, tree  ),
+                } ;
+                memo!(st, nm2 =>> tree_of_lists::<A,X,T,L,M>,
+                      dir:dir, list:rest, tree:tree3, tree_lev:lev_nm,
+                      parent_lev:parent_lev, next:next )
+            }
+            else {
+                (dir, tree, L::name(st,nm,rest), next)
+            }}
+        )
 }
 
 pub fn tree_of_list_dir

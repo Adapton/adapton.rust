@@ -11,8 +11,8 @@ mod zipper {
     use adapton::structures::* ;
 
     
-    pub fn zipper_get_tree<A:Adapton,L:ListT<A,u64>> (st:&mut A, nil:L) {
-        let z = ListZipper::<A,u64,L>::empty(st);
+    pub fn zipper_get_tree<A:Adapton,L:ListT<A,u64>,M:ListT<A,(ListEditDir,L::List)>> (st:&mut A, nil1:L, nil2:M) {
+        let z = ListZipper::<A,u64,L,M>::empty(st);
         let z = ListZipper::insert(st, z, ListEditDir::Left,  1);
         let z = ListZipper::insert(st, z, ListEditDir::Right, 2);
         let z = ListZipper::insert(st, z, ListEditDir::Left,  3);
@@ -65,8 +65,9 @@ mod zipper {
     #[test]
     pub fn zipper_test () {
         let mut st = AdaptonFromScratch::new();
-        let nil = List::nil(&mut st);
-        zipper_get_tree (&mut st, nil);
+        let nil1 = List::nil(&mut st);
+        let nil2 = List::nil(&mut st);
+        zipper_get_tree (&mut st, nil1, nil2);
     }
 }
 
