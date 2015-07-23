@@ -4,14 +4,14 @@ extern crate adapton ;
 
 mod zipper {
     extern crate test;
-    use adapton::adapton_syntax::* ;
+    //use adapton::adapton_syntax::* ;
     use adapton::adapton_sigs::* ;
     //use adapton::adapton_state::* ;
     use adapton::adapton_fromscratch::* ;
     use adapton::structures::* ;
 
     
-    pub fn zipper_get_tree<A:Adapton,L:ListT<A,u64>,M:ListT<A,(ListEditDir,L::List)>> (st:&mut A, nil1:L, nil2:M) {
+    pub fn zipper_get_tree<A:Adapton,L:ListT<A,u64>,M:ListT<A,(ListEditDir,L::List)>> (st:&mut A, _nil1:L, _nil2:M) {
         let z = ListZipper::<A,u64,L,M>::empty(st);
         let z = ListZipper::insert(st, z, ListEditDir::Left,  1);
         let z = ListZipper::insert(st, z, ListEditDir::Right, 2);
@@ -30,35 +30,34 @@ mod zipper {
         let z = ListZipper::insert(st, z, ListEditDir::Left,  15);
         let z = ListZipper::insert(st, z, ListEditDir::Right, 16);
         println!("z = {:?}\n", z);
+        for get_tree_dir in vec![ListEditDir::Left,ListEditDir::Right].iter()
         {
-            let t = ListZipper::get_tree::<Tree<A,u64,()>>(st, z.clone(), ListEditDir::Right);
+            let t = ListZipper::get_tree::<Tree<A,u64,()>>(st, z.clone(), get_tree_dir.clone());
             println!("t = get_tree z = {:?}\n", t);
 
             let l = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t);
             println!("l  = list_of_tree t = {:?}\n", l);
 
-            let l_spec = rev_list_of_vec::<A,u64,L>(st, vec![1,3,5,7,9,11,13,15, /*cursor*/ 16,14,12,10,8,6,4,2]);
+            let l_spec = match *get_tree_dir {
+                ListEditDir::Left  =>     list_of_vec::<A,u64,L>(st, vec![1,3,5,7,9,11,13,15, /*cursor*/ 16,14,12,10,8,6,4,2]),
+                ListEditDir::Right => rev_list_of_vec::<A,u64,L>(st, vec![1,3,5,7,9,11,13,15, /*cursor*/ 16,14,12,10,8,6,4,2]),
+            };
+                
             println!("l_spec  = {:?}", l_spec);
-            println!("l == l_spec = {}\n", l == l_spec); // BUG: `tree_of_2lists` doesn't order elements correctly.
+            println!("l == l_spec = {}\n", l == l_spec);
 
             let t2 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, &l);
             println!("t2 = tree_of_list l = {:?}", t2);
-            println!("t2 == t = {}\n", t2 == t); // BUG: `tree_of_2lists` produces a different tree structure than `tree_of_list`.
+            println!("t2 == t = {}\n", t2 == t);
 
             let l2 = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t2);
             println!("l2 = list_of_tree t2 = {:?}", l2);
-            println!("l2 == l = {}\n", l2 == l); // Works. `list_of_tree o tree_of_list = id`.
+            println!("l2 == l = {}\n", l2 == l); // Tests `list_of_tree o tree_of_list = id`.
 
             let t3 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, &l2);
             println!("t3 = tree_of_list l2 = {:?}", t3);
-            println!("t3 == l = {}\n", t3 == t2); // Works. `tree_of_list o list_of_tree = id`.
+            println!("t3 == l = {}\n", t3 == t2); // Tests `tree_of_list o list_of_tree = id`.
             
-        }
-        {
-            let t = ListZipper::get_tree::<Tree<A,u64,()>>(st, z.clone(), ListEditDir::Right);
-            let l = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t);
-            let l_spec = list_of_vec::<A,u64,L>(st, vec![2,4,6,8,10,12,14,16,1,3,5,7,9,11,13,15]);
-            assert_eq!(l, l_spec);
         }
     }
     

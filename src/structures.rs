@@ -706,27 +706,30 @@ pub fn tree_of_lists
             }},
 
         /* Name */
-        |st, nm, rest, (dir_list, dir_tree, tree, next)|{ panic!("
+        |st, nm, rest, (dir_list, dir_tree, tree, next)|{
             let lev_nm = (1 + (my_hash(&nm).leading_zeros())) as u32 ;
             if tree_lev <= lev_nm && lev_nm <= parent_lev {
                 let nil = T::nil(st) ;
-                let nm_ = nm.clone () ;
-                let (nm1, nm2) = st.name_fork(nm);
-                let (dir, tree2, rest, next) =
+                let (nm1, nm2) = st.name_fork(nm.clone());
+                let (_dir_tree2, tree2, dir_list, rest, next) =
                     memo!(st, nm1 =>> tree_of_lists::<A,X,T,L,M>,
-                          dir:dir, list:rest, tree:nil, tree_lev:0 as u32,
-                          parent_lev:lev_nm, next:next ) ;
-                let tree3 = match dir {
-                    ListEditDir::Left  => T::name ( st, nm_, tree,  tree2 ),
-                    ListEditDir::Right => T::name ( st, nm_, tree2, tree  ),
+                          dir_list:dir_list.clone(), list:rest,
+                          dir_tree:dir_list.clone(), tree:nil,
+                          tree_lev:0 as u32, parent_lev:lev_nm,
+                          next:next ) ;
+                let tree3 = match dir_tree.clone() {
+                    ListEditDir::Left  => T::name ( st, nm, tree,  tree2 ),
+                    ListEditDir::Right => T::name ( st, nm, tree2, tree  ),
                 } ;
                 memo!(st, nm2 =>> tree_of_lists::<A,X,T,L,M>,
-                      dir:dir, list:rest, tree:tree3, tree_lev:lev_nm,
-                      parent_lev:parent_lev, next:next )
+                      dir_list:dir_list, list:rest,
+                      dir_tree:dir_tree, tree:tree3,
+                      tree_lev:lev_nm, parent_lev:parent_lev,
+                      next:next )
             }
             else {
-                (dir, tree, L::name(st,nm,rest), next)
-            }") }
+                (dir_tree, tree, dir_list, L::name(st,nm,rest), next)
+            }},            
         )
 }
 
