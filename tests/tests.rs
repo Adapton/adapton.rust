@@ -46,7 +46,7 @@ mod zipper {
             println!("l_spec  = {:?}", l_spec);
             println!("l == l_spec = {}\n", l == l_spec);
 
-            let t2 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, &l);
+            let t2 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, l.clone());
             println!("t2 = tree_of_list l = {:?}", t2);
             println!("t2 == t = {}\n", t2 == t);
 
@@ -54,7 +54,7 @@ mod zipper {
             println!("l2 = list_of_tree t2 = {:?}", l2);
             println!("l2 == l = {}\n", l2 == l); // Tests `list_of_tree o tree_of_list = id`.
 
-            let t3 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, &l2);
+            let t3 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, l2);
             println!("t3 = tree_of_list l2 = {:?}", t3);
             println!("t3 == l = {}\n", t3 == t2); // Tests `tree_of_list o list_of_tree = id`.
             
