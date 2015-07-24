@@ -11,8 +11,8 @@ mod zipper {
     use adapton::structures::* ;
 
     
-    pub fn zipper_get_tree<A:Adapton,L:ListT<A,u64>,M:ListT<A,(ListEditDir,L::List)>> (st:&mut A, _nil1:L, _nil2:M) {
-        let z = ListZipper::<A,u64,L,M>::empty(st);
+    pub fn zipper_get_tree<A:Adapton,L:ListT<A,u64>> (st:&mut A, _nil1:L) {
+        let z = ListZipper::<A,u64,L>::empty(st);
         let z = ListZipper::insert(st, z, ListEditDir::Left,  1);
         let z = ListZipper::insert(st, z, ListEditDir::Right, 2);
         let z = ListZipper::insert(st, z, ListEditDir::Left,  3);
@@ -33,17 +33,20 @@ mod zipper {
                 ListEditDir::Right => rev_list_of_vec::<A,u64,L>(st, vec![1,3,5,7, /*cursor*/ 8,6,4,2]),
             };
 
+            println!("l_spec  = {:?}", l_spec);
+            // let l_spec_sorted = list_merge_sort::<A,u64,L,Tree<A,u64,()>>(st, l_spec.clone());
+            // println!("l_spec_sorted  = list_merge_sort l_spec = {:?}\n", l_spec_sorted);
+            
             let l = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t);
             println!("l  = list_of_tree t = {:?}\n", l);
 
-            println!("l_spec  = {:?}", l_spec);
-            println!("l == l_spec = {}\n", l == l_spec);
-            //assert_eq!(l, l_spec);
+            println!("l == l_spec = {}\n", l == l_spec.clone());
+            assert_eq!(l, l_spec);
             
             let t2 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, ListEditDir::Left, l.clone());
             println!("t2 = tree_of_list l = {:?}", t2);
             println!("t2 == t = {}\n", t2 == t);
-            //assert_eq!(t2, t);
+            //assert_eq!(t2, t); // FIXME: tree_append needs to follow Pugh's algorithm (POPL 1989).
 
             let t_spec = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, ListEditDir::Left, l_spec.clone());
             println!("t_spec = tree_of_list l_spec = {:?}\n", t_spec);
@@ -66,8 +69,7 @@ mod zipper {
     pub fn zipper_test () {
         let mut st = AdaptonFromScratch::new();
         let nil1 = List::nil(&mut st);
-        let nil2 = List::nil(&mut st);
-        zipper_get_tree (&mut st, nil1, nil2);
+        zipper_get_tree (&mut st, nil1);
     }
 }
 

@@ -422,7 +422,12 @@ pub enum List<A:Adapton,Hd> {
 // TODO: Why Does Adapton have to implement all of these?
 //       It's not actually *contained* within the List structure; it cannot be ecountered there.
 //       It's only ever present in a negative position (as a function parameter).
-impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Hd:Debug+Hash+PartialEq+Eq+Clone> ListT<A,Hd> for List<A,Hd> {
+impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
+    , Hd:Debug+Hash+PartialEq+Eq+Clone
+    >
+    ListT<A,Hd>
+    for List<A,Hd>
+{
     type List = List<A,Hd>;
 
     fn nil  (_:&mut A)                             -> Self::List { List::Nil }
@@ -557,7 +562,8 @@ pub fn tree_append
     >
     (st:&mut A,tree1:T::Tree,tree2:T::Tree) -> T::Tree
 {
-    unimplemented!()
+    // XXX: This is a hack. Make this balanced, a la Pugh 1989.
+    T::bin(st, (), tree1, tree2)
 }
 
 pub fn tree_of_list
@@ -633,70 +639,70 @@ pub fn tree_of_list_rec
         )
 }
 
-pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
-    (st:&mut A,
-     n1:Option<&A::Name>, l1:&L::List,
-     n2:Option<&A::Name>, l2:&L::List  ) -> L::List
-{
-    L::elim
-        (st, l1,
-         |_| l2.clone(),
-         |st,h1,t1| L::elim
-         (st, l2,
-          |st| L::nil(st),
-          |st, h2, t2|
-          if h1 <= h2 {
-              match n1 {
-                  None => {
-                      let rest = list_merge::<A,X,L>(st, None, t1, n2, l2);
-                      L::cons(st, (*h1).clone(), rest)
-                  }
-                  Some(n1) => {
-                      let (n1a, n1b) = st.name_fork(n1.clone());
-                      let rest = thunk!(st, n1a =>>
-                                        list_merge::<A,X,L>,
-                                        n1:None, l1:t1, n2:n2, l2:l2);
-                      let rest = L::art(st, rest);
-                      let rest = L::cons(st, (*h1).clone(), rest);
-                      L::name(st, n1b, rest)
-                  }
-              }
-          }
-          else {
-              match n2 {
-                  None => {
-                      let rest = list_merge::<A,X,L>(st, n1, l1, None, t2);
-                      L::cons(st, (*h2).clone(), rest)
-                  }
-                  Some(n2) => {
-                      let (n2a, n2b) = st.name_fork(n2.clone());
-                      let rest = thunk!(st, n2a =>>
-                                        list_merge::<A,X,L>,
-                                        n1:n1, l1:l1, n2:None, l2:t2);
-                      let rest = L::art(st, rest);
-                      let rest = L::cons(st, (*h2).clone(), rest);
-                      L::name(st, n2b, rest)
-                  }
-              }
-          },
-          |st,m2,t2| list_merge::<A,X,L>(st, n1, l1, Some(m2), t2)
-          ),
-         |st,n1,t1| list_merge::<A,X,L>(st, Some(n1), t1, n2, l2)
-         )
-}
+// pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
+//     (st:&mut A,
+//      n1:Option<A::Name>, l1:L::List,
+//      n2:Option<A::Name>, l2:L::List  ) -> L::List
+// {
+//     L::elim_move
+//         (st, l1,
+//          |_| l2.clone(),
+//          |st,h1,t1| L::elim
+//          (st, l2,
+//           |st| L::nil(st),
+//           |st, h2, t2|
+//           if h1 <= h2 {
+//               match n1 {
+//                   None => {
+//                       let rest = list_merge::<A,X,L>(st, None, t1, n2, l2);
+//                       L::cons(st, (*h1).clone(), rest)
+//                   }
+//                   Some(n1) => {
+//                       let (n1a, n1b) = st.name_fork(n1.clone());
+//                       let rest = thunk!(st, n1a =>>
+//                                         list_merge::<A,X,L>,
+//                                         n1:None, l1:t1, n2:n2, l2:l2);
+//                       let rest = L::art(st, rest);
+//                       let rest = L::cons(st, (*h1).clone(), rest);
+//                       L::name(st, n1b, rest)
+//                   }
+//               }
+//           }
+//           else {
+//               match n2 {
+//                   None => {
+//                       let rest = list_merge::<A,X,L>(st, n1, l1, None, t2);
+//                       L::cons(st, (*h2).clone(), rest)
+//                   }
+//                   Some(n2) => {
+//                       let (n2a, n2b) = st.name_fork(n2.clone());
+//                       let rest = thunk!(st, n2a =>>
+//                                         list_merge::<A,X,L>,
+//                                         n1:n1, l1:l1, n2:None, l2:t2);
+//                       let rest = L::art(st, rest);
+//                       let rest = L::cons(st, (*h2).clone(), rest);
+//                       L::name(st, n2b, rest)
+//                   }
+//               }
+//           },
+//           |st,m2,t2| list_merge::<A,X,L>(st, n1, l1, Some(m2), t2)
+//           ),
+//          |st,n1,t1| list_merge::<A,X,L>(st, Some(n1), t1, n2, l2)
+//          )
+// }
 
-pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone+Debug,L:ListT<A,X>,T:TreeT<A,X,()>>
-    (st:&mut A, list:L::List) -> L::List
-{
-    let tree = tree_of_list::<A,X,T,L>(st, ListEditDir::Left, list);
-    T::fold_up (st, &tree,
-                &|st|                 L::nil(st),
-                &|st, x|              L::singleton(st, x.clone()),
-                &|st, _, left, right| list_merge::<A,X,L>(st, None, &left, None, &right),
-                &|st, n, left, right| { let (n1,n2) = st.name_fork(n.clone());
-                                        list_merge::<A,X,L>(st, Some(&n1), &left, Some(&n2), &right) },
-                )
-}
+// pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone+Debug,L:ListT<A,X>,T:TreeT<A,X,()>>
+//     (st:&mut A, list:L::List) -> L::List
+// {
+//     let tree = tree_of_list::<A,X,T,L>(st, ListEditDir::Left, list);
+//     T::fold_up (st, &tree,
+//                 &|st|                 L::nil(st),
+//                 &|st, x|              L::singleton(st, x.clone()),
+//                 &|st, _, left, right| list_merge::<A,X,L>(st, None, left, None, right),
+//                 &|st, n, left, right| { let (n1,n2) = st.name_fork(n.clone());
+//                                         list_merge::<A,X,L>(st, Some(n1), left, Some(n2), right) },
+//                 )
+// }
 
 pub trait SetT
     <A:Adapton
