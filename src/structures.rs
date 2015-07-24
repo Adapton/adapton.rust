@@ -163,23 +163,16 @@ impl<A:Adapton
     fn get_tree<T:TreeT<A,X,()>>
         (st:&mut A, zip:Self::State, dir:Self::Dir) -> T::Tree
     {
-        let nil_tree = T::nil(st);
-        let nil_list = M::nil(st);
         match dir {
-            ListEditDir::Left => {
-                let next = M::cons(st, (ListEditDir::Left, zip.right), nil_list);
-                let (_, tree, _, _, _) =
-                    tree_of_lists::<A,X,T,L,M> (st, ListEditDir::Right, zip.left,
-                                                ListEditDir::Left, nil_tree, 0 as u32, u32::max_value(), next);
-                tree
-            },
+            ListEditDir::Left  => {
+                let left  = tree_of_list::<A,X,T,L>(st, ListEditDir::Right, zip.left);
+                let right = tree_of_list::<A,X,T,L>(st, ListEditDir::Left,  zip.right);
+                tree_append::<A,X,T>(st, left, right)}
+            
             ListEditDir::Right => {
-                let next = M::cons(st, (ListEditDir::Right, zip.left), nil_list);
-                let (_, tree, _, _, _) =
-                    tree_of_lists::<A,X,T,L,M> (st, ListEditDir::Right, zip.right,
-                                                ListEditDir::Left, nil_tree, 0 as u32, u32::max_value(), next);
-                tree
-            }
+                let right = tree_of_list::<A,X,T,L>(st, ListEditDir::Right, zip.right);
+                let left  = tree_of_list::<A,X,T,L>(st, ListEditDir::Left,  zip.left);
+                tree_append::<A,X,T>(st, right, left)}
         }
     }
 }
@@ -357,7 +350,7 @@ pub fn list_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,L:ListT<A,Elm>,BinOp
     (st:&mut A, list:L::List, zero:&Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
-    let tree = tree_of_list::<A,Elm,T,L>(st, list);
+    let tree = tree_of_list::<A,Elm,T,L>(st, ListEditDir::Left, list);
     tree_reduce_monoid::<A,Elm,T,BinOp>(st, &tree, zero, binop)
 }
 
@@ -562,9 +555,19 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
     }
 }
 
+pub fn tree_append
+    < A:Adapton
+    , X:Hash+Clone+Debug
+    , T:TreeT<A,X,()>
+    >
+    (st:&mut A,tree1:T::Tree,tree2:T::Tree) -> T::Tree
+{
+    unimplemented!()
+}
+     
 pub fn tree_of_lists
     < A:Adapton
-    , X:Hash+Clone
+    , X:Hash+Clone+Debug
     , T:TreeT<A,X,()>
     , L:ListT<A,X>
     , M:ListT<A,(ListEditDir,L::List)>
@@ -591,12 +594,12 @@ pub fn tree_of_lists
             },            
             /* Cons */ |st, (dir_list,list), next, (_dir_list, _dir_tree, tree)|{
                 /* ignore _dir_list: That directionality is now "shadowed" by dir_list. */
-                /* ignore _dir_tree: We always append inner lists in left-to-right order. */
+                /* ignore _dir_tree: We always append inner lists in left-to-right order. ??? */
                 let (dir_list, list, _dir_tree, tree, next) =
                     tree_of_lists::<A,X,T,L,M>(st, dir_list, list,
-                                               ListEditDir::Left, tree,
+                                               ListEditDir::Left /* ??? */, tree,
                                                tree_lev, parent_lev, next);
-                (dir_list, list, ListEditDir::Left, tree, next)
+                (dir_list, list, ListEditDir::Left /* ??? */, tree, next)
             },
             /* Name */ |st, nm, next, (dir_list, dir_tree, tree)| {
                 let nil1 = L::nil(st);
@@ -608,12 +611,23 @@ pub fn tree_of_lists
             
         /* Cons */
         |st, hd, rest, (dir_list, dir_tree, tree, next)| {
-            let lev_hd = (1 + (my_hash(&hd).leading_zeros())) as u32 ;
+            let lev_hd = (1 + (my_hash(&hd).trailing_zeros())) as u32 ;
+            println!("lev {:?} is {}, dir_list={:?}, dir_tree={:?}", hd, lev_hd, dir_list, dir_tree);
             if tree_lev <= lev_hd && lev_hd <= parent_lev {
                 let leaf = T::leaf(st, hd) ;
-                let (_dir_tree2, tree2, dir_list, rest, next) =
-                    tree_of_lists::<A,X,T,L,M> ( st, dir_list.clone(), rest, dir_list.clone(), leaf, 0 as u32, lev_hd, next ) ;
-                let tree3 = match dir_tree.clone() {
+                let (dir_tree2, tree2, dir_list, rest, next) = {
+                    // Suppose that `rest` is nil, and `next` flips `dir_list`.
+                    // How should this impact dir_tree?
+                    // The logic above for nil does something special to `dir_tree`, and here we ignore it.
+                    // Q: Is it necessary to do something special when we hit the end of the "current list", `rest`?
+                    // A: Suppose we are appending lists, (rev list1) @ list2 from left-to-right.
+                    //     In this case, all of list1's elements are to the left of list2's elements.
+                    //     In other words, the earlier elements are to the left of the latter elements (L-R order).
+                    //     Meanwhile, since list1 is reversed, we'll be associating early things in list1 to the right of latter things (R-L order).
+                    //     How do we reconcile these two orderings in the next line?
+                    tree_of_lists::<A,X,T,L,M> ( st, dir_list.clone(), rest, dir_list.clone(), leaf, 0 as u32, lev_hd, next )
+                };
+                let tree3 = match dir_tree2 {
                     ListEditDir::Left  => T::bin ( st, (), tree,  tree2 ),
                     ListEditDir::Right => T::bin ( st, (), tree2, tree  ),
                 } ;
@@ -625,7 +639,7 @@ pub fn tree_of_lists
 
         /* Name */
         |st, nm, rest, (dir_list, dir_tree, tree, next)|{
-            let lev_nm = (1 + (my_hash(&nm).leading_zeros())) as u32 ;
+            let lev_nm = (1 + (my_hash(&nm).trailing_zeros())) as u32 ;
             if tree_lev <= lev_nm && lev_nm <= parent_lev {
                 let nil = T::nil(st) ;
                 let (nm1, nm2) = st.name_fork(nm.clone());
@@ -651,19 +665,77 @@ pub fn tree_of_lists
         )
 }
 
-pub fn tree_of_list <A:Adapton, X:Hash+Clone+Debug+Eq+PartialEq, T:TreeT<A,X,()>, L:ListT<A,X>>
-    (st:&mut A, list:L::List) -> T::Tree
+pub fn tree_of_list
+    < A:Adapton
+    , X:Hash+Clone+Debug
+    , T:TreeT<A,X,()>
+    , L:ListT<A,X>
+    >
+    (st:&mut A, dir_list:ListEditDir, list:L::List) -> T::Tree {
+        let tnil = T::nil(st);
+        let lnil = L::nil(st);
+        let (tree, list) = tree_of_list_rec::<A,X,T,L>(st, dir_list, list, tnil, 0 as u32, u32::max_value());
+        assert_eq!(list, lnil);
+        tree
+    }
+
+pub fn tree_of_list_rec
+    < A:Adapton
+    , X:Hash+Clone+Debug
+    , T:TreeT<A,X,()>
+    , L:ListT<A,X>
+    >
+    (st:&mut A,
+     dir_list:ListEditDir, list:L::List,
+     tree:T::Tree, tree_lev:u32, parent_lev:u32)
+     -> (T::Tree, L::List)
 {
-    let nil1 = T::nil(st) ;
-    let nil2 = List::<A,(ListEditDir,L::List)>::nil(st) ;
-    let (_, tree, _, rest, next) = tree_of_lists::<A,X,T,L,List<A,(ListEditDir,L::List)>>
-        (st,
-         ListEditDir::Left, list,
-         ListEditDir::Left, nil1, 0 as u32, u32::max_value(),
-         nil2) ;
-    assert!( L::is_empty( st, &rest ) );
-    assert!( List::<A,(ListEditDir,L::List)>::is_empty( st, &next ) );
-    tree
+    L::elim_move (
+        st, list, (dir_list, tree),
+
+        /* Nil */
+        |st, (_dir_list, tree)| (tree, L::nil(st)),
+
+        /* Cons */
+        |st, hd, rest, (dir_list, tree)| {
+            let lev_hd = (1 + (my_hash(&hd).trailing_zeros())) as u32 ;
+            if tree_lev <= lev_hd && lev_hd <= parent_lev {
+                let leaf = T::leaf(st, hd) ;
+                let (tree2, rest2) = {
+                    tree_of_list_rec::<A,X,T,L> ( st, dir_list.clone(), rest, leaf, 0 as u32, lev_hd )
+                };
+                let tree3 = match dir_list.clone() {
+                    ListEditDir::Left  => T::bin ( st, (), tree,  tree2 ),
+                    ListEditDir::Right => T::bin ( st, (), tree2, tree  ),
+                } ;
+                tree_of_list_rec::<A,X,T,L> ( st, dir_list, rest2, tree3, lev_hd, parent_lev )
+            }
+            else {
+                (tree, L::cons(st,hd,rest))
+            }},
+
+        /* Name */
+        |st, nm, rest, (dir_list, tree)|{
+            let lev_nm = (1 + (my_hash(&nm).trailing_zeros())) as u32 ;
+            if tree_lev <= lev_nm && lev_nm <= parent_lev {
+                let nil = T::nil(st) ;
+                let (nm1, nm2) = st.name_fork(nm.clone());
+                let (tree2, rest) =
+                    memo!(st, nm1 =>> tree_of_list_rec::<A,X,T,L>,
+                          dir_list:dir_list.clone(), list:rest,
+                          tree:nil, tree_lev:0 as u32, parent_lev:lev_nm ) ;
+                let tree3 = match dir_list.clone() {
+                    ListEditDir::Left  => T::name ( st, nm, tree,  tree2 ),
+                    ListEditDir::Right => T::name ( st, nm, tree2, tree  ),
+                } ;
+                memo!(st, nm2 =>> tree_of_list_rec::<A,X,T,L>,
+                      dir_list:dir_list.clone(), list:rest,
+                      tree:tree3, tree_lev:lev_nm, parent_lev:parent_lev )
+            }
+            else {
+                (tree, L::name(st,nm,rest))
+            }},
+        )
 }
 
 pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
@@ -721,7 +793,7 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
 pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone+Debug,L:ListT<A,X>,T:TreeT<A,X,()>>
     (st:&mut A, list:L::List) -> L::List
 {
-    let tree = tree_of_list::<A,X,T,L>(st, list);
+    let tree = tree_of_list::<A,X,T,L>(st, ListEditDir::Left, list);
     T::fold_up (st, &tree,
                 &|st|                 L::nil(st),
                 &|st, x|              L::singleton(st, x.clone()),
