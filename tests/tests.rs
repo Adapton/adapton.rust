@@ -40,12 +40,12 @@ mod zipper {
             println!("l == l_spec = {}\n", l == l_spec);
             //assert_eq!(l, l_spec);
             
-            let t2 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, l.clone());
+            let t2 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, ListEditDir::Left, l.clone());
             println!("t2 = tree_of_list l = {:?}", t2);
             println!("t2 == t = {}\n", t2 == t);
             //assert_eq!(t2, t);
 
-            let t_spec = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, l_spec.clone());
+            let t_spec = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, ListEditDir::Left, l_spec.clone());
             println!("t_spec = tree_of_list l_spec = {:?}\n", t_spec);
             
             let l2 = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t2);
@@ -53,7 +53,7 @@ mod zipper {
             println!("l2 == l = {}\n", l2 == l); // Tests `list_of_tree o tree_of_list = id`.
             assert_eq!(l2, l);
 
-            let t3 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, l2);
+            let t3 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, ListEditDir::Left, l2);
             println!("t3 = tree_of_list l2 = {:?}", t3);
             println!("t3 == l = {}\n", t3 == t2); // Tests `tree_of_list o list_of_tree = id`.
             assert_eq!(t3, t2);            
