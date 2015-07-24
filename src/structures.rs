@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
-use std::marker::PhantomData;
 
 use adapton_syntax::* ;
 use adapton_sigs::* ;
@@ -30,12 +29,11 @@ pub enum ListEditDir { Left, Right }
 
 /// Lists with a focus; suitable to implement `ListEdit`.
 #[derive(Debug,Hash,PartialEq,Eq,Clone)]
-pub struct ListZipper<A:Adapton,X,L:ListT<A,X>,M:ListT<A,(ListEditDir,L::List)>> {
+pub struct ListZipper<A:Adapton,X,L:ListT<A,X>> {
     /// Elements to the left of the focus, nearest to furthest.
     pub left: L::List,
     /// Elements to the right of the focus, nearest to furthest.
     pub right: L::List,
-    pub phantom:PhantomData<M>,
 }
 
 /// Implement `ListEdit` for `ListZipper` generically with respect to
@@ -44,31 +42,28 @@ pub struct ListZipper<A:Adapton,X,L:ListT<A,X>,M:ListT<A,(ListEditDir,L::List)>>
 impl<A:Adapton
     ,X:Debug+Hash+PartialEq+Eq+Clone
     ,L:ListT<A,X>
-    ,M:ListT<A,(ListEditDir,L::List)>
     >
     ListEdit<A,X>
     for
-    ListZipper<A,X,L,M>
+    ListZipper<A,X,L>
 {
-    type State=ListZipper<A,X,L,M>;
+    type State=ListZipper<A,X,L>;
     type Dir=ListEditDir;
     
     fn empty (st: &mut A) -> Self::State {
         let nil1 = L::nil(st);
         let nil2 = nil1.clone();
-        ListZipper{left:nil1, right:nil2, phantom:PhantomData}
+        ListZipper{left:nil1, right:nil2}
     }
     
     fn insert (st:&mut A, zip:Self::State, dir:Self::Dir, x:X) -> Self::State {
         match dir {
             ListEditDir::Left =>
                 ListZipper{left:L::cons(st, x, zip.left),
-                           right:zip.right,
-                           phantom:PhantomData},
+                           right:zip.right},
             ListEditDir::Right =>
                 ListZipper{left:zip.left,
-                           right:L::cons(st, x, zip.right),
-                           phantom:PhantomData},
+                           right:L::cons(st, x, zip.right)},
         }
     }
     
@@ -76,16 +71,16 @@ impl<A:Adapton
         match dir {
             ListEditDir::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right|         (ListZipper{left:L::nil(st), right:right, phantom:PhantomData}, None   ),
-                 |_,x,left,right|   (ListZipper{left:left,       right:right, phantom:PhantomData}, Some(x)),
-                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right), phantom:PhantomData};
+                 |st,right|         (ListZipper{left:L::nil(st), right:right}, None   ),
+                 |_,x,left,right|   (ListZipper{left:left,       right:right}, Some(x)),
+                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right)};
                                      Self::remove (st, zip, ListEditDir::Left)}
                  ),
             ListEditDir::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left|          (ListZipper{left:left, right:L::nil(st), phantom:PhantomData}, None   ),
-                 |_,x,right,left|   (ListZipper{left:left, right:right,      phantom:PhantomData}, Some(x)),
-                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right, phantom:PhantomData};
+                 |st,left|          (ListZipper{left:left, right:L::nil(st)}, None   ),
+                 |_,x,right,left|   (ListZipper{left:left, right:right},      Some(x)),
+                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right};
                                      Self::remove (st, zip, ListEditDir::Right)}
                  ),
         }
@@ -95,16 +90,16 @@ impl<A:Adapton
         match dir {
             ListEditDir::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right|         (ListZipper{left:L::nil(st), right:right,               phantom:PhantomData}, false ),
-                 |st,x,left,right|  (ListZipper{left:left,       right:L::cons(st,x,right), phantom:PhantomData}, true  ),
-                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right), phantom:PhantomData};
+                 |st,right|         (ListZipper{left:L::nil(st), right:right}              , false ),
+                 |st,x,left,right|  (ListZipper{left:left,       right:L::cons(st,x,right)}, true  ),
+                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right)};
                                      Self::goto (st, zip, ListEditDir::Left)}
                  ),
             ListEditDir::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left|          (ListZipper{left:left,              right:L::nil(st), phantom:PhantomData}, false ),
-                 |st,x,right,left|  (ListZipper{left:L::cons(st,x,left),right:right,      phantom:PhantomData}, true  ),
-                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right, phantom:PhantomData};
+                 |st,left|          (ListZipper{left:left,              right:L::nil(st)}, false ),
+                 |st,x,right,left|  (ListZipper{left:L::cons(st,x,left),right:right}     , true  ),
+                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right};
                                      Self::goto (st, zip, ListEditDir::Right)}
                  ),
         }
@@ -114,18 +109,18 @@ impl<A:Adapton
         match dir {
             ListEditDir::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right|         (ListZipper{left:L::nil(st), right:right, phantom:PhantomData}, None),
+                 |st,right|         (ListZipper{left:L::nil(st), right:right}, None),
                  |st,x,left,right| {let x2 = x.clone();
-                                    (ListZipper{left:L::cons(st,x,left), right:right, phantom:PhantomData}, Some(x2))},
-                 |st,nm,left,right|{let zip = ListZipper{left:left,right:L::name(st,nm,right), phantom:PhantomData};
+                                    (ListZipper{left:L::cons(st,x,left), right:right}, Some(x2))},
+                 |st,nm,left,right|{let zip = ListZipper{left:left,right:L::name(st,nm,right)};
                                     Self::observe (st, zip, ListEditDir::Left)}
                  ),
             ListEditDir::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left|         (ListZipper{left:left, right:L::nil(st), phantom:PhantomData}, None),
+                 |st,left|         (ListZipper{left:left, right:L::nil(st)}, None),
                  |st,x,right,left| {let x2 = x.clone();
-                                    (ListZipper{left:left, right:L::cons(st,x,right), phantom:PhantomData}, Some(x2))},
-                 |st,nm,right,left|{let zip = ListZipper{left:L::name(st,nm,left),right:right, phantom:PhantomData};
+                                    (ListZipper{left:left, right:L::cons(st,x,right)}, Some(x2))},
+                 |st,nm,right,left|{let zip = ListZipper{left:L::name(st,nm,left),right:right};
                                     Self::observe (st, zip, ListEditDir::Right)}
                  ),
         }
@@ -135,16 +130,16 @@ impl<A:Adapton
         match dir {
             ListEditDir::Left => L::elim_move
                 (st, zip.left, (zip.right, y),
-                 |st,(right,y)|        (ListZipper{left:L::nil(st),         right:right, phantom:PhantomData}, y, false),
-                 |st,x,left,(right,y)| (ListZipper{left:L::cons(st,y,left), right:right, phantom:PhantomData}, x, true ),
-                 |st,nm,left,(right,y)|{let zip = ListZipper{left:left,right:L::name(st,nm,right),phantom:PhantomData};
+                 |st,(right,y)|        (ListZipper{left:L::nil(st),         right:right}, y, false),
+                 |st,x,left,(right,y)| (ListZipper{left:L::cons(st,y,left), right:right}, x, true ),
+                 |st,nm,left,(right,y)|{let zip = ListZipper{left:left,right:L::name(st,nm,right)};
                                         Self::replace (st, zip, ListEditDir::Left, y)}
                  ),
             ListEditDir::Right => L::elim_move
                 (st, zip.right, (zip.left,y),
-                 |st,(left,y)|         (ListZipper{left:left, right:L::nil(st), phantom:PhantomData},          y, false),
-                 |st,x,right,(left,y)| (ListZipper{left:left, right:L::cons(st,y,right), phantom:PhantomData}, x, true ),
-                 |st,nm,right,(left,y)|{let zip = ListZipper{left:L::name(st,nm,left),right:right, phantom:PhantomData};
+                 |st,(left,y)|         (ListZipper{left:left, right:L::nil(st)},          y, false),
+                 |st,x,right,(left,y)| (ListZipper{left:left, right:L::cons(st,y,right)}, x, true ),
+                 |st,nm,right,(left,y)|{let zip = ListZipper{left:L::name(st,nm,left),right:right};
                                         Self::replace (st, zip, ListEditDir::Right, y)}
                  ),
         }
