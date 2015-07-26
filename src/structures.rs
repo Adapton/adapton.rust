@@ -279,7 +279,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
                  res
              },
              |st,n,l,r,res| {
-                 let (n1,n2,n3) = st.name_fork3(n.clone());
+                 let (n1,n2,n3) = st.name_fork3(n);
                  let res = memo!(st, n1 =>> Self::fold_rl, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
                  let res = name(st, n2, res);
                  let res = memo!(st, n3 =>> Self::fold_rl, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
@@ -306,7 +306,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
                  res
              },
              |st,n,l,r| {
-                 let (n1,n2,n3) = st.name_fork3(n.clone());
+                 let (n1,n2,n3) = st.name_fork3(n);
                  let resl = memo!(st, n1 =>> Self::fold_up, tree:l ;; nil:nil, leaf:leaf, bin:bin, name:name);
                  let resr = memo!(st, n2 =>> Self::fold_up, tree:r ;; nil:nil, leaf:leaf, bin:bin, name:name);
                  let res = name(st, n3, resl, resr);
@@ -615,7 +615,7 @@ pub fn tree_of_list_rec
         )
 }
 
-pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
+pub fn list_merge<A:Adapton,X:Ord+Clone+Debug,L:ListT<A,X>>
     (st:&mut A,
      n1:Option<A::Name>, l1:L::List,
      n2:Option<A::Name>, l2:L::List  ) -> L::List
@@ -626,14 +626,18 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
          /* Cons */ |st,h1,t1,(n1,n2,l2)|
          L::elim_move
          (st, l2, (h1,t1,n1,n2),
-          /* Nil */  |st, (_, _, _, _ )| L::nil(st),
-          /* Cons */ |st, h2, t2, (h1,t1,n1,n2)|
+          /* Nil */  |st, (h1, t1, _, _ )| L::cons(st, h1,t1),
+          /* Cons */ |st, h2, t2, (h1, t1, n1, n2)| {
+          let cmp = &h1 <= &h2 ;
+          println!("{:?} <= {:?} = {}",&h1, &h2,cmp);
           if &h1 <= &h2 {
               let l2 = L::cons(st,h2,t2);
               match n1 {
                   None => {
                       let rest = list_merge::<A,X,L>(st, None, t1, n2, l2);
-                      L::cons(st, h1, rest)
+                      let l = L::cons(st, h1, rest);
+                      println!("{:?}",l);
+                      l
                   }
                   Some(n1) => {
                       let (n1a, n1b) = st.name_fork(n1);
@@ -651,7 +655,8 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
               match n2 {
                   None => {
                       let rest = list_merge::<A,X,L>(st, n1, l1, None, t2);
-                      L::cons(st, h2, rest)
+                      let l = L::cons(st, h2, rest);
+                      l
                   }
                   Some(n2) => {
                       let (n2a, n2b) = st.name_fork(n2);
@@ -663,26 +668,28 @@ pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
                       L::name(st, n2b, rest)
                   }
               }
-          },
+          }},
           |st,m2,t2,(h1,t1,n1,_n2)| {
               let l1 = L::cons(st,h1,t1);
               list_merge::<A,X,L>(st, n1, l1, Some(m2), t2)
           }
           ),
-         |st,m1,t1,(_n1,n2,l2)|
-         list_merge::<A,X,L>(st, Some(m1), t1, n2, l2)
+         |st,m1,t1,(_n1,n2,l2)| {
+             list_merge::<A,X,L>(st, Some(m1), t1, n2, l2)
+         }
          )
 }
 
-pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone+Debug,L:ListT<A,X>,T:TreeT<A,X,()>>
+pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Debug+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
     (st:&mut A, list:L::List) -> L::List
 {
     let tree = tree_of_list::<A,X,T,L>(st, ListEditDir::Left, list);
     T::fold_up (st, tree,
-                &|st|                 L::nil(st),
-                &|st, x|              L::singleton(st, x.clone()),
-                &|st, _, left, right| list_merge::<A,X,L>(st, None, left, None, right),
-                &|st, n, left, right| { let (n1,n2) = st.name_fork(n.clone());
+                &|st|                 L::nil(st), 
+                &|st, x|              L::singleton(st, x),
+                &|st, _, left, right| { let l = list_merge::<A,X,L>(st, None, left, None, right);
+                                        println!("bin: {:?}", l); l },
+                &|st, n, left, right| { let (n1,n2) = st.name_fork(n);
                                         list_merge::<A,X,L>(st, Some(n1), left, Some(n2), right) },
                 )
 }
