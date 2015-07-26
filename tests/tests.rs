@@ -34,10 +34,10 @@ mod zipper {
             };
 
             println!("l_spec  = {:?}", l_spec);
-            // let l_spec_sorted = list_merge_sort::<A,u64,L,Tree<A,u64,()>>(st, l_spec.clone());
-            // println!("l_spec_sorted  = list_merge_sort l_spec = {:?}\n", l_spec_sorted);
+            let l_spec_sorted = list_merge_sort::<A,u64,L,Tree<A,u64,()>>(st, l_spec.clone());
+            println!("l_spec_sorted  = list_merge_sort l_spec = {:?}\n", l_spec_sorted);
             
-            let l = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t);
+            let l = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, t.clone());
             println!("l  = list_of_tree t = {:?}\n", l);
 
             println!("l == l_spec = {}\n", l == l_spec.clone());
@@ -46,12 +46,12 @@ mod zipper {
             let t2 = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, ListEditDir::Left, l.clone());
             println!("t2 = tree_of_list l = {:?}", t2);
             println!("t2 == t = {}\n", t2 == t);
-            //assert_eq!(t2, t); // FIXME: tree_append needs to follow Pugh's algorithm (POPL 1989).
+            assert_eq!(t2, t); // FIXME: tree_append needs to follow Pugh's algorithm (POPL 1989).
 
             let t_spec = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, ListEditDir::Left, l_spec.clone());
             println!("t_spec = tree_of_list l_spec = {:?}\n", t_spec);
             
-            let l2 = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, &t2);
+            let l2 = list_of_tree::<A,u64,L,Tree<A,u64,()>>(st, t2.clone());
             println!("l2 = list_of_tree t2 = {:?}", l2);
             println!("l2 == l = {}\n", l2 == l); // Tests `list_of_tree o tree_of_list = id`.
             assert_eq!(l2, l);

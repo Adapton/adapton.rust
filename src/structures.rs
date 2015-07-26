@@ -149,7 +149,7 @@ impl<A:Adapton
         (st:&mut A, zip:Self::State, dir:Self::Dir) -> N::List
     {
         let tree = Self::get_tree::<T>(st, zip, dir);
-        list_of_tree::<A,X,N,T>(st, &tree)
+        list_of_tree::<A,X,N,T>(st, tree)
     }
 
     /// Creates a tree whose leaves hold the contents of the zipper, in order.
@@ -183,16 +183,21 @@ pub trait ListT<A:Adapton,Hd> : Debug+Clone {
     fn art  (&mut A, Art<Self::List,A::Loc>) -> Self::List ;
     fn rc   (&mut A, Rc<Self::List>) -> Self::List ;
 
-    fn elim<Res,Nil,Cons,Name> (&mut A, &Self::List, Nil, Cons, Name) -> Res
-        where Nil:FnOnce(&mut A) -> Res
-        ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
-        ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res ;
+    // fn elim<Res,Nil,Cons,Name> (&mut A, &Self::List, Nil, Cons, Name) -> Res
+    //     where Nil:FnOnce(&mut A) -> Res
+    //     ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
+    //     ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res ;
 
-    fn elim_with<Arg,Res,Nil,Cons,Name> (&mut A, &Self::List, Arg, Nil, Cons, Name) -> Res
-        where Nil:FnOnce(&mut A, Arg) -> Res
-        ,    Cons:FnOnce(&mut A, &Hd, &Self::List, Arg) -> Res
-        ,    Name:FnOnce(&mut A, &A::Name, &Self::List, Arg) -> Res ;
-    
+    // fn elim_with<Arg,Res,Nil,Cons,Name> (&mut A, &Self::List, Arg, Nil, Cons, Name) -> Res
+    //     where Nil:FnOnce(&mut A, Arg) -> Res
+    //     ,    Cons:FnOnce(&mut A, &Hd, &Self::List, Arg) -> Res
+    //     ,    Name:FnOnce(&mut A, &A::Name, &Self::List, Arg) -> Res ;
+
+    fn elim<Res,Nil,Cons,Name> (&mut A, Self::List, Nil, Cons, Name) -> Res
+        where Nil:FnOnce(&mut A) -> Res
+        ,    Cons:FnOnce(&mut A, Hd, Self::List) -> Res
+        ,    Name:FnOnce(&mut A, A::Name, Self::List) -> Res ;
+
     fn elim_move<Arg,Res,Nil,Cons,Name> (&mut A, Self::List, Arg, Nil, Cons, Name) -> Res
         where Nil:FnOnce(&mut A, Arg) -> Res
         ,    Cons:FnOnce(&mut A, Hd, Self::List, Arg) -> Res
@@ -205,8 +210,8 @@ pub trait ListT<A:Adapton,Hd> : Debug+Clone {
     }
 
     // Derived from `elim` above:
-    fn is_empty (st:&mut A, list:&Self::List) -> bool {
-        Self::elim(st, &list,
+    fn is_empty (st:&mut A, list:Self::List) -> bool {
+        Self::elim(st, list,
                    |_|       true,
                    |_,_,_|   false,
                    |st,_,tl| Self::is_empty(st,tl))
@@ -225,39 +230,47 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
     fn art  (&mut A, Art<Self::Tree,A::Loc>) -> Self::Tree ;
     fn rc   (&mut A, Rc<Self::Tree>) -> Self::Tree ;
 
-    // fn elim_move<Arg,Res,NilC,LeafC,BinC,NameC>
-    //     (&mut A, Self::Tree, Arg, NilC, LeafC, BinC, NameC) -> Res
+    fn elim<Res,NilC,LeafC,BinC,NameC>
+        (&mut A, Self::Tree, NilC, LeafC, BinC, NameC) -> Res
+        where NilC  : FnOnce(&mut A) -> Res
+        ,     LeafC : FnOnce(&mut A, Leaf) -> Res
+        ,     BinC  : FnOnce(&mut A, Bin,  Self::Tree, Self::Tree) -> Res
+        ,     NameC : FnOnce(&mut A, A::Name, Self::Tree, Self::Tree) -> Res
+        ;
+
+    fn elim_move<Arg,Res,NilC,LeafC,BinC,NameC>
+        (&mut A, Self::Tree, Arg, NilC, LeafC, BinC, NameC) -> Res
+        where NilC  : FnOnce(&mut A, Arg) -> Res
+        ,     LeafC : FnOnce(&mut A, Leaf, Arg) -> Res
+        ,     BinC  : FnOnce(&mut A, Bin,  Self::Tree, Self::Tree, Arg) -> Res
+        ,     NameC : FnOnce(&mut A, A::Name, Self::Tree, Self::Tree, Arg) -> Res
+        ;
+
+    // fn elim_with<Arg,Res,NilC,LeafC,BinC,NameC>
+    //     (&mut A, Self::Tree, Arg, &NilC, &LeafC, &BinC, &NameC) -> Res
     //     where NilC  : FnOnce(&mut A, Arg) -> Res
     //     ,     LeafC : FnOnce(&mut A, Leaf, Arg) -> Res
     //     ,     BinC  : FnOnce(&mut A, Bin,  Self::Tree, Self::Tree, Arg) -> Res
     //     ,     NameC : FnOnce(&mut A, A::Name, Self::Tree, Self::Tree, Arg) -> Res
     //     ;
 
-    fn elim_with<Arg,Res,NilC,LeafC,BinC,NameC>
-        (&mut A, &Self::Tree, Arg, NilC, LeafC, BinC, NameC) -> Res
-        where NilC  : FnOnce(&mut A, Arg) -> Res
-        ,     LeafC : FnOnce(&mut A, &Leaf, Arg) -> Res
-        ,     BinC  : FnOnce(&mut A, &Bin,  &Self::Tree, &Self::Tree, Arg) -> Res
-        ,     NameC : FnOnce(&mut A, &A::Name, &Self::Tree, &Self::Tree, Arg) -> Res
-        ;
-
-    fn elim<Res,NilC,LeafC,BinC,NameC>
-        (&mut A, &Self::Tree, NilC, LeafC, BinC, NameC) -> Res
-        where NilC  : FnOnce(&mut A) -> Res
-        ,     LeafC : FnOnce(&mut A, &Leaf) -> Res
-        ,     BinC  : FnOnce(&mut A, &Bin,  &Self::Tree, &Self::Tree) -> Res
-        ,     NameC : FnOnce(&mut A, &A::Name, &Self::Tree, &Self::Tree) -> Res
-        ;
+    // fn elim<Res,NilC,LeafC,BinC,NameC>
+    //     (&mut A, Self::Tree, &NilC, &LeafC, &BinC, &NameC) -> Res
+    //     where NilC  : FnOnce(&mut A) -> Res
+    //     ,     LeafC : FnOnce(&mut A, Leaf) -> Res
+    //     ,     BinC  : FnOnce(&mut A, Bin,  Self::Tree, Self::Tree) -> Res
+    //     ,     NameC : FnOnce(&mut A, A::Name, Self::Tree, Self::Tree) -> Res
+    //     ;
     
     fn fold_lr<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
-        (st:&mut A, tree:&Self::Tree, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
-        where LeafC:Fn(&mut A, &Leaf,    Res ) -> Res
-        ,      BinC:Fn(&mut A, &Bin,     Res ) -> Res 
-        ,     NameC:Fn(&mut A, &A::Name, Res ) -> Res 
+        (st:&mut A, tree:Self::Tree, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+        where LeafC:Fn(&mut A, Leaf,    Res ) -> Res
+        ,      BinC:Fn(&mut A, Bin,     Res ) -> Res 
+        ,     NameC:Fn(&mut A, A::Name, Res ) -> Res 
     {
-        Self::elim_with
+        Self::elim_move
             (st, tree, res,
-             |_,res|    res,
+             |_,res| res,
              |st,x,res| leaf(st, x, res),
              |st,x,l,r,res| {
                  let res = Self::fold_lr(st, l, res, leaf, bin, name);
@@ -268,7 +281,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
              |st,n,l,r,res| {
                  let (n1,n2,n3) = st.name_fork3(n.clone());
                  let res = memo!(st, n1 =>> Self::fold_lr, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
-                 let res = name(st, &n2, res);
+                 let res = name(st, n2, res);
                  let res = memo!(st, n3 =>> Self::fold_lr, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
                  res
              }
@@ -276,12 +289,12 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
     }
 
     fn fold_rl<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
-        (st:&mut A, tree:&Self::Tree, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
-        where LeafC:Fn(&mut A, &Leaf,    Res ) -> Res
-        ,      BinC:Fn(&mut A, &Bin,     Res ) -> Res
-        ,     NameC:Fn(&mut A, &A::Name, Res ) -> Res
+        (st:&mut A, tree:Self::Tree, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+        where LeafC:Fn(&mut A, Leaf,    Res ) -> Res
+        ,      BinC:Fn(&mut A, Bin,     Res ) -> Res
+        ,     NameC:Fn(&mut A, A::Name, Res ) -> Res
     {
-        Self::elim_with
+        Self::elim_move
             (st, tree, res,
              |_,res| res,
              |st,x,res| leaf(st, x, res),
@@ -294,7 +307,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
              |st,n,l,r,res| {
                  let (n1,n2,n3) = st.name_fork3(n.clone());
                  let res = memo!(st, n1 =>> Self::fold_rl, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
-                 let res = name(st, &n2, res);
+                 let res = name(st, n2, res);
                  let res = memo!(st, n3 =>> Self::fold_rl, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
                  res
              }
@@ -302,11 +315,11 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
     }
 
     fn fold_up<Res:Hash+Debug+Eq+Clone,NilC,LeafC,BinC,NameC>
-        (st:&mut A, tree:&Self::Tree, nil:&NilC, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+        (st:&mut A, tree:Self::Tree, nil:&NilC, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
         where  NilC:Fn(&mut A) -> Res
-        ,     LeafC:Fn(&mut A, &Leaf              ) -> Res
-        ,      BinC:Fn(&mut A, &Bin,     Res, Res ) -> Res
-        ,     NameC:Fn(&mut A, &A::Name, Res, Res ) -> Res
+        ,     LeafC:Fn(&mut A, Leaf              ) -> Res
+        ,      BinC:Fn(&mut A, Bin,     Res, Res ) -> Res
+        ,     NameC:Fn(&mut A, A::Name, Res, Res ) -> Res
     {
         Self::elim
             (st, tree,
@@ -322,7 +335,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
                  let (n1,n2,n3) = st.name_fork3(n.clone());
                  let resl = memo!(st, n1 =>> Self::fold_up, tree:l ;; nil:nil, leaf:leaf, bin:bin, name:name);
                  let resr = memo!(st, n2 =>> Self::fold_up, tree:r ;; nil:nil, leaf:leaf, bin:bin, name:name);
-                 let res = name(st, &n3, resl, resr);
+                 let res = name(st, n3, resl, resr);
                  res
              }
              )
@@ -330,7 +343,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
 }
 
 pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm,()>,BinOp>
-    (st:&mut A, tree:&T::Tree, zero:&Elm, binop:&BinOp) -> Elm
+    (st:&mut A, tree:T::Tree, zero:Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
     T::fold_up(st, tree,
@@ -342,59 +355,59 @@ pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm,()>,Bi
 }
 
 pub fn list_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,L:ListT<A,Elm>,BinOp,T:TreeT<A,Elm,()>>
-    (st:&mut A, list:L::List, zero:&Elm, binop:&BinOp) -> Elm
+    (st:&mut A, list:L::List, zero:Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
     let tree = tree_of_list::<A,Elm,T,L>(st, ListEditDir::Left, list);
-    tree_reduce_monoid::<A,Elm,T,BinOp>(st, &tree, zero, binop)
+    tree_reduce_monoid::<A,Elm,T,BinOp>(st, tree, zero, binop)
 }
 
 pub fn tree_map<A:Adapton,X:Hash+Clone,Y:Hash+Clone,T:TreeT<A,X,Y>,FX:Hash+Clone,GY:Hash+Clone,FGT:TreeT<A,FX,GY>,F,G>
-    (st:&mut A, tree:&T::Tree, f:&F, g:&G) -> FGT::Tree
-    where F:Fn(&mut A, &X) -> FX
-    ,     G:Fn(&mut A, &Y) -> GY
+    (st:&mut A, tree:T::Tree, f:&F, g:&G) -> FGT::Tree
+    where F:Fn(&mut A, X) -> FX
+    ,     G:Fn(&mut A, Y) -> GY
 {
     T::fold_up(st, tree,
                &|st|       FGT::nil(st),
                &|st,x|     {let fx = f(st,x);  FGT::leaf(st, fx)},
                &|st,y,l,r| {let gy = g(st, y); FGT::bin(st, gy, l, r)},
-               &|st,n,l,r| FGT::name(st, n.clone(), l, r)
+               &|st,n,l,r| FGT::name(st, n, l, r)
                )
 }
 
 pub fn tree_filter<A:Adapton,X:Hash+Clone,T:TreeT<A,X,()>,F>
-    (st:&mut A, tree:&T::Tree, f:&F) -> T::Tree
+    (st:&mut A, tree:T::Tree, f:&F) -> T::Tree
     where F:Fn(&mut A, &X) -> bool
 {
     T::fold_up(st, tree,
                &|st|       T::nil(st),
-               &|st,x|     { let fx = f(st,x);
-                             if fx { T::leaf(st, x.clone()) }
+               &|st,x|     { let fx = f(st,&x);
+                             if fx { T::leaf(st, x) }
                              else  { T::nil(st) } },
                &|st,_,l,r| T::bin(st, (), l, r),
-               &|st,n,l,r| T::name(st, n.clone(), l, r)
+               &|st,n,l,r| T::name(st, n, l, r)
                )
 }
 
 pub fn list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
-    (st:&mut A, tree:&T::Tree) -> L::List
+    (st:&mut A, tree:T::Tree) -> L::List
 {
     let nil = L::nil(st);
     T::fold_rl(st, tree, nil,
-               &|st,x,xs| L::cons(st,x.clone(),xs),
+               &|st,x,xs| L::cons(st,x,xs),
                &|_,_,xs|  xs,
-               &|st,n,xs| L::name(st,n.clone(),xs)
+               &|st,n,xs| L::name(st,n,xs)
                )
 }
 
 pub fn rev_list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
-    (st:&mut A, tree:&T::Tree) -> L::List
+    (st:&mut A, tree:T::Tree) -> L::List
 {
     let nil = L::nil(st);
     T::fold_lr(st, tree, nil,
-               &|st,x,xs| L::cons(st,x.clone(),xs),
-               &|_,_,xs|  xs,
-               &|st,n,xs| L::name(st,n.clone(),xs)
+               &|st,x,xs| L::cons(st,x,xs),
+               &|_ ,_,xs| xs,
+               &|st,n,xs| L::name(st,n,xs)
                )    
 }
 
@@ -436,38 +449,56 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
     fn rc   (_:&mut A, rc:Rc<List<A,Hd>>)          -> Self::List { List::Rc(rc) }
     fn art  (_:&mut A, art:Art<List<A,Hd>,A::Loc>) -> Self::List { List::Art(art) }
 
-    fn elim<Res,Nil,Cons,Name>
-        (st:&mut A, list:&Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
-        where Nil:FnOnce(&mut A) -> Res
-        ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
-        ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res
-    {
-        match *list {
-            List::Nil => nilf(st),
-            List::Cons(ref hd, ref tl) => consf(st, hd, &*tl),
-            List::Name(ref nm, ref tl) => namef(st, nm, &*tl),
-            List::Rc(ref rc) => Self::elim(st, &*rc, nilf, consf, namef),
-            List::Art(ref art) => {
-                let list = st.force(art);
-                Self::elim(st, &list, nilf, consf, namef)
-            }
-        }
-    }
+    // fn elim<Res,Nil,Cons,Name>
+    //     (st:&mut A, list:&Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
+    //     where Nil:FnOnce(&mut A) -> Res
+    //     ,    Cons:FnOnce(&mut A, &Hd, &Self::List) -> Res
+    //     ,    Name:FnOnce(&mut A, &A::Name, &Self::List) -> Res
+    // {
+    //     match *list {
+    //         List::Nil => nilf(st),
+    //         List::Cons(ref hd, ref tl) => consf(st, hd, &*tl),
+    //         List::Name(ref nm, ref tl) => namef(st, nm, &*tl),
+    //         List::Rc(ref rc) => Self::elim(st, &*rc, nilf, consf, namef),
+    //         List::Art(ref art) => {
+    //             let list = st.force(art);
+    //             Self::elim(st, &list, nilf, consf, namef)
+    //         }
+    //     }
+    // }
 
-    fn elim_with<Arg,Res,Nil,Cons,Name>
-        (st:&mut A, list:&Self::List, arg:Arg, nilf:Nil, consf:Cons, namef:Name) -> Res
-        where Nil:FnOnce(&mut A, Arg) -> Res
-        ,    Cons:FnOnce(&mut A, &Hd, &Self::List, Arg) -> Res
-        ,    Name:FnOnce(&mut A, &A::Name, &Self::List, Arg) -> Res
+    // fn elim_with<Arg,Res,Nil,Cons,Name>
+    //     (st:&mut A, list:&Self::List, arg:Arg, nilf:Nil, consf:Cons, namef:Name) -> Res
+    //     where Nil:FnOnce(&mut A, Arg) -> Res
+    //     ,    Cons:FnOnce(&mut A, &Hd, &Self::List, Arg) -> Res
+    //     ,    Name:FnOnce(&mut A, &A::Name, &Self::List, Arg) -> Res
+    // {
+    //     match *list {
+    //         List::Nil => nilf(st, arg),
+    //         List::Cons(ref hd, ref tl) => consf(st, hd, &*tl, arg),
+    //         List::Name(ref nm, ref tl) => namef(st, nm, &*tl, arg),
+    //         List::Rc(ref rc) => Self::elim_with(st, &*rc, arg, nilf, consf, namef),
+    //         List::Art(ref art) => {
+    //             let list = st.force(art);
+    //             Self::elim_with(st, &list, arg, nilf, consf, namef)
+    //         }
+    //     }
+    // }
+
+    fn elim<Res,Nil,Cons,Name>
+        (st:&mut A, list:Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
+        where Nil:FnOnce(&mut A) -> Res
+        ,    Cons:FnOnce(&mut A, Hd, Self::List) -> Res
+        ,    Name:FnOnce(&mut A, A::Name, Self::List) -> Res
     {
-        match *list {
-            List::Nil => nilf(st, arg),
-            List::Cons(ref hd, ref tl) => consf(st, hd, &*tl, arg),
-            List::Name(ref nm, ref tl) => namef(st, nm, &*tl, arg),
-            List::Rc(ref rc) => Self::elim_with(st, &*rc, arg, nilf, consf, namef),
+        match list {
+            List::Nil => nilf(st),
+            List::Cons(hd, tl) => consf(st, hd, *tl),
+            List::Name(nm, tl) => namef(st, nm, *tl),
+            List::Rc(rc) => Self::elim(st, (*rc).clone(), nilf, consf, namef),
             List::Art(ref art) => {
                 let list = st.force(art);
-                Self::elim_with(st, &list, arg, nilf, consf, namef)
+                Self::elim(st, list, nilf, consf, namef)
             }
         }
     }
@@ -504,7 +535,14 @@ pub enum Tree<A:Adapton,X,Y> {
 // TODO: Why Does Adapton have to implement all of these?
 //       It's not actually *contained* within the List structure; it cannot be ecountered there.
 //       It's only ever present in a negative position (as a function parameter).
-impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,Bin:Debug+Hash+PartialEq+Eq+Clone> TreeT<A,Leaf,Bin> for Tree<A,Leaf,Bin> {
+impl
+    <A:Adapton+Debug+Hash+PartialEq+Eq+Clone
+    ,Leaf:     Debug+Hash+PartialEq+Eq+Clone
+    ,Bin:      Debug+Hash+PartialEq+Eq+Clone
+    >
+    TreeT<A,Leaf,Bin>
+    for Tree<A,Leaf,Bin>
+{
     type Tree = Tree<A,Leaf,Bin>;
 
     fn nil  (_:&mut A)                                        -> Self::Tree { Tree::Nil }
@@ -514,45 +552,65 @@ impl<A:Adapton+Debug+Hash+PartialEq+Eq+Clone,Leaf:Debug+Hash+PartialEq+Eq+Clone,
     fn rc   (_:&mut A, rc:Rc<Self::Tree>)                     -> Self::Tree { Tree::Rc(rc) }
     fn art  (_:&mut A, art:Art<Self::Tree,A::Loc>)            -> Self::Tree { Tree::Art(art) }
 
-    fn elim_with<Arg,Res,NilC,LeafC,BinC,NameC>
-        (st:&mut A, tree:&Self::Tree, arg:Arg, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
+    fn elim_move<Arg,Res,NilC,LeafC,BinC,NameC>
+        (st:&mut A, tree:Self::Tree, arg:Arg, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
         where NilC  : FnOnce(&mut A, Arg) -> Res
-        ,     LeafC : FnOnce(&mut A, &Leaf, Arg) -> Res
-        ,     BinC  : FnOnce(&mut A, &Bin,  &Self::Tree, &Self::Tree, Arg) -> Res
-        ,     NameC : FnOnce(&mut A, &A::Name, &Self::Tree, &Self::Tree, Arg) -> Res
+        ,     LeafC : FnOnce(&mut A, Leaf, Arg) -> Res
+        ,     BinC  : FnOnce(&mut A, Bin,  Self::Tree, Self::Tree, Arg) -> Res
+        ,     NameC : FnOnce(&mut A, A::Name, Self::Tree, Self::Tree, Arg) -> Res
     {
-        match *tree {
+        match tree {
             Tree::Nil => nil(st,arg),
-            Tree::Leaf(ref x) => leaf(st, x, arg),
-            Tree::Bin(ref b, ref l, ref r) => bin(st, b, &*l, &*r, arg),
-            Tree::Name(ref nm, ref l, ref r) => name(st, nm, &*l, &*r, arg),
-            Tree::Rc(ref rc) => Self::elim_with(st, &*rc, arg, nil, leaf, bin, name),
-            Tree::Art(ref art) => {
-                let list = st.force(art);
-                Self::elim_with(st, &list, arg, nil, leaf, bin, name)
+            Tree::Leaf(x) => leaf(st, x, arg),
+            Tree::Bin(b, l, r) => bin(st, b, *l, *r, arg),
+            Tree::Name(nm, l, r) => name(st, nm, *l, *r, arg),
+            Tree::Rc(rc) => Self::elim_move(st, (*rc).clone(), arg, nil, leaf, bin, name),
+            Tree::Art(art) => {
+                let list = st.force(&art);
+                Self::elim_move(st, list, arg, nil, leaf, bin, name)
             }
         }
     }
 
     fn elim<Res,NilC,LeafC,BinC,NameC>
-        (st:&mut A, tree:&Self::Tree, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
+        (st:&mut A, tree:Self::Tree, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
         where NilC  : FnOnce(&mut A) -> Res
-        ,     LeafC : FnOnce(&mut A, &Leaf) -> Res
-        ,     BinC  : FnOnce(&mut A, &Bin,  &Self::Tree, &Self::Tree) -> Res
-        ,     NameC : FnOnce(&mut A, &A::Name, &Self::Tree, &Self::Tree) -> Res
+        ,     LeafC : FnOnce(&mut A, Leaf) -> Res
+        ,     BinC  : FnOnce(&mut A, Bin,  Self::Tree, Self::Tree) -> Res
+        ,     NameC : FnOnce(&mut A, A::Name, Self::Tree, Self::Tree) -> Res
     {
-        match *tree {
+        match tree {
             Tree::Nil => nil(st),
-            Tree::Leaf(ref x) => leaf(st, x),
-            Tree::Bin(ref b, ref l, ref r) => bin(st, b, &*l, &*r),
-            Tree::Name(ref nm, ref l, ref r) => name(st, nm, &*l, &*r),
-            Tree::Rc(ref rc) => Self::elim(st, &*rc, nil, leaf, bin, name),
-            Tree::Art(ref art) => {
-                let list = st.force(art);
-                Self::elim(st, &list, nil, leaf, bin, name)
+            Tree::Leaf(x) => leaf(st, x),
+            Tree::Bin(b, l, r) => bin(st, b, *l, *r),
+            Tree::Name(nm, l, r) => name(st, nm, *l, *r),
+            Tree::Rc(rc) => Self::elim(st, (*rc).clone(), nil, leaf, bin, name),
+            Tree::Art(art) => {
+                let list = st.force(&art);
+                Self::elim(st, list, nil, leaf, bin, name)
             }
         }
     }
+
+    // fn elim<Res,NilC,LeafC,BinC,NameC>
+    //     (st:&mut A, tree:&Self::Tree, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
+    //     where NilC  : FnOnce(&mut A) -> Res
+    //     ,     LeafC : FnOnce(&mut A, &Leaf) -> Res
+    //     ,     BinC  : FnOnce(&mut A, &Bin,  &Self::Tree, &Self::Tree) -> Res
+    //     ,     NameC : FnOnce(&mut A, &A::Name, &Self::Tree, &Self::Tree) -> Res
+    // {
+    //     match *tree {
+    //         Tree::Nil => nil(st),
+    //         Tree::Leaf(ref x) => leaf(st, x),
+    //         Tree::Bin(ref b, ref l, ref r) => bin(st, b, &*l, &*r),
+    //         Tree::Name(ref nm, ref l, ref r) => name(st, nm, &*l, &*r),
+    //         Tree::Rc(ref rc) => Self::elim(st, &*rc, nil, leaf, bin, name),
+    //         Tree::Art(ref art) => {
+    //             let list = st.force(art);
+    //             Self::elim(st, &list, nil, leaf, bin, name)
+    //         }
+    //     }
+    // }
 }
 
 pub fn tree_append
@@ -639,70 +697,77 @@ pub fn tree_of_list_rec
         )
 }
 
-// pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
-//     (st:&mut A,
-//      n1:Option<A::Name>, l1:L::List,
-//      n2:Option<A::Name>, l2:L::List  ) -> L::List
-// {
-//     L::elim_move
-//         (st, l1,
-//          |_| l2.clone(),
-//          |st,h1,t1| L::elim
-//          (st, l2,
-//           |st| L::nil(st),
-//           |st, h2, t2|
-//           if h1 <= h2 {
-//               match n1 {
-//                   None => {
-//                       let rest = list_merge::<A,X,L>(st, None, t1, n2, l2);
-//                       L::cons(st, (*h1).clone(), rest)
-//                   }
-//                   Some(n1) => {
-//                       let (n1a, n1b) = st.name_fork(n1.clone());
-//                       let rest = thunk!(st, n1a =>>
-//                                         list_merge::<A,X,L>,
-//                                         n1:None, l1:t1, n2:n2, l2:l2);
-//                       let rest = L::art(st, rest);
-//                       let rest = L::cons(st, (*h1).clone(), rest);
-//                       L::name(st, n1b, rest)
-//                   }
-//               }
-//           }
-//           else {
-//               match n2 {
-//                   None => {
-//                       let rest = list_merge::<A,X,L>(st, n1, l1, None, t2);
-//                       L::cons(st, (*h2).clone(), rest)
-//                   }
-//                   Some(n2) => {
-//                       let (n2a, n2b) = st.name_fork(n2.clone());
-//                       let rest = thunk!(st, n2a =>>
-//                                         list_merge::<A,X,L>,
-//                                         n1:n1, l1:l1, n2:None, l2:t2);
-//                       let rest = L::art(st, rest);
-//                       let rest = L::cons(st, (*h2).clone(), rest);
-//                       L::name(st, n2b, rest)
-//                   }
-//               }
-//           },
-//           |st,m2,t2| list_merge::<A,X,L>(st, n1, l1, Some(m2), t2)
-//           ),
-//          |st,n1,t1| list_merge::<A,X,L>(st, Some(n1), t1, n2, l2)
-//          )
-// }
+pub fn list_merge<A:Adapton,X:Ord+Clone,L:ListT<A,X>>
+    (st:&mut A,
+     n1:Option<A::Name>, l1:L::List,
+     n2:Option<A::Name>, l2:L::List  ) -> L::List
+{
+    L::elim_move
+        (st, l1, (n1,n2,l2),
+         /* Nil */  |_, (_, _, l2)| l2,
+         /* Cons */ |st,h1,t1,(n1,n2,l2)|
+         L::elim_move
+         (st, l2, (h1,t1,n1,n2),
+          /* Nil */  |st, (_, _, _, _ )| L::nil(st),
+          /* Cons */ |st, h2, t2, (h1,t1,n1,n2)|
+          if &h1 <= &h2 {
+              let l2 = L::cons(st,h2,t2);
+              match n1 {
+                  None => {
+                      let rest = list_merge::<A,X,L>(st, None, t1, n2, l2);
+                      L::cons(st, h1, rest)
+                  }
+                  Some(n1) => {
+                      let (n1a, n1b) = st.name_fork(n1);
+                      let rest = thunk!(st, n1a =>>
+                                        list_merge::<A,X,L>,
+                                        n1:None, l1:t1, n2:n2, l2:l2);
+                      let rest = L::art(st, rest);
+                      let rest = L::cons(st, h1, rest);
+                      L::name(st, n1b, rest)
+                  }
+              }
+          }
+          else {
+              let l1 = L::cons(st,h1,t1);
+              match n2 {
+                  None => {
+                      let rest = list_merge::<A,X,L>(st, n1, l1, None, t2);
+                      L::cons(st, h2, rest)
+                  }
+                  Some(n2) => {
+                      let (n2a, n2b) = st.name_fork(n2);
+                      let rest = thunk!(st, n2a =>>
+                                        list_merge::<A,X,L>,
+                                        n1:n1, l1:l1, n2:None, l2:t2);
+                      let rest = L::art(st, rest);
+                      let rest = L::cons(st, h2, rest);
+                      L::name(st, n2b, rest)
+                  }
+              }
+          },
+          |st,m2,t2,(h1,t1,n1,_n2)| {
+              let l1 = L::cons(st,h1,t1);
+              list_merge::<A,X,L>(st, n1, l1, Some(m2), t2)
+          }
+          ),
+         |st,m1,t1,(_n1,n2,l2)|
+         list_merge::<A,X,L>(st, Some(m1), t1, n2, l2)
+         )
+}
 
-// pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone+Debug,L:ListT<A,X>,T:TreeT<A,X,()>>
-//     (st:&mut A, list:L::List) -> L::List
-// {
-//     let tree = tree_of_list::<A,X,T,L>(st, ListEditDir::Left, list);
-//     T::fold_up (st, &tree,
-//                 &|st|                 L::nil(st),
-//                 &|st, x|              L::singleton(st, x.clone()),
-//                 &|st, _, left, right| list_merge::<A,X,L>(st, None, left, None, right),
-//                 &|st, n, left, right| { let (n1,n2) = st.name_fork(n.clone());
-//                                         list_merge::<A,X,L>(st, Some(n1), left, Some(n2), right) },
-//                 )
-// }
+pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Clone+Debug,L:ListT<A,X>,T:TreeT<A,X,()>>
+    (st:&mut A, list:L::List) -> L::List
+{
+    let tree = tree_of_list::<A,X,T,L>(st, ListEditDir::Left, list);
+    T::fold_up (st, tree,
+                &|st|                 L::nil(st),
+                &|st, x|              L::singleton(st, x.clone()),
+                &|st, _, left, right| list_merge::<A,X,L>(st, None, left, None, right),
+                &|st, n, left, right| { let (n1,n2) = st.name_fork(n.clone());
+                                        list_merge::<A,X,L>(st, Some(n1), left, Some(n2), right) },
+                )
+}
 
 pub trait SetT
     <A:Adapton
@@ -714,24 +779,24 @@ pub trait SetT
     fn empty(st:&mut A);
 
     fn update_elm<Update,Res>
-        (st:&mut A, set:&Self::Set, elm:&Elm,
+        (st:&mut A, set:Self::Set, elm:Elm,
          update:&Update)
          -> (Self::Set, Res)
-        where Update:FnOnce(&mut A, Option<Elm>, &Elm) -> (Option<Elm>, Res)
+        where Update:FnOnce(&mut A, Option<Elm>, Elm) -> (Option<Elm>, Res)
         ;
     
     // Elim forms:
-    fn elim_with<Arg,Res,NilC,ElmC,UnionC>
-        (st:&mut A, set:&Self::Set, arg:Arg,
+    fn elim_move<Arg,Res,NilC,ElmC,UnionC>
+        (st:&mut A, set:Self::Set, arg:Arg,
          nil:&NilC, elm:&ElmC, union:&UnionC)
          -> Res
         where NilC:FnOnce(&mut A, Arg) -> Res
-        ,     ElmC:FnOnce(&mut A, &Elm, Arg) -> Res
-        ,   UnionC:FnOnce(&mut A, &Self::Set, &Self::Set, Arg) -> Res
+        ,     ElmC:FnOnce(&mut A, Elm, Arg) -> Res
+        ,   UnionC:FnOnce(&mut A, Self::Set, Self::Set, Arg) -> Res
         ;
 
-    fn is_mem(st:&mut A, set:&Self::Set, elm:&Elm) -> bool; // TODO: Write based on update, above.
-    fn is_empty(st:&mut A, set:&Self::Set) -> bool; // TODO: Write based on elim_with, above.
+    fn is_mem(st:&mut A, set:Self::Set, elm:Elm) -> bool; // TODO: Write based on update, above.
+    fn is_empty(st:&mut A, set:Self::Set) -> bool; // TODO: Write based on elim_with, above.
 }
 
 pub trait MapT
@@ -745,23 +810,23 @@ pub trait MapT
     fn empty(st:&mut A);
 
     fn update_pt<Update,Res>
-        (st:&mut A, map:&Self::Map,
-         pt:&Dom, cod:&Option<Cod>, update:&Update) -> (Self::Map, Res)
+        (st:&mut A, map:Self::Map,
+         pt:Dom, cod:Option<Cod>, update:&Update) -> (Self::Map, Res)
         where Update:FnOnce(&mut A, Option<Cod>, Option<Cod>) -> (Option<Cod>, Res)
         ;
 
     // General elim form:
-    fn elim_with<Arg,Res,NilC,ElmC,UnionC>
-        (st:&mut A, map:&Self::Map, arg:Arg,
+    fn elim_move<Arg,Res,NilC,ElmC,UnionC>
+        (st:&mut A, map:Self::Map, arg:Arg,
          nil:&NilC, elm:&ElmC, union:&UnionC)
         where NilC:FnOnce(&mut A, Arg) -> Res
-        ,     ElmC:FnOnce(&mut A, &Dom, &Option<Cod>) -> Res
-        ,   UnionC:FnOnce(&mut A, &Self::Map, &Self::Map, Arg) -> Res
+        ,     ElmC:FnOnce(&mut A, Dom, Option<Cod>) -> Res
+        ,   UnionC:FnOnce(&mut A, Self::Map, Self::Map, Arg) -> Res
         ;
     
     // Special, convenient update_pts:
-    fn rem(st:&mut A, map:&Self::Map, x:&Dom) -> (Option<Cod>, Self::Map); // TODO: Implement with update_pt
-    fn get(st:&mut A, set:&Self::Map, x:&Dom) -> Option<Cod>; // TODO: Implement with update_pt
+    fn rem(st:&mut A, map:Self::Map, x:Dom) -> (Option<Cod>, Self::Map); // TODO: Implement with update_pt
+    fn get(st:&mut A, set:Self::Map, x:Dom) -> Option<Cod>; // TODO: Implement with update_pt
 }
 
 pub trait GraphT
@@ -774,14 +839,14 @@ pub trait GraphT
 
     // Intro forms:
     fn empty(st:&mut A);
-    fn add_node(st:&mut A, graph:&Self::Graph, node:&Node) -> Self::Graph;
-    fn add_edge(st:&mut A, graph:&Self::Graph, src:&Node, tgt:&Node) -> Self::Graph;
-    fn add_succs(st: &mut A, graph:&Self::Graph, node:&Node, succs:&NodeSet) -> Self::Graph;
+    fn add_node(st:&mut A, graph:Self::Graph, node:Node) -> Self::Graph;
+    fn add_edge(st:&mut A, graph:Self::Graph, src:Node, tgt:Node) -> Self::Graph;
+    fn add_succs(st: &mut A, graph:Self::Graph, node:Node, succs:NodeSet) -> Self::Graph;
 
     // Query forms:
-    fn get_succs(st: &mut A, graph:&Self::Graph, node:&Node) -> NodeSet;
+    fn get_succs(st: &mut A, graph:Self::Graph, node:Node) -> NodeSet;
     
     // Other forms:
-    // fn rem_node(st:&mut A, graph:&Self::Graph, node:&NodeLab) -> Self::Graph;
-    // fn rem_edge(st:&mut A, graph:&Self::Graph, edge:&Self::Edge) -> Self::Graph;    
+    // fn rem_node(st:&mut A, graph:Self::Graph, node:NodeLab) -> Self::Graph;
+    // fn rem_edge(st:&mut A, graph:Self::Graph, edge:Self::Edge) -> Self::Graph;    
 }
