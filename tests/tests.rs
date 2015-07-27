@@ -61,7 +61,7 @@ mod zipper {
             println!("t3 == l = {}\n", t3 == t2); // Tests `tree_of_list o list_of_tree = id`.
             assert_eq!(t3, t2);            
         }
-        assert!(false)
+        //assert!(false)
     }
     
     #[test]
