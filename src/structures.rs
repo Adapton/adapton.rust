@@ -316,6 +316,38 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
     }
 }
 
+pub fn lev<X:Hash>(x:&X) -> u32  {
+    my_hash(&x).trailing_zeros() as u32
+}
+
+// pub fn tree_append
+//     < A:Adapton
+//     , X:Hash+Clone+Debug
+//     , T:TreeT<A,X,()>
+//     >
+//     (st:&mut A,tree1:T::Tree,tree2:T::Tree) -> T::Tree
+// {
+//     // XXX: This is a hack. Make this balanced, a la Pugh 1989.
+//     T::bin(st, (), tree1, tree2)
+// }
+
+pub fn tree_append
+    <A:Adapton
+    ,X:Clone+Hash+Eq+Debug
+    ,T:TreeT<A,X,()>
+    >
+    (st:&mut A, tree1:T::Tree, tree2:T::Tree) -> T::Tree
+{
+    // T::elim_move(st, tree1, tree2,
+    //              &|st,       tree2| tree2,
+    //              &|_,leaf,   tree2| tree2,
+    //              &|st,_,l,r, tree2| tree2,
+    //              &|st,_,l,r, tree2| tree2,
+    //              )
+    //panic!("")
+    T::bin(st, (), tree1, tree2)
+}
+
 pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm,()>,BinOp>
     (st:&mut A, tree:T::Tree, zero:Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
@@ -531,17 +563,6 @@ impl
     }
 }
 
-pub fn tree_append
-    < A:Adapton
-    , X:Hash+Clone+Debug
-    , T:TreeT<A,X,()>
-    >
-    (st:&mut A,tree1:T::Tree,tree2:T::Tree) -> T::Tree
-{
-    // XXX: This is a hack. Make this balanced, a la Pugh 1989.
-    T::bin(st, (), tree1, tree2)
-}
-
 pub fn tree_of_list
     < A:Adapton
     , X:Hash+Clone+Debug
@@ -575,7 +596,7 @@ pub fn tree_of_list_rec
 
         /* Cons */
         |st, hd, rest, (dir_list, tree)| {
-            let lev_hd = (1 + (my_hash(&hd).trailing_zeros())) as u32 ;
+            let lev_hd = 1 + lev(&hd) ;
             if tree_lev <= lev_hd && lev_hd <= parent_lev {
                 let leaf = T::leaf(st, hd) ;
                 let (tree2, rest2) = {
@@ -593,7 +614,7 @@ pub fn tree_of_list_rec
 
         /* Name */
         |st, nm, rest, (dir_list, tree)|{
-            let lev_nm = (1 + (my_hash(&nm).trailing_zeros())) as u32 ;
+            let lev_nm = 1 + 64 + lev(&nm) ;
             if tree_lev <= lev_nm && lev_nm <= parent_lev {
                 let nil = T::nil(st) ;
                 let (nm1, nm2) = st.name_fork(nm.clone());
