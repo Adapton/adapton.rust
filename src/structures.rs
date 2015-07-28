@@ -338,14 +338,19 @@ pub fn tree_append
     >
     (st:&mut A, tree1:T::Tree, tree2:T::Tree) -> T::Tree
 {
-    // T::elim_move(st, tree1, tree2,
-    //              &|st,       tree2| tree2,
-    //              &|_,leaf,   tree2| tree2,
-    //              &|st,_,l,r, tree2| tree2,
-    //              &|st,_,l,r, tree2| tree2,
-    //              )
-    //panic!("")
-    T::bin(st, (), tree1, tree2)
+    T::elim_move
+        (st, tree1, tree2,         
+         /* Nil */  |st,       tree2| tree2,
+         /* Leaf */ |st,leaf,  tree2| {
+             let leaf = T::leaf(st, leaf);
+             T::bin(st, (), leaf, tree2)
+         },
+         /* Bin */  |st,_,l,r, tree2| {
+             let tree1 = T::bin(st, (), l, r);
+             T::bin(st, (), tree1, tree2)
+         },
+         /* Name */ |st,_,l,r, tree2| panic!(""),
+         )
 }
 
 pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm,()>,BinOp>
