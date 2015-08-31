@@ -26,6 +26,11 @@ use adapton_syntax::{ProgPt};
 //   - Adapton::Loc  : identify DCG nodes after they are made
 //
 // 
+
+/// The `Adapton` trait provides a language of
+/// dependence-graph-building operations based on the core calculus
+/// described in ["Incremental Computation with Names", 2015](http://arxiv.org/abs/1503.07792)
+
 pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     // TODO-later: Report ICE: If I replace the trait combinations below with `AdaptonData`:
     type Name : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
@@ -86,31 +91,38 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
 pub trait AdaptonData : Debug+Hash+PartialEq+Eq+Clone {}
 impl<X:Debug+Hash+PartialEq+Eq+Clone> AdaptonData for X { }
 
-// TODO: I'd like the Art<T> definition to live within the Adapton trait below.
-// Then, it need not be parameterized by Loc. It can simply use Adapton::Loc.
-// However, I run into problems with rustc accepting associated types for traits that are parameterized (by type T).
+
+/// The term "Art" stands for two things here: "Adapton return type",
+/// and "Articulation point, for 'articulating' incremental change".
+/// The concept of an "Art" also abstracts over whether the producer
+/// is eager (like a ref cell) or lazy (like a thunk).
+///
+/// TODO: I'd like the `Art<T,Loc>` definition to live within the `Adapton` trait.
+/// Then, it need not be parameterized by `Loc`. It can simply use `Adapton::Loc`, internally ("privately").
+/// However, I run into problems with rustc accepting associated types
+/// for traits that are parameterized by other types (viz., by type
+/// `T`).
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum Art<T,Loc> {
     Rc(Rc<T>),    // No entry in table. No dependency tracking.
     Loc(Rc<Loc>), // Location in table.
 }
 
-// TODO: Same scoping issue as Art above.
+/// TODO: Same scoping issue as `Art`; should be in `Adapton` trait.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub struct MutArt<T,Loc> {
     pub loc:Rc<Loc>,
     pub phantom: PhantomData<T>
 }
 
-// ArtId -- A symbolic identity for an articulation point made by
-// Adapton::thunk.  An ArtId is chosen by the programmer to identify
-// the point during evaluation (and simultaneously, to identify the
-// point during re-evaluation).
-
-// An `Eager` identity is special, and it means "do not introduce any
-// laziness/memoization overhead here"; when Eager is used, no thunk
-// is created; rather, the computation eagerly produces an articulated
-// value of the form Art::Rc(v), for some value v.
+/// An `ArtId` is a symbolic identity for an articulation point made by
+/// Adapton::thunk.  An ArtId is chosen by the programmer to identify
+/// the point during evaluation (and simultaneously, to identify the
+/// point during re-evaluation).
+/// An `Eager` identity is special, and it means "do not introduce any
+/// laziness/memoization overhead here"; when Eager is used, no thunk
+/// is created; rather, the computation eagerly produces an articulated
+/// value of the form Art::Rc(v), for some value v.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum ArtIdChoice<Name> {
     Eager,         // Eagerly produce an Art::Rc, no additional indirection is needed/used.

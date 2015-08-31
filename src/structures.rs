@@ -316,6 +316,7 @@ pub trait TreeT<A:Adapton,Leaf,Bin:Hash> {
     }
 }
 
+//  See Pugh+Teiltelbaum in POPL 1989 for an explanation of this notion of "level":
 pub fn lev<X:Hash>(x:&X) -> u32  {
     my_hash(&x).trailing_zeros() as u32
 }

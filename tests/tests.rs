@@ -47,7 +47,7 @@ mod zipper {
             println!("t2 = tree_of_list l = {:?}", t2);
             println!("t2 == t = {}\n", t2 == t);
             // assert_eq!(t2, t); // FIXME: tree_append needs to follow Pugh's algorithm (POPL 1989).
-
+            
             let t_spec = tree_of_list::<A,u64,Tree<A,u64,()>,L>(st, ListEditDir::Left, l_spec.clone());
             println!("t_spec = tree_of_list l_spec = {:?}\n", t_spec);
             

@@ -6,7 +6,7 @@ A general-purpose **Incremental Computation** (IC) library for Rust.
 
 **Based on**:  
 
-- The paper [_Incremental Computation with Names_, 2015](http://arxiv.org/abs/1503.07792).  
+- The paper [_Incremental Computation with Names_, OOPSLA 2015](http://arxiv.org/abs/1503.07792).  
 - A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).  
 
 Library Components:
