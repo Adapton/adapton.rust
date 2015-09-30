@@ -145,7 +145,7 @@ impl<A:Adapton
         }
     }
 
-    fn get_list<N:ListT<A,X>,T:TreeT<A,X,()>>
+    fn get_list<N:ListT<A,X>,T:TreeT<A,X,u32>>
         (st:&mut A, zip:Self::State, dir:Self::Dir) -> N::List
     {
         let tree = Self::get_tree::<T>(st, zip, dir);
@@ -155,7 +155,7 @@ impl<A:Adapton
     /// Creates a tree whose leaves hold the contents of the zipper, in order.
     /// When `dir=Left`,  the tree's leaves are ordered from left-to-right, i.e., as (rev left) @ right.
     /// When `dir=Right`, the tree's leaves are ordered from right-to-left, i.e., as (rev right) @ left.
-    fn get_tree<T:TreeT<A,X,()>>
+    fn get_tree<T:TreeT<A,X,u32>>
         (st:&mut A, zip:Self::State, dir:Self::Dir) -> T::Tree
     {
         match dir {
@@ -321,38 +321,59 @@ pub fn lev<X:Hash>(x:&X) -> u32  {
     my_hash(&x).trailing_zeros() as u32
 }
 
-// pub fn tree_append
-//     < A:Adapton
-//     , X:Hash+Clone+Debug
-//     , T:TreeT<A,X,()>
-//     >
-//     (st:&mut A,tree1:T::Tree,tree2:T::Tree) -> T::Tree
-// {
-//     // XXX: This is a hack. Make this balanced, a la Pugh 1989.
-//     T::bin(st, (), tree1, tree2)
-// }
-
 pub fn tree_append
-    <A:Adapton
-    ,X:Clone+Hash+Eq+Debug
-    ,T:TreeT<A,X,()>
+    < A:Adapton
+    , X:Hash+Clone+Debug
+    , T:TreeT<A,X,()>
     >
-    (st:&mut A, tree1:T::Tree, tree2:T::Tree) -> T::Tree
+    (st:&mut A,tree1:T::Tree,tree2:T::Tree) -> T::Tree
 {
-    T::elim_move
-        (st, tree1, tree2,         
-         /* Nil */  |st,       tree2| tree2,
-         /* Leaf */ |st,leaf,  tree2| {
-             let leaf = T::leaf(st, leaf);
-             T::bin(st, (), leaf, tree2)
-         },
-         /* Bin */  |st,_,l,r, tree2| {
-             let tree1 = T::bin(st, (), l, r);
-             T::bin(st, (), tree1, tree2)
-         },
-         /* Name */ |st,_,l,r, tree2| panic!(""),
-         )
+    // XXX: This is a hack. Make this balanced, a la Pugh 1989.
+    T::bin(st, (), tree1, tree2)
 }
+
+// pub fn tree_append
+//     <A:Adapton
+//     ,X:Clone+Hash+Eq+Debug
+//     ,T:TreeT<A,X,()>
+//     >
+//     (st:&mut A, tree1:T::Tree, tree2:T::Tree) -> T::Tree
+// {
+//     T::elim_move
+//         (st, tree1, tree2,         
+//          /* Nil */  |st,       tree2| tree2,
+//          /* Leaf */ |st,leaf,  tree2| {
+//              T::elim_move
+//                  (st, tree2, leaf,
+//                   /* Nil */  |st, leaf1| T::leaf(st,leaf1),
+//                   /* Leaf */ |st, leaf2, leaf1| {
+//                       let l1 = T::leaf(st,leaf1);
+//                       let l2 = T::leaf(st,leaf2);
+//                       T::bin(st, (), l1, l2)
+//                   },
+//                   /* Bin */  |st, l2, r2, leaf1| {
+//                       let leaf = T::leaf(st, leaf);
+//                       /*T::bin(st, (), leaf, tree2)*/
+//                       panic!("TODO")
+//                   },
+//                   /* Name */ |st, nm, l2, r2, leaf1| {
+//                       panic!("TODO")
+//                   })
+//          },
+//          /* Bin */ |st,_,l,r, tree2| {
+//              /*
+//              T::elim_move
+//                  (st, tree2, (l,r),
+//                   /* Nil */ |st, 
+                  
+//                   let tree1 = T::bin(st, (), l, r);
+//              T::bin(st, (), tree1, tree2)
+//                  */
+//                  panic!("")
+//          },
+//          /* Name */ |st,_,l,r, tree2| panic!(""),
+//          )
+// }
 
 pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm,()>,BinOp>
     (st:&mut A, tree:T::Tree, zero:Elm, binop:&BinOp) -> Elm
@@ -401,7 +422,7 @@ pub fn tree_filter<A:Adapton,X:Hash+Clone,T:TreeT<A,X,()>,F>
                )
 }
 
-pub fn list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
+pub fn list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,u32>>
     (st:&mut A, tree:T::Tree) -> L::List
 {
     let nil = L::nil(st);
@@ -412,7 +433,7 @@ pub fn list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
                )
 }
 
-pub fn rev_list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,()>>
+pub fn rev_list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X,u32>>
     (st:&mut A, tree:T::Tree) -> L::List
 {
     let nil = L::nil(st);
@@ -572,7 +593,7 @@ impl
 pub fn tree_of_list
     < A:Adapton
     , X:Hash+Clone+Debug
-    , T:TreeT<A,X,()>
+    , T:TreeT<A,X,u32>
     , L:ListT<A,X>
     >
     (st:&mut A, dir_list:ListEditDir, list:L::List) -> T::Tree {
@@ -586,7 +607,7 @@ pub fn tree_of_list
 pub fn tree_of_list_rec
     < A:Adapton
     , X:Hash+Clone+Debug
-    , T:TreeT<A,X,()>
+    , T:TreeT<A,X,u32>
     , L:ListT<A,X>
     >
     (st:&mut A,
