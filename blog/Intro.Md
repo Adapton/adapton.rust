@@ -245,5 +245,6 @@ abstractions for reference-counted objects (see the
 
 --------------------------------------
 
-TODO: Wrap up the end of the post somehow.
-(Conclusions and remaining questions?)
+TODO: Wrap up the end of the post somehow:  
+Conclusions and remaining questions?  
+Reiterate next steps in the blog series (also mentioned at top, above)  
