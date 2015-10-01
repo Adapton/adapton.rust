@@ -2,6 +2,11 @@
 Blog Series on Adapton in Rust
 ==============================
 
+**Incremental computing** is ubiquitous in today's computer systems:
+
+> A computation is incremental if repeating it with a changed input is
+> faster than from-scratch recomputation.
+
 Adapton is a programming languages (PL) approach for general-purpose
 incremental computing. As this blog series will show in detail,
 Adapton provides a concise set of abstractions for encoding a large
@@ -36,8 +41,8 @@ The desired outcomes for this blog series are:
 - get feedback from the Rust community, and the PL research community.
 
 
-Adapton is Functional Programming
----------------------------------
+Adapton Encourages Functional Programming
+-------------------------------------------
 
 Though Adapton is implemented in Rust, it exposes and encourages a
 programming model that is closer to traditional pure functional
@@ -54,15 +59,15 @@ multiple versions of a data structure, i.e., before and after a
 change.
 
 Though Adapton can also reason about a limited class of **mutation**
-(e.g., input changes that overwrite previous values),
-**general-purpose function caching is most applicable when
-side-effects are avoided**, sometimes by wisely encoding these effects
-into a functional pattern.  For instance, our OOPSLA 2015 paper
-(*Incremental Computation with Names*) describes an incremental
-interpreter for IMP, an imperative programming language.  While IMP is
-imperative, in its interpreter's implementation of imperative state
-uses Adapton, and in particular, its (purely-functional) collections
-library.
+(e.g., input changes that overwrite previous values), *general-purpose
+function caching is most applicable when side-effects are avoided*,
+sometimes by wisely encoding these effects into a functional pattern.
+For instance, our OOPSLA 2015 paper
+([*Incremental Computation with Names*](http://arxiv.org/abs/1503.07792))
+describes an incremental interpreter for IMP, an imperative
+programming language.  While IMP is imperative, in its interpreter's
+implementation of imperative state uses Adapton, and in particular,
+its (purely-functional) collections library.
 
 For Rust programmers that are accustomed to thinking about ownership
 and memory management, this talk of function caching and data
@@ -71,8 +76,8 @@ structure sharing may raise the question:
 > How and when are these caches and data structures garbaged collected?
 
 This question has a complex answer.  In short, Adapton currently uses
-a special form of reference counting.  Before addressing the question
-of garbage collection in further detail, it is worth considering the
+a special form of reference counting to manage memory.  Before
+addressing the question in further detail, it is worth considering the
 challenges for implementing Adapton in typical garbage-collected
 functional languages.  The rest of this post will give the reader an
 overview, which both highlights the key ingredients in Adapton's
@@ -91,38 +96,42 @@ garbage collector, leading to memory requirements that grow over time.
 To solve this problem, we can use an escape hatch that many collectors
 provide: weak references.  The idea of a weak reference is to point at
 something until that something is collected, upon which the reference
-becomes null.
+becomes null.  For instance, OCaml implements weak references with the
+[Weak module](http://caml.inria.fr/pub/docs/manual-ocaml/libref/Weak.html).
 
 Weak references are attractive for caches because they seem to solve
 the reachability problem: The referent cached object requires an
 ordinary ("strong") pointer to maintain its reachable status, and
 otherwise the weak references that form the cache can be collected.
 Indeed, this weak reference strategy is the one that we used in our
-PLDI 2014 implementation of Adapton in OCaml.  However, there was a
-lingering soundness problem that only manifested later, when we
-extended the system.
+[PLDI 2014](http://www.cs.umd.edu/~hammer/adapton/)
+[implementation of Adapton in OCaml](https://bitbucket.org/khooyp/adapton.ocaml).
+However, there was a lingering soundness problem that only manifested
+later, when we extended the system.  As it turns out, the problem
+affects the original system as well.
 
-The incompatibility of weak references and Adapton is fundemental, and
-is rooted in how Adapton not only provides a function cache, but also
-tracks mutable references with a dependency graph that we call a
-*demanded computation graph (DCG)*.  This graph, which forms a DAG,
-connects cached function invocations with their dynamic dependencies,
-which consist of other invocations and special mutable input cells.
-To ensure that these extra connections do not lead to "extra
+The incompatibility of weak references and Adapton is fundemental. It
+is rooted in how Adapton provides both a function cache as well as a
+dependency graph that we call a *demanded computation graph (DCG)*.
+This graph, which forms a DAG, connects cached function invocations
+with their dynamic dependencies, which consist of other invocations
+and special mutable input cells that these invocations may read.  To
+ensure that these extra connections do not lead to "extra
 reachability" in the heap, and thus to memory leaks, we make the
 backward direction of the DAG edges weak, meaning that each node only
-weakly points at the nodes that depend on it.  Periodically, when the
-external user issues input changes, we use these weak pointers to walk
+weakly points at the nodes that depend on it, while it strongly points
+at the nodes on which it depends.  Periodically, when the external
+user issues input changes, we use the weak, backward pointers to walk
 over the graph and mark dependencies as "dirty".
 
 The latent problem we discovered after the PLDI 2014 paper arises in
 the unique combination of a dependency graph with weak references
-overlayed upon a memoization table with weak references (aka, the
-function cache).  As it turns out, it is possible to generate DCGs and
-input changes that will interact with the garbage collector in
-undesireable ways, leading to errors in Adapton's internal change
-propagation algorithm, and incorrect results in the updated
-computation.  Exhibiting this behavior requires several steps:
+overlayed upon a memoization table with weak references.  As we found
+by accident, it is possible to generate DCGs and input changes that
+will interact with the garbage collector in undesireable ways, leading
+to errors in Adapton's internal change propagation algorithm, and
+incorrect results in the updated computation.  Exhibiting this
+behavior requires several steps:
 
 1. During change propagation, some nodes in the DCG are re-executed,
    replacing their outgoing (strong) edges with different ones.
@@ -142,8 +151,9 @@ computation.  Exhibiting this behavior requires several steps:
 
 This soundness issue was latent until we extended the system with
 first-class names, leading to more aggressive memo table-based reuse
-in step 4.  Fortunately, the problem can be understood and solved
-independently from that extension.
+in step 4.  After finding the problem, we fixed both systems.
+Fortunately, the problem can be understood and solved independently
+from that recent extension.
 
 One Solution: An Awkward and Wasteful Dance
 ---------------------------------------------
@@ -151,23 +161,28 @@ One Solution: An Awkward and Wasteful Dance
 We fixed the unsound design described above by using fewer weak
 references: Instead of the memo table cache storing only weak
 references, we made these references strong.  This ensures that the
-garbage collector will not collect any weak references between the
-cached nodes (every cached node has, by definition, at least one
-strong pointer, coming from the cache).
+garbage collector will not spuriously collect the weak references that
+represent the DAG edges between the cached nodes, since every cached
+node has, by definition, at least one strong pointer that comes from
+the cache.
 
 Of course, this fix just raises the question: How do we collect the
 memo table cache? To address this issue, the OCaml Adapton library now
 employs **reference counting for each cache node**.  The library
 adjusts reference counts as cached invocations call other cached
-invocations (these calls form the changing edges of the graph).
-Often, nodes from the graph are intermixed with data structures
-(especially lazy structures).  To interface to the user's OCaml code,
-which is garbage collected without reference counts, the library wraps
-data structures that it maintains with special **finalizers**, so that
-when and if these pointers are collected, they will decrement the
-shared reference count of the cached node.
+invocations, as these calls form the changing edges of the graph.
+Unfortunately, maintaining these counts is not nearly as simple as one
+might hope.
 
-Finally, since Adapton programs often consist of both user code that
+First, nodes from the graph are intermixed with data structures used
+in the incremental computation, especially lazy structures.  To
+interface to the user's OCaml code, which is garbage collected without
+reference counts, the library wraps data structures that it maintains
+with special **finalizers**, so that when and if these pointers are
+collected, they will decrement the shared reference count of the
+cached node.
+
+Next, since Adapton programs often consist of both user code that
 calls Adapton library calls as well as Adapton library routines that
 call back into user code, things become even more complex.  While it
 is vital that user code wraps pointers to cached nodes with
@@ -187,8 +202,9 @@ Thus, an awkward and wasteful dance ensues as the program runs:
   keeps or drops pointers to cached nodes.
 
 - When the Adapton library accepts data structures from the user's
-  code, it must **sanitize* these data structures before storing their
-  values, lest they contain finalizers that will never finalize.
+  code, it must **sanitize** (shallowly copy) these data structures
+  before storing their values, lest they contain finalizers that will
+  never finalize.
 
 If the description above seems hard to understand or inefficient, I
 agree completely.
