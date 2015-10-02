@@ -57,7 +57,7 @@ fn fib (n:u64) -> u64 {
 ```
 
 Other than speaking of `u64` instead of `Nat`, this code *is* the
-mathematical definition of the `n`th Fibonacci number.  Unfortunately,
+[mathematical definition of the `n`th Fibonacci number](https://en.wikipedia.org/wiki/Fibonacci_number).  Unfortunately,
 this *pure specification* is not efficient: As written above, it is
 exponential in argument `n`.
 
