@@ -318,3 +318,10 @@ Reiterate next steps in the blog series (also mentioned at top, above)
 
 TODO: Include simple figures for the description above?  
 Illustrate: Nodes, Memo table, Edges (Strong vs Weak pointers), Ref counts  
+
+
+---------------------------------
+
+**Feedback from:**  
+Lars,  
+Kyle,  
