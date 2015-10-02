@@ -131,8 +131,8 @@ function caching is most applicable when side-effects are avoided*,
 sometimes by wisely encoding these effects into a functional pattern.
 For instance, our OOPSLA 2015 paper
 ([*Incremental Computation with Names*](http://arxiv.org/abs/1503.07792))
-describes an incremental interpreter for IMP, an imperative
-programming language.  While IMP is imperative, in its interpreter's
+describes an [incremental interpreter for IMP](https://github.com/plum-umd/inc-imp), an [imperative
+programming language IMP](https://www21.in.tum.de/~nipkow/pubs/fac98.html).  While IMP is imperative, in its interpreter's
 implementation of imperative state uses Adapton, and in particular,
 its (purely-functional) collections library.
 
