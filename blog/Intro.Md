@@ -16,14 +16,14 @@ dependency graphs** to cache computations and adapt them when inputs
 change.
 
 The remainder of this initial post will discuss general issues that
-arise when writing libraries with these features, and why Rust was
-chosen as an exciting and promising alternative to other languages
-that have we tried in the past. Future posts will demonstrate
-Adapton's interface in Rust, with successive complexity.  Though
-Adapton is nominally given as a library for Rust, its usage often
-requires rethinking the structure of the programs that use it.  This
-blog series will help explore this tension, and hopefully will lead to
-improvements in the library's documentation and design.
+arise when writing libraries that abstract incremental computing, and
+why Rust was chosen as an exciting and promising alternative to other
+languages that have we tried in the past. Future posts will
+demonstrate Adapton's interface in Rust, with successive complexity.
+Though Adapton is nominally given as a library for Rust, its usage
+often requires rethinking the structure of the programs that use it.
+This blog series will help explore this tension, and hopefully will
+lead to improvements in the library's documentation and design.
 
 The desired outcomes for this blog series are:
 
@@ -40,6 +40,71 @@ The desired outcomes for this blog series are:
 
 - get feedback from the Rust community, and the PL research community.
 
+
+Caching improves asymptotic complexity
+--------------------------------------
+
+To start as simple as possible,
+consider the following implementation of `fib` in Rust:
+```rust
+fn fib (x:u64) -> u64 {
+ match x {
+  0 => 0,
+  1 => 1,
+  x => fib(x-1) + fib(x-2)
+  }
+}
+```
+
+Other than speaking of `u64` instead of `Nat`, this code *is* the
+mathematical definition of the `n`th Fibonacci number.  Unfortunately,
+this *pure specification* is not efficient: As written above, it is
+exponential in argument `n`.
+
+The classic solution to this problem is to introduce `memoization`,
+which consists of a global memory that persists across different calls
+to `fib`.  Each recursive call consults the memoization state before
+running from-scratch.
+
+Adapton in Rust expresses this memoization solution as follows:
+```rust
+fn fib<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
+ match x {
+  0 => 0,
+  1 => 1,
+  x => { memo!(st, fib, x:x-1) + memo!(st, fib, x:x-2) }
+  }
+}
+```
+
+The key difference is that the recursive calls are performed by the
+`memo!` macro, and that this macro mutates an abstract `Adapton` state
+`st` that remembers all of the invocations of `fib`, including their
+results. Compared to the version above which lacks memoization, this
+variation of the algorithm runs *exponentially* faster: in *O(n)*
+time, instead of *O(n!)* time.
+
+Computing `fib` is one of the simplest examples of using memoization
+to improve the asymptotic complexity of a simple specification
+program.  Compared with general incremental programs, there is no
+"changing input", since the structure of the numbers given to `fib` do
+not "vary over time".  A three is always a three.  By contrast, in
+many software systems the input to repeated computations tends to
+change over time.  For instance, spreadsheets calculate over changing
+formula and data, web browsers layout and render a changing DOM, and
+software editors perform static checking, compiling and testing over
+changing software.
+
+With an eye towards these more complex applications of incremental
+computing, we are currently in the process of building a library of
+algorithms and data structure abstractions that can be used to do two
+things at once:
+
+1. Concisely specify functional correctness, the desired input-output
+   behavior of each algorithm.
+
+2. Concisely specify efficient incremental behavior, through clever
+   uses of Adapton's primitives.
 
 Adapton Encourages Functional Programming
 -------------------------------------------
