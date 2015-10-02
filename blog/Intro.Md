@@ -119,10 +119,11 @@ The desirability of pure functional patterns stems from the fact that
 Adapton uses memoization under the hood as its chief mechanism to
 reuse prior computations.  For instance, our incremental collections
 library takes inspiration from purely-functional data structures
-designed by Bill Pugh and Tim Teitelbaum in the late 1980's.  In these
-structures, sharing is the key to efficiently storing and updating
-multiple versions of a data structure, i.e., before and after a
-change.
+designed by
+[Bill Pugh and Tim Teitelbaum in the late 1980's](http://dl.acm.org/citation.cfm?id=75305).
+In these structures, sharing is the key to efficiently storing and
+updating multiple versions of a data structure, i.e., before and after
+a change.
 
 Though Adapton can also reason about a limited class of **mutation**
 (e.g., input changes that overwrite previous values), *general-purpose
