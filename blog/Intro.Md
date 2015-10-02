@@ -92,9 +92,9 @@ input". Indeed, the structure of the numbers given to `fib` are
 constants, and each number's valuation is fixed over time. (A three is
 always a three).  By contrast, in many software systems the input to
 repeated computations tends to change over time.  For instance,
-spreadsheets calculate over changing formula and data, web browsers
-layout and render a changing DOM, and software editors perform static
-checking, compiling and testing over changing software.
+**spreadsheets** calculate over *changing formula and data*, **web browsers**
+layout and render a *changing DOM tree*, and **software editors** perform static
+checking, compiling and testing over *changing software*.
 
 With an eye towards these more complex applications of incremental
 computing, we are currently in the process of building a library of
