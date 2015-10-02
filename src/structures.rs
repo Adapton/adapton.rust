@@ -1,3 +1,4 @@
+#![feature(associated_type_defaults)]
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
