@@ -7,13 +7,13 @@ Blog Series on Adapton in Rust
 > A computation is incremental if repeating it with a changed input is
 > faster than from-scratch recomputation.
 
-Adapton is a programming languages (PL) approach for general-purpose
-incremental computing. As this blog series will show in detail,
-Adapton provides a concise set of abstractions for encoding a large
-class of incremental computations.  Under the hood, Adapton uses a
-combination of **memoization (aka, function caching)** and **dynamic
-dependency graphs** to cache computations and adapt them when inputs
-change.
+[Adapton](http://adapton.org) is a programming languages (PL) approach
+for general-purpose incremental computing. As this blog series will
+show in detail, Adapton provides a concise set of abstractions for
+encoding a large class of incremental computations.  Under the hood,
+Adapton uses a combination of **memoization (aka, function caching)**
+and **dynamic dependency graphs** to cache computations and adapt them
+when inputs change.
 
 The remainder of this initial post will discuss general issues that
 arise when writing libraries that abstract incremental computing, and
