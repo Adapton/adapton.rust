@@ -47,11 +47,11 @@ Caching improves asymptotic complexity
 To start as simple as possible,
 consider the following implementation of `fib` in Rust:
 ```rust
-fn fib (x:u64) -> u64 {
- match x {
+fn fib (n:u64) -> u64 {
+ match n {
   0 => 0,
   1 => 1,
-  x => fib(x-1) + fib(x-2)
+  n => fib(n-1) + fib(n-2)
   }
 }
 ```
@@ -68,11 +68,11 @@ running from-scratch.
 
 Adapton in Rust expresses this memoization solution as follows:
 ```rust
-fn fib<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
- match x {
+fn fib<A:Adapton> (st:&mut A, n:u64 ) -> u64 {
+ match n {
   0 => 0,
   1 => 1,
-  x => { memo!(st, fib, x:x-1) + memo!(st, fib, x:x-2) }
+  n => { memo!(st, fib, n:n-1) + memo!(st, fib, n:n-2) }
   }
 }
 ```
