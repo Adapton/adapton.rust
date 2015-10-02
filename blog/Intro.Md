@@ -18,7 +18,7 @@ when inputs change.
 The remainder of this initial post will discuss general issues that
 arise when writing libraries that abstract incremental computing, and
 why Rust was chosen as an exciting and promising alternative to other
-languages that have we tried in the past. Future posts will
+languages that we have tried in the past. Future posts will
 demonstrate Adapton's interface in Rust, with successive complexity.
 Though Adapton is nominally given as a library for Rust, its usage
 often requires rethinking the structure of the programs that use it.
@@ -132,7 +132,7 @@ sometimes by wisely encoding these effects into a functional pattern.
 For instance, our OOPSLA 2015 paper
 ([*Incremental Computation with Names*](http://arxiv.org/abs/1503.07792))
 describes an [incremental interpreter for IMP](https://github.com/plum-umd/inc-imp), an [imperative
-programming language used for education](https://www21.in.tum.de/~nipkow/pubs/fac98.html).  While IMP is imperative, in its interpreter's
+programming language used for education](https://www21.in.tum.de/~nipkow/pubs/fac98.html).  While IMP is imperative, its interpreter's
 implementation of imperative state uses Adapton, and in particular,
 its (purely-functional) collections library.
 
@@ -140,7 +140,7 @@ For Rust programmers that are accustomed to thinking about ownership
 and memory management, this talk of function caching and data
 structure sharing may raise the question:
 
-> How and when are these caches and data structures garbaged collected?
+> How and when are these caches and data structures garbage collected?
 
 This question has a complex answer.  In short, Adapton currently uses
 a special form of reference counting to manage memory.  Before
@@ -178,7 +178,7 @@ later, when we extended the system.  As it turns out, the problem
 also affects the original system as well.
 
 As we eventually learned, the incompatibility of weak references and
-Adapton is fundemental. It is rooted in how Adapton provides both a
+Adapton is fundamental. It is rooted in how Adapton provides both a
 function cache as well as a dependency graph that we call a *demanded
 computation graph (DCG)*.  This graph, which forms a DAG, connects
 cached nodes recording function invocations with their dynamic
@@ -196,7 +196,7 @@ The latent problem we discovered after the PLDI 2014 paper arises in
 the unique combination of a dependency graph with weak references
 overlayed upon a memoization table with weak references.  As we found
 by accident, it is possible to generate DCGs and input changes that
-will interact with the garbage collector in undesireable ways, leading
+will interact with the garbage collector in undesirable ways, leading
 to errors in Adapton's internal change propagation algorithm, and
 incorrect results in the updated computation.  Exhibiting this
 behavior requires several steps:
@@ -255,7 +255,7 @@ count of the cached node (see `finalise` in the
 [Gc module](http://caml.inria.fr/pub/docs/manual-ocaml/libref/Gc.html)).
 
 Next, since Adapton programs often consist of both user code that
-calls Adapton library calls as well as Adapton library routines that
+makes Adapton library calls as well as Adapton library routines that
 call back into user code, things become even more complex.  While it
 is vital that user code wraps pointers to cached nodes with
 finalizers, it is equally important that Adapton's internal state
@@ -287,7 +287,7 @@ agree completely.
 Recall that this dance is all motivated by the desire for the garbage
 collector and Adapton to work together to avoid leaking memory, and
 also avoid forgetting dependency information that is critical for
-sound incremental updates.  The fundemental problem is the
+sound incremental updates.  The fundamental problem is the
 incapability of traversal-based garbage collection and the invariants
 required by Adapton's internal algorithms.  One can hope that in a
 language with more control over memory management, Adapton could have
