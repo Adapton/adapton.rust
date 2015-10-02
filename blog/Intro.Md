@@ -85,16 +85,16 @@ variation of the algorithm runs *exponentially* faster: in *O(n)*
 time, instead of *O(φ ⁿ)* time, where the golden ratio φ is about `1.6`.
 
 Computing `fib` is one of the simplest examples of using memoization
-to transform a simple specification program and improve its asymptotic
-complexity.  Compared with general incremental programs that employ
-memoization, there is no "changing input", since the structure of the
-numbers given to `fib` are constants, each number's valuation does not
-vary over time. (A three is always a three).  By contrast, in many
-software systems the input to repeated computations tends to change
-over time.  For instance, spreadsheets calculate over changing formula
-and data, web browsers layout and render a changing DOM, and software
-editors perform static checking, compiling and testing over changing
-software.
+to *reinterpret* a simple specification program and improve its
+asymptotic complexity.  However, compared with general incremental
+programs that employ memoization, in `fib` there is no "changing
+input". Indeed, the structure of the numbers given to `fib` are
+constants, and each number's valuation is fixed over time. (A three is
+always a three).  By contrast, in many software systems the input to
+repeated computations tends to change over time.  For instance,
+spreadsheets calculate over changing formula and data, web browsers
+layout and render a changing DOM, and software editors perform static
+checking, compiling and testing over changing software.
 
 With an eye towards these more complex applications of incremental
 computing, we are currently in the process of building a library of
