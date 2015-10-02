@@ -1,4 +1,5 @@
 // Adapton for Rust
+#![feature(associated_type_defaults)]
 
 #![crate_name = "adapton"]
 #![crate_type = "lib"]
