@@ -61,10 +61,11 @@ Other than speaking of `u64` instead of `Nat`, this code *is* the
 this *pure specification* is not efficient: As written above, it is
 exponential in argument `n`.
 
-The classic solution to this problem is to introduce `memoization`,
-which consists of a global memory that persists across different calls
-to `fib`.  Each recursive call consults the memoization state before
-running from-scratch.
+The classic solution to this problem is to introduce **memoization**.
+Memoization is implemented with *memo tables*, which consists of
+global memory that persists across different calls to `fib`, and which
+records its arguments and their corresponding results.  Each recursive
+call consults the memo table before running from-scratch.
 
 Adapton in Rust expresses this memoization solution as follows:
 ```rust
@@ -78,11 +79,24 @@ fn fib<A:Adapton> (st:&mut A, n:u64 ) -> u64 {
 ```
 
 The key difference is that the recursive calls are performed by the
-`memo!` macro, and that this macro mutates an abstract `Adapton` state
-`st` that remembers all of the invocations of `fib`, including their
-results. Compared to the version above which lacks memoization, this
-variation of the algorithm runs *exponentially* faster: in *O(n)*
-time, instead of *O(φ ⁿ)* time, where the golden ratio φ is about `1.6`.
+`memo!` macro. Behind the scenes, this macro mutates an abstract
+`Adapton` state `st` that remembers all of the argument-result pairs
+for each memoized invocation of `fib`.  The `memo!` macro consults
+this state before running the call from-scratch.
+
+Using Adapton here has a drastic performance impact: Compared to the
+version above which lacks memoization, this variation of the algorithm
+runs *exponentially* faster: in *O(n)* time, instead of *O(φ ⁿ)* time
+(where the
+[golden ratio φ](https://en.wikipedia.org/wiki/Golden_ratio) is about
+`1.6`).  The improvement from exponential-time to linear-time is
+extremely dramatic, and pleasently, the code above accomplishes this
+feat without loosing the structrure of the original program.  In fact,
+if we substitute an implementation `A` for the `Adapton` trait that
+runs all invocations from-scratch, we will exactly recover the
+original program's behavior.  This is pleasent too, since it means
+that our implementation can be verified (by human inspection) against
+a closely-related specification.
 
 Computing `fib` is one of the simplest examples of using memoization
 to *reinterpret* a simple specification program and improve its
@@ -90,22 +104,36 @@ asymptotic complexity.  However, compared with general incremental
 programs that employ memoization, in `fib` there is no "changing
 input". Indeed, the structure of the numbers given to `fib` are
 constants, and each number's valuation is fixed over time. (A three is
-always a three).  By contrast, in many software systems the input to
-repeated computations tends to change over time.  For instance,
-**spreadsheets** calculate over *changing formula and data*, **web browsers**
-layout and render a *changing DOM tree*, and **software editors** perform static
-checking, compiling and testing over *changing software*.
+always a three).
+
+By contrast, in many **interactive software systems**, the input to
+repeated computations tends to *change over time*.  For instance,
+**spreadsheets** calculate over *changing formula and data*, **web
+browsers** layout and render a *changing DOM tree*, and **software
+editors** perform static checking, compiling and testing over
+*changing software*.
 
 With an eye towards these more complex applications of incremental
 computing, we are currently in the process of building a library of
 algorithms and data structure abstractions that can be used to do two
 things at once:
 
-1. Concisely specify functional correctness, the desired input-output
+1. Concisely specify **functional correctness**, the desired input-output
    behavior of each algorithm.
 
-2. Concisely specify efficient incremental behavior, through clever
+2. Concisely specify **efficient incremental behavior**, through clever
    uses of Adapton's primitives.
+
+In particular, we seek to design libraries of algorithms and data
+structures that can be written once, and re-interpreted in at least
+two ways:
+
+1. As **purely-functional specifications**.
+
+2. As **efficient, incremental implementations**.
+
+The current design of library takes inspiration from the two current
+research papers on Adapton, and from functional programming.
 
 Adapton Encourages Functional Programming
 -------------------------------------------
@@ -136,191 +164,32 @@ programming language used for education](https://www21.in.tum.de/~nipkow/pubs/fa
 implementation of imperative state uses Adapton, and in particular,
 its (purely-functional) collections library.
 
-For Rust programmers that are accustomed to thinking about ownership
-and memory management, this talk of function caching and data
-structure sharing may raise the question:
+Topics for Future Posts
+-----------------------
 
-> How and when are these caches and data structures garbage collected?
+Future posts will cover more uses of the Adapton library, as well as
+descriptions of its design rationale.  In particular, future posts
+will cover the following topics:
 
-This question has a complex answer.  In short, Adapton currently uses
-a special form of reference counting to manage memory.  Before
-addressing the question in further detail, it is worth considering the
-challenges for implementing Adapton in typical garbage-collected
-functional languages.  The rest of this post will give the reader an
-overview, which both highlights the key ingredients in Adapton's
-implementation, and the challenges for integrating these features with
-general-purpose "automatic" memory management.
+- **Adapton and Garbage Collection**: Programs that cache and reuse
+  dynamic program state pose an complex challenge of automatic memory
+  management.  These posts will cover the inherent complexity of
+  interfacing with an automatic garbage collector, and the exciting
+  potential for Rust to provide an alternative path forward.
 
-Caching vs Garbage Collection
-------------------------------
+- **Nominal Matching in Adapton**:
+  [Traditional hash-consing](https://en.wikipedia.org/wiki/Hash_consing)
+  is extremely value, but can also be insufficient in many
+  situations. These posts will cover the use of
+  [*first-class names*](http://arxiv.org/abs/1503.07792) to improve
+  the incremental efficiency of algorithms that run repeatedly over
+  slowly changing input structures.
 
-When we implement Adapton without reference counting, in
-garbage-collected languages such as OCaml, there is a serious issue:
-*traversal-based garbage collectors typically equate reachability with
-liveness*.  This means that cached memoization data is always
-considered live, and consequently, it is never collected by the
-garbage collector, leading to memory requirements that grow over time.
-To solve this problem, we can use an escape hatch that many collectors
-provide: **weak references**.  The idea of a weak reference is to point at
-an object until that object is collected, upon which the reference
-becomes null.  For instance, OCaml implements weak references with the
-[Weak module](http://caml.inria.fr/pub/docs/manual-ocaml/libref/Weak.html).
-
-Weak references are attractive for caches because they seem to solve
-the reachability problem: The referent cached object requires an
-ordinary ("strong") pointer to maintain its reachable status, and
-otherwise the weak references that form the cache can be collected.
-Indeed, this weak reference strategy is the one that we used in our
-[PLDI 2014](http://www.cs.umd.edu/~hammer/adapton/)
-[implementation of Adapton in OCaml](https://bitbucket.org/khooyp/adapton.ocaml).
-However, there was a lingering soundness problem that only manifested
-later, when we extended the system.  As it turns out, the problem
-also affects the original system as well.
-
-As we eventually learned, the incompatibility of weak references and
-Adapton is fundamental. It is rooted in how Adapton provides both a
-function cache as well as a dependency graph that we call a *demanded
-computation graph (DCG)*.  This graph, which forms a DAG, connects
-cached nodes recording function invocations with their dynamic
-dependencies, which consist of other invocations and special mutable
-input cells that these invocations may read.  To ensure that these
-extra connections do not lead to "extra reachability" in the heap, and
-thus to memory leaks, we make the backward direction of the DAG edges
-weak, meaning that each node only weakly points at the nodes that
-depend on it, while it strongly points at the nodes on which it
-depends.  Periodically, when the external user issues input changes,
-we use the weak, backward pointers to walk over the graph and mark
-dependencies as "dirty".
-
-The latent problem we discovered after the PLDI 2014 paper arises in
-the unique combination of a dependency graph with weak references
-overlayed upon a memoization table with weak references.  As we found
-by accident, it is possible to generate DCGs and input changes that
-will interact with the garbage collector in undesirable ways, leading
-to errors in Adapton's internal change propagation algorithm, and
-incorrect results in the updated computation.  Exhibiting this
-behavior requires several steps:
-
-1. During change propagation, some nodes in the DCG are re-executed,
-   replacing their outgoing (strong) edges with different ones.
-
-2. As a result, a sub-graph G temporarily becomes strongly disconnected;
-  it is only reachable from a memo table, whose pointers are weak.
-
-3. The garbage collector begins to collect weak references in the
-  disconnected sub-graph G, invalidating its structural invariants.
-
-4. After a time, change propagation uses the memo table to match and
-  reuse some portion of the sub-graph G, making it "live" again.
-
-5. Upon the next cycle of change propagation, sub-graph G is missing
-  edges from dependencies to dependents, and fails to correctly mark
-  dependent nodes as dirty.
-
-This soundness issue was latent until we extended the system with
-first-class names, leading to more aggressive memo table-based reuse
-in step 4 (See [this paper](http://arxiv.org/abs/1503.07792) for
-more).  After finding the problem, we fixed both systems.
-Fortunately, the problem can be understood and solved independently
-from that recent extension.
-
-One Solution: An Awkward and Wasteful Dance
----------------------------------------------
-
-We fixed the unsound design described above by using fewer weak
-references: Instead of the memo table cache storing only weak
-references, we made the references held by the memo table strong.
-This ensures that the garbage collector will not spuriously collect
-the weak references that represent the DAG edges between the cached
-nodes, since every cached node has, by definition, at least one strong
-pointer that comes from the memo table cache.
-
-Of course, this fix just raises the question: How do we collect the
-memo table cache? To address this issue, the OCaml Adapton library now
-employs **reference counting for each cache node**.  The library
-adjusts reference counts as cached invocations call other cached
-invocations, as these calls form the changing edges of the graph.
-When the user chooses to free up memory, they invoke a special "flush"
-operation and the Adapton library collects all nodes with reference
-count of zero.
-
-Unfortunately, maintaining these counts is not nearly as simple as one
-might hope.  First, nodes from the graph are intermixed with data
-structures used in the incremental computation, especially lazy
-structures.  To interface to the user's OCaml code, which is garbage
-collected without reference counts, the library wraps data structures
-that it maintains with special **finalizers**, so that when and if
-these pointers are collected, they will decrement the shared reference
-count of the cached node (see `finalise` in the
-[Gc module](http://caml.inria.fr/pub/docs/manual-ocaml/libref/Gc.html)).
-
-Next, since Adapton programs often consist of both user code that
-makes Adapton library calls as well as Adapton library routines that
-call back into user code, things become even more complex.  While it
-is vital that user code wraps pointers to cached nodes with
-finalizers, it is equally important that Adapton's internal state
-**not** include wrapped versions with finalizers, since this internal
-state may not ever become unreachable, and thus never finalized.  To
-avoid these finalizers in its internal state, Adapton data structures
-all implement a wasteful but necessary **"sanitize" operation**, which
-copies the prefix of the structure, up to and including pointers to
-any cached nodes wrapped with finalizers. Each time the library
-accepts data structures as arguments from user code, it avoids storing
-data with finalizers by ensuring that this data is always sanitized
-(shallowly copied).
-
-Thus, an awkward and wasteful dance ensues as the program runs:
-
-- When the Adapton library returns data structures to the user's code,
-  it must ensure that these versions are **wrapped in finalizers**,
-  lest the reference count that it maintains be inaccurate when that
-  outside code either keeps or drops pointers to cached nodes.
-
-- When the Adapton library accepts data structures from the user's
-  code, it must **sanitize** these data structures
-  before storing their values, lest they contain finalizers that will
-  never finalize.
-
-If the description above seems hard to understand or inefficient, I
-agree completely.
-
-Recall that this dance is all motivated by the desire for the garbage
-collector and Adapton to work together to avoid leaking memory, and
-also avoid forgetting dependency information that is critical for
-sound incremental updates.  The fundamental problem is the
-incapability of traversal-based garbage collection and the invariants
-required by Adapton's internal algorithms.  One can hope that in a
-language with more control over memory management, Adapton could have
-a more direct, more efficient sound implementation.
-
-Another Solution: Use Rust
----------------------------
-
-The heart of the memory management solution above is
-reference-counting: Each cached node has a reference count, and when
-it reaches zero, the user can safely flush the node from the
-cache. The rest of the complexity, including the introduction and
-careful management of finalizers, stems from having to interface
-library state that is reference-counted with code that assumes a
-traversal-based garbage collector.
-
-In Rust, the assumption of a traversal-based collector is lifted,
-simplifying the library considerably: No finalizers or sanitization
-steps are required.  Instead, the library simply uses existing Rust
-abstractions for reference-counted objects (see the
-[Rc module](https://doc.rust-lang.org/std/rc/struct.Rc.html)).
-
---------------------------------------
-
-TODO: Wrap up the end of the post somehow:  
-Conclusions and remaining questions?  
-Reiterate next steps in the blog series (also mentioned at top, above)  
-
-TODO: Include simple figures for the description above?  
-Illustrate: Nodes, Memo table, Edges (Strong vs Weak pointers), Ref counts  
+- **Adapton Collections Library** These posts will describe the use
+  and design of Adapton's collections library.
 
 
----------------------------------
+-------------------------------------------------
 
 **Feedback from:**  
 Lars,  
