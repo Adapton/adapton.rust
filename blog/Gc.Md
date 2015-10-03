@@ -2,22 +2,24 @@
 *Adapton in Rust* Series: Adapton and Garbage Collection
 =========================================================
 
-The [intial post](Intro.Md) of this series introduced Adapton with
-some simple examples.  For Rust programmers that are accustomed to
-thinking about ownership and memory management, this talk of function
-caching and pure functional programming (with non-affine data
-structure sharing) may raise the question:
+[The intial post of this series](https://github.com/plum-umd/adapton.rust/blob/master/blog/Intro.Md)
+ introduced Adapton with some simple examples.  For Rust programmers
+ that are accustomed to thinking about ownership and memory
+ management, this talk of function caching and pure functional
+ programming (with *non-affine sharing of data structures*) may raise
+ the question:
 
 > How and when are these caches and data structures garbage collected?
 
-This question has a complex answer.  In short, Adapton currently uses
-a special form of reference counting to manage memory.  Before
-addressing the question in further detail, it is worth considering the
-challenges for implementing Adapton in typical garbage-collected
-functional languages.  The rest of this post will give the reader an
-overview, which both highlights the key ingredients in Adapton's
-implementation, and the challenges for integrating these features with
-general-purpose "automatic" memory management.
+This question has a complex answer.
+In short, Adapton currently uses a special form of reference counting
+to manage memory.  Before addressing the question in further detail,
+it is worth considering the challenges for implementing Adapton in
+typical garbage-collected functional languages.  The rest of this post
+will give the reader an overview, which both highlights the key
+ingredients in Adapton's implementation, and the challenges for
+integrating these features with general-purpose "automatic" memory
+management.
 
 Caching vs Garbage Collection
 ------------------------------

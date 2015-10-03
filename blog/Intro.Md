@@ -15,15 +15,13 @@ Adapton uses a combination of **memoization (aka, function caching)**
 and **dynamic dependency graphs** to cache computations and adapt them
 when inputs change.
 
-The remainder of this initial post will discuss general issues that
-arise when writing libraries that abstract incremental computing, and
-why Rust was chosen as an exciting and promising alternative to other
-languages that we have tried in the past. Future posts will
-demonstrate Adapton's interface in Rust, with successive complexity.
-Though Adapton is nominally given as a library for Rust, its usage
-often requires rethinking the structure of the programs that use it.
-This blog series will help explore this tension, and hopefully will
-lead to improvements in the library's documentation and design.
+The remainder of this initial post will introduce Adapton in Rust with
+some simple examples. Future posts will demonstrate Adapton in Rust
+with successive complexity.  Though Adapton is nominally given as a
+library for Rust, using it often requires rethinking the structure of
+one's programs.  This blog series will help explore this tension, and
+hopefully through comments and feedback, this series will lead to
+improvements in the library's documentation and design.
 
 The desired outcomes for this blog series are:
 
