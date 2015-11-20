@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 use std::fmt::{Formatter,Result};
 use std::hash::{Hash,Hasher};
 
-use adapton_syntax::*;
+use macros::*;
 use adapton_sigs::*;
 
 // Names provide a symbolic way to identify nodes.

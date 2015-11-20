@@ -5,13 +5,13 @@
 #![crate_type = "lib"]
 
 #[macro_use]
-pub mod adapton_syntax ;
+pub mod macros ;
 pub mod adapton_sigs ;
 pub mod engine ;
-pub mod adapton_fromscratch ;
+pub mod naive ;
 
 pub mod simple ;
-pub mod structures ;
+pub mod collection ;
 
 // pub mod fact ;
 

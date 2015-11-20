@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
 
-use adapton_syntax::* ;
+use macros::* ;
 use adapton_sigs::* ;
 
 /// `ListEdit<A,X,L>` gives a simple notion of list-editing that is

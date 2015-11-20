@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use adapton_syntax::*;
+use macros::*;
 use adapton_sigs::*;
 use std::rc::Rc;
 use std::hash::{Hash,Hasher};

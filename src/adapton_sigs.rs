@@ -2,7 +2,7 @@ use std::fmt::{Debug};
 use std::hash::{Hash,Hasher};
 use std::rc::Rc;
 use std::marker::PhantomData;
-use adapton_syntax::{ProgPt};
+use macros::{ProgPt};
 
 // The `Adapton` trait provides a language of
 // dependence-graph-building operations based on the core calculus

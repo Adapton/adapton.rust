@@ -4,20 +4,6 @@
 #[macro_use]
 extern crate adapton ;
 
-// mod AAAzip {
-//     fn doit() {
-//         let mut st = &mut (AdaptonState::new()) ;
-//         for _ in 1..(n-1) {
-//             memo!(st, fib, x:x );
-//         }
-//         memo!(st, fib, x:x )
-//     }    
-//     #[bench]
-//     fn bench(b:&mut Bencher) {
-//         b.iter(||doit());
-//     }
-// }
-
 mod fib {
     const INPUT_SIZE:u64 = 20;
     const REPEAT_COUNT:u64 = 100;
@@ -69,10 +55,10 @@ mod fib {
             
             extern crate alloc;
             use std::rc::Rc;
-            use adapton::adapton_syntax::* ;
+            use adapton::macros::* ;
             use adapton::adapton_sigs::* ;
             //use adapton::adapton_state::* ;
-            use adapton::adapton_fromscratch::* ;
+            use adapton::naive::* ;
             use super::super::INPUT_SIZE;
             use super::super::REPEAT_COUNT;
             
@@ -115,16 +101,16 @@ mod fib {
             
         }
 
-        mod state {
+        mod engine {
             extern crate test;
             use self::test::Bencher;
             
             extern crate alloc;
             use std::rc::Rc;
-            use adapton::adapton_syntax::* ;
+            use adapton::macros::* ;
             use adapton::adapton_sigs::* ;
-            use adapton::adapton_state::* ;
-            //use adapton::adapton_fromscratch::* ;
+            use adapton::engine::* ;
+            //use adapton::naive::* ;
             use super::super::INPUT_SIZE;
             use super::super::REPEAT_COUNT;
             
@@ -138,12 +124,12 @@ mod fib {
             }
                             
             pub fn run_fib (x:u64) -> u64 {
-                let mut st = &mut AdaptonState::new() ;
+                let mut st = &mut Engine::new() ;
                 memo!(st, fib, x:x )
             }
             
             pub fn run_fib_repeat (x:u64, n:u64) -> u64 {
-                let mut st = &mut AdaptonState::new() ;
+                let mut st = &mut Engine::new() ;
                 for _ in 1..(n-1) {
                     memo!(st, fib, x:x );
                 }
@@ -218,21 +204,21 @@ mod fact {
 
         use std::rc::Rc;
         
-        use adapton::adapton_syntax::* ;
+        use adapton::macros::* ;
         use adapton::adapton_sigs::* ;
-        use adapton::adapton_state::* ;
+        use adapton::engine::* ;
         
         pub fn fact<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
             if x == 0 { 1 } else { x * (memo!(st, fact, x:x-1 )) }
         }
         
         pub fn run_fact (x:u64) -> u64 {
-            let mut st = &mut (AdaptonState::new()) ;
+            let mut st = &mut (Engine::new()) ;
             memo!(st, fact, x:x )
         }
 
         pub fn run_fact_repeat (x:u64, n:u64) -> u64 {
-            let mut st = &mut (AdaptonState::new()) ;
+            let mut st = &mut (Engine::new()) ;
             for _ in 1..(n-1) {
                 memo!(st, fact, x:x );
             }
@@ -271,11 +257,11 @@ mod hourglass {
 
         use std::rc::Rc;
 
-        use adapton::adapton_syntax::* ;
+        use adapton::macros::* ;
         use adapton::adapton_sigs::* ;
-        //use adapton::adapton_fromscratch::* ;
-        use adapton::adapton_state::* ;
-        use adapton::structures::* ;
+        //use adapton::naive::* ;
+        use adapton::engine::* ;
+        use adapton::collection::* ;
 
         // Thunks needs to *own* the arguments we give them.
         fn ident<A:Adapton,T>(st:&mut A, x:T) -> T {x}
@@ -308,14 +294,14 @@ mod hourglass {
         }
 
         pub fn run_hourglass () -> u64 {
-            let mut st = &mut (AdaptonState::new());
+            let mut st = &mut (Engine::new());
             let res = hourglass(st);
             //assert!(res == );
             res
         }
 
         pub fn run_hourglass_repeat (n:u64) -> u64 {
-            let mut st = &mut (AdaptonState::new());
+            let mut st = &mut (Engine::new());
             for _ in 1..(n-1) {
                 test::black_box(hourglass(st));
             }

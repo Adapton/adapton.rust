@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use adapton_syntax::* ;
+use macros::* ;
 use adapton_sigs::* ;
 
 pub fn fact<A:Adapton> (st:&mut A, x:u64 ) -> u64 {
