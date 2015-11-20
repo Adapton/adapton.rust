@@ -33,16 +33,16 @@ enum ArtId<Name> {
 }
 
 #[derive(Debug)]
-pub struct AdaptonState {
-    table : HashMap<Rc<Loc>, Box<AdaptonNode>>,
+pub struct Engine {
+    table : HashMap<Rc<Loc>, Box<GraphNode>>,
     stack : Vec<Frame>
 }
 
-impl Hash  for     AdaptonState { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
-//impl Debug for     AdaptonState { fn fmt(&self, _f:&mut Formatter) -> Result { unimplemented!() } }
-impl Eq    for     AdaptonState { }
-impl PartialEq for AdaptonState { fn eq(&self, _other:&Self) -> bool { unimplemented!() } }
-impl Clone for     AdaptonState { fn clone(&self) -> Self { unimplemented!() } }
+impl Hash  for     Engine { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
+//impl Debug for     Engine { fn fmt(&self, _f:&mut Formatter) -> Result { unimplemented!() } }
+impl Eq    for     Engine { }
+impl PartialEq for Engine { fn eq(&self, _other:&Self) -> bool { unimplemented!() } }
+impl Clone for     Engine { fn clone(&self) -> Self { unimplemented!() } }
 
 // Symbols: For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
 // http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf
@@ -65,8 +65,8 @@ enum Path {
     Child(Rc<Path>,Name),
 }
 
-// The DCG structure consists of `AdaptonNode`s:
-trait AdaptonNode {
+// The DCG structure consists of `GraphNode`s:
+trait GraphNode {
     fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
     fn succs_def<'r>   (self:&'r mut Self) -> bool ;
@@ -83,7 +83,7 @@ struct Frame {
 #[derive(Debug,Clone)]
 struct Succ {
     effect : Effect,
-    dep    : Rc<Box<AdaptonDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
+    dep    : Rc<Box<EngineDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
     loc    : Rc<Loc>, // Target of the effect, aka, the successor, by this edge
     dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change
 }
@@ -93,13 +93,13 @@ enum Effect {
     Observe,
     Allocate,
 }
-struct AdaptonRes {
+struct EngineRes {
     changed : bool,
 }
-// AdaptonDep abstracts over the value produced by a dependency, as
+// EngineDep abstracts over the value produced by a dependency, as
 // well as mechanisms to update and/or re-produce it.
-trait AdaptonDep : Debug {
-    fn change_prop (self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes ;
+trait EngineDep : Debug {
+    fn change_prop (self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes ;
 }
 
 
@@ -107,24 +107,24 @@ trait AdaptonDep : Debug {
 
 #[derive(Debug)]
 struct NoDependency;
-impl AdaptonDep for NoDependency {
-    fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:false} }
+impl EngineDep for NoDependency {
+    fn change_prop (self:&Self, _st:&mut Engine, _loc:&Rc<Loc>) -> EngineRes { EngineRes{changed:false} }
 }
 
 #[derive(Debug)]
 struct AllocDependency<T> { val:T }
-impl<T:Debug> AdaptonDep for AllocDependency<T> {
-    fn change_prop (self:&Self, _st:&mut AdaptonState, _loc:&Rc<Loc>) -> AdaptonRes { AdaptonRes{changed:true} } // TODO-Later: Make this a little better.
+impl<T:Debug> EngineDep for AllocDependency<T> {
+    fn change_prop (self:&Self, _st:&mut Engine, _loc:&Rc<Loc>) -> EngineRes { EngineRes{changed:true} } // TODO-Later: Make this a little better.
 }
 
 
 trait ShapeShifter {
-    fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<AdaptonNode> ;
+    fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<GraphNode> ;
 }
 
-impl fmt::Debug for AdaptonNode {
+impl fmt::Debug for GraphNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(AdaptonNode)")
+        write!(f, "(GraphNode)")
     }
 }
 
@@ -169,7 +169,7 @@ struct CompNode<Res> {
 }
 // Produce a value of type Res.
 trait Producer<Res> {
-    fn produce(self:&Self, st:&mut AdaptonState) -> Res;
+    fn produce(self:&Self, st:&mut Engine) -> Res;
     fn copy(self:&Self) -> Box<Producer<Res>>;
     fn eq(self:&Self, other:&Producer<Res>) -> bool;
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
@@ -183,7 +183,7 @@ trait Consumer<Arg> {
 #[derive(Clone)]
 struct App<Arg,Spurious,Res> {
     prog_pt: ProgPt,
-    fn_box:   Rc<Box<Fn(&mut AdaptonState, Arg, Spurious) -> Res>>,
+    fn_box:   Rc<Box<Fn(&mut Engine, Arg, Spurious) -> Res>>,
     arg:      Arg,
     spurious: Spurious,
 }
@@ -203,7 +203,7 @@ impl<Arg:Hash,Spurious,Res> Hash for App<Arg,Spurious,Res> {
 impl<Arg:'static+PartialEq+Eq+Clone,Spurious:'static+Clone,Res:'static> Producer<Res>
     for App<Arg,Spurious,Res>
 {
-    fn produce(self:&Self, st:&mut AdaptonState) -> Res {
+    fn produce(self:&Self, st:&mut Engine) -> Res {
         let f = self.fn_box.clone() ;
         f (st,self.arg.clone(),self.spurious.clone())
     }
@@ -236,7 +236,7 @@ impl<Arg:Clone+PartialEq+Eq,Spurious,Res> Consumer<Arg> for App<Arg,Spurious,Res
 
 // ----------- Location resolution:
 
-fn lookup_abs<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<AdaptonNode> {
+fn lookup_abs<'r>(st:&'r mut Engine, loc:&Rc<Loc>) -> &'r mut Box<GraphNode> {
     match st.table.get_mut( loc ) {
         None => panic!("dangling pointer"),
         Some(node) => node.be_node() // This is a weird workaround; TODO-Later: Investigate.
@@ -245,14 +245,14 @@ fn lookup_abs<'r>(st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<AdaptonN
 
 // This only is safe in contexts where the type of loc is known.
 // Unintended double-uses of names and hashes will generally cause uncaught type errors.
-fn res_node_of_loc<'r,Res> (st:&'r mut AdaptonState, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
+fn res_node_of_loc<'r,Res> (st:&'r mut Engine, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
     let abs_node = lookup_abs(st, loc) ;
     unsafe { transmute::<_,_>(abs_node) }
 }
 
 // ---------- Node implementation:
 
-impl <Res> AdaptonNode for Node<Res> {
+impl <Res> GraphNode for Node<Res> {
     fn preds_alloc<'r>(self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> {
         match *self { Node::Mut(ref mut nd) => &mut nd.preds_alloc,
                       Node::Comp(ref mut nd) => &mut nd.preds_alloc,
@@ -275,14 +275,14 @@ impl <Res> AdaptonNode for Node<Res> {
 }
 
 impl <Res> ShapeShifter for Box<Node<Res>> {
-    fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<AdaptonNode> {
+    fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<GraphNode> {
         // TODO-Later: Why is this transmute needed here ??
         unsafe { transmute::<_,_>(self) }
     }
 }
 
-impl ShapeShifter for Box<AdaptonNode> {
-    fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<AdaptonNode> {
+impl ShapeShifter for Box<GraphNode> {
+    fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<GraphNode> {
         // TODO-Later: Why is this transmute needed here ??
         unsafe { transmute::<_,_>(self) }
     }
@@ -298,7 +298,7 @@ impl<Res> fmt::Debug for CompNode<Res> {
 
 // Performs the computation at loc, produces a result of type Res.
 // Error if loc is not a Node::Comp.
-fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut AdaptonState, loc:&Rc<Loc>) -> Res
+fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -> Res
 {
     let succs : Vec<Succ> = {
         let succs : Vec<Succ> = Vec::new();
@@ -341,30 +341,30 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut AdaptonState, loc:&Rc<L
     res
 }
 
-fn re_produce<Res:'static+Debug+PartialEq+Eq+Clone>(dep:&ProducerDep<Res>, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
+fn re_produce<Res:'static+Debug+PartialEq+Eq+Clone>(dep:&ProducerDep<Res>, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes {
     let result : Res = produce( st, loc ) ;
     let changed = result == dep.res ;
-    AdaptonRes{changed:changed}
+    EngineRes{changed:changed}
 }
 
 
-// ---------- AdaptonDep implementation:
+// ---------- EngineDep implementation:
 
 #[derive(Debug)]
 struct ProducerDep<T> { res:T }
 
 impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
-    AdaptonDep for ProducerDep<Res>
+    EngineDep for ProducerDep<Res>
 {
-    fn change_prop(self:&Self, st:&mut AdaptonState, loc:&Rc<Loc>) -> AdaptonRes {
+    fn change_prop(self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes {
         { // Handle cases where there is no internal computation to re-compute:
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             match *node {
                 Node::Comp(_) => (),
                 Node::Pure(_) =>
-                    return AdaptonRes{changed:false},
+                    return EngineRes{changed:false},
                 Node::Mut(ref nd) =>
-                    return AdaptonRes{changed:nd.val == self.res},
+                    return EngineRes{changed:nd.val == self.res},
             }
         };
         let succs = {
@@ -383,15 +383,15 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
         } ;
         // No early return =>
         //   all immediate dependencies are change-free:
-        AdaptonRes{changed:false}
+        EngineRes{changed:false}
     }
 }
 
 // ---------- Node implementation:
 
-fn revoke_succs<'x> (st:&mut AdaptonState, src:&Rc<Loc>, succs:&Vec<Succ>) {
+fn revoke_succs<'x> (st:&mut Engine, src:&Rc<Loc>, succs:&Vec<Succ>) {
     for succ in succs.iter() {
-        let node : &mut Box<AdaptonNode> = lookup_abs(st, &succ.loc) ;
+        let node : &mut Box<GraphNode> = lookup_abs(st, &succ.loc) ;
         node.preds_obs().retain  (|ref pred| **pred != *src);
         node.preds_alloc().retain(|ref pred| **pred != *src);
     }
@@ -405,7 +405,7 @@ fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
 // Implement "sharing" of the dirty bit.
 // The succ edge is returned as a mutable borrow, to permit checking
 // and mutating the dirty bit.
-fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
+fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
     let nd = lookup_abs( st, src_loc );
     for succ in nd.succs().iter_mut() {
         if (succ.effect == eff) && (&succ.loc == tgt_loc) {
@@ -415,7 +415,7 @@ fn get_succ_mut<'r>(st:&'r mut AdaptonState, src_loc:&Rc<Loc>, eff:Effect, tgt_l
     panic!("tgt_loc is dangling in src_node.dem_succs")
 }
 
-fn dirty_pred_observers(st:&mut AdaptonState, loc:&Rc<Loc>) {
+fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
     let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs().clone() ;
     for pred_loc in pred_locs {
         let stop : bool = {
@@ -431,7 +431,7 @@ fn dirty_pred_observers(st:&mut AdaptonState, loc:&Rc<Loc>) {
     }
 }
 
-fn dirty_alloc(st:&mut AdaptonState, loc:&Rc<Loc>) {
+fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
     dirty_pred_observers(st, loc);
     let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc().clone() ;
     for pred_loc in pred_locs {
@@ -448,11 +448,11 @@ fn dirty_alloc(st:&mut AdaptonState, loc:&Rc<Loc>) {
     }
 }
 
-impl Adapton for AdaptonState {
+impl Adapton for Engine {
     type Name = Name;
     type Loc  = Loc;
 
-    fn new () -> AdaptonState {
+    fn new () -> Engine {
         let path   = Rc::new(Path::Empty);
         let symbol = Rc::new(Symbol::Root);
         let hash   = my_hash(&symbol);
@@ -462,31 +462,31 @@ impl Adapton for AdaptonState {
         let loc    = Rc::new(Loc{path:path.clone(),id:id,hash:hash});
         let mut stack = Vec::new();
         stack.push( Frame{loc:loc, path:path, succs:Vec::new()} ) ;
-        AdaptonState {
+        Engine {
             table : HashMap::new (),
             stack : stack,
         }
     }
 
-    fn name_of_string (self:&mut AdaptonState, sym:String) -> Name {
+    fn name_of_string (self:&mut Engine, sym:String) -> Name {
         let h = my_hash(&sym);
         let s = Symbol::String(sym) ;
         Name{ hash:h, symbol:Rc::new(s) }
     }
 
-    fn name_of_u64 (self:&mut AdaptonState, sym:u64) -> Name {
+    fn name_of_u64 (self:&mut Engine, sym:u64) -> Name {
         let h = my_hash(&sym) ;
         let s = Symbol::U64(sym) ;
         Name{ hash:h, symbol:Rc::new(s) }
     }
 
-    fn name_pair (self: &mut AdaptonState, fst: Name, snd: Name) -> Name {
+    fn name_pair (self: &mut Engine, fst: Name, snd: Name) -> Name {
         let h = my_hash( &(fst.hash,snd.hash) ) ;
         let p = Symbol::Pair(fst.symbol, snd.symbol) ;
         Name{ hash:h, symbol:Rc::new(p) }
     }
 
-    fn name_fork (self:&mut AdaptonState, nm:Name) -> (Name, Name) {
+    fn name_fork (self:&mut Engine, nm:Name) -> (Name, Name) {
         let h1 = my_hash( &(&nm, 11111111) ) ; // TODO-Later: make this hashing better.
         let h2 = my_hash( &(&nm, 22222222) ) ;
         ( Name{ hash:h1,
@@ -504,12 +504,12 @@ impl Adapton for AdaptonState {
         x
     }
 
-    fn put<T:Eq> (self:&mut AdaptonState, x:T) -> Art<T,Self::Loc> { Art::Rc(Rc::new(x)) }
+    fn put<T:Eq> (self:&mut Engine, x:T) -> Art<T,Self::Loc> { Art::Rc(Rc::new(x)) }
 
     fn cell<T:Eq+Debug+Clone
         +'static // TODO-Later: Needed on T because of lifetime issues.
         >
-        (self:&mut AdaptonState, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
+        (self:&mut Engine, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
             let path = self.stack[0].path.clone();
             let id   = Rc::new(ArtId::Nominal(nm));
             let hash = my_hash(&(&path,&id));
@@ -578,10 +578,10 @@ impl Adapton for AdaptonState {
     }
 
     fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+'static>
-        (self:&mut AdaptonState,
+        (self:&mut Engine,
          id:ArtIdChoice<Self::Name>,
          prog_pt:ProgPt,
-         fn_box:Rc<Box<Fn(&mut AdaptonState, Arg, Spurious) -> Res>>,
+         fn_box:Rc<Box<Fn(&mut Engine, Arg, Spurious) -> Res>>,
          arg:Arg, spurious:Spurious)
          -> Art<Res,Self::Loc>
     {
@@ -699,7 +699,7 @@ impl Adapton for AdaptonState {
         }
     }
 
-    fn force<T:'static+Eq+Debug+Clone> (self:&mut AdaptonState,
+    fn force<T:'static+Eq+Debug+Clone> (self:&mut Engine,
                                         art:&Art<T,Self::Loc>) -> T
     {
         match *art {
