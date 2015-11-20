@@ -16,13 +16,13 @@ Library Components:
 See the [`Adapton` trait](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_sigs.rs#L7).  
 
 - The library uses rust macros to provide **syntactic sugar**.  
-See [`adapton_syntax`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_syntax.rs).  
+See [`macros`](https://github.com/plum-umd/adapton.rust/blob/master/src/macros.rs).  
 
 - The library implements this interface with an **imperative data structure**, and **without garbage collection**.  
-See [`AdaptonState`](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_state.rs).  
+See [`Engine`](https://github.com/plum-umd/adapton.rust/blob/master/src/engine.rs).
 
 - The library provides generic **incremental data structures and algorithms**.  
-See also: [`structures.rs`](https://github.com/plum-umd/adapton.rust/blob/master/src/structures.rs):  
+See also: [`collection.rs`](https://github.com/plum-umd/adapton.rust/blob/master/src/collection.rs):  
   - generic lists
   - generic binary trees
   - tree unfold: balanced trees from a step function
