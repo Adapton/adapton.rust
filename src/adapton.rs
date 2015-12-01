@@ -1,8 +1,15 @@
 // Adapton for Rust
 #![feature(associated_type_defaults)]
+#![feature(custom_derive)]
+
+#![cfg_attr(test, feature(plugin))]
+#![cfg_attr(test, plugin(quickcheck_macros))]
 
 #![crate_name = "adapton"]
 #![crate_type = "lib"]
+    
+extern crate quickcheck;
+extern crate rand;
 
 #[macro_use]
 pub mod macros ;
@@ -18,3 +25,4 @@ pub mod collection ;
 mod adapton {
     pub use super::*;
 }
+

@@ -5,6 +5,69 @@ use std::rc::Rc;
 
 use macros::* ;
 use adapton_sigs::* ;
+use quickcheck::Arbitrary;
+use quickcheck::Gen;
+
+use rand::Rand;
+
+#[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
+enum ListEditCmd<X,Name> {
+    Insert  (ListEditDir,X),    // Inserts an element
+    Remove  (ListEditDir),      // Removes an element (name-oblivious)
+    Replace (ListEditDir,X),    // Replace an element (name-oblivious)
+    Goto    (ListEditDir),      // Move the cursor
+
+    InsName (ListEditDir,Name), // Insert name
+    RemName (ListEditDir),      // Remove immediately-adjacent
+
+    Atomic  (Vec<ListEditCmd<X,Name>>), // Edits to be performed as an atomic block
+
+    ShowView(ListReduce),       // Show the given view
+    HideView(ListReduce),       // Remove the given view
+}
+#[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
+enum ListTransf {
+    Sort, Reverse
+}
+#[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
+enum ListReduce {
+    Max, Min, Median,
+    DemandAll(ListTransf),
+    DemandN(ListTransf, usize),
+}
+
+impl Arbitrary for ListEditDir {
+    fn arbitrary<G:Gen> (g: &mut G) -> Self {
+        if g.gen() { ListEditDir::Left  }
+        else       { ListEditDir::Right }
+    }
+    fn shrink(&self) -> Box<Iterator<Item=Self>> {
+        let v = Vec::<ListEditDir>::new();
+        match *self {
+            ListEditDir::Right => Box::new(Some(ListEditDir::Left).into_iter()),
+            ListEditDir::Left  => Box::new(None.into_iter())
+        }
+    }
+}
+
+impl<X:Arbitrary+Sized+Rand+'static,Name:Arbitrary+Sized+Rand+'static>
+    Arbitrary for ListEditCmd<X,Name>
+{
+    fn arbitrary<G:Gen> (g: &mut G) -> Self {
+        //match Rand::rand(g) as ListEditCmd<X,Name> {
+        match g.gen_range(0, 100) {
+            0  ... 50  => { ListEditCmd::Insert(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
+            50 ... 70  => { ListEditCmd::Remove(Arbitrary::arbitrary(g)) },
+            70 ... 100 => { ListEditCmd::Goto  (Arbitrary::arbitrary(g)) },
+            _ => unreachable!()
+        }
+    }
+    fn shrink(&self) -> Box<Iterator<Item=Self>> {
+        // Any command becomes "skip" (the empty command sequence)
+        let no_cmds = ListEditCmd::Atomic(Vec::new()) ;
+        Box::new(Some(no_cmds).into_iter())
+    }
+}
 
 /// `ListEdit<A,X,L>` gives a simple notion of list-editing that is
 /// generic with respect to adapton implementation `A`, list element
@@ -21,8 +84,14 @@ pub trait ListEdit<A:Adapton,X> {
     fn goto     (&mut A, Self::State, Self::Dir)    -> (Self::State, bool);
     fn observe  (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
 
+    // Insert/remove names from the list content:
+    fn ins_name (&mut A, Self::State, Self::Dir, A::Name) -> Self::State;
+    fn rem_name (&mut A, Self::State, Self::Dir) -> (Self::State, Option<A::Name>);
+
     fn get_list<L:ListT<A,X>,T:TreeT<A,X>> (&mut A, Self::State, Self::Dir) -> L::List;
     fn get_tree<T:TreeT<A,X>>              (&mut A, Self::State, Self::Dir) -> T::Tree;
+
+
 }
 /// Lists are one-dimensional structures; movement admits two possible directions.
 #[derive(Debug,Hash,PartialEq,Eq,Clone)]
@@ -51,6 +120,34 @@ impl<A:Adapton
     type State=ListZipper<A,X,L>;
     type Dir=ListEditDir;
     
+    fn ins_name (st:&mut A, zip:Self::State, dir:Self::Dir, x:A::Name) -> Self::State {
+        match dir {
+            ListEditDir::Left =>
+                ListZipper{left:L::name(st, x, zip.left),
+                           right:zip.right},
+            ListEditDir::Right =>
+                ListZipper{left:zip.left,
+                           right:L::name(st, x, zip.right)},
+        }
+    }
+
+    fn rem_name  (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, Option<A::Name>) {
+        match dir {
+            ListEditDir::Left => L::elim_move
+                (st, zip.left, zip.right,
+                 |st,right|         (ListZipper{left:L::nil(st), right:right}, None ),
+                 |_,x,left,right|   (ListZipper{left:left,       right:right}, None ),
+                 |st,nm,left,right| (ListZipper{left:left, right:right},       Some(nm))
+                 ),
+            ListEditDir::Right => L::elim_move
+                (st, zip.right, zip.left,
+                 |st,left|          (ListZipper{left:left, right:L::nil(st)}, None ),
+                 |_,x,right,left|   (ListZipper{left:left, right:right},      None ),
+                 |st,nm,right,left| (ListZipper{left:left, right:right},      Some(nm))
+                 ),
+        }
+    }
+    
     fn empty (st: &mut A) -> Self::State {
         let nil1 = L::nil(st);
         let nil2 = nil1.clone();
@@ -67,7 +164,7 @@ impl<A:Adapton
                            right:L::cons(st, x, zip.right)},
         }
     }
-    
+
     fn remove  (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, Option<X>) {
         match dir {
             ListEditDir::Left => L::elim_move
@@ -172,6 +269,7 @@ impl<A:Adapton
         }
     }
 }
+
 
 pub trait ListT<A:Adapton,Hd> : Debug+Clone {
     type List : Debug+Hash+PartialEq+Eq+Clone ;
