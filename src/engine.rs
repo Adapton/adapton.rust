@@ -451,6 +451,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
 impl Adapton for Engine {
     type Name = Name;
     type Loc  = Loc;
+    type Trace = Loc;
 
     fn new () -> Engine {
         let path   = Rc::new(Path::Empty);

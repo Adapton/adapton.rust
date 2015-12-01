@@ -33,9 +33,10 @@ use macros::{ProgPt};
 
 pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     // TODO-later: Report ICE: If I replace the trait combinations below with `AdaptonData`:
-    type Name : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
-    type Loc  : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
-    
+    type Name  : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
+    type Loc   : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
+    type Trace : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
+        
     fn new () -> Self ;
 
     // Names

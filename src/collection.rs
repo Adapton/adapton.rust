@@ -11,11 +11,16 @@ use quickcheck::Gen;
 use rand::Rand;
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
-enum ListEditCmd<X,Name> {
-    Insert  (ListEditDir,X),    // Inserts an element
-    Remove  (ListEditDir),      // Removes an element (name-oblivious)
-    Replace (ListEditDir,X),    // Replace an element (name-oblivious)
-    Goto    (ListEditDir),      // Move the cursor
+pub enum ListBasicEditCmd<X> {
+    Insert (ListEditDir,X),  // Inserts an element
+    Remove (ListEditDir),    // Removes an element (name-oblivious)
+    Replace (ListEditDir,X), // Replace an element (name-oblivious)
+    Goto   (ListEditDir),    // Move the cursor    
+}
+
+#[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
+pub enum ListEditCmd<X,Name> {
+    Basic   (ListBasicEditCmd<X>),
 
     InsName (ListEditDir,Name), // Insert name
     RemName (ListEditDir),      // Remove immediately-adjacent
@@ -26,11 +31,11 @@ enum ListEditCmd<X,Name> {
     HideView(ListReduce),       // Remove the given view
 }
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
-enum ListTransf {
+pub enum ListTransf {
     Sort, Reverse
 }
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
-enum ListReduce {
+pub enum ListReduce {
     Max, Min, Median,
     DemandAll(ListTransf),
     DemandN(ListTransf, usize),
@@ -42,7 +47,6 @@ impl Arbitrary for ListEditDir {
         else       { ListEditDir::Right }
     }
     fn shrink(&self) -> Box<Iterator<Item=Self>> {
-        let v = Vec::<ListEditDir>::new();
         match *self {
             ListEditDir::Right => Box::new(Some(ListEditDir::Left).into_iter()),
             ListEditDir::Left  => Box::new(None.into_iter())
@@ -50,22 +54,44 @@ impl Arbitrary for ListEditDir {
     }
 }
 
-impl<X:Arbitrary+Sized+Rand+'static,Name:Arbitrary+Sized+Rand+'static>
-    Arbitrary for ListEditCmd<X,Name>
+impl<X:Arbitrary+Sized+Rand+'static>
+    Arbitrary for ListBasicEditCmd<X>
 {
     fn arbitrary<G:Gen> (g: &mut G) -> Self {
         //match Rand::rand(g) as ListEditCmd<X,Name> {
         match g.gen_range(0, 100) {
-            0  ... 50  => { ListEditCmd::Insert(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
-            50 ... 70  => { ListEditCmd::Remove(Arbitrary::arbitrary(g)) },
-            70 ... 100 => { ListEditCmd::Goto  (Arbitrary::arbitrary(g)) },
+            0  ... 50  => { ListBasicEditCmd::Insert (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
+            50 ... 60  => { ListBasicEditCmd::Remove (Arbitrary::arbitrary(g)) },
+            60 ... 70  => { ListBasicEditCmd::Replace(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
+            70 ... 100 => { ListBasicEditCmd::Goto   (Arbitrary::arbitrary(g)) },
             _ => unreachable!()
         }
     }
     fn shrink(&self) -> Box<Iterator<Item=Self>> {
-        // Any command becomes "skip" (the empty command sequence)
-        let no_cmds = ListEditCmd::Atomic(Vec::new()) ;
-        Box::new(Some(no_cmds).into_iter())
+        Box::new(None.into_iter())
+    }
+}
+
+pub trait ListExperiment<A:Adapton,X> {
+    type ListEdit : ListEdit<A,X> ;
+    fn run (&mut A, Vec<ListBasicEditCmd<X>>, view:ListReduce) -> Vec<A::Trace> ;
+}
+
+pub struct IntListExperiment ;
+impl<A:Adapton> ListExperiment<A,u32> for IntListExperiment {
+    type ListEdit = ListEdit<A,u32,Dir=ListEditDir,State = ListZipper<A,u32,List<A,u32>>> ;
+    fn run (st:&mut A, edits:Vec<ListBasicEditCmd<u32>>, view:ListReduce) -> Vec<A::Trace> {
+        let v : Vec<A::Trace> = Vec::new();
+        let mut z = Self::ListEdit::empty(st) ;
+        for edit in edits.iter() {
+            let z_next = { match *edit {
+                ListBasicEditCmd::Insert(dir,x)  => ListEdit::insert(st, z, dir, x),
+                ListBasicEditCmd::Remove(dir)    => { let (z, _) = ListEdit::remove(st, z, dir) ; z },
+                ListBasicEditCmd::Goto(dir)      => { let (z, _) = ListEdit::goto(st, z, dir) ; z },
+                ListBasicEditCmd::Replace(dir,x) => { let (z, _, _) = ListEdit::replace(st, z, dir, x) ; z },
+            }} ;
+            z = z_next ;
+        } v
     }
 }
 

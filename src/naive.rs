@@ -28,6 +28,7 @@ impl Clone for     AdaptonFromScratch { fn clone(&self) -> Self { unimplemented!
 impl Adapton for AdaptonFromScratch {
     type Name = Name;
     type Loc  = Loc;
+    type Trace = Loc;
 
     fn new () -> AdaptonFromScratch {
         AdaptonFromScratch {
