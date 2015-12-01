@@ -75,16 +75,16 @@ pub trait ListExperiment<A:Adapton,X> {
 
 pub struct IntListExperiment ;
 impl<A:Adapton> ListExperiment<A,u32> for IntListExperiment {
-    type ListEdit = ListEdit<A, u32, Dir=ListEditDir, State=ListZipper<A,u32,List<A,u32>>> ;
+    type ListEdit = ListZipper<A,u32,List<A,u32>> ;
     fn run (st:&mut A, edits:Vec<ListBasicEditCmd<u32>>, view:ListReduce) -> Vec<A::Trace> {
         let v : Vec<A::Trace> = Vec::new();
-        let mut z = Self::ListEdit::empty(st) ;
-        for edit in edits.iter() {
-            let z_next = { match *edit {
-                ListBasicEditCmd::Insert(dir,x)  => ListEdit::insert(st, z, dir, x),
-                ListBasicEditCmd::Remove(dir)    => { let (z, _) = ListEdit::remove(st, z, dir) ; z },
-                ListBasicEditCmd::Goto(dir)      => { let (z, _) = ListEdit::goto(st, z, dir) ; z },
-                ListBasicEditCmd::Replace(dir,x) => { let (z, _, _) = ListEdit::replace(st, z, dir, x) ; z },
+        let mut z : ListZipper<A,u32,List<A,u32>> = Self::ListEdit::empty(st) ;
+        for edit in edits.into_iter() {
+            let z_next = { match edit {
+                ListBasicEditCmd::Insert(dir,x)  => Self::ListEdit::insert(st, z, dir, x),
+                ListBasicEditCmd::Remove(dir)    => { let (z, _) = Self::ListEdit::remove(st, z, dir) ; z },
+                ListBasicEditCmd::Goto(dir)      => { let (z, _) = Self::ListEdit::goto(st, z, dir) ; z },
+                ListBasicEditCmd::Replace(dir,x) => { let (z, _, _) = Self::ListEdit::replace(st, z, dir, x) ; z },
             }} ;
             z = z_next ;
         } v
