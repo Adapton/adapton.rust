@@ -21,12 +21,8 @@ pub enum ListBasicEditCmd<X> {
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
 pub enum ListEditCmd<X,Name> {
     Basic   (ListBasicEditCmd<X>),
-
     InsName (ListEditDir,Name), // Insert name
     RemName (ListEditDir),      // Remove immediately-adjacent
-
-    Atomic  (Vec<ListEditCmd<X,Name>>), // Edits to be performed as an atomic block
-
     ShowView(ListReduce),       // Show the given view
     HideView(ListReduce),       // Remove the given view
 }
@@ -54,7 +50,7 @@ impl Arbitrary for ListEditDir {
     }
 }
 
-impl<X:Arbitrary+Sized+Rand+'static>
+impl<X:Arbitrary+Sized+Rand>
     Arbitrary for ListBasicEditCmd<X>
 {
     fn arbitrary<G:Gen> (g: &mut G) -> Self {
@@ -79,7 +75,7 @@ pub trait ListExperiment<A:Adapton,X> {
 
 pub struct IntListExperiment ;
 impl<A:Adapton> ListExperiment<A,u32> for IntListExperiment {
-    type ListEdit = ListEdit<A,u32,Dir=ListEditDir,State = ListZipper<A,u32,List<A,u32>>> ;
+    type ListEdit = ListEdit<A, u32, Dir=ListEditDir, State=ListZipper<A,u32,List<A,u32>>> ;
     fn run (st:&mut A, edits:Vec<ListBasicEditCmd<u32>>, view:ListReduce) -> Vec<A::Trace> {
         let v : Vec<A::Trace> = Vec::new();
         let mut z = Self::ListEdit::empty(st) ;
