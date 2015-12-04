@@ -2,34 +2,37 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
-
+    
 use macros::* ;
 use adapton_sigs::* ;
 use quickcheck::Arbitrary;
 use quickcheck::Gen;
+use std::num::Zero;
 
 use rand::Rand;
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
-pub enum ListBasicEditCmd<X> {
-    Insert (ListEditDir,X),  // Inserts an element
-    Remove (ListEditDir),    // Removes an element (name-oblivious)
-    Replace (ListEditDir,X), // Replace an element (name-oblivious)
-    Goto   (ListEditDir),    // Move the cursor    
+pub enum BasicEditCmd<X,Dir> {
+    Insert  (Dir,X), // Inserts an element
+    Remove  (Dir),   // Removes an element (name-oblivious)
+    Replace (Dir,X), // Replace an element (name-oblivious)
+    Goto    (Dir),   // Move the cursor
 }
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
-pub enum ListEditCmd<X,Name> {
-    Basic   (ListBasicEditCmd<X>),
-    InsName (ListEditDir,Name), // Insert name
-    RemName (ListEditDir),      // Remove immediately-adjacent
-    ShowView(ListReduce),       // Show the given view
-    HideView(ListReduce),       // Remove the given view
+pub enum EditCmd<X,Dir,Name> {
+    Basic    (BasicEditCmd<X,Dir>),
+    InsName  (Dir,Name), // Insert name
+    RemName  (Dir),      // Remove immediately-adjacent
+    ShowView (ListReduce),   // Show the given view
+    HideView (ListReduce),   // Remove the given view
 }
+
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
 pub enum ListTransf {
     Sort, Reverse
 }
+
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
 pub enum ListReduce {
     Max, Min, Median,
@@ -50,16 +53,16 @@ impl Arbitrary for ListEditDir {
     }
 }
 
-impl<X:Arbitrary+Sized+Rand>
-    Arbitrary for ListBasicEditCmd<X>
+impl<X:Arbitrary+Sized+Rand,Dir:Arbitrary+Sized+Rand>
+    Arbitrary for BasicEditCmd<X,Dir>
 {
     fn arbitrary<G:Gen> (g: &mut G) -> Self {
         //match Rand::rand(g) as ListEditCmd<X,Name> {
         match g.gen_range(0, 100) {
-            0  ... 50  => { ListBasicEditCmd::Insert (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
-            50 ... 60  => { ListBasicEditCmd::Remove (Arbitrary::arbitrary(g)) },
-            60 ... 70  => { ListBasicEditCmd::Replace(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
-            70 ... 100 => { ListBasicEditCmd::Goto   (Arbitrary::arbitrary(g)) },
+            0  ... 50  => { BasicEditCmd::Insert (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
+            50 ... 60  => { BasicEditCmd::Remove (Arbitrary::arbitrary(g)) },
+            60 ... 70  => { BasicEditCmd::Replace(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
+            70 ... 100 => { BasicEditCmd::Goto   (Arbitrary::arbitrary(g)) },
             _ => unreachable!()
         }
     }
@@ -68,26 +71,50 @@ impl<X:Arbitrary+Sized+Rand>
     }
 }
 
-pub trait ListExperiment<A:Adapton,X> {
+pub trait ExperimentT<A:Adapton,X> {
     type ListEdit : ListEdit<A,X> ;
-    fn run (&mut A, Vec<ListBasicEditCmd<X>>, view:ListReduce) -> Vec<A::Trace> ;
+    fn run (&mut A, Vec<BasicEditCmd<X,ListEditDir>>, view:ListReduce) -> Vec<A::Trace> ;
 }
 
-pub struct IntListExperiment ;
-impl<A:Adapton> ListExperiment<A,u32> for IntListExperiment {
-    type ListEdit = ListZipper<A,u32,List<A,u32>> ;
-    fn run (st:&mut A, edits:Vec<ListBasicEditCmd<u32>>, view:ListReduce) -> Vec<A::Trace> {
+pub struct Experiment ;
+impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
+    for Experiment
+{
+    type ListEdit = ListZipper<A,X,List<A,X>> ;
+    fn run (st:&mut A, edits:Vec<BasicEditCmd<X,ListEditDir>>, view:ListReduce) -> Vec<A::Trace> {
         let v : Vec<A::Trace> = Vec::new();
-        let mut z : ListZipper<A,u32,List<A,u32>> = Self::ListEdit::empty(st) ;
+        let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
         for edit in edits.into_iter() {
-            let z_next = { match edit {
-                ListBasicEditCmd::Insert(dir,x)  => Self::ListEdit::insert(st, z, dir, x),
-                ListBasicEditCmd::Remove(dir)    => { let (z, _) = Self::ListEdit::remove(st, z, dir) ; z },
-                ListBasicEditCmd::Goto(dir)      => { let (z, _) = Self::ListEdit::goto(st, z, dir) ; z },
-                ListBasicEditCmd::Replace(dir,x) => { let (z, _, _) = Self::ListEdit::replace(st, z, dir, x) ; z },
-            }} ;
-            z = z_next ;
+            let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z);
+            let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), ListEditDir::Left);
+            eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view);
+            z = z_next;
         } v
+    }
+}
+
+fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:BasicEditCmd<X,E::Dir>, z:E::State) -> E::State {
+    match edit {
+        BasicEditCmd::Insert(dir,x)  => E::insert(st, z, dir, x),
+        BasicEditCmd::Remove(dir)    => { let (z, _)    = E::remove (st, z, dir)    ; z },
+        BasicEditCmd::Goto(dir)      => { let (z, _)    = E::goto   (st, z, dir)    ; z },
+        BasicEditCmd::Replace(dir,x) => { let (z, _, _) = E::replace(st, z, dir, x) ; z },
+    }
+}
+
+fn eval_reduce<A:Adapton,X:Zero+Hash+Eq+PartialOrd+Debug+Clone,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) {
+    match *red {
+        ListReduce::Max => {
+            let x = tree_reduce_monoid::<A,X,T,_>
+                (st, tree, X::zero(),
+                 &|st,x,y| if x > y {x} else {y}) ;
+            ()
+        },
+        ListReduce::Min => panic!(""),
+        ListReduce::Median => panic!(""),
+        ListReduce::DemandAll(ListTransf::Sort) => panic!(""),
+        ListReduce::DemandAll(ListTransf::Reverse) => panic!(""),
+        ListReduce::DemandN(_,_) => panic!(""),
     }
 }
 
