@@ -40,7 +40,7 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     fn new () -> Self ;
 
     // Names
-    fn name_of_u64    (self:&mut Self, u64)    -> Self::Name ;
+    fn name_of_usize  (self:&mut Self, usize)  -> Self::Name ;
     fn name_of_string (self:&mut Self, String) -> Self::Name ;
     fn name_pair      (self:&mut Self, Self::Name, Self::Name) -> Self::Name               ;
     fn name_fork      (self:&mut Self, Self::Name)             -> (Self::Name, Self::Name) ;

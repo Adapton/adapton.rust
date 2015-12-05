@@ -12,7 +12,7 @@ use std::num::Zero;
 use rand::Rand;
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
-pub enum BasicEditCmd<X,Dir> {
+pub enum CursorEdit<X,Dir> {
     Insert  (Dir,X), // Inserts an element
     Remove  (Dir),   // Removes an element (name-oblivious)
     Replace (Dir,X), // Replace an element (name-oblivious)
@@ -20,8 +20,8 @@ pub enum BasicEditCmd<X,Dir> {
 }
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
-pub enum EditCmd<X,Dir,Name> {
-    Basic    (BasicEditCmd<X,Dir>),
+pub enum Cmd<X,Dir,Name> {
+    Basic    (CursorEdit<X,Dir>),
     InsName  (Dir,Name), // Insert name
     RemName  (Dir),      // Remove immediately-adjacent
     ShowView (ListReduce),   // Show the given view
@@ -40,29 +40,29 @@ pub enum ListReduce {
     DemandN(ListTransf, usize),
 }
 
-impl Arbitrary for ListEditDir {
+impl Arbitrary for Dir2 {
     fn arbitrary<G:Gen> (g: &mut G) -> Self {
-        if g.gen() { ListEditDir::Left  }
-        else       { ListEditDir::Right }
+        if g.gen() { Dir2::Left  }
+        else       { Dir2::Right }
     }
     fn shrink(&self) -> Box<Iterator<Item=Self>> {
         match *self {
-            ListEditDir::Right => Box::new(Some(ListEditDir::Left).into_iter()),
-            ListEditDir::Left  => Box::new(None.into_iter())
+            Dir2::Right => Box::new(Some(Dir2::Left).into_iter()),
+            Dir2::Left  => Box::new(None.into_iter())
         }
     }
 }
 
 impl<X:Arbitrary+Sized+Rand,Dir:Arbitrary+Sized+Rand>
-    Arbitrary for BasicEditCmd<X,Dir>
+    Arbitrary for CursorEdit<X,Dir>
 {
     fn arbitrary<G:Gen> (g: &mut G) -> Self {
         //match Rand::rand(g) as ListEditCmd<X,Name> {
         match g.gen_range(0, 100) {
-            0  ... 50  => { BasicEditCmd::Insert (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
-            50 ... 60  => { BasicEditCmd::Remove (Arbitrary::arbitrary(g)) },
-            60 ... 70  => { BasicEditCmd::Replace(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
-            70 ... 100 => { BasicEditCmd::Goto   (Arbitrary::arbitrary(g)) },
+            0  ... 50  => { CursorEdit::Insert (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
+            50 ... 60  => { CursorEdit::Remove (Arbitrary::arbitrary(g)) },
+            60 ... 70  => { CursorEdit::Replace(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
+            70 ... 100 => { CursorEdit::Goto   (Arbitrary::arbitrary(g)) },
             _ => unreachable!()
         }
     }
@@ -73,7 +73,7 @@ impl<X:Arbitrary+Sized+Rand,Dir:Arbitrary+Sized+Rand>
 
 pub trait ExperimentT<A:Adapton,X> {
     type ListEdit : ListEdit<A,X> ;
-    fn run (&mut A, Vec<BasicEditCmd<X,ListEditDir>>, view:ListReduce) -> Vec<A::Trace> ;
+    fn run (&mut A, Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<A::Trace> ;
 }
 
 pub struct Experiment ;
@@ -81,26 +81,30 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
     for Experiment
 {
     type ListEdit = ListZipper<A,X,List<A,X>> ;
-    fn run (st:&mut A, edits:Vec<BasicEditCmd<X,ListEditDir>>, view:ListReduce) -> Vec<A::Trace> {
+    fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<A::Trace> {
         println!("run");
         let v : Vec<A::Trace> = Vec::new();
         let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
+        let mut cnt = 0 as usize;
         for edit in edits.into_iter() {
             println!("edit: {:?}", edit);
-            let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z);
-            let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), ListEditDir::Left);
+            let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z, cnt);
+            let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
             eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view);
             z = z_next;
+            cnt = cnt + 1;
         } v
     }
 }
 
-fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:BasicEditCmd<X,E::Dir>, z:E::State) -> E::State {
+fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>, z:E::State, id:usize) -> E::State {
     match edit {
-        BasicEditCmd::Insert(dir,x)  => E::insert(st, z, dir, x),
-        BasicEditCmd::Remove(dir)    => { let (z, _)    = E::remove (st, z, dir)    ; z },
-        BasicEditCmd::Goto(dir)      => { let (z, _)    = E::goto   (st, z, dir)    ; z },
-        BasicEditCmd::Replace(dir,x) => { let (z, _, _) = E::replace(st, z, dir, x) ; z },
+        CursorEdit::Insert(dir,x)  => { let n = A::name_of_usize(st, id) ;
+                                        let z = E::ins_name(st, z, dir.clone(), n) ;
+                                        E::insert(st, z, dir, x) },
+        CursorEdit::Remove(dir)    => { let (z, _)    = E::remove (st, z, dir)    ; z },
+        CursorEdit::Goto(dir)      => { let (z, _)    = E::goto   (st, z, dir)    ; z },
+        CursorEdit::Replace(dir,x) => { let (z, _, _) = E::replace(st, z, dir, x) ; z },
     }
 }
 
@@ -122,7 +126,7 @@ pub trait ListEdit<A:Adapton,X> {
     /// The State of the Editor is abstract.
     type State ;
     /// Lists with foci admit two directions for movement.
-    type Dir=ListEditDir;
+    type Dir:Clone+Hash+Eq+PartialEq=Dir2;
     fn empty    (&mut A) -> Self::State;
     fn insert   (&mut A, Self::State, Self::Dir, X) -> Self::State;
     fn remove   (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
@@ -141,7 +145,7 @@ pub trait ListEdit<A:Adapton,X> {
 }
 /// Lists are one-dimensional structures; movement admits two possible directions.
 #[derive(Debug,Hash,PartialEq,Eq,Clone)]
-pub enum ListEditDir { Left, Right }
+pub enum Dir2 { Left, Right }
 
 /// Lists with a focus; suitable to implement `ListEdit`.
 #[derive(Debug,Hash,PartialEq,Eq,Clone)]
@@ -164,14 +168,14 @@ impl<A:Adapton
     ListZipper<A,X,L>
 {
     type State=ListZipper<A,X,L>;
-    type Dir=ListEditDir;
+    type Dir=Dir2;
     
     fn ins_name (st:&mut A, zip:Self::State, dir:Self::Dir, x:A::Name) -> Self::State {
         match dir {
-            ListEditDir::Left =>
+            Dir2::Left =>
                 ListZipper{left:L::name(st, x, zip.left),
                            right:zip.right},
-            ListEditDir::Right =>
+            Dir2::Right =>
                 ListZipper{left:zip.left,
                            right:L::name(st, x, zip.right)},
         }
@@ -179,13 +183,13 @@ impl<A:Adapton
 
     fn rem_name  (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, Option<A::Name>) {
         match dir {
-            ListEditDir::Left => L::elim_move
+            Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
                  |st,right|         (ListZipper{left:L::nil(st), right:right}, None ),
                  |_,x,left,right|   (ListZipper{left:left,       right:right}, None ),
                  |st,nm,left,right| (ListZipper{left:left, right:right},       Some(nm))
                  ),
-            ListEditDir::Right => L::elim_move
+            Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
                  |st,left|          (ListZipper{left:left, right:L::nil(st)}, None ),
                  |_,x,right,left|   (ListZipper{left:left, right:right},      None ),
@@ -202,10 +206,10 @@ impl<A:Adapton
     
     fn insert (st:&mut A, zip:Self::State, dir:Self::Dir, x:X) -> Self::State {
         match dir {
-            ListEditDir::Left =>
+            Dir2::Left =>
                 ListZipper{left:L::cons(st, x, zip.left),
                            right:zip.right},
-            ListEditDir::Right =>
+            Dir2::Right =>
                 ListZipper{left:zip.left,
                            right:L::cons(st, x, zip.right)},
         }
@@ -213,78 +217,78 @@ impl<A:Adapton
 
     fn remove  (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, Option<X>) {
         match dir {
-            ListEditDir::Left => L::elim_move
+            Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
                  |st,right|         (ListZipper{left:L::nil(st), right:right}, None   ),
                  |_,x,left,right|   (ListZipper{left:left,       right:right}, Some(x)),
                  |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right)};
-                                     Self::remove (st, zip, ListEditDir::Left)}
+                                     Self::remove (st, zip, Dir2::Left)}
                  ),
-            ListEditDir::Right => L::elim_move
+            Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
                  |st,left|          (ListZipper{left:left, right:L::nil(st)}, None   ),
                  |_,x,right,left|   (ListZipper{left:left, right:right},      Some(x)),
                  |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right};
-                                     Self::remove (st, zip, ListEditDir::Right)}
+                                     Self::remove (st, zip, Dir2::Right)}
                  ),
         }
     }
 
     fn goto (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, bool) {
         match dir {
-            ListEditDir::Left => L::elim_move
+            Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
                  |st,right|         (ListZipper{left:L::nil(st), right:right}              , false ),
                  |st,x,left,right|  (ListZipper{left:left,       right:L::cons(st,x,right)}, true  ),
                  |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right)};
-                                     Self::goto (st, zip, ListEditDir::Left)}
+                                     Self::goto (st, zip, Dir2::Left)}
                  ),
-            ListEditDir::Right => L::elim_move
+            Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
                  |st,left|          (ListZipper{left:left,              right:L::nil(st)}, false ),
                  |st,x,right,left|  (ListZipper{left:L::cons(st,x,left),right:right}     , true  ),
                  |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right};
-                                     Self::goto (st, zip, ListEditDir::Right)}
+                                     Self::goto (st, zip, Dir2::Right)}
                  ),
         }
     }
 
     fn observe (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State,Option<X>) {
         match dir {
-            ListEditDir::Left => L::elim_move
+            Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
                  |st,right|         (ListZipper{left:L::nil(st), right:right}, None),
                  |st,x,left,right| {let x2 = x.clone();
                                     (ListZipper{left:L::cons(st,x,left), right:right}, Some(x2))},
                  |st,nm,left,right|{let zip = ListZipper{left:left,right:L::name(st,nm,right)};
-                                    Self::observe (st, zip, ListEditDir::Left)}
+                                    Self::observe (st, zip, Dir2::Left)}
                  ),
-            ListEditDir::Right => L::elim_move
+            Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
                  |st,left|         (ListZipper{left:left, right:L::nil(st)}, None),
                  |st,x,right,left| {let x2 = x.clone();
                                     (ListZipper{left:left, right:L::cons(st,x,right)}, Some(x2))},
                  |st,nm,right,left|{let zip = ListZipper{left:L::name(st,nm,left),right:right};
-                                    Self::observe (st, zip, ListEditDir::Right)}
+                                    Self::observe (st, zip, Dir2::Right)}
                  ),
         }
     }
 
     fn replace (st:&mut A, zip:Self::State, dir:Self::Dir, y:X) -> (Self::State, X, bool) {
         match dir {
-            ListEditDir::Left => L::elim_move
+            Dir2::Left => L::elim_move
                 (st, zip.left, (zip.right, y),
                  |st,(right,y)|        (ListZipper{left:L::nil(st),         right:right}, y, false),
                  |st,x,left,(right,y)| (ListZipper{left:L::cons(st,y,left), right:right}, x, true ),
                  |st,nm,left,(right,y)|{let zip = ListZipper{left:left,right:L::name(st,nm,right)};
-                                        Self::replace (st, zip, ListEditDir::Left, y)}
+                                        Self::replace (st, zip, Dir2::Left, y)}
                  ),
-            ListEditDir::Right => L::elim_move
+            Dir2::Right => L::elim_move
                 (st, zip.right, (zip.left,y),
                  |st,(left,y)|         (ListZipper{left:left, right:L::nil(st)},          y, false),
                  |st,x,right,(left,y)| (ListZipper{left:left, right:L::cons(st,y,right)}, x, true ),
                  |st,nm,right,(left,y)|{let zip = ListZipper{left:L::name(st,nm,left),right:right};
-                                        Self::replace (st, zip, ListEditDir::Right, y)}
+                                        Self::replace (st, zip, Dir2::Right, y)}
                  ),
         }
     }
@@ -303,14 +307,14 @@ impl<A:Adapton
         (st:&mut A, zip:Self::State, dir:Self::Dir) -> T::Tree
     {
         match dir {
-            ListEditDir::Left  => {
-                let left  = tree_of_list::<A,X,T,L>(st, ListEditDir::Right, zip.left);
-                let right = tree_of_list::<A,X,T,L>(st, ListEditDir::Left,  zip.right);
+            Dir2::Left  => {
+                let left  = tree_of_list::<A,X,T,L>(st, Dir2::Right, zip.left);
+                let right = tree_of_list::<A,X,T,L>(st, Dir2::Left,  zip.right);
                 tree_append::<A,X,T>(st, left, right)}
             
-            ListEditDir::Right => {
-                let right = tree_of_list::<A,X,T,L>(st, ListEditDir::Right, zip.right);
-                let left  = tree_of_list::<A,X,T,L>(st, ListEditDir::Left,  zip.left);
+            Dir2::Right => {
+                let right = tree_of_list::<A,X,T,L>(st, Dir2::Right, zip.right);
+                let left  = tree_of_list::<A,X,T,L>(st, Dir2::Left,  zip.left);
                 tree_append::<A,X,T>(st, right, left)}
         }
     }
@@ -449,7 +453,7 @@ pub trait TreeT<A:Adapton,Leaf> {
         ,      BinC:Fn(&mut A, Self::Lev,     Res, Res ) -> Res
         ,     NameC:Fn(&mut A, A::Name, Self::Lev, Res, Res ) -> Res
     {
-        println!(" * ");
+        //println!(" * ");
         Self::elim
             (st, tree,
              |st| nil(st),
@@ -541,7 +545,7 @@ pub fn list_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,L:ListT<A,Elm>,BinOp
     (st:&mut A, list:L::List, zero:Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
-    let tree = tree_of_list::<A,Elm,T,L>(st, ListEditDir::Left, list);
+    let tree = tree_of_list::<A,Elm,T,L>(st, Dir2::Left, list);
     tree_reduce_monoid::<A,Elm,T,BinOp>(st, tree, zero, binop)
 }
 
@@ -757,7 +761,7 @@ pub fn tree_of_list
     , T:TreeT<A,X>
     , L:ListT<A,X>
     >
-    (st:&mut A, dir_list:ListEditDir, list:L::List) -> T::Tree {
+    (st:&mut A, dir_list:Dir2, list:L::List) -> T::Tree {
         let tnil = T::nil(st);
         let lnil = L::nil(st);
         let (tree, list) = tree_of_list_rec::<A,X,T,L>(st, dir_list, list, tnil, T::lev_zero(), T::lev_max());
@@ -772,7 +776,7 @@ pub fn tree_of_list_rec
     , L:ListT<A,X>
     >
     (st:&mut A,
-     dir_list:ListEditDir, list:L::List,
+     dir_list:Dir2, list:L::List,
      tree:T::Tree, tree_lev:T::Lev, parent_lev:T::Lev)
      -> (T::Tree, L::List)
 {
@@ -791,8 +795,8 @@ pub fn tree_of_list_rec
                     tree_of_list_rec::<A,X,T,L> ( st, dir_list.clone(), rest, leaf, T::lev_zero(), lev_hd.clone() )
                 };
                 let tree3 = match dir_list.clone() {
-                    ListEditDir::Left  => T::bin ( st, lev_hd.clone(), tree,  tree2 ),
-                    ListEditDir::Right => T::bin ( st, lev_hd.clone(), tree2, tree  ),
+                    Dir2::Left  => T::bin ( st, lev_hd.clone(), tree,  tree2 ),
+                    Dir2::Right => T::bin ( st, lev_hd.clone(), tree2, tree  ),
                 } ;
                 tree_of_list_rec::<A,X,T,L> ( st, dir_list, rest2, tree3, lev_hd, parent_lev )
             }
@@ -811,8 +815,8 @@ pub fn tree_of_list_rec
                           dir_list:dir_list.clone(), list:rest,
                           tree:nil, tree_lev:T::lev_zero(), parent_lev:lev_nm.clone() ) ;
                 let tree3 = match dir_list.clone() {
-                    ListEditDir::Left  => T::name ( st, nm, lev_nm.clone(), tree,  tree2 ),
-                    ListEditDir::Right => T::name ( st, nm, lev_nm.clone(), tree2, tree  ),
+                    Dir2::Left  => T::name ( st, nm, lev_nm.clone(), tree,  tree2 ),
+                    Dir2::Right => T::name ( st, nm, lev_nm.clone(), tree2, tree  ),
                 } ;
                 memo!(st, nm2 =>> tree_of_list_rec::<A,X,T,L>,
                       dir_list:dir_list.clone(), list:rest,
@@ -888,7 +892,7 @@ pub fn list_merge<A:Adapton,X:Ord+Clone+Debug,L:ListT<A,X>>
 pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Debug+Clone,L:ListT<A,X>,T:TreeT<A,X>>
     (st:&mut A, list:L::List) -> L::List
 {
-    let tree = tree_of_list::<A,X,T,L>(st, ListEditDir::Left, list);
+    let tree = tree_of_list::<A,X,T,L>(st, Dir2::Left, list);
     T::fold_up (st, tree,
                 &|st|                 L::nil(st), 
                 &|st, x|              L::singleton(st, x),

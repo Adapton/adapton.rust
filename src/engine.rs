@@ -51,7 +51,7 @@ impl Clone for     Engine { fn clone(&self) -> Self { unimplemented!() } }
 enum Symbol {
     Root, // Root identifies the outside environment of Rust code.
     //Nil,  // Nil for non-symbolic, hash-based names.
-    String(String), U64(u64),   // Strings and U64s are unique symbols.
+    String(String), Usize(usize),   // Strings and USizes are unique symbols.
     Pair(Rc<Symbol>,Rc<Symbol>),
     ForkL(Rc<Symbol>),
     ForkR(Rc<Symbol>),
@@ -238,7 +238,7 @@ impl<Arg:Clone+PartialEq+Eq,Spurious,Res> Consumer<Arg> for App<Arg,Spurious,Res
 
 fn lookup_abs<'r>(st:&'r mut Engine, loc:&Rc<Loc>) -> &'r mut Box<GraphNode> {
     match st.table.get_mut( loc ) {
-        None => panic!("dangling pointer"),
+        None => panic!("dangling pointer: {:?}", loc),
         Some(node) => node.be_node() // This is a weird workaround; TODO-Later: Investigate.
     }
 }
@@ -475,9 +475,9 @@ impl Adapton for Engine {
         Name{ hash:h, symbol:Rc::new(s) }
     }
 
-    fn name_of_u64 (self:&mut Engine, sym:u64) -> Name {
+    fn name_of_usize (self:&mut Engine, sym:usize) -> Name {
         let h = my_hash(&sym) ;
-        let s = Symbol::U64(sym) ;
+        let s = Symbol::Usize(sym) ;
         Name{ hash:h, symbol:Rc::new(s) }
     }
 

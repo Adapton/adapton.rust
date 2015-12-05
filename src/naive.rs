@@ -37,7 +37,7 @@ impl Adapton for AdaptonFromScratch {
     }
 
     fn name_of_string (self:&mut AdaptonFromScratch, _sym:String) -> Name { Name }
-    fn name_of_u64 (self:&mut AdaptonFromScratch, _sym:u64) -> Name { Name }
+    fn name_of_usize (self:&mut AdaptonFromScratch, _sym:usize) -> Name { Name }
     fn name_pair (self: &mut AdaptonFromScratch, _fst:Name, _snd:Name) -> Name { Name }
     fn name_fork (self:&mut AdaptonFromScratch, _nm:Name) -> (Name, Name) { (Name,Name) }
     fn ns<T,F> (self: &mut AdaptonFromScratch, _nm:Name, body:F) -> T where F:FnOnce(&mut AdaptonFromScratch) -> T { body(self) }
