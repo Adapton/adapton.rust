@@ -35,9 +35,9 @@ pub fn my_hash<T>(obj: T) -> u64
 
 #[macro_export]
 macro_rules! prog_pt {
-    ($symbol:ident) => {{
+    ($symbol:expr) => {{
         ProgPt{
-            symbol:stringify!($symbol),
+            symbol:$symbol,
             //file:file!(),
             //line:line!(),
             //column:column!(),
@@ -50,7 +50,7 @@ macro_rules! thunk {
     ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
         ($st).thunk
             (ArtIdChoice::Nominal($nm),
-             prog_pt!(f),
+             prog_pt!(stringify!($f)),
              Rc::new(Box::new(
                  |st, args, _|{
                      let ($( $lab ),*, _) = args ;
@@ -64,7 +64,7 @@ macro_rules! thunk {
     ( $st:expr , $nm:expr =>> $f:ident , $( $lab:ident : $arg:expr ),* ) => {{
         ($st).thunk
             (ArtIdChoice::Nominal($nm),
-             prog_pt!(f),
+             prog_pt!(stringify!($f)),
              Rc::new(Box::new(
                  |st, args, _|{
                      let ($( $lab ),*, _) = args ;
@@ -78,7 +78,7 @@ macro_rules! thunk {
     ( $st:expr , $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
         ($st).thunk
             (ArtIdChoice::Structural,
-             prog_pt!(f),
+             prog_pt!(stringify!($f)),
              Rc::new(Box::new(
                  |st, args, _|{
                      let ($( $lab ),*, _) = args ;
@@ -92,7 +92,7 @@ macro_rules! thunk {
     ( $st:expr , $f:path , $( $lab:ident : $arg:expr ),* ) => {{
         ($st).thunk
             (ArtIdChoice::Structural,
-             prog_pt!(f),
+             prog_pt!(stringify!($f)),
              Rc::new(Box::new(
                  |st, args, _|{
                      let ($( $lab ),*, _) = args ;
@@ -110,7 +110,7 @@ macro_rules! memo {
     ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
         let t = ($st).thunk
             (ArtIdChoice::Nominal($nm),
-             prog_pt!(f),
+             prog_pt!(stringify!($f)),
              Rc::new(Box::new(
                  |st, args, _|{
                      let ($( $lab ),*) = args ;
@@ -125,7 +125,7 @@ macro_rules! memo {
     ( $st:expr , $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
         let t = ($st).thunk
             (ArtIdChoice::Nominal($nm),
-             prog_pt!(f),
+             prog_pt!(stringify!($f)),
              Rc::new(Box::new(
                  |st, args, _|{
                      let ($( $lab ),*) = args ;
@@ -140,7 +140,7 @@ macro_rules! memo {
     ( $st:expr , $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
         let t = ($st).thunk
             (ArtIdChoice::Structural,
-             prog_pt!(f),
+             prog_pt!(stringify!($f)),
              Rc::new(Box::new(
                  |st, args, _|{
                      let ($( $lab ),*) = args ;
@@ -155,7 +155,7 @@ macro_rules! memo {
     ( $st:expr , $f:path , $( $lab:ident : $arg:expr ),* ) => {{
         let t = ($st).thunk
             (ArtIdChoice::Structural,
-             prog_pt!(f),
+             prog_pt!(stringify!($f)),
              Rc::new(Box::new(
                  |st, args, _|{
                      let ($( $lab ),*, _) = args ;
@@ -170,7 +170,7 @@ macro_rules! memo {
     ( $st:expr , $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
         let t = ($st).thunk
             (ArtIdChoice::Nominal($nm),
-             prog_pt!(f),
+             prog_pt!(stringify!($f)),
              Rc::new(Box::new(
                  |st, args1, args2|{
                      let ($( $lab1 ),*, _) = args1 ;
@@ -214,5 +214,5 @@ macro_rules! memo {
 //                 let ($( $arg ),*) = args ;
 //                 f( st, $( $arg ),* )
 //             })) ;
-//         ($st).thunk (ArtId::Eager, prog_pt!(f), fval, $( $arg ),* )
+//         ($st).thunk (ArtId::Eager, prog_pt!($f), fval, $( $arg ),* )
 //     }}

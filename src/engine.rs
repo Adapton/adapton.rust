@@ -636,6 +636,7 @@ impl Adapton for Engine {
             ArtIdChoice::Nominal(nm) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Nominal(nm)));
+                println!("{:?} ;; {:?} ;; {:?}", &loc, &prog_pt, &arg);
                 let producer : App<Arg,Spurious,Res> =
                     App{prog_pt:prog_pt,
                         fn_box:fn_box,
