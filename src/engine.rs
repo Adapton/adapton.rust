@@ -644,31 +644,34 @@ impl Adapton for Engine {
                         spurious:spurious.clone(),
                     }
                 ;
-                let do_dirty : bool = {
-                    let nd = lookup_abs(self, &loc) ;
-                    let res_nd: &mut Node<Res> = unsafe { transmute::<_,_>( nd ) };
-                    let comp_nd: &mut CompNode<Res> = match *res_nd {
-                        Node::Pure(_)=> unreachable!(),
-                        Node::Mut(_) => panic!("TODO-Sometime"),
-                        Node::Comp(ref mut comp) => comp
-                    } ;
-                    let equal_producers : bool = comp_nd.producer.eq( &producer ) ;
-                    if equal_producers { // => safe cast to Box<Consumer<Arg>>
-                        let consumer:&mut Box<Consumer<Arg>> =
-                            unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
-                        ;
-                        if consumer.get_arg() == arg {
-                            // Same argument; Nothing else to do:
-                            false // do_dirty=false.
-                        }
+                let do_dirty : bool = { match self.table.get_mut( &loc ) {
+                    None => false,
+                    Some(node) => {
+                        let nd = node.be_node() ;
+                        let res_nd: &mut Node<Res> = unsafe { transmute::<_,_>( nd ) };
+                        let comp_nd: &mut CompNode<Res> = match *res_nd {
+                            Node::Pure(_)=> unreachable!(),
+                            Node::Mut(_) => panic!("TODO-Sometime"),
+                            Node::Comp(ref mut comp) => comp
+                        } ;
+                        let equal_producers : bool = comp_nd.producer.eq( &producer ) ;
+                        if equal_producers { // => safe cast to Box<Consumer<Arg>>
+                            let consumer:&mut Box<Consumer<Arg>> =
+                                unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
+                            ;
+                            if consumer.get_arg() == arg {
+                                // Same argument; Nothing else to do:
+                                false // do_dirty=false.
+                            }
+                            else {
+                                consumer.consume(arg.clone());
+                                true // do_dirty=true.
+                            }}
                         else {
-                            consumer.consume(arg.clone());
-                            true // do_dirty=true.
-                        }}
-                    else {
-                        panic!("TODO-Sometime: producers not equal!")
+                            panic!("TODO-Sometime: producers not equal!")
+                        }
                     }
-                } ;
+                } } ;
                 if do_dirty {
                     dirty_alloc(self, &loc)
                 } ;
