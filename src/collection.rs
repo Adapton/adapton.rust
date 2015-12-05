@@ -82,9 +82,11 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
 {
     type ListEdit = ListZipper<A,X,List<A,X>> ;
     fn run (st:&mut A, edits:Vec<BasicEditCmd<X,ListEditDir>>, view:ListReduce) -> Vec<A::Trace> {
+        println!("run");
         let v : Vec<A::Trace> = Vec::new();
         let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
         for edit in edits.into_iter() {
+            println!("edit: {:?}", edit);
             let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z);
             let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), ListEditDir::Left);
             eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view);
@@ -104,13 +106,8 @@ fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:BasicEditCmd<X,E::Dir
 
 fn eval_reduce<A:Adapton,X:Zero+Hash+Eq+PartialOrd+Debug+Clone,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) {
     match *red {
-        ListReduce::Max => {
-            let x = tree_reduce_monoid::<A,X,T,_>
-                (st, tree, X::zero(),
-                 &|st,x,y| if x > y {x} else {y}) ;
-            ()
-        },
-        ListReduce::Min => panic!(""),
+        ListReduce::Max => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x > y {x} else {y}) ; println!("{:?}", x); () },
+        ListReduce::Min => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x < y {x} else {y}) ; () },
         ListReduce::Median => panic!(""),
         ListReduce::DemandAll(ListTransf::Sort) => panic!(""),
         ListReduce::DemandAll(ListTransf::Reverse) => panic!(""),
@@ -452,6 +449,7 @@ pub trait TreeT<A:Adapton,Leaf> {
         ,      BinC:Fn(&mut A, Self::Lev,     Res, Res ) -> Res
         ,     NameC:Fn(&mut A, A::Name, Self::Lev, Res, Res ) -> Res
     {
+        println!(" * ");
         Self::elim
             (st, tree,
              |st| nil(st),

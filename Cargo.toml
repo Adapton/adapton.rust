@@ -10,7 +10,7 @@ description = "Library for Incremental Computation (implicit dependency graphs &
 # These URLs point to more information about the repository
 documentation = "https://github.com/plum-umd/adapton.rust/"
 homepage = "http://adapton.org"
-repository = "https://github.com/plum-umd/adapton.rust/"
+repository = "https://github.com/cuplv/adapton.rust/"
 
 # This points to a file in the repository (relative to this Cargo.toml). The
 # contents of this file are stored and indexed in the registry.

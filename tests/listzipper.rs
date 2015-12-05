@@ -5,7 +5,6 @@ extern crate test;
 
 //use adapton::adapton_syntax::* ;
 use adapton::adapton_sigs::* ;
-//use adapton::adapton_state::* ;
 use adapton::naive::* ;
 use adapton::collection::* ;
     
@@ -70,3 +69,4 @@ pub fn zipper_test () {
     List<AdaptonFromScratch,u64>,
     Tree<AdaptonFromScratch,u64,u32> > (&mut st, nil1);
 }
+
