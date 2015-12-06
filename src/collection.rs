@@ -539,9 +539,9 @@ pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm>,BinOp
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
     T::fold_up(st, tree,
-               &|_|        zero.clone(),
-               &|_,leaf|   leaf,
-               &|st,_,l,r| binop(st,l,r),
+                        &|_| zero.clone(),
+                   &|_,leaf| leaf,
+                 &|st,_,l,r| binop(st,l,r),
                &|st,_,_,l,r| binop(st,l,r),
                )
 }
@@ -572,10 +572,10 @@ pub fn tree_filter<A:Adapton,X:Hash+Clone,T:TreeT<A,X>,F>
     where F:Fn(&mut A, &X) -> bool
 {
     T::fold_up(st, tree,
-               &|st|       T::nil(st),
-               &|st,x|     { let fx = f(st,&x);
-                             if fx { T::leaf(st, x) }
-                             else  { T::nil(st) } },
+               &|st| T::nil(st),
+               &|st,x| { let fx = f(st,&x);
+                         if fx { T::leaf(st, x) }
+                         else  { T::nil(st) } },
                &|st,lev,l,r| T::bin(st, lev, l, r),
                &|st,n,lev,l,r| T::name(st, n, lev, l, r)
                )
@@ -587,7 +587,7 @@ pub fn list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X>>
     let nil = L::nil(st);
     T::fold_rl(st, tree, nil,
                &|st,x,xs| L::cons(st,x,xs),
-               &|_,_,xs|  xs,
+               &|_,_,xs| xs,
                &|st,n,_,xs| L::name(st,n,xs)
                )
 }
