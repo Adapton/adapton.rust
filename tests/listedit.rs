@@ -7,14 +7,15 @@
 extern crate adapton ;
 extern crate test;
 
+
 use adapton::adapton_sigs::* ;
 use adapton::collection::* ;
-//use adapton::engine::* ;
-use adapton::naive::* ;
+use adapton::engine::* ;
+//use adapton::naive::* ;
 
 #[test]
 pub fn engine () {
-    let mut st = AdaptonFromScratch::new();
+    let mut st = Engine::new();
     let edits : Vec<CursorEdit<u32,_>> =
         vec![CursorEdit::Insert(Dir2::Left, 0),
              CursorEdit::Insert(Dir2::Left, 1),
@@ -67,6 +68,6 @@ pub fn engine () {
              CursorEdit::Insert(Dir2::Left, 15), CursorEdit::Goto(Dir2::Left),
              CursorEdit::Remove(Dir2::Right)
              ];
-    let trace = Experiment::run(&mut st, edits, ListReduce::Max);
+    let cnts = Experiment::run(&mut st, edits, ListReduce::Max);
     ()
 }

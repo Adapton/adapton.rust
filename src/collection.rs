@@ -88,6 +88,7 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
         let mut loop_cnt = 0 as usize;
         for edit in edits.into_iter() {
             println!("\n----------------------- Loop head; count={}", loop_cnt);
+            println!("z: {:?}", z);
             println!("edit: {:?}", edit);
             let (_, cnt) = st.cnt(|st|{
                 let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);

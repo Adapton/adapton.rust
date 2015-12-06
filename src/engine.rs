@@ -15,18 +15,24 @@ use adapton_sigs::*;
 const engineMsg : &'static str = "adapton::engine:";
 
 // Names provide a symbolic way to identify nodes.
-#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+#[derive(Hash,PartialEq,Eq,Clone)]
 pub struct Name {
     hash : u64, // hash of symbol
-    symbol : Rc<Symbol>,
+    symbol : Rc<NameSym>,
+}
+impl Debug for Name {
+    fn fmt(&self, f:&mut Formatter) -> Result { self.symbol.fmt(f) }
 }
 
 // Each location identifies a node in the DCG.
-#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+#[derive(Hash,PartialEq,Eq,Clone)]
 pub struct Loc {
     hash : u64, // hash of (path,id)
     path : Rc<Path>,
     id   : Rc<ArtId<Name>>,
+}
+impl Debug for Loc {
+    fn fmt(&self, f:&mut Formatter) -> Result { self.id.fmt(f) }
 }
 
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
@@ -48,18 +54,19 @@ impl Eq    for     Engine { }
 impl PartialEq for Engine { fn eq(&self, _other:&Self) -> bool { unimplemented!() } }
 impl Clone for     Engine { fn clone(&self) -> Self { unimplemented!() } }
 
-// Symbols: For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
+// NameSyms: For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
 // http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf
 //
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
-enum Symbol {
+enum NameSym {
     Root, // Root identifies the outside environment of Rust code.
+    String(String), // Strings encode globally-unique symbols.
+    Usize(usize),   // USizes encode globally-unique symbols.
+    Pair(Rc<NameSym>,Rc<NameSym>), // A pair of unique symbols, interpeted as a symbol, is unique
+    ForkL(Rc<NameSym>), // Left projection of a unique symbol is unique
+    ForkR(Rc<NameSym>), // Right projection of a unique symbol is unique
+    //Rc(Rc<NameSym>),
     //Nil,  // Nil for non-symbolic, hash-based names.
-    String(String), Usize(usize),   // Strings and USizes are unique symbols.
-    Pair(Rc<Symbol>,Rc<Symbol>),
-    ForkL(Rc<Symbol>),
-    ForkR(Rc<Symbol>),
-    //Rc(Rc<Symbol>),
 }
 
 // Paths are built implicitly via the Adapton::ns command.
@@ -462,7 +469,7 @@ impl Adapton for Engine {
 
     fn new () -> Engine {
         let path   = Rc::new(Path::Empty);
-        let symbol = Rc::new(Symbol::Root);
+        let symbol = Rc::new(NameSym::Root);
         let hash   = my_hash(&symbol);
         let name   = Name{symbol:symbol,hash:hash};
         let id     = Rc::new(ArtId::Nominal(name));
@@ -479,19 +486,19 @@ impl Adapton for Engine {
 
     fn name_of_string (self:&mut Engine, sym:String) -> Name {
         let h = my_hash(&sym);
-        let s = Symbol::String(sym) ;
+        let s = NameSym::String(sym) ;
         Name{ hash:h, symbol:Rc::new(s) }
     }
 
     fn name_of_usize (self:&mut Engine, sym:usize) -> Name {
         let h = my_hash(&sym) ;
-        let s = Symbol::Usize(sym) ;
+        let s = NameSym::Usize(sym) ;
         Name{ hash:h, symbol:Rc::new(s) }
     }
 
     fn name_pair (self: &mut Engine, fst: Name, snd: Name) -> Name {
         let h = my_hash( &(fst.hash,snd.hash) ) ;
-        let p = Symbol::Pair(fst.symbol, snd.symbol) ;
+        let p = NameSym::Pair(fst.symbol, snd.symbol) ;
         Name{ hash:h, symbol:Rc::new(p) }
     }
 
@@ -499,9 +506,9 @@ impl Adapton for Engine {
         let h1 = my_hash( &(&nm, 11111111) ) ; // TODO-Later: make this hashing better.
         let h2 = my_hash( &(&nm, 22222222) ) ;
         ( Name{ hash:h1,
-                symbol:Rc::new(Symbol::ForkL(nm.symbol.clone())) } ,
+                symbol:Rc::new(NameSym::ForkL(nm.symbol.clone())) } ,
           Name{ hash:h2,
-                symbol:Rc::new(Symbol::ForkR(nm.symbol)) } )
+                symbol:Rc::new(NameSym::ForkR(nm.symbol)) } )
     }
 
     fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
