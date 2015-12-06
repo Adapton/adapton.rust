@@ -9,11 +9,12 @@ extern crate test;
 
 use adapton::adapton_sigs::* ;
 use adapton::collection::* ;
-use adapton::engine::* ;
+//use adapton::engine::* ;
+use adapton::naive::* ;
 
 #[test]
 pub fn engine () {
-    let mut st = Engine::new();
+    let mut st = AdaptonFromScratch::new();
     let edits : Vec<CursorEdit<u32,_>> =
         vec![CursorEdit::Insert(Dir2::Left, 0),
              CursorEdit::Insert(Dir2::Left, 1),

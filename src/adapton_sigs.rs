@@ -3,6 +3,8 @@ use std::hash::{Hash,Hasher};
 use std::rc::Rc;
 use std::marker::PhantomData;
 use macros::{ProgPt};
+use std::ops::Sub;
+use std::num::Zero;
 
 // The `Adapton` trait provides a language of
 // dependence-graph-building operations based on the core calculus
@@ -33,9 +35,8 @@ use macros::{ProgPt};
 
 pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     // TODO-later: Report ICE: If I replace the trait combinations below with `AdaptonData`:
-    type Name  : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
-    type Loc   : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
-    type Trace : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
+    type Name : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
+    type Loc  : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
         
     fn new () -> Self ;
 
@@ -49,6 +50,9 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     fn ns<T,F> (self: &mut Self, Self::Name, body:F) -> T
         where F:FnOnce(&mut Self) -> T ;
 
+    fn cnt<Res,F> (self: &mut Self, body:F) -> (Res, Cnt)
+        where F:FnOnce(&mut Self) -> Res ;
+    
     /// Creates immutable, eager articulation.
     fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> Art<T,Self::Loc> ;
 
@@ -129,4 +133,37 @@ pub enum ArtIdChoice<Name> {
     Eager,         // Eagerly produce an Art::Rc, no additional indirection is needed/used.
     Structural,    // Identifies an Art::Loc based on hashing content (prog_pt and arg).
     Nominal(Name), // Identifies an Art::Loc based on a programmer-chosen name.
+}
+
+#[derive(Debug,Hash,PartialEq,Eq,Clone)]
+pub struct Cnt {
+    pub dirty : usize,
+    pub eval  : usize,
+    pub change_prop : usize,
+}
+
+// pub trait Sub<RHS = Self> {
+//     type Output;
+//     fn sub(self, rhs: RHS) -> Self::Output;
+// }
+
+impl Sub for Cnt {
+    type Output=Cnt;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Cnt {
+            dirty : self.dirty - rhs.dirty,
+            eval  : self.eval - rhs.eval,
+            change_prop : self.change_prop - rhs.change_prop,
+        }
+    }
+}
+
+impl Zero for Cnt {
+    fn zero() -> Self {
+        Cnt {
+            dirty : 0 as usize,
+            change_prop : 0 as usize,
+            eval : 0 as usize,
+        }
+    }
 }

@@ -7,9 +7,12 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::fmt::{Formatter,Result};
 use std::hash::{Hash,Hasher};
+use std::num::Zero;
 
 use macros::*;
 use adapton_sigs::*;
+
+const engineMsg : &'static str = "adapton::engine:";
 
 // Names provide a symbolic way to identify nodes.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
@@ -35,7 +38,8 @@ enum ArtId<Name> {
 #[derive(Debug)]
 pub struct Engine {
     table : HashMap<Rc<Loc>, Box<GraphNode>>,
-    stack : Vec<Frame>
+    stack : Vec<Frame>,
+    cnt  : Cnt,
 }
 
 impl Hash  for     Engine { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
@@ -205,6 +209,7 @@ impl<Arg:'static+PartialEq+Eq+Clone,Spurious:'static+Clone,Res:'static> Producer
 {
     fn produce(self:&Self, st:&mut Engine) -> Res {
         let f = self.fn_box.clone() ;
+        st.cnt.eval += 1 ;
         f (st,self.arg.clone(),self.spurious.clone())
     }
     fn copy(self:&Self) -> Box<Producer<Res>> {
@@ -373,6 +378,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
             node.succs().clone()
         } ;
         for succ in succs.iter() {
+            st.cnt.change_prop += 1 ;
             if succ.dirty {
                 let dep = & succ.dep ;
                 let res = dep.change_prop(st, &succ.loc) ;
@@ -418,6 +424,7 @@ fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc
 fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
     let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs().clone() ;
     for pred_loc in pred_locs {
+        st.cnt.dirty += 1 ;
         let stop : bool = {
             // The stop bit communicates information from st for use below.
             let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
@@ -435,6 +442,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
     dirty_pred_observers(st, loc);
     let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc().clone() ;
     for pred_loc in pred_locs {
+        st.cnt.dirty += 1 ;
         let stop : bool = {
             // The stop bit communicates information from st for use below.
             let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
@@ -451,7 +459,6 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
 impl Adapton for Engine {
     type Name = Name;
     type Loc  = Loc;
-    type Trace = Loc;
 
     fn new () -> Engine {
         let path   = Rc::new(Path::Empty);
@@ -466,6 +473,7 @@ impl Adapton for Engine {
         Engine {
             table : HashMap::new (),
             stack : stack,
+            cnt : Cnt::zero (),
         }
     }
 
@@ -503,6 +511,15 @@ impl Adapton for Engine {
         let path_body = replace(&mut self.stack[0].path, path_pre) ;
         drop(path_body);
         x
+    }
+
+    fn cnt<Res,F> (self: &mut Self, body:F) -> (Res,Cnt)
+        where F:FnOnce(&mut Self) -> Res
+    {
+        let c = self.cnt.clone() ;
+        let x = body(self) ;
+        let d = self.cnt.clone() - c ;
+        (x, d)
     }
 
     fn put<T:Eq> (self:&mut Engine, x:T) -> Art<T,Self::Loc> { Art::Rc(Rc::new(x)) }
@@ -590,10 +607,17 @@ impl Adapton for Engine {
             ArtIdChoice::Eager => {
                 Art::Rc(Rc::new(fn_box(self,arg,spurious)))
             },
-            ArtIdChoice::Structural => {
+            
+            ArtIdChoice::Structural | ArtIdChoice::Nominal(_) => {
                 let hash = my_hash (&(&prog_pt, &arg)) ;
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Structural(hash)));
+                if false {
+                    println!("{} {:?}\n{} ;; {:?}\n{} ;; {:?}",
+                             engineMsg, &loc,
+                             engineMsg, &prog_pt,
+                             engineMsg, &arg);
+                } ;
                 {   // If the node exists, return early.
                     let node = self.table.get_mut(&loc);
                     match node { None    => { },
@@ -633,74 +657,77 @@ impl Adapton for Engine {
                 Art::Loc(loc)
             },
             
-            ArtIdChoice::Nominal(nm) => {
-                let loc = loc_of_id(self.stack[0].path.clone(),
-                                    Rc::new(ArtId::Nominal(nm)));
-                println!("{:?} ;; {:?} ;; {:?}", &loc, &prog_pt, &arg);
-                let producer : App<Arg,Spurious,Res> =
-                    App{prog_pt:prog_pt,
-                        fn_box:fn_box,
-                        arg:arg.clone(),
-                        spurious:spurious.clone(),
-                    }
-                ;
-                let do_dirty : bool = { match self.table.get_mut( &loc ) {
-                    None => false,
-                    Some(node) => {
-                        let nd = node.be_node() ;
-                        let res_nd: &mut Node<Res> = unsafe { transmute::<_,_>( nd ) };
-                        let comp_nd: &mut CompNode<Res> = match *res_nd {
-                            Node::Pure(_)=> unreachable!(),
-                            Node::Mut(_) => panic!("TODO-Sometime"),
-                            Node::Comp(ref mut comp) => comp
-                        } ;
-                        let equal_producers : bool = comp_nd.producer.eq( &producer ) ;
-                        if equal_producers { // => safe cast to Box<Consumer<Arg>>
-                            let consumer:&mut Box<Consumer<Arg>> =
-                                unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
-                            ;
-                            if consumer.get_arg() == arg {
-                                // Same argument; Nothing else to do:
-                                false // do_dirty=false.
-                            }
-                            else {
-                                consumer.consume(arg.clone());
-                                true // do_dirty=true.
-                            }}
-                        else {
-                            panic!("TODO-Sometime: producers not equal!")
-                        }
-                    }
-                } } ;
-                if do_dirty {
-                    dirty_alloc(self, &loc)
-                } ;
-                let creators = {
-                    if self.stack.is_empty() { Vec::new() }
-                    else
-                    {
-                        let pred = self.stack[0].loc.clone();
-                        let succ =
-                            Succ{loc:loc.clone(),
-                                 dep:Rc::new(Box::new(AllocDependency{val:arg})),
-                                 effect:Effect::Allocate,
-                                 dirty:false};
-                        self.stack[0].succs.push(succ);
-                        let mut v = Vec::new();
-                        v.push(pred);
-                        v
-                    }};
-                let node : CompNode<Res> = CompNode{
-                    preds_alloc:creators,
-                    preds_obs:Vec::new(),
-                    succs:Vec::new(),
-                    producer:Box::new(producer),
-                    res:None,
-                } ;
-                self.table.insert(loc.clone(),
-                                  Box::new(Node::Comp(node)));
-                Art::Loc(loc)
-            }
+            // ArtIdChoice::Nominal(nm) => {
+            //     let loc = loc_of_id(self.stack[0].path.clone(),
+            //                         Rc::new(ArtId::Nominal(nm)));
+            //     println!("{} {:?}\n{} ;; {:?}\n{} ;; {:?}",
+            //              engineMsg, &loc,
+            //              engineMsg, &prog_pt,
+            //              engineMsg, &arg);
+            //     let producer : App<Arg,Spurious,Res> =
+            //         App{prog_pt:prog_pt,
+            //             fn_box:fn_box,
+            //             arg:arg.clone(),
+            //             spurious:spurious.clone(),
+            //         }
+            //     ;
+            //     let do_dirty : bool = { match self.table.get_mut( &loc ) {
+            //         None => false,
+            //         Some(node) => {
+            //             let nd = node.be_node() ;
+            //             let res_nd: &mut Node<Res> = unsafe { transmute::<_,_>( nd ) };
+            //             let comp_nd: &mut CompNode<Res> = match *res_nd {
+            //                 Node::Pure(_)=> unreachable!(),
+            //                 Node::Mut(_) => panic!("TODO-Sometime"),
+            //                 Node::Comp(ref mut comp) => comp
+            //             } ;
+            //             let equal_producers : bool = comp_nd.producer.eq( &producer ) ;
+            //             if equal_producers { // => safe cast to Box<Consumer<Arg>>
+            //                 let consumer:&mut Box<Consumer<Arg>> =
+            //                     unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
+            //                 ;
+            //                 if consumer.get_arg() == arg {
+            //                     // Same argument; Nothing else to do:
+            //                     false // do_dirty=false.
+            //                 }
+            //                 else {
+            //                     consumer.consume(arg.clone());
+            //                     true // do_dirty=true.
+            //                 }}
+            //             else {
+            //                 panic!("TODO-Sometime: producers not equal!")
+            //             }
+            //         }
+            //     } } ;
+            //     if do_dirty {
+            //         dirty_alloc(self, &loc)
+            //     } ;
+            //     let creators = {
+            //         if self.stack.is_empty() { Vec::new() }
+            //         else
+            //         {
+            //             let pred = self.stack[0].loc.clone();
+            //             let succ =
+            //                 Succ{loc:loc.clone(),
+            //                      dep:Rc::new(Box::new(AllocDependency{val:arg})),
+            //                      effect:Effect::Allocate,
+            //                      dirty:false};
+            //             self.stack[0].succs.push(succ);
+            //             let mut v = Vec::new();
+            //             v.push(pred);
+            //             v
+            //         }};
+            //     let node : CompNode<Res> = CompNode{
+            //         preds_alloc:creators,
+            //         preds_obs:Vec::new(),
+            //         succs:Vec::new(),
+            //         producer:Box::new(producer),
+            //         res:None,
+            //     } ;
+            //     self.table.insert(loc.clone(),
+            //                       Box::new(Node::Comp(node)));
+            //     Art::Loc(loc)
+            // }
         }
     }
 

@@ -73,7 +73,7 @@ impl<X:Arbitrary+Sized+Rand,Dir:Arbitrary+Sized+Rand>
 
 pub trait ExperimentT<A:Adapton,X> {
     type ListEdit : ListEdit<A,X> ;
-    fn run (&mut A, Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<A::Trace> ;
+    fn run (&mut A, Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<Cnt> ;
 }
 
 pub struct Experiment ;
@@ -81,18 +81,23 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
     for Experiment
 {
     type ListEdit = ListZipper<A,X,List<A,X>> ;
-    fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<A::Trace> {
+    fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<Cnt> {
         println!("run");
-        let v : Vec<A::Trace> = Vec::new();
+        let v : Vec<Cnt> = Vec::new();
         let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
-        let mut cnt = 0 as usize;
+        let mut loop_cnt = 0 as usize;
         for edit in edits.into_iter() {
+            println!("\n----------------------- Loop head; count={}", loop_cnt);
             println!("edit: {:?}", edit);
-            let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z, cnt);
-            let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
-            eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view);
-            z = z_next;
-            cnt = cnt + 1;
+            let (_, cnt) = st.cnt(|st|{
+                let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
+                let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
+                let nm = st.name_of_string("eval_reduce".to_string());
+                st.ns(nm, |st|eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view) );
+                z = z_next;
+                loop_cnt = loop_cnt + 1;
+            }) ;
+            println!("cnt: {:?}", cnt);
         } v
     }
 }

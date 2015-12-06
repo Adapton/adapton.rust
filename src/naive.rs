@@ -6,6 +6,7 @@ use std::hash::{Hash,Hasher};
 use std::fmt::{Formatter,Result};
 use std::mem::transmute;
 use std::marker::PhantomData;
+use std::num::Zero;
 
 pub type Loc = usize;
 
@@ -16,7 +17,8 @@ trait Void : Debug { }
 
 pub struct AdaptonFromScratch {
     /// need a store; the Adapton trait provides a store semantics (viz., see `set` and `force`).
-    store : Vec<Box<Void>>
+    store : Vec<Box<Void>>,
+    cnt : Cnt,
 }
 
 impl Hash  for     AdaptonFromScratch { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
@@ -28,11 +30,11 @@ impl Clone for     AdaptonFromScratch { fn clone(&self) -> Self { unimplemented!
 impl Adapton for AdaptonFromScratch {
     type Name = Name;
     type Loc  = Loc;
-    type Trace = Loc;
 
     fn new () -> AdaptonFromScratch {
         AdaptonFromScratch {
-            store : Vec::new (),
+            store : Vec::new(),
+            cnt : Cnt::zero(),
         }
     }
 
@@ -41,6 +43,12 @@ impl Adapton for AdaptonFromScratch {
     fn name_pair (self: &mut AdaptonFromScratch, _fst:Name, _snd:Name) -> Name { Name }
     fn name_fork (self:&mut AdaptonFromScratch, _nm:Name) -> (Name, Name) { (Name,Name) }
     fn ns<T,F> (self: &mut AdaptonFromScratch, _nm:Name, body:F) -> T where F:FnOnce(&mut AdaptonFromScratch) -> T { body(self) }
+    fn cnt<Res,F> (self: &mut AdaptonFromScratch, body:F) -> (Res,Cnt) where F:FnOnce(&mut AdaptonFromScratch) -> Res {
+        let c = self.cnt.clone();
+        let x = body(self);
+        let d = self.cnt.clone() - c;
+        (x,d)
+    }
     fn put<T:Eq> (self:&mut AdaptonFromScratch, x:T) -> Art<T,Loc> { Art::Rc(Rc::new(x)) }
 
     fn cell<T:Eq+Debug+Clone
@@ -161,6 +169,7 @@ impl<Arg:'static+PartialEq+Eq+Clone,Spurious:'static+Clone,Res:'static>
 {
     fn produce(self:&Self, st:&mut AdaptonFromScratch) -> Res {
         let f = self.fn_box.clone() ;
+        st.cnt.eval += 1;
         f (st,self.arg.clone(),self.spurious.clone())
     }
     fn copy(self:&Self) -> Box<Producer<Res>> {
