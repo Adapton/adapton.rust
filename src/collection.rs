@@ -83,7 +83,7 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
     type ListEdit = ListZipper<A,X,List<A,X>> ;
     fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<Cnt> {
         println!("run");
-        let v : Vec<Cnt> = Vec::new();
+        let mut cnts : Vec<Cnt> = Vec::new();
         let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
         let mut loop_cnt = 0 as usize;
         for edit in edits.into_iter() {
@@ -98,7 +98,8 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
                 loop_cnt = loop_cnt + 1;
             }) ;
             println!("cnt: {:?}", cnt);
-        } v
+            cnts.push(cnt);
+        } cnts
     }
 }
 
@@ -107,7 +108,9 @@ fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>,
         CursorEdit::Insert(dir,x)  => { let n = A::name_of_usize(st, id) ;
                                         let z = E::ins_name(st, z, dir.clone(), n) ;
                                         E::insert(st, z, dir, x) },
-        CursorEdit::Remove(dir)    => { let (z, _)    = E::remove (st, z, dir)    ; z },
+        CursorEdit::Remove(dir)    => { let (z, _) = E::remove (st, z, dir.clone()) ;
+                                        let (z, _) = E::rem_name(st, z, dir) ;
+                                        z },
         CursorEdit::Goto(dir)      => { let (z, _)    = E::goto   (st, z, dir)    ; z },
         CursorEdit::Replace(dir,x) => { let (z, _, _) = E::replace(st, z, dir, x) ; z },
     }
