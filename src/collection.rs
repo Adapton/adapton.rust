@@ -123,8 +123,8 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
 fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>, z:E::State, id:usize) -> E::State {
     match edit {
         CursorEdit::Insert(dir,x) => {
-            let n = A::name_of_usize(st, id) ;
             let z = E::clr_names(st, z, dir.clone()) ;
+            let n = A::name_of_usize(st, id) ;
             let z = E::ins_name(st, z, dir.clone(), n) ;
             let z = E::insert(st, z, dir, x) ;
             z },
