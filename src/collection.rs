@@ -76,6 +76,17 @@ pub trait ExperimentT<A:Adapton,X> {
     fn run (&mut A, Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<Cnt> ;
 }
 
+fn has_consecutive_names<A:Adapton,X,L:ListT<A,X>> (st:&mut A, list:L::List) -> bool {
+    L::elim(st, list,
+            |st| false,
+            |st,x,xs| has_consecutive_names::<A,X,L> (st, xs),
+            |st,n,xs|
+            L::elim(st, xs,
+                    |st| false,
+                    |st,y,ys| has_consecutive_names::<A,X,L> (st, ys),
+                    |st,m,ys| true))
+}
+
 pub struct Experiment ;
 impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
     for Experiment
@@ -88,17 +99,22 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
         let mut loop_cnt = 0 as usize;
         for edit in edits.into_iter() {
             println!("\n----------------------- Loop head; count={}", loop_cnt);
-            println!("z: {:?}", z);
-            println!("edit: {:?}", edit);
+            println!("zipper: {:?}", z);
+            let consecutive_left  = has_consecutive_names::<A,X,List<A,X>>(st, z.left.clone());
+            let consecutive_right = has_consecutive_names::<A,X,List<A,X>>(st, z.right.clone());
+            println!("zipper names: consecutive left: {}, consecutive right: {}",
+                     consecutive_left, consecutive_right);
+            println!("edit:   {:?}", edit);
             let (_, cnt) = st.cnt(|st|{
                 let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
                 let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
+                println!("tree:   {:?}", tree);
                 let nm = st.name_of_string("eval_reduce".to_string());
                 st.ns(nm, |st|eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view) );
                 z = z_next;
                 loop_cnt = loop_cnt + 1;
             }) ;
-            println!("cnt: {:?}", cnt);
+            println!("cnt:    {:?}", cnt);
             cnts.push(cnt);
         } cnts
     }
@@ -106,14 +122,22 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
 
 fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>, z:E::State, id:usize) -> E::State {
     match edit {
-        CursorEdit::Insert(dir,x)  => { let n = A::name_of_usize(st, id) ;
-                                        let z = E::ins_name(st, z, dir.clone(), n) ;
-                                        E::insert(st, z, dir, x) },
-        CursorEdit::Remove(dir)    => { let (z, _) = E::remove (st, z, dir.clone()) ;
-                                        let (z, _) = E::rem_name(st, z, dir) ;
-                                        z },
-        CursorEdit::Goto(dir)      => { let (z, _)    = E::goto   (st, z, dir)    ; z },
-        CursorEdit::Replace(dir,x) => { let (z, _, _) = E::replace(st, z, dir, x) ; z },
+        CursorEdit::Insert(dir,x) => {
+            let n = A::name_of_usize(st, id) ;
+            let z = E::clr_names(st, z, dir.clone()) ;
+            let z = E::ins_name(st, z, dir.clone(), n) ;
+            let z = E::insert(st, z, dir, x) ;
+            z },
+        CursorEdit::Remove(dir) => {
+            let (z, _) = E::remove (st, z, dir.clone()) ;
+            let (z, _) = E::rem_name(st, z, dir) ;
+            z },
+        CursorEdit::Goto(dir) => {
+            let (z, _) = E::goto (st, z, dir.clone()) ;
+            z },
+        CursorEdit::Replace(dir,x) => {
+            let (z, _, _) = E::replace(st, z, dir, x) ;
+            z },
     }
 }
 
@@ -144,8 +168,9 @@ pub trait ListEdit<A:Adapton,X> {
     fn observe  (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
 
     // Insert/remove names from the list content:
-    fn ins_name (&mut A, Self::State, Self::Dir, A::Name) -> Self::State;
-    fn rem_name (&mut A, Self::State, Self::Dir) -> (Self::State, Option<A::Name>);
+    fn ins_name  (&mut A, Self::State, Self::Dir, A::Name) -> Self::State;
+    fn rem_name  (&mut A, Self::State, Self::Dir) -> (Self::State, Option<A::Name>);
+    fn clr_names (&mut A, Self::State, Self::Dir) -> Self::State;
 
     fn get_list<L:ListT<A,X>,T:TreeT<A,X>> (&mut A, Self::State, Self::Dir) -> L::List;
     fn get_tree<T:TreeT<A,X>>              (&mut A, Self::State, Self::Dir) -> T::Tree;
@@ -179,6 +204,27 @@ impl<A:Adapton
     type State=ListZipper<A,X,L>;
     type Dir=Dir2;
     
+    fn clr_names (st:&mut A, zip:Self::State, dir:Self::Dir) -> Self::State {
+        match dir {
+            Dir2::Left => L::elim_move
+                (st, zip.left, zip.right,
+                 |st,right| ListZipper{left:L::nil(st), right:right},
+                 |st,x,left,right| ListZipper{left:L::cons(st,x,left), right:right},
+                 |st,nm,left,right| {
+                     let right = L::name(st,nm,right);
+                     Self::clr_names(st, ListZipper{left:left, right:right}, dir)}
+                 ),
+            Dir2::Right => L::elim_move
+                (st, zip.right, zip.left,
+                 |st,left| ListZipper{right:L::nil(st), left:left},
+                 |st,x,right,left| ListZipper{right:L::cons(st,x,right), left:left},
+                 |st,nm,right,left| {
+                     let left = L::name(st,nm,left);
+                     Self::clr_names(st, ListZipper{left:left, right:right}, dir)}
+                 ),
+        }
+    }
+
     fn ins_name (st:&mut A, zip:Self::State, dir:Self::Dir, x:A::Name) -> Self::State {
         match dir {
             Dir2::Left =>
@@ -243,6 +289,7 @@ impl<A:Adapton
         }
     }
 
+    
     fn goto (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, bool) {
         match dir {
             Dir2::Left => L::elim_move
