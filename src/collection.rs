@@ -168,9 +168,9 @@ pub trait ListEdit<A:Adapton,X> {
     fn observe  (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
 
     // Insert/remove names from the list content:
+    fn clr_names (&mut A, Self::State, Self::Dir) -> Self::State;
     fn ins_name  (&mut A, Self::State, Self::Dir, A::Name) -> Self::State;
     fn rem_name  (&mut A, Self::State, Self::Dir) -> (Self::State, Option<A::Name>);
-    fn clr_names (&mut A, Self::State, Self::Dir) -> Self::State;
 
     fn get_list<L:ListT<A,X>,T:TreeT<A,X>> (&mut A, Self::State, Self::Dir) -> L::List;
     fn get_tree<T:TreeT<A,X>>              (&mut A, Self::State, Self::Dir) -> T::Tree;
