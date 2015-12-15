@@ -143,13 +143,10 @@ impl fmt::Debug for GraphNode {
 #[allow(dead_code)] // Pure case: not introduced currently.
 #[derive(Debug)]
 enum Node<Res> {
-    Foo,
     Comp(CompNode<Res>),
-    Bar,
     Pure(PureNode<Res>),
-    Baz,
     Mut(MutNode<Res>),
-    Boo,
+    Unused,
 }
 
 // PureNode<T> for pure hash-consing of T's.
