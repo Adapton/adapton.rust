@@ -43,9 +43,10 @@ enum ArtId<Name> {
 
 #[derive(Debug)]
 pub struct Engine {
+    root  : Rc<Loc>,
     table : HashMap<Rc<Loc>, Box<GraphNode>>,
     stack : Vec<Frame>,
-    cnt  : Cnt,
+    cnt   : Cnt,
 }
 
 impl Hash  for     Engine { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
@@ -435,17 +436,20 @@ fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc
 fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
     let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs().clone() ;
     for pred_loc in pred_locs {
-        st.cnt.dirty += 1 ;
-        let stop : bool = {
-            // The stop bit communicates information from st for use below.
-            let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
-            if succ.dirty { true } else {
-                replace(&mut succ.dirty, true);
-                false
-            }} ;
-        if !stop {
-            dirty_pred_observers(st,&pred_loc);
-        } else {}
+        if st.root.eq (&pred_loc) { continue } // root location is a special case; skip it.
+        else {
+            st.cnt.dirty += 1 ;
+            let stop : bool = {
+                // The stop bit communicates information from st for use below.
+                let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
+                if succ.dirty { true } else {
+                    replace(&mut succ.dirty, true);
+                    false
+                }} ;
+            if !stop {
+                dirty_pred_observers(st,&pred_loc);
+            } else {}
+        }
     }
 }
 
@@ -453,17 +457,20 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
     dirty_pred_observers(st, loc);
     let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc().clone() ;
     for pred_loc in pred_locs {
-        st.cnt.dirty += 1 ;
-        let stop : bool = {
-            // The stop bit communicates information from st for use below.
-            let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
-            if succ.dirty { true } else {
-                replace(&mut succ.dirty, true);
-                false
-            }} ;
-        if !stop {
-            dirty_pred_observers(st,&pred_loc);
-        } else {}
+        if st.root.eq (&pred_loc) { continue } // root location is a special case; skip it.
+        else {
+            st.cnt.dirty += 1 ;
+            let stop : bool = {
+                // The stop bit communicates information from st for use below.
+                let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
+                if succ.dirty { true } else {
+                    replace(&mut succ.dirty, true);
+                    false
+                }} ;
+            if !stop {
+                dirty_pred_observers(st,&pred_loc);
+            } else {}
+        }
     }
 }
 
@@ -472,19 +479,25 @@ impl Adapton for Engine {
     type Loc  = Loc;
 
     fn new () -> Engine {
-        let path   = Rc::new(Path::Empty);
-        let symbol = Rc::new(NameSym::Root);
-        let hash   = my_hash(&symbol);
-        let name   = Name{symbol:symbol,hash:hash};
-        let id     = Rc::new(ArtId::Nominal(name));
-        let hash   = my_hash(&(&path,&id));
-        let loc    = Rc::new(Loc{path:path.clone(),id:id,hash:hash});
-        let mut stack = Vec::new();
-        stack.push( Frame{loc:loc, path:path, succs:Vec::new()} ) ;
+        let root = {
+            let path   = Rc::new(Path::Empty);
+            let symbol = Rc::new(NameSym::Root);
+            let hash   = my_hash(&symbol);
+            let name   = Name{symbol:symbol,hash:hash};
+            let id     = Rc::new(ArtId::Nominal(name));
+            let hash   = my_hash(&(&path,&id));
+            let loc    = Rc::new(Loc{path:path.clone(),id:id,hash:hash});
+            loc
+        } ;
+        let mut stack = Vec::new() ;
+        stack.push( Frame{loc:root.clone(),
+                          path:root.path.clone(),
+                          succs:Vec::new()} ) ;
         Engine {
+            root  : root,
             table : HashMap::new (),
             stack : stack,
-            cnt : Cnt::zero (),
+            cnt   : Cnt::zero (),
         }
     }
 
