@@ -32,7 +32,7 @@ pub struct Loc {
     id   : Rc<ArtId<Name>>,
 }
 impl Debug for Loc {
-    fn fmt(&self, f:&mut Formatter) -> Result { self.id.fmt(f) }
+    fn fmt(&self, f:&mut Formatter) -> Result { self.path.fmt(f) ; self.id.fmt(f) }
 }
 
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
@@ -143,9 +143,13 @@ impl fmt::Debug for GraphNode {
 #[allow(dead_code)] // Pure case: not introduced currently.
 #[derive(Debug)]
 enum Node<Res> {
-    Pure(PureNode<Res>),
-    Mut(MutNode<Res>),
+    Foo,
     Comp(CompNode<Res>),
+    Bar,
+    Pure(PureNode<Res>),
+    Baz,
+    Mut(MutNode<Res>),
+    Boo,
 }
 
 // PureNode<T> for pure hash-consing of T's.
@@ -179,20 +183,20 @@ struct CompNode<Res> {
     res         : Option<Res>,
 }
 // Produce a value of type Res.
-trait Producer<Res> {
+trait Producer<Res> : Debug {
     fn produce(self:&Self, st:&mut Engine) -> Res;
     fn copy(self:&Self) -> Box<Producer<Res>>;
     fn eq(self:&Self, other:&Producer<Res>) -> bool;
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
 }
 // Consume a value of type Arg.
-trait Consumer<Arg> {
+trait Consumer<Arg> : Debug {
     fn consume(self:&mut Self, Arg);
     fn get_arg(self:&mut Self) -> Arg;
 }
 // struct App is hidden by traits Comp<Res> and CompWithArg<Res>, below.
 #[derive(Clone)]
-struct App<Arg,Spurious,Res> {
+struct App<Arg:Debug,Spurious,Res> {
     prog_pt: ProgPt,
     fn_box:   Rc<Box<Fn(&mut Engine, Arg, Spurious) -> Res>>,
     arg:      Arg,
@@ -201,8 +205,8 @@ struct App<Arg,Spurious,Res> {
 
 // ---------- App implementation of Debug and Hash
 
-impl<Arg,Spurious,Res> Debug for App<Arg,Spurious,Res> {
-    fn fmt(&self, f: &mut Formatter) -> Result { self.prog_pt.fmt(f) }
+impl<Arg:Debug,Spurious,Res> Debug for App<Arg,Spurious,Res> {
+    fn fmt(&self, f: &mut Formatter) -> Result { self.prog_pt.fmt(f) ; self.arg.fmt(f) }
 }
 
 impl<Arg:Hash,Spurious,Res> Hash for App<Arg,Spurious,Res> {
@@ -211,7 +215,7 @@ impl<Arg:Hash,Spurious,Res> Hash for App<Arg,Spurious,Res> {
 
 // ---------- App implementation of Producer and Consumer traits:
 
-impl<Arg:'static+PartialEq+Eq+Clone,Spurious:'static+Clone,Res:'static> Producer<Res>
+impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static> Producer<Res>
     for App<Arg,Spurious,Res>
 {
     fn produce(self:&Self, st:&mut Engine) -> Res {
@@ -241,7 +245,7 @@ impl<Arg:'static+PartialEq+Eq+Clone,Spurious:'static+Clone,Res:'static> Producer
         }
     }
 }
-impl<Arg:Clone+PartialEq+Eq,Spurious,Res> Consumer<Arg> for App<Arg,Spurious,Res> {
+impl<Arg:Clone+PartialEq+Eq+Debug,Spurious,Res> Consumer<Arg> for App<Arg,Spurious,Res> {
     fn consume(self:&mut Self, arg:Arg) { replace(&mut self.arg, arg); }
     fn get_arg(self:&mut Self) -> Arg   { self.arg.clone() }
 }
@@ -269,12 +273,14 @@ impl <Res> GraphNode for Node<Res> {
         match *self { Node::Mut(ref mut nd) => &mut nd.preds_alloc,
                       Node::Comp(ref mut nd) => &mut nd.preds_alloc,
                       Node::Pure(_) => unreachable!(),
+                      _ => unreachable!(),
         }}
                       
     fn preds_obs<'r>(self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> {
         match *self { Node::Mut(ref mut nd) => &mut nd.preds_obs,
                       Node::Comp(ref mut nd) => &mut nd.preds_obs,
                       Node::Pure(_) => unreachable!(),
+                      _ => unreachable!(),
         }}
     fn succs_def<'r>(self:&'r mut Self) -> bool {
         match *self { Node::Comp(_) => true, _ => false
@@ -377,6 +383,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
                     return EngineRes{changed:false},
                 Node::Mut(ref nd) =>
                     return EngineRes{changed:nd.val == self.res},
+                _ => panic!("undefined")
             }
         };
         let succs = {
@@ -615,7 +622,7 @@ impl Adapton for Engine {
                 Art::Rc(Rc::new(fn_box(self,arg,spurious)))
             },
             
-            ArtIdChoice::Structural | ArtIdChoice::Nominal(_) => {
+            ArtIdChoice::Structural => {
                 let hash = my_hash (&(&prog_pt, &arg)) ;
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Structural(hash)));
@@ -664,77 +671,89 @@ impl Adapton for Engine {
                 Art::Loc(loc)
             },
             
-            // ArtIdChoice::Nominal(nm) => {
-            //     let loc = loc_of_id(self.stack[0].path.clone(),
-            //                         Rc::new(ArtId::Nominal(nm)));
-            //     println!("{} {:?}\n{} ;; {:?}\n{} ;; {:?}",
-            //              engineMsg, &loc,
-            //              engineMsg, &prog_pt,
-            //              engineMsg, &arg);
-            //     let producer : App<Arg,Spurious,Res> =
-            //         App{prog_pt:prog_pt,
-            //             fn_box:fn_box,
-            //             arg:arg.clone(),
-            //             spurious:spurious.clone(),
-            //         }
-            //     ;
-            //     let do_dirty : bool = { match self.table.get_mut( &loc ) {
-            //         None => false,
-            //         Some(node) => {
-            //             let nd = node.be_node() ;
-            //             let res_nd: &mut Node<Res> = unsafe { transmute::<_,_>( nd ) };
-            //             let comp_nd: &mut CompNode<Res> = match *res_nd {
-            //                 Node::Pure(_)=> unreachable!(),
-            //                 Node::Mut(_) => panic!("TODO-Sometime"),
-            //                 Node::Comp(ref mut comp) => comp
-            //             } ;
-            //             let equal_producers : bool = comp_nd.producer.eq( &producer ) ;
-            //             if equal_producers { // => safe cast to Box<Consumer<Arg>>
-            //                 let consumer:&mut Box<Consumer<Arg>> =
-            //                     unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
-            //                 ;
-            //                 if consumer.get_arg() == arg {
-            //                     // Same argument; Nothing else to do:
-            //                     false // do_dirty=false.
-            //                 }
-            //                 else {
-            //                     consumer.consume(arg.clone());
-            //                     true // do_dirty=true.
-            //                 }}
-            //             else {
-            //                 panic!("TODO-Sometime: producers not equal!")
-            //             }
-            //         }
-            //     } } ;
-            //     if do_dirty {
-            //         dirty_alloc(self, &loc)
-            //     } ;
-            //     let creators = {
-            //         if self.stack.is_empty() { Vec::new() }
-            //         else
-            //         {
-            //             let pred = self.stack[0].loc.clone();
-            //             let succ =
-            //                 Succ{loc:loc.clone(),
-            //                      dep:Rc::new(Box::new(AllocDependency{val:arg})),
-            //                      effect:Effect::Allocate,
-            //                      dirty:false};
-            //             self.stack[0].succs.push(succ);
-            //             let mut v = Vec::new();
-            //             v.push(pred);
-            //             v
-            //         }};
-            //     let node : CompNode<Res> = CompNode{
-            //         preds_alloc:creators,
-            //         preds_obs:Vec::new(),
-            //         succs:Vec::new(),
-            //         producer:Box::new(producer),
-            //         res:None,
-            //     } ;
-            //     self.table.insert(loc.clone(),
-            //                       Box::new(Node::Comp(node)));
-            //     Art::Loc(loc)
-            // }
+            ArtIdChoice::Nominal(nm) => {
+                let loc = loc_of_id(self.stack[0].path.clone(),
+                                    Rc::new(ArtId::Nominal(nm)));
+                println!("{} {:?}\n{} ;; {:?}\n{} ;; {:?}",
+                         engineMsg, &loc,
+                         engineMsg, &prog_pt,
+                         engineMsg, &arg);
+                let producer : App<Arg,Spurious,Res> =
+                    App{prog_pt:prog_pt,
+                        fn_box:fn_box,
+                        arg:arg.clone(),
+                        spurious:spurious.clone(),
+                    }
+                ;
+                let do_dirty : bool = { match self.table.get_mut( &loc ) {
+                    None => false,
+                    Some(node) => {
+                        let node: &mut Box<GraphNode> = node ;
+                        println!("{} Nominal match: {:?}", engineMsg, node);
+                        let res_nd: &mut Box<Node<Res>> = unsafe { transmute::<_,_>( node ) } ;
+                        println!("{} Nominal match: {:?}", engineMsg, res_nd);
+                        let comp_nd: &mut CompNode<Res> = match ** res_nd {                            
+                            Node::Pure(_)=> unreachable!(),
+                            Node::Mut(_) => panic!("TODO-Sometime"),
+                            Node::Comp(ref mut comp) => comp,
+                            _ => unreachable!(),
+                        } ;
+                        println!("{} Nominal match: {:?}", engineMsg, comp_nd);
+                        println!("{} Nominal match: {:?}", engineMsg, comp_nd.producer);
+                        let equal_producers : bool =
+                            comp_nd.producer.prog_pt().eq( producer.prog_pt() ) ;
+                        println!("{} Nominal match: equal_producers: {:?}", engineMsg, equal_producers);
+                        if equal_producers { // => safe cast to Box<Consumer<Arg>>
+                            // XXX: This cast is causing problems
+                            let app: &mut Box<App<Arg,Spurious,Res>> =
+                                unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
+                            ;
+                            println!("{} Nominal match: app: {:?}", engineMsg, app);
+                            if app.get_arg() == arg {
+                                // Same argument; Nothing else to do:
+                                false // do_dirty=false.
+                            }
+                            else {
+                                app.consume(arg.clone());
+                                true // do_dirty=true.
+                            }}
+                        else {
+                            panic!("TODO-Sometime: producers not equal!")
+                        }
+                    }
+                } } ;
+                if do_dirty {
+                    println!("{} dirty_alloc {:?}.", engineMsg, &loc);
+                    dirty_alloc(self, &loc)
+                } else {
+                    println!("{} No dirtying.", engineMsg)
+                } ;
+                let creators = {
+                    if self.stack.is_empty() { Vec::new() }
+                    else
+                    {
+                        let pred = self.stack[0].loc.clone();
+                        let succ =
+                            Succ{loc:loc.clone(),
+                                 dep:Rc::new(Box::new(AllocDependency{val:arg})),
+                                 effect:Effect::Allocate,
+                                 dirty:false};
+                        self.stack[0].succs.push(succ);
+                        let mut v = Vec::new();
+                        v.push(pred);
+                        v
+                    }};
+                let node : CompNode<Res> = CompNode{
+                    preds_alloc:creators,
+                    preds_obs:Vec::new(),
+                    succs:Vec::new(),
+                    producer:Box::new(producer),
+                    res:None,
+                } ;
+                self.table.insert(loc.clone(),
+                                  Box::new(Node::Comp(node)));
+                Art::Loc(loc)
+            }
         }
     }
 
@@ -750,6 +769,7 @@ impl Adapton for Engine {
                         Node::Pure(ref mut nd) => (false, Some(nd.val.clone())),
                         Node::Mut(ref mut nd)  => (false, Some(nd.val.clone())),
                         Node::Comp(ref mut nd) => (true,  nd.res.clone()),
+                        _ => panic!("undefined")
                     }
                 } ;
                 let result = match cached_result {
@@ -763,7 +783,9 @@ impl Adapton for Engine {
                             match *node {
                                 Node::Comp(ref nd) => match nd.res {
                                     None => unreachable!(),
-                                    Some(ref res) => res.clone()
+                                    Some(ref res) =>
+                                        // Testing: Reached by `pure_caching` tests
+                                        res.clone()
                                 },
                                 _ => unreachable!(),
                             }}
