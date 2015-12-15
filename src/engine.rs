@@ -373,6 +373,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
     EngineDep for ProducerDep<Res>
 {
     fn change_prop(self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes {
+        st.cnt.change_prop += 1 ;
         { // Handle cases where there is no internal computation to re-compute:
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             match *node {
@@ -390,7 +391,6 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
             node.succs().clone()
         } ;
         for succ in succs.iter() {
-            st.cnt.change_prop += 1 ;
             if succ.dirty {
                 let dep = & succ.dep ;
                 let res = dep.change_prop(st, &succ.loc) ;
@@ -434,11 +434,11 @@ fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc
 }
 
 fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
+    st.cnt.dirty += 1 ;
     let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs().clone() ;
     for pred_loc in pred_locs {
         if st.root.eq (&pred_loc) { continue } // root location is a special case; skip it.
         else {
-            st.cnt.dirty += 1 ;
             let stop : bool = {
                 // The stop bit communicates information from st for use below.
                 let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
@@ -459,7 +459,6 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
     for pred_loc in pred_locs {
         if st.root.eq (&pred_loc) { continue } // root location is a special case; skip it.
         else {
-            st.cnt.dirty += 1 ;
             let stop : bool = {
                 // The stop bit communicates information from st for use below.
                 let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
