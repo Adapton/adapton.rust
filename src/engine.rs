@@ -698,22 +698,22 @@ impl Adapton for Engine {
                     None => false,
                     Some(node) => {
                         let node: &mut Box<GraphNode> = node ;
-                        println!("{} Nominal match: {:?}", engineMsg, node);
+                        //println!("{} Nominal match: {:?}", engineMsg, node);
                         let res_nd: &mut Box<Node<Res>> = unsafe { transmute::<_,_>( node ) } ;
-                        println!("{} Nominal match: {:?}", engineMsg, res_nd);
+                        //println!("{} Nominal match: {:?}", engineMsg, res_nd);
                         let comp_nd: &mut CompNode<Res> = match ** res_nd {                            
                             Node::Pure(_)=> unreachable!(),
                             Node::Mut(_) => panic!("TODO-Sometime"),
                             Node::Comp(ref mut comp) => comp,
                             _ => unreachable!(),
                         } ;
-                        println!("{} Nominal match: {:?}", engineMsg, comp_nd);
-                        println!("{} Nominal match: {:?}", engineMsg, comp_nd.producer);
-                        let equal_producers : bool =
+                        //println!("{} Nominal match: {:?}", engineMsg, comp_nd);
+                        //println!("{} Nominal match: {:?}", engineMsg, comp_nd.producer);
+                        let equal_producer_prog_pts : bool =
                             comp_nd.producer.prog_pt().eq( producer.prog_pt() ) ;
-                        println!("{} Nominal match: equal_producers: {:?}", engineMsg, equal_producers);
-                        if equal_producers { // => safe cast to Box<Consumer<Arg>>
-                            // XXX: This cast is causing problems
+                        println!("{} Nominal match: equal_producer_prog_pts: {:?}",
+                                 engineMsg, equal_producer_prog_pts);
+                        if equal_producer_prog_pts { // => safe cast to Box<Consumer<Arg>>
                             let app: &mut Box<App<Arg,Spurious,Res>> =
                                 unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
                             ;
