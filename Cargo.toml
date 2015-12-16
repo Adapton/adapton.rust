@@ -33,6 +33,6 @@ license = "MPL-2.0"
 
 ## For testing
 [dependencies]
-quickcheck = "0.2"
-quickcheck_macros = "0.2"
+quickcheck = "0.2.24"
+quickcheck_macros = "0.2.24"
 rand = "0.3"
