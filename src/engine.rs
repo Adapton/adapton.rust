@@ -740,10 +740,12 @@ impl Adapton for Engine {
                             }
                             else {
                                 app.consume(arg.clone());
-                                // do_dirty=false; do_insert=false
-                                // Note: Later, we assume that this node is already updated.
-                                // In particular: `preds_alloc` field should be updated to hold `creators`.
+                                // Note: Later, we assume that this
+                                // node is already updated so that the
+                                // `preds_alloc` field should be
+                                // updated to hold `creators`.
                                 comp_nd.preds_alloc.append( &mut creators );
+                                // do_dirty=false; do_insert=false
                                 (true, false)
                             }}
                         else {
