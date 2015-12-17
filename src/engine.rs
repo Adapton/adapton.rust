@@ -683,6 +683,21 @@ impl Adapton for Engine {
             ArtIdChoice::Nominal(nm) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Nominal(nm)));
+                let mut creators = {
+                    if self.stack.is_empty() { Vec::new() }
+                    else
+                    {
+                        let pred = self.stack[0].loc.clone();
+                        let succ =
+                            Succ{loc:loc.clone(),
+                                 dep:Rc::new(Box::new(AllocDependency{val:arg.clone()})),
+                                 effect:Effect::Allocate,
+                                 dirty:false};
+                        self.stack[0].succs.push(succ);
+                        let mut v = Vec::new();
+                        v.push(pred);
+                        v
+                    }};
                 println!("{} {:?}\n{} ;; {:?}\n{} ;; {:?}",
                          engineMsg, &loc,
                          engineMsg, &prog_pt,
@@ -694,8 +709,8 @@ impl Adapton for Engine {
                         spurious:spurious.clone(),
                     }
                 ;
-                let do_dirty : bool = { match self.table.get_mut( &loc ) {
-                    None => false,
+                let (do_dirty, do_insert) = { match self.table.get_mut( &loc ) {
+                    None => (false, true),
                     Some(node) => {
                         let node: &mut Box<GraphNode> = node ;
                         //println!("{} Nominal match: {:?}", engineMsg, node);
@@ -720,11 +735,16 @@ impl Adapton for Engine {
                             println!("{} Nominal match: app: {:?}", engineMsg, app);
                             if app.get_arg() == arg {
                                 // Same argument; Nothing else to do:
-                                false // do_dirty=false.
+                                // do_dirty=false; do_insert=false
+                                (false, false)
                             }
                             else {
                                 app.consume(arg.clone());
-                                true // do_dirty=true.
+                                // do_dirty=false; do_insert=false
+                                // Note: Later, we assume that this node is already updated.
+                                // In particular: `preds_alloc` field should be updated to hold `creators`.
+                                comp_nd.preds_alloc.append( &mut creators );
+                                (true, false)
                             }}
                         else {
                             panic!("TODO-Sometime: producers not equal!")
@@ -737,31 +757,21 @@ impl Adapton for Engine {
                 } else {
                     println!("{} No dirtying.", engineMsg)
                 } ;
-                let creators = {
-                    if self.stack.is_empty() { Vec::new() }
-                    else
-                    {
-                        let pred = self.stack[0].loc.clone();
-                        let succ =
-                            Succ{loc:loc.clone(),
-                                 dep:Rc::new(Box::new(AllocDependency{val:arg})),
-                                 effect:Effect::Allocate,
-                                 dirty:false};
-                        self.stack[0].succs.push(succ);
-                        let mut v = Vec::new();
-                        v.push(pred);
-                        v
-                    }};
-                let node : CompNode<Res> = CompNode{
-                    preds_alloc:creators,
-                    preds_obs:Vec::new(),
-                    succs:Vec::new(),
-                    producer:Box::new(producer),
-                    res:None,
-                } ;
-                self.table.insert(loc.clone(),
-                                  Box::new(Node::Comp(node)));
-                Art::Loc(loc)
+                if do_insert {
+                    let node : CompNode<Res> = CompNode{
+                        preds_alloc:creators,
+                        preds_obs:Vec::new(),
+                        succs:Vec::new(),
+                        producer:Box::new(producer),
+                        res:None,
+                    } ;
+                    self.table.insert(loc.clone(),
+                                      Box::new(Node::Comp(node)));
+                    Art::Loc(loc)
+                }
+                else {
+                    Art::Loc(loc)
+                }
             }
         }
     }
@@ -782,8 +792,13 @@ impl Adapton for Engine {
                     }
                 } ;
                 let result = match cached_result {
-                    None          => { assert!(is_comp); produce(self, &loc) },
+                    None => {
+                        println!("{} force {:?}: cache empty", engineMsg, &loc);
+                        assert!(is_comp);
+                        produce(self, &loc)
+                    },
                     Some(ref res) => {
+                        println!("{} force {:?}: cache holds {:?}", engineMsg, &loc, &res);
                         if is_comp {
                             // ProducerDep change-propagation precondition:
                             // loc is a computational node:
