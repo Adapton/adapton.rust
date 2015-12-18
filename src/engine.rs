@@ -409,9 +409,9 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
 
 fn revoke_succs<'x> (st:&mut Engine, src:&Rc<Loc>, succs:&Vec<Succ>) {
     for succ in succs.iter() {
-        let node : &mut Box<GraphNode> = lookup_abs(st, &succ.loc) ;
-        node.preds_obs().retain  (|ref pred| **pred != *src);
-        node.preds_alloc().retain(|ref pred| **pred != *src);
+        let succ_node : &mut Box<GraphNode> = lookup_abs(st, &succ.loc) ;
+        succ_node.preds_obs().retain  (|ref pred| **pred != *src);
+        succ_node.preds_alloc().retain(|ref pred| **pred != *src);
     }
 }
 
@@ -448,7 +448,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
                 }} ;
             if !stop {
                 dirty_pred_observers(st,&pred_loc);
-            } else {}
+            } else { println!("{} dirty_pred_observers: early stop", engineMsg) }
         }
     }
 }
@@ -468,7 +468,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
                 }} ;
             if !stop {
                 dirty_pred_observers(st,&pred_loc);
-            } else {}
+            } else { println!("{} dirty_alloc: early stop", engineMsg) }
         }
     }
 }
