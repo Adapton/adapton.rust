@@ -213,13 +213,16 @@ impl<Arg:Hash,Spurious,Res> Hash for App<Arg,Spurious,Res> {
 
 // ---------- App implementation of Producer and Consumer traits:
 
-impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static> Producer<Res>
+impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Debug> Producer<Res>
     for App<Arg,Spurious,Res>
 {
     fn produce(self:&Self, st:&mut Engine) -> Res {
         let f = self.fn_box.clone() ;
         st.cnt.eval += 1 ;
-        f (st,self.arg.clone(),self.spurious.clone())
+        println!("{} producer begin: ({:?} {:?})", engineMsg, &self.prog_pt, &self.arg);
+        let res = f (st,self.arg.clone(),self.spurious.clone()) ;
+        println!("{} producer end: ({:?} {:?}) produces {:?}", engineMsg, &self.prog_pt, &self.arg, &res);
+        res
     }
     fn copy(self:&Self) -> Box<Producer<Res>> {
         Box::new(App{
@@ -400,11 +403,14 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
                 let dep = & succ.dep ;
                 let res = dep.change_prop(st, &succ.loc) ;
                 if res.changed {
-                    return re_produce (self, st, &succ.loc)
+                    println!("{} change_prop end (1/2): {:?} has a changed dependency. Begin re-production:", engineMsg, &succ.loc);
+                    let res = re_produce (self, st, &succ.loc);
+                    println!("{} change_prop end (2/2): {:?} has a changed dependency. End re-production:", engineMsg, &succ.loc);
+                    return res
                 }
             }
         } ;
-        println!("{} change_prop begin: {:?}", engineMsg, loc);
+        println!("{} change_prop end: {:?} is clean.", engineMsg, &loc);
         // No early return =>
         //   all immediate dependencies are change-free:
         EngineRes{changed:false}
@@ -440,6 +446,7 @@ fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc
 }
 
 fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
+    println!("{} dirty_pred_observers: {:?}", engineMsg, loc);
     st.cnt.dirty += 1 ;
     let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs().clone() ;
     for pred_loc in pred_locs {
@@ -449,6 +456,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
                 // The stop bit communicates information from st for use below.
                 let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
                 if succ.dirty { true } else {
+                    println!("{} dirty_alloc: edge {:?} --> {:?} marked dirty", engineMsg, &pred_loc, &loc);
                     replace(&mut succ.dirty, true);
                     false
                 }} ;
@@ -460,6 +468,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
 }
 
 fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
+    println!("{} dirty_alloc: {:?}", engineMsg, loc);
     dirty_pred_observers(st, loc);
     let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc().clone() ;
     for pred_loc in pred_locs {
@@ -469,6 +478,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
                 // The stop bit communicates information from st for use below.
                 let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
                 if succ.dirty { true } else {
+                    println!("{} dirty_alloc: edge {:?} --> {:?} marked dirty", engineMsg, &pred_loc, &loc);
                     replace(&mut succ.dirty, true);
                     false
                 }} ;
