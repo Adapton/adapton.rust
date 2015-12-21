@@ -319,6 +319,7 @@ impl<Res> fmt::Debug for CompNode<Res> {
 // Error if loc is not a Node::Comp.
 fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -> Res
 {
+    println!("{} produce begin: {:?}", engineMsg, &loc);
     let succs : Vec<Succ> = {
         let succs : Vec<Succ> = Vec::new();
         let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
@@ -357,6 +358,7 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
                         dirty:false};
         st.stack[0].succs.push(succ);
     };
+    println!("{} produce end: {:?} produces {:?}", engineMsg, &loc, &res);
     res
 }
 
@@ -405,7 +407,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
                 if res.changed {
                     println!("{} change_prop end (1/2): {:?} has a changed dependency. Begin re-production:", engineMsg, &succ.loc);
                     let res = re_produce (self, st, &succ.loc);
-                    println!("{} change_prop end (2/2): {:?} has a changed dependency. End re-production:", engineMsg, &succ.loc);
+                    println!("{} change_prop end (2/2): {:?} has a changed dependency. End re-production.", engineMsg, &succ.loc);
                     return res
                 }
             }
