@@ -473,6 +473,26 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
     }
 }
 
+fn do_set<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
+    println!("{} do_set: {:?} <--- {:?}", engineMsg, cell, val);
+    let changed : bool = {
+        let node = res_node_of_loc( st, &cell.loc ) ;
+        match **node {
+            Node::Mut(ref mut nd) => {
+                if nd.val == val {
+                    false
+                } else {
+                    replace(&mut nd.val, val) ;
+                    true
+                }},
+            _ => unreachable!(),
+        }} ;
+    if changed {
+        dirty_alloc(st, &cell.loc)
+    }
+    else { }
+}
+
 impl Adapton for Engine {
     type Name = Name;
     type Loc  = Loc;
@@ -555,6 +575,7 @@ impl Adapton for Engine {
             let id   = Rc::new(ArtId::Nominal(nm));
             let hash = my_hash(&(&path,&id));
             let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
+            println!("{} alloc: cell: {:?} <--- {:?}", engineMsg, &loc, &val);
             let cell = match self.table.get_mut(&loc) {
                 None => None,
                 Some(ref mut _nd) => {
@@ -565,7 +586,7 @@ impl Adapton for Engine {
             match cell {
                 Some(cell) => {
                     let cell_loc = cell.loc.clone();
-                    self.set(cell, val.clone()) ;
+                    do_set(self, cell, val.clone()) ;
                     if ! self.stack.is_empty () {
                         // Current loc is an alloc predecessor of the cell:
                         let top_loc = self.stack[0].loc.clone();
@@ -599,23 +620,7 @@ impl Adapton for Engine {
 
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:T) {
         assert!( self.stack.is_empty() ); // => outer layer has control.
-        let changed : bool = {
-            let node = lookup_abs( self, &cell.loc ) ;
-            let node : &mut Node<T> = unsafe { transmute::<_,_>(node) } ;
-            match *node {
-                Node::Mut(ref mut nd) => {
-                    if nd.val == val {
-                        false
-                    } else {
-                        replace(&mut nd.val, val) ;
-                        true
-                    }},
-                _ => unreachable!(),
-            }} ;
-        if changed {
-            dirty_alloc(self, &cell.loc)
-        }
-        else { }
+        do_set(self, cell, val);
     }
 
     fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+'static>
@@ -636,7 +641,7 @@ impl Adapton for Engine {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Structural(hash)));
                 if false {
-                    println!("{} {:?}\n{} ;; {:?}\n{} ;; {:?}",
+                    println!("{} alloc: Structural {:?}\n{} ;; {:?}\n{} ;; {:?}",
                              engineMsg, &loc,
                              engineMsg, &prog_pt,
                              engineMsg, &arg);
@@ -698,7 +703,7 @@ impl Adapton for Engine {
                         v.push(pred);
                         v
                     }};
-                println!("{} {:?}\n{} ;; {:?}\n{} ;; {:?}",
+                println!("{} alloc: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
                          engineMsg, &loc,
                          engineMsg, &prog_pt,
                          engineMsg, &arg);
@@ -726,13 +731,13 @@ impl Adapton for Engine {
                         //println!("{} Nominal match: {:?}", engineMsg, comp_nd.producer);
                         let equal_producer_prog_pts : bool =
                             comp_nd.producer.prog_pt().eq( producer.prog_pt() ) ;
-                        println!("{} Nominal match: equal_producer_prog_pts: {:?}",
+                        println!("{} alloc: Nominal match: equal_producer_prog_pts: {:?}",
                                  engineMsg, equal_producer_prog_pts);
                         if equal_producer_prog_pts { // => safe cast to Box<Consumer<Arg>>
                             let app: &mut Box<App<Arg,Spurious,Res>> =
                                 unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
                             ;
-                            println!("{} Nominal match: app: {:?}", engineMsg, app);
+                            println!("{} alloc: Nominal match: app: {:?}", engineMsg, app);
                             if app.get_arg() == arg {
                                 // Same argument; Nothing else to do:
                                 // do_dirty=false; do_insert=false
@@ -754,10 +759,10 @@ impl Adapton for Engine {
                     }
                 } } ;
                 if do_dirty {
-                    println!("{} dirty_alloc {:?}.", engineMsg, &loc);
+                    println!("{} alloc: dirty_alloc {:?}.", engineMsg, &loc);
                     dirty_alloc(self, &loc)
                 } else {
-                    println!("{} No dirtying.", engineMsg)
+                    println!("{} alloc: No dirtying.", engineMsg)
                 } ;
                 if do_insert {
                     let node : CompNode<Res> = CompNode{
@@ -800,11 +805,12 @@ impl Adapton for Engine {
                         produce(self, &loc)
                     },
                     Some(ref res) => {
-                        println!("{} force {:?}: cache holds {:?}", engineMsg, &loc, &res);
                         if is_comp {
+                            println!("{} force {:?}: cache holds {:?}.  Using change propagation.", engineMsg, &loc, &res);
                             // ProducerDep change-propagation precondition:
                             // loc is a computational node:
-                            ProducerDep{res:res.clone()}.change_prop(self, &loc) ;
+                            let res = ProducerDep{res:res.clone()}.change_prop(self, &loc) ;
+                            println!("{} force {:?}: result changed?: {}", engineMsg, &loc, res.changed) ;
                             let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
                             match *node {
                                 Node::Comp(ref nd) => match nd.res {
@@ -816,6 +822,7 @@ impl Adapton for Engine {
                                 _ => unreachable!(),
                             }}
                         else {
+                            println!("{} force {:?}: no change prop necessary.", engineMsg, &loc);
                             res.clone()
                         }
                     }

@@ -90,6 +90,10 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
         let (n3,n4)   = self.name_fork(n);
         (n1,n2,n3,n4)
     }
+
+    fn read_only<T> (self:&mut Self, mutart:MutArt<T,Self::Loc>) -> Art<T,Self::Loc> {
+        Art::Loc(mutart.loc)
+    }
 }
 
 // I wanted to have a shorthand, but I get an ICE if I use this.
