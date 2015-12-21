@@ -373,15 +373,20 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
     EngineDep for ProducerDep<Res>
 {
     fn change_prop(self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes {
+        println!("{} change_prop begin: {:?}", engineMsg, loc);
         st.cnt.change_prop += 1 ;
         { // Handle cases where there is no internal computation to re-compute:
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             match *node {
                 Node::Comp(_) => (),
-                Node::Pure(_) =>
-                    return EngineRes{changed:false},
-                Node::Mut(ref nd) =>
-                    return EngineRes{changed:nd.val == self.res},
+                Node::Pure(_) => {
+                    println!("{} change_prop early end: {:?} is Pure(_)", engineMsg, loc);
+                    return EngineRes{changed:false}
+                },
+                Node::Mut(ref nd) => {
+                    println!("{} change_prop early end: {:?} is Mut(_)", engineMsg, loc);
+                    return EngineRes{changed:nd.val == self.res}
+                },
                 _ => panic!("undefined")
             }
         };
@@ -399,6 +404,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
                 }
             }
         } ;
+        println!("{} change_prop begin: {:?}", engineMsg, loc);
         // No early return =>
         //   all immediate dependencies are change-free:
         EngineRes{changed:false}
@@ -749,6 +755,7 @@ impl Adapton for Engine {
                                 // node is already updated so that the
                                 // `preds_alloc` field should be
                                 // updated to hold `creators`.
+                                comp_nd.res = None ;
                                 comp_nd.preds_alloc.append( &mut creators );
                                 // do_dirty=false; do_insert=false
                                 (true, false)
