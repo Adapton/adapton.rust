@@ -81,6 +81,7 @@ enum Path {
 trait GraphNode {
     fn preds_alloc<'r> (self:&'r mut Self) -> Vec<Rc<Loc>> ;
     fn preds_obs<'r>   (self:&'r mut Self) -> Vec<Rc<Loc>> ;
+    fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>) -> () ;
     fn preds_remove<'r>(self:&'r mut Self, &Rc<Loc>) -> () ;
     fn succs_def<'r>   (self:&'r mut Self) -> bool ;
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ> ;
@@ -282,6 +283,12 @@ impl <Res> GraphNode for Node<Res> {
                       Node::Pure(_) => unreachable!(),
                       _ => unreachable!(),
         }}
+    fn preds_insert (self:&mut Self, eff:Effect, loc:&Rc<Loc>) -> () {
+        match *self { Node::Mut(ref mut nd) => nd.preds.push ((eff,loc.clone())),
+                      Node::Comp(ref mut nd) => nd.preds.push ((eff,loc.clone())),
+                      Node::Pure(_) => unreachable!(),
+                      _ => unreachable!(),
+        }}
     fn preds_remove (self:&mut Self, loc:&Rc<Loc>) -> () {
         match *self { Node::Mut(ref mut nd) => nd.preds.retain (|eff_pred|{ let (_,ref pred) = *eff_pred; *pred != *loc }),
                       Node::Comp(ref mut nd) => nd.preds.retain (|eff_pred|{ let (_, ref pred) = *eff_pred; *pred != *loc}),
@@ -348,9 +355,15 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
     } ;
     assert!( &frame.loc == loc );
     for succ in &frame.succs {
-        println!("{} produce: edge: {:?} --> {:?}", engineMsg, &loc, &succ.loc);
+        println!("{} produce: edge: {:?} --{:?}--dirty?:{:?}--> {:?}", engineMsg, &loc, &succ.effect, &succ.dirty, &succ.loc);
+        if succ.dirty {
+            // This case witnesses an illegal use of nominal side effects
+            panic!("invariants broken: newly-built DCG edge should be clean, but is dirty.")
+        } ;
+        let succ_loc = lookup_abs( st, &succ.loc );
+        succ_loc.preds_insert( succ.effect.clone(), loc );
     } ;
-    {        
+    {
         let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
         match *node {
             Node::Comp(ref mut node) => {
