@@ -79,8 +79,9 @@ enum Path {
 
 // The DCG structure consists of `GraphNode`s:
 trait GraphNode {
-    fn preds_alloc<'r> (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
-    fn preds_obs<'r>   (self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> ;
+    fn preds_alloc<'r> (self:&'r mut Self) -> Vec<Rc<Loc>> ;
+    fn preds_obs<'r>   (self:&'r mut Self) -> Vec<Rc<Loc>> ;
+    fn preds_remove<'r>(self:&'r mut Self, &Rc<Loc>) -> () ;
     fn succs_def<'r>   (self:&'r mut Self) -> bool ;
     fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ> ;
 }
@@ -163,9 +164,8 @@ struct PureNode<T> {
 // They may indirectly mutate these nodes by performing nominal allocation; mutation is limited to "one-shot" changes.
 #[derive(Debug)]
 struct MutNode<T> {
-    preds_alloc : Vec<Rc<Loc>>,
-    preds_obs   : Vec<Rc<Loc>>,
-    val         : T,
+    preds : Vec<(Effect,Rc<Loc>)>,
+    val   : T,
 }
 
 // CompNode<Res> for a suspended computation whose resulting value of
@@ -174,11 +174,10 @@ struct MutNode<T> {
 // values produced by the successors may change, indirectly
 // influencing how the producer produces its resulting value.
 struct CompNode<Res> {
-    preds_alloc : Vec<Rc<Loc>>,
-    preds_obs   : Vec<Rc<Loc>>,
-    succs       : Vec<Succ>,
-    producer    : Box<Producer<Res>>, // Producer can be App<Arg,Res>, where type Arg is hidden.
-    res         : Option<Res>,
+    preds    : Vec<(Effect, Rc<Loc>)>,
+    succs    : Vec<Succ>,
+    producer : Box<Producer<Res>>, // Producer can be App<Arg,Res>, where type Arg is hidden.
+    res      : Option<Res>,
 }
 // Produce a value of type Res.
 trait Producer<Res> : Debug {
@@ -270,16 +269,22 @@ fn res_node_of_loc<'r,Res> (st:&'r mut Engine, loc:&Rc<Loc>) -> &'r mut Box<Node
 // ---------- Node implementation:
 
 impl <Res> GraphNode for Node<Res> {
-    fn preds_alloc<'r>(self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> {
-        match *self { Node::Mut(ref mut nd) => &mut nd.preds_alloc,
-                      Node::Comp(ref mut nd) => &mut nd.preds_alloc,
+    fn preds_alloc<'r>(self:&'r mut Self) -> Vec<Rc<Loc>> {
+        match *self { Node::Mut(ref mut nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
+                      Node::Comp(ref mut nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
                       Node::Pure(_) => unreachable!(),
                       _ => unreachable!(),
         }}
                       
-    fn preds_obs<'r>(self:&'r mut Self) -> &'r mut Vec<Rc<Loc>> {
-        match *self { Node::Mut(ref mut nd) => &mut nd.preds_obs,
-                      Node::Comp(ref mut nd) => &mut nd.preds_obs,
+    fn preds_obs<'r>(self:&'r mut Self) -> Vec<Rc<Loc>> {
+        match *self { Node::Mut(ref mut nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Observe { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
+                      Node::Comp(ref mut nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Observe { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
+                      Node::Pure(_) => unreachable!(),
+                      _ => unreachable!(),
+        }}
+    fn preds_remove (self:&mut Self, loc:&Rc<Loc>) -> () {
+        match *self { Node::Mut(ref mut nd) => nd.preds.retain (|eff_pred|{ let (_,ref pred) = *eff_pred; *pred != *loc }),
+                      Node::Comp(ref mut nd) => nd.preds.retain (|eff_pred|{ let (_, ref pred) = *eff_pred; *pred != *loc}),
                       Node::Pure(_) => unreachable!(),
                       _ => unreachable!(),
         }}
@@ -341,6 +346,7 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
         None => panic!("expected Some _: stack invariants are broken"),
         Some(frame) => frame
     } ;
+    assert!( &frame.loc == loc );
     for succ in &frame.succs {
         println!("{} produce: edge: {:?} --> {:?}", engineMsg, &loc, &succ.loc);
     } ;
@@ -427,8 +433,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
 fn revoke_succs<'x> (st:&mut Engine, src:&Rc<Loc>, succs:&Vec<Succ>) {
     for succ in succs.iter() {
         let succ_node : &mut Box<GraphNode> = lookup_abs(st, &succ.loc) ;
-        succ_node.preds_obs().retain  (|ref pred| **pred != *src);
-        succ_node.preds_alloc().retain(|ref pred| **pred != *src);
+        succ_node.preds_remove(src)
     }
 }
 
@@ -442,8 +447,10 @@ fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
 // and mutating the dirty bit.
 fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
     let nd = lookup_abs( st, src_loc );
+    println!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg, &src_loc, &eff, &tgt_loc);
     for succ in nd.succs().iter_mut() {
         if (succ.effect == eff) && (&succ.loc == tgt_loc) {
+            println!("{} get_succ_mut: resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg, &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
             return succ
         } else {}
     } ;
@@ -453,7 +460,7 @@ fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc
 fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
     println!("{} dirty_pred_observers: {:?}", engineMsg, loc);
     st.cnt.dirty += 1 ;
-    let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs().clone() ;
+    let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs() ;
     for pred_loc in pred_locs {
         if st.root.eq (&pred_loc) { continue } // root location is a special case; skip it.
         else {
@@ -476,7 +483,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
 fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
     println!("{} dirty_alloc: {:?}", engineMsg, loc);
     dirty_pred_observers(st, loc);
-    let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc().clone() ;
+    let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc() ;
     for pred_loc in pred_locs {
         if st.root.eq (&pred_loc) { continue } // root location is a special case; skip it.
         else {
@@ -613,13 +620,8 @@ impl Adapton for Engine {
                     do_set(self, cell, val.clone()) ;
                 },
                 None => {
-                    let creators = match self.stack.last() {
-                        None => Vec::new(),
-                        Some(frame) => vec![frame.loc.clone()]
-                    } ;
                     let node = Node::Mut(MutNode{
-                        preds_alloc:creators,
-                        preds_obs:Vec::new(),
+                        preds:Vec::new(),
                         val:val.clone(),
                     }) ;
                     self.table.insert(loc.clone(), Box::new(node));
@@ -672,8 +674,8 @@ impl Adapton for Engine {
                     }
                 } ;
                 // assert: node does not exist.
-                let creators = match self.stack.last_mut() {
-                    None => Vec::new(),
+                match self.stack.last_mut() {
+                    None => (),
                     Some(frame) => {
                         let pred = frame.loc.clone();
                         let succ =
@@ -681,8 +683,7 @@ impl Adapton for Engine {
                                  dep:Rc::new(Box::new(NoDependency)),
                                  effect:Effect::Allocate,
                                  dirty:false};
-                        frame.succs.push(succ);
-                        vec![ pred ]
+                        frame.succs.push(succ)
                     }};
                 let producer : Box<Producer<Res>> =
                     Box::new(App{prog_pt:prog_pt,
@@ -691,8 +692,7 @@ impl Adapton for Engine {
                                  spurious:spurious.clone()})
                     ;
                 let node : CompNode<Res> = CompNode{
-                    preds_alloc:creators,
-                    preds_obs:Vec::new(),
+                    preds:Vec::new(),
                     succs:Vec::new(),
                     producer:producer,
                     res:None,
@@ -705,19 +705,6 @@ impl Adapton for Engine {
             ArtIdChoice::Nominal(nm) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Nominal(nm)));
-                let mut creators = match self.stack.last_mut() {
-                    None => Vec::new(),
-                    Some(frame) => {
-                        let pred = frame.loc.clone();
-                        println!("{} alloc thunk: edge {:?} --> {:?}", engineMsg, &pred, &loc);
-                        let succ =
-                            Succ{loc:loc.clone(),
-                                 dep:Rc::new(Box::new(AllocDependency{val:arg.clone()})),
-                                 effect:Effect::Allocate,
-                                 dirty:false};
-                        frame.succs.push(succ);
-                        vec![ pred ]
-                    }};
                 println!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
                          engineMsg, &loc,
                          engineMsg, &prog_pt,
@@ -730,20 +717,19 @@ impl Adapton for Engine {
                     }
                 ;
                 let (do_dirty, do_insert) = { match self.table.get_mut( &loc ) {
-                    None => (false, true),
+                    None => {
+                        // do_dirty=false; do_insert=true
+                        (false, true)
+                    },
                     Some(node) => {
                         let node: &mut Box<GraphNode> = node ;
-                        //println!("{} Nominal match: {:?}", engineMsg, node);
                         let res_nd: &mut Box<Node<Res>> = unsafe { transmute::<_,_>( node ) } ;
-                        //println!("{} Nominal match: {:?}", engineMsg, res_nd);
                         let comp_nd: &mut CompNode<Res> = match ** res_nd {                            
                             Node::Pure(_)=> unreachable!(),
                             Node::Mut(_) => panic!("TODO-Sometime"),
                             Node::Comp(ref mut comp) => comp,
                             _ => unreachable!(),
                         } ;
-                        //println!("{} Nominal match: {:?}", engineMsg, comp_nd);
-                        //println!("{} Nominal match: {:?}", engineMsg, comp_nd.producer);
                         let equal_producer_prog_pts : bool =
                             comp_nd.producer.prog_pt().eq( producer.prog_pt() ) ;
                         println!("{} alloc thunk: Nominal match: equal_producer_prog_pts: {:?}",
@@ -754,19 +740,14 @@ impl Adapton for Engine {
                             ;
                             println!("{} alloc thunk: Nominal match: app: {:?}", engineMsg, app);
                             if app.get_arg() == arg {
-                                // Same argument; Nothing else to do:
+                                // Case: Same argument; Nothing else to do:
                                 // do_dirty=false; do_insert=false
                                 (false, false)
                             }
-                            else {
-                                app.consume(arg.clone());
-                                // Note: Later, we assume that this
-                                // node is already updated so that the
-                                // `preds_alloc` field should be
-                                // updated to hold `creators`.
-                                comp_nd.res = None ;
-                                comp_nd.preds_alloc.append( &mut creators );
-                                // do_dirty=false; do_insert=false
+                            else { // Case: Not the same argument:
+                                app.consume(arg.clone()); // overwrite the old argument
+                                comp_nd.res = None ; // clear the cache
+                                // do_dirty=true; do_insert=false
                                 (true, false)
                             }}
                         else {
@@ -780,10 +761,19 @@ impl Adapton for Engine {
                 } else {
                     println!("{} alloc thunk: No dirtying.", engineMsg)
                 } ;
+                match self.stack.last_mut() { None => (), Some(frame) => {
+                    let pred = frame.loc.clone();
+                    println!("{} alloc thunk: edge {:?} --> {:?}", engineMsg, &pred, &loc);
+                    let succ =
+                        Succ{loc:loc.clone(),
+                             dep:Rc::new(Box::new(AllocDependency{val:arg.clone()})),
+                             effect:Effect::Allocate,
+                             dirty:false};
+                    frame.succs.push(succ)
+                }};
                 if do_insert {
                     let node : CompNode<Res> = CompNode{
-                        preds_alloc:creators,
-                        preds_obs:Vec::new(),
+                        preds:Vec::new(),
                         succs:Vec::new(),
                         producer:Box::new(producer),
                         res:None,
