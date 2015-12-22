@@ -459,15 +459,16 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
         else {
             let stop : bool = {
                 // The stop bit communicates information from st for use below.
+                println!("{} dirty_pred_observers: edge {:?} --> {:?} ...", engineMsg, &pred_loc, &loc);
                 let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
                 if succ.dirty { true } else {
-                    println!("{} dirty_alloc: edge {:?} --> {:?} marked dirty", engineMsg, &pred_loc, &loc);
+                    println!("{} dirty_pred_observers: edge {:?} --> {:?} marked dirty", engineMsg, &pred_loc, &loc);
                     replace(&mut succ.dirty, true);
                     false
                 }} ;
             if !stop {
                 dirty_pred_observers(st,&pred_loc);
-            } else { println!("{} dirty_pred_observers: early stop", engineMsg) }
+            } else { println!("{} dirty_pred_observers: already dirty", engineMsg) }
         }
     }
 }
@@ -481,6 +482,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
         else {
             let stop : bool = {
                 // The stop bit communicates information from st for use below.
+                println!("{} dirty_alloc: edge {:?} --> {:?} ...", engineMsg, &pred_loc, &loc);
                 let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
                 if succ.dirty { true } else {
                     println!("{} dirty_alloc: edge {:?} --> {:?} marked dirty", engineMsg, &pred_loc, &loc);
