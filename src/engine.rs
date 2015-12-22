@@ -341,7 +341,10 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
         None => panic!("expected Some _: stack invariants are broken"),
         Some(frame) => frame
     } ;
-    {
+    for succ in &frame.succs {
+        println!("{} produce: edge: {:?} --> {:?}", engineMsg, &loc, &succ.loc);
+    } ;
+    {        
         let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
         match *node {
             Node::Comp(ref mut node) => {
@@ -351,13 +354,13 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
             _ => panic!("internal error"),
         }
     } ;
-    if st.stack.is_empty() { } else {
+    match st.stack.last_mut() { None => (), Some(frame) => {
         let succ = Succ{loc:loc.clone(),
                         effect:Effect::Observe,
                         dep:Rc::new(Box::new(ProducerDep{res:res.clone()})),
                         dirty:false};
-        st.stack[0].succs.push(succ);
-    };
+        frame.succs.push(succ)
+    }};
     println!("{} produce end: {:?} produces {:?}", engineMsg, &loc, &res);
     res
 }
@@ -566,10 +569,11 @@ impl Adapton for Engine {
     }
 
     fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
-        let path_body = Rc::new(Path::Child(self.stack[0].path.clone(), nm)) ;
-        let path_pre = replace(&mut self.stack[0].path, path_body ) ;
+        let path = match self.stack.last() { None => unreachable!(), Some(frame) => frame.path.clone() } ;
+        let path_body = Rc::new(Path::Child(path, nm)) ;
+        let path_pre = match self.stack.last_mut() { None => unreachable!(), Some(frame) => replace(&mut frame.path, path_body) } ;
         let x = body(self) ;
-        let path_body = replace(&mut self.stack[0].path, path_pre) ;
+        let path_body = match self.stack.last_mut() { None => unreachable!(), Some(frame) => replace(&mut frame.path, path_pre) } ;
         drop(path_body);
         x
     }
@@ -593,7 +597,7 @@ impl Adapton for Engine {
             let id   = Rc::new(ArtId::Nominal(nm));
             let hash = my_hash(&(&path,&id));
             let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
-            println!("{} alloc: cell: {:?} <--- {:?}", engineMsg, &loc, &val);
+            println!("{} alloc cell: {:?} <--- {:?}", engineMsg, &loc, &val);
             let cell = match self.table.get_mut(&loc) {
                 None => None,
                 Some(ref mut _nd) => {
@@ -605,17 +609,11 @@ impl Adapton for Engine {
                 Some(cell) => {
                     let cell_loc = cell.loc.clone();
                     do_set(self, cell, val.clone()) ;
-                    if ! self.stack.is_empty () {
-                        // Current loc is an alloc predecessor of the cell:
-                        let top_loc = self.stack[0].loc.clone();
-                        let cell_nd = lookup_abs(self, &cell_loc);
-                        cell_nd.preds_alloc().push(top_loc)
-                    }
                 },
                 None => {
-                    let mut creators = Vec::new();
-                    if ! self.stack.is_empty () {
-                        creators.push(self.stack[0].loc.clone())
+                    let creators = match self.stack.last() {
+                        None => Vec::new(),
+                        Some(frame) => vec![frame.loc.clone()]
                     } ;
                     let node = Node::Mut(MutNode{
                         preds_alloc:creators,
@@ -625,14 +623,15 @@ impl Adapton for Engine {
                     self.table.insert(loc.clone(), Box::new(node));
                 },
             } ;
-            if ! self.stack.is_empty () {
+            match self.stack.last_mut() { None => (), Some(frame) => {
                 let succ =
                     Succ{loc:loc.clone(),
                          dep:Rc::new(Box::new(AllocDependency{val:val})),
                          effect:Effect::Allocate,
                          dirty:false};
-                self.stack[0].succs.push(succ);
-            } ;
+                println!("{} alloc cell: edge: {:?} --> {:?}", engineMsg, &frame.loc, &loc);
+                frame.succs.push(succ)
+            }} ;
             MutArt{loc:loc,phantom:PhantomData}
         }
 
@@ -659,7 +658,7 @@ impl Adapton for Engine {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Structural(hash)));
                 if false {
-                    println!("{} alloc: Structural {:?}\n{} ;; {:?}\n{} ;; {:?}",
+                    println!("{} alloc thunk: Structural {:?}\n{} ;; {:?}\n{} ;; {:?}",
                              engineMsg, &loc,
                              engineMsg, &prog_pt,
                              engineMsg, &arg);
@@ -671,20 +670,18 @@ impl Adapton for Engine {
                     }
                 } ;
                 // assert: node does not exist.
-                let creators =
-                    if self.stack.is_empty() { Vec::new() }
-                    else {
-                        let pred = self.stack[0].loc.clone();
+                let creators = match self.stack.last_mut() {
+                    None => Vec::new(),
+                    Some(frame) => {
+                        let pred = frame.loc.clone();
                         let succ =
                             Succ{loc:loc.clone(),
                                  dep:Rc::new(Box::new(NoDependency)),
                                  effect:Effect::Allocate,
                                  dirty:false};
-                        self.stack[0].succs.push(succ);
-                        let mut v = Vec::new();
-                        v.push(pred);
-                        v
-                    };
+                        frame.succs.push(succ);
+                        vec![ pred ]
+                    }};
                 let producer : Box<Producer<Res>> =
                     Box::new(App{prog_pt:prog_pt,
                                  fn_box:fn_box,
@@ -706,22 +703,20 @@ impl Adapton for Engine {
             ArtIdChoice::Nominal(nm) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Nominal(nm)));
-                let mut creators = {
-                    if self.stack.is_empty() { Vec::new() }
-                    else
-                    {
-                        let pred = self.stack[0].loc.clone();
+                let mut creators = match self.stack.last_mut() {
+                    None => Vec::new(),
+                    Some(frame) => {
+                        let pred = frame.loc.clone();
+                        println!("{} alloc thunk: edge {:?} --> {:?}", engineMsg, &pred, &loc);
                         let succ =
                             Succ{loc:loc.clone(),
                                  dep:Rc::new(Box::new(AllocDependency{val:arg.clone()})),
                                  effect:Effect::Allocate,
                                  dirty:false};
-                        self.stack[0].succs.push(succ);
-                        let mut v = Vec::new();
-                        v.push(pred);
-                        v
+                        frame.succs.push(succ);
+                        vec![ pred ]
                     }};
-                println!("{} alloc: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
+                println!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
                          engineMsg, &loc,
                          engineMsg, &prog_pt,
                          engineMsg, &arg);
@@ -749,13 +744,13 @@ impl Adapton for Engine {
                         //println!("{} Nominal match: {:?}", engineMsg, comp_nd.producer);
                         let equal_producer_prog_pts : bool =
                             comp_nd.producer.prog_pt().eq( producer.prog_pt() ) ;
-                        println!("{} alloc: Nominal match: equal_producer_prog_pts: {:?}",
+                        println!("{} alloc thunk: Nominal match: equal_producer_prog_pts: {:?}",
                                  engineMsg, equal_producer_prog_pts);
                         if equal_producer_prog_pts { // => safe cast to Box<Consumer<Arg>>
                             let app: &mut Box<App<Arg,Spurious,Res>> =
                                 unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
                             ;
-                            println!("{} alloc: Nominal match: app: {:?}", engineMsg, app);
+                            println!("{} alloc thunk: Nominal match: app: {:?}", engineMsg, app);
                             if app.get_arg() == arg {
                                 // Same argument; Nothing else to do:
                                 // do_dirty=false; do_insert=false
@@ -778,10 +773,10 @@ impl Adapton for Engine {
                     }
                 } } ;
                 if do_dirty {
-                    println!("{} alloc: dirty_alloc {:?}.", engineMsg, &loc);
+                    println!("{} alloc thunk: dirty_alloc {:?}.", engineMsg, &loc);
                     dirty_alloc(self, &loc)
                 } else {
-                    println!("{} alloc: No dirtying.", engineMsg)
+                    println!("{} alloc thunk: No dirtying.", engineMsg)
                 } ;
                 if do_insert {
                     let node : CompNode<Res> = CompNode{
@@ -846,14 +841,14 @@ impl Adapton for Engine {
                         }
                     }
                 } ;
-                if self.stack.is_empty() { } else {
+                match self.stack.last_mut() { None => (), Some(frame) => {
                     let succ =
                         Succ{loc:loc.clone(),
                              dep:Rc::new(Box::new(ProducerDep{res:result.clone()})),
                              effect:Effect::Observe,
                              dirty:false};
-                    self.stack[0].succs.push(succ);
-                } ;
+                    frame.succs.push(succ);
+                }} ;
                 result
             }
         }}
