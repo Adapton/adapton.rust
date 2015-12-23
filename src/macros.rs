@@ -11,9 +11,10 @@
 // always have two distinct identities).
 //
 use std::hash::{Hash,Hasher,SipHasher};
+use std::fmt::{Formatter,Result,Debug};
 //use std::mem::replace;
 
-#[derive(PartialEq,Eq,Clone,Hash,Debug)]
+#[derive(PartialEq,Eq,Clone,Hash)]
 pub struct ProgPt {
     // Symbolic identity, in Rust semantics:
     pub symbol:&'static str, // via stringify!(...)
@@ -23,6 +24,10 @@ pub struct ProgPt {
     //pub file:&'static str,   // via file!()
     //pub line:u32,        // via line!()
     //pub column:u32,      // via column!()
+}
+
+impl Debug for ProgPt {
+    fn fmt(&self, f: &mut Formatter) -> Result { self.symbol.fmt(f) }
 }
 
 pub fn my_hash<T>(obj: T) -> u64

@@ -495,7 +495,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
     let stackLen = st.stack.len() ;
     let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs() ;
     for pred_loc in pred_locs {
-        if st.root.eq (&pred_loc) { continue } // root location is a special case; skip it. // Todo-Later: This case should be impossible
+        if st.root.eq (&pred_loc) { panic!("root in preds") }
         else {
             let stop : bool = {
                 // The stop bit communicates information from st for use below.
@@ -506,7 +506,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
                     println!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
                     false
                 }} ;
-            if !stop {
+            if true || !stop {
                 dirty_pred_observers(st,&pred_loc);
             } else { println!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen))) }
         }
@@ -519,7 +519,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
     let stackLen = st.stack.len() ;
     let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc() ;
     for pred_loc in pred_locs {
-        if st.root.eq (&pred_loc) { continue } // root location is a special case; skip it. // Todo-Later: This case should be impossible
+        if st.root.eq (&pred_loc) { panic!("root in preds") }
         else {
             let stop : bool = {
                 // The stop bit communicates information from st for use below.
@@ -530,7 +530,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
                     replace(&mut succ.dirty, true);
                     false
                 }} ;
-            if !stop {
+            if true || !stop {
                 dirty_pred_observers(st,&pred_loc);
             } else { println!("{} dirty_alloc: early stop", engineMsg(Some(stackLen))) }
         }
