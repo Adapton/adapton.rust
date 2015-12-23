@@ -71,9 +71,9 @@ impl<X:Arbitrary+Sized+Rand,Dir:Arbitrary+Sized+Rand>
     }
 }
 
-pub trait ExperimentT<A:Adapton,X> {
+pub trait ExperimentT<A:Adapton,X,Out> {
     type ListEdit : ListEdit<A,X> ;
-    fn run (&mut A, Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<Cnt> ;
+    fn run (&mut A, Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<(Out,Cnt)> ;
 }
 
 fn has_consecutive_names<A:Adapton,X,L:ListT<A,X>> (st:&mut A, list:L::List) -> bool {
@@ -88,13 +88,13 @@ fn has_consecutive_names<A:Adapton,X,L:ListT<A,X>> (st:&mut A, list:L::List) -> 
 }
 
 pub struct Experiment ;
-impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
+impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,Vec<X>>
     for Experiment
 {
     type ListEdit = ListZipper<A,X,List<A,X>> ;
-    fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<Cnt> {
+    fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<(Vec<X>,Cnt)> {
         println!("run");
-        let mut cnts : Vec<Cnt> = Vec::new();
+        let mut outs : Vec<(Vec<X>,Cnt)> = Vec::new();
         let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
         let mut loop_cnt = 0 as usize;
         for edit in edits.into_iter() {
@@ -105,18 +105,20 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X>
             println!("zipper names: consecutive left: {}, consecutive right: {}",
                      consecutive_left, consecutive_right);
             println!("edit:   {:?}", edit);
-            let (_, cnt) = st.cnt(|st|{
+            let (out, cnt) = st.cnt(|st|{
                 let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
                 let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
                 println!("tree:   {:?}", tree);
                 let nm = st.name_of_string("eval_reduce".to_string());
-                st.ns(nm, |st|eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view) );
+                let out = st.ns(nm, |st|eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view) );
                 z = z_next;
                 loop_cnt = loop_cnt + 1;
+                out
             }) ;
+            println!("out:    {:?}", out);
             println!("cnt:    {:?}", cnt);
-            cnts.push(cnt);
-        } cnts
+            outs.push((out,cnt));
+        } outs
     }
 }
 
@@ -141,10 +143,10 @@ fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>,
     }
 }
 
-fn eval_reduce<A:Adapton,X:Zero+Hash+Eq+PartialOrd+Debug+Clone,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) {
+fn eval_reduce<A:Adapton,X:Zero+Hash+Eq+PartialOrd+Debug+Clone,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) -> Vec<X> {
     match *red {
-        ListReduce::Max => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x > y {x} else {y}) ; println!("max: {:?}", x); () },
-        ListReduce::Min => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x < y {x} else {y}) ; () },
+        ListReduce::Max => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x > y {x} else {y}) ; println!("max: {:?}", x); vec![ x ] },
+        ListReduce::Min => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x < y {x} else {y}) ; vec![ x ] },
         ListReduce::Median => panic!(""),
         ListReduce::DemandAll(ListTransf::Sort) => panic!(""),
         ListReduce::DemandAll(ListTransf::Reverse) => panic!(""),
