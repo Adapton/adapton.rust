@@ -101,7 +101,7 @@ trait GraphNode {
     fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>) -> () ;
     fn preds_remove<'r>(self:&'r mut Self, &Rc<Loc>) -> () ;
     fn succs_def<'r>   (self:&'r mut Self) -> bool ;
-    fn succs<'r>       (self:&'r mut Self) -> &'r mut Vec<Succ> ;
+    fn succs_mut<'r>   (self:&'r mut Self) -> &'r mut Vec<Succ> ;
 }
 
 #[derive(Debug)]
@@ -315,7 +315,7 @@ impl <Res> GraphNode for Node<Res> {
     fn succs_def<'r>(self:&'r mut Self) -> bool {
         match *self { Node::Comp(_) => true, _ => false
         }}
-    fn succs<'r>(self:&'r mut Self) -> &'r mut Vec<Succ> {
+    fn succs_mut<'r>(self:&'r mut Self) -> &'r mut Vec<Succ> {
         match *self { Node::Comp(ref mut n) => &mut n.succs,
                      _ => panic!("undefined"),
         }
@@ -352,7 +352,7 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
     let succs : Vec<Succ> = {
         let succs : Vec<Succ> = Vec::new();
         let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
-        replace(node.succs(), succs)
+        replace(node.succs_mut(), succs)
     } ;
     revoke_succs( st, loc, &succs );
     st.stack.push ( Frame{loc:loc.clone(),
@@ -438,16 +438,16 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
         let succs = {
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             assert!( node.succs_def() );
-            node.succs().clone()
+            node.succs_mut().clone()
         } ;
         for succ in succs.iter() {
             if succ.dirty {
                 let dep = & succ.dep ;
                 let res = dep.change_prop(st, &succ.loc) ;
                 if res.changed {
-                    println!("{} change_prop end (1/2): {:?} has a changed dependency. Begin re-production:", engineMsg!(st), &succ.loc);
-                    let res = re_produce (self, st, &succ.loc);
-                    println!("{} change_prop end (2/2): {:?} has a changed dependency. End re-production.", engineMsg!(st), &succ.loc);
+                    println!("{} change_prop end (1/2): {:?} has a changed succ dependency: {:?}. Begin re-production:", engineMsg!(st), loc, &succ.loc);
+                    let res = re_produce (self, st, loc);
+                    println!("{} change_prop end (2/2): {:?} has a changed succ dependency: {:?}. End re-production.", engineMsg!(st), loc, &succ.loc);
                     return res
                 }
             }
@@ -480,7 +480,7 @@ fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc
     let stackLen = st.stack.len() ;
     let nd = lookup_abs( st, src_loc );
     println!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
-    for succ in nd.succs().iter_mut() {
+    for succ in nd.succs_mut().iter_mut() {
         if (succ.effect == eff) && (&succ.loc == tgt_loc) {
             println!("{} get_succ_mut: resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
             return succ
