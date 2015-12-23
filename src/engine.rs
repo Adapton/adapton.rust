@@ -224,7 +224,7 @@ impl<Arg:Debug,Spurious,Res> Debug for App<Arg,Spurious,Res> {
     fn fmt(&self, f: &mut Formatter) -> Result { self.prog_pt.fmt(f) ; self.arg.fmt(f) }
 }
 
-impl<Arg:Hash,Spurious,Res> Hash for App<Arg,Spurious,Res> {
+impl<Arg:Hash+Debug,Spurious,Res> Hash for App<Arg,Spurious,Res> {
     fn hash<H>(&self, state: &mut H) where H: Hasher { (&self.prog_pt,&self.arg).hash(state) }
 }
 

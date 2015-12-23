@@ -33,6 +33,10 @@ license = "MPL-2.0"
 
 ## For testing
 [dependencies]
-quickcheck = "0.2.24"
-quickcheck_macros = "0.2.24"
 rand = "0.3"
+
+[dependencies.quickcheck]
+git = "https://github.com/ebfull/quickcheck.git"
+
+[dependencies.quickcheck_macros]
+git = "https://github.com/ebfull/quickcheck.git"
