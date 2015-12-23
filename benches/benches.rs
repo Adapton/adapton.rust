@@ -94,10 +94,10 @@ mod fib {
                 b.iter(|| test::black_box(run_fib(INPUT_SIZE)));
             }
                         
-            #[bench]
-            fn bench_fib_repeat(b: &mut Bencher) {
-                b.iter(|| test::black_box(run_fib_repeat(INPUT_SIZE, REPEAT_COUNT)));
-            }
+            //#[bench]
+            //fn bench_fib_repeat(b: &mut Bencher) {
+            //    b.iter(|| test::black_box(run_fib_repeat(INPUT_SIZE, REPEAT_COUNT)));
+            //}
             
         }
 

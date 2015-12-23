@@ -13,6 +13,9 @@ extern crate quickcheck;
 extern crate rand;
 
 #[macro_use]
+extern crate log;
+
+#[macro_use]
 pub mod macros ;
 pub mod adapton_sigs ;
 pub mod engine ;

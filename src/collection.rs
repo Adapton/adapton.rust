@@ -1026,7 +1026,7 @@ pub trait MapT
 pub trait GraphT
     <A:Adapton
     ,Node:Hash+Eq+Clone+Debug
-    ,NodeSet:SetT<A,Node>
+    ,NodeSet:SetT<A,Node>+Clone+Hash
     ,NodeMap:MapT<A,Node,NodeSet>>
 {
     type Graph : Hash+Eq+Clone+Debug;
