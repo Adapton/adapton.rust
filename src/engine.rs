@@ -403,7 +403,7 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
 
 fn re_produce<Res:'static+Debug+PartialEq+Eq+Clone>(dep:&ProducerDep<Res>, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes {
     let result : Res = produce( st, loc ) ;
-    let changed = result == dep.res ;
+    let changed = result != dep.res ;
     EngineRes{changed:changed}
 }
 
