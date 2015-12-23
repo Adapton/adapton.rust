@@ -430,7 +430,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
                 },
                 Node::Mut(ref nd) => {
                     println!("{} change_prop early end: {:?} is Mut(_)", engineMsg(Some(stackLen)), loc);
-                    return EngineRes{changed:nd.val == self.res}
+                    return EngineRes{changed:nd.val != self.res}
                 },
                 _ => panic!("undefined")
             }
