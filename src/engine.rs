@@ -506,7 +506,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
                     println!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
                     false
                 }} ;
-            if true || !stop {
+            if !stop {
                 dirty_pred_observers(st,&pred_loc);
             } else { println!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen))) }
         }
@@ -530,7 +530,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
                     replace(&mut succ.dirty, true);
                     false
                 }} ;
-            if true || !stop {
+            if !stop {
                 dirty_pred_observers(st,&pred_loc);
             } else { println!("{} dirty_alloc: early stop", engineMsg(Some(stackLen))) }
         }
