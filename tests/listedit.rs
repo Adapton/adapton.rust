@@ -63,6 +63,9 @@ fn ensure_consistency_regression_testcase2() { assert!( compare_naive_and_cached
 #[ignore]
 fn ensure_consistency_regression_testcase3() { assert!( compare_naive_and_cached(&testcase3())) }
 
+#[test]
+fn ensure_consistency_regression_testcase4() { assert!( compare_naive_and_cached(&testcase4())) }
+
 fn testcase1 () -> Edits {
     vec![
         CursorEdit::Insert(Dir2::Left, 36), CursorEdit::Insert(Dir2::Right, 44), CursorEdit::Remove(Dir2::Right), CursorEdit::Remove(Dir2::Right),
@@ -139,3 +142,54 @@ fn testcase3 () -> Edits {
          // CursorEdit::Insert(Dir2::Left, 71)
          ]
 }
+
+fn testcase4 () -> Edits {
+    vec![
+        CursorEdit::Replace(Dir2::Left, 29),
+        CursorEdit::Replace(Dir2::Left, 34),
+        CursorEdit::Goto(Dir2::Right),
+        CursorEdit::Goto(Dir2::Right),
+        CursorEdit::Insert(Dir2::Right, 30),
+        CursorEdit::Insert(Dir2::Left, 26),
+        CursorEdit::Insert(Dir2::Right, 26),
+        CursorEdit::Insert(Dir2::Left, 7),
+        CursorEdit::Remove(Dir2::Left),
+        CursorEdit::Goto(Dir2::Left),
+        CursorEdit::Insert(Dir2::Left, 19),
+        CursorEdit::Insert(Dir2::Left, 16),
+        CursorEdit::Goto(Dir2::Right),
+        CursorEdit::Goto(Dir2::Left),
+        CursorEdit::Insert(Dir2::Right, 27),
+        CursorEdit::Insert(Dir2::Right, 3),
+        CursorEdit::Insert(Dir2::Left, 13),
+        CursorEdit::Goto(Dir2::Left),
+        CursorEdit::Insert(Dir2::Left, 26),
+        CursorEdit::Insert(Dir2::Left, 10),
+        CursorEdit::Insert(Dir2::Right, 2),
+        CursorEdit::Insert(Dir2::Right, 38),
+        CursorEdit::Insert(Dir2::Left, 36),
+        CursorEdit::Replace(Dir2::Left, 36),
+        CursorEdit::Insert(Dir2::Left, 8),
+        CursorEdit::Insert(Dir2::Left, 39),
+        CursorEdit::Replace(Dir2::Right, 7),
+        CursorEdit::Insert(Dir2::Right, 30),
+        CursorEdit::Goto(Dir2::Left),
+        CursorEdit::Goto(Dir2::Right),
+        //CursorEdit::Goto(Dir2::Right),
+        //CursorEdit::Insert(Dir2::Right, 25),
+        //CursorEdit::Insert(Dir2::Left, 0),
+        //CursorEdit::Insert(Dir2::Left, 0),
+        //CursorEdit::Goto(Dir2::Right),
+        //CursorEdit::Goto(Dir2::Right)
+      ]
+}
+    
+
+// ---- ensure_consistency stdout ----
+//     after edit 29: Replace(Dir2::Right, 47): expected Max to be [47], but found [45]
+//     thread 'ensure_consistency' panicked at '[Goto(Dir2::Right), Insert(Dir2::Left, 45), Remove(Dir2::Right), Remove(Dir2::Right), Insert(Dir2::Right, 19), Goto(Dir2::Left), Goto(Dir2::Right), Insert(Dir2::Left, 23), Goto(Dir2::Right), Insert(Dir2::Right, 14), Insert(Dir2::Left, 28), Goto(Dir2::Right), Goto(Dir2::Right), Insert(Dir2::Right, 37), Replace(Dir2::Left, 35), Insert(Dir2::Right, 0), Insert(Dir2::Right, 23), Insert(Dir2::Left, 27), Goto(Dir2::Left), Insert(Dir2::Right, 11), Insert(Dir2::Right, 30), Insert(Dir2::Right, 25), Insert(Dir2::Right, 38), Goto(Dir2::Right), Insert(Dir2::Left, 24), Insert(Dir2::Left, 45), Replace(Dir2::Left, 31), Replace(Dir2::Right, 43), Replace(Dir2::Right, 2), Replace(Dir2::Right, 47), Insert(Dir2::Right, 46), Insert(Dir2::Left, 27), Goto(Dir2::Right), Remove(Dir2::Right), Goto(Dir2::Left), Insert(Dir2::Left, 44), Goto(Dir2::Left), Insert(Dir2::Right, 27), Goto(Dir2::Left)]', tests/listedit.rs:52
+
+// ---- ensure_consistency stdout ----
+//     after edit 41: Goto(Dir2::Right): expected Max to be [49], but found [44]
+//     thread 'ensure_consistency' panicked at '[Replace(Dir2::Right, 45), Insert(Dir2::Right, 0), Insert(Dir2::Left, 12), Insert(Dir2::Right, 22), Goto(Dir2::Right), Goto(Dir2::Right), Insert(Dir2::Left, 16), Replace(Dir2::Right, 7), Goto(Dir2::Right), Insert(Dir2::Left, 16), Insert(Dir2::Right, 27), Insert(Dir2::Left, 0), Goto(Dir2::Right), Insert(Dir2::Right, 36), Goto(Dir2::Right), Goto(Dir2::Right), Insert(Dir2::Right, 11), Goto(Dir2::Right), Insert(Dir2::Right, 32), Remove(Dir2::Left), Insert(Dir2::Right, 14), Remove(Dir2::Right), Goto(Dir2::Right), Replace(Dir2::Right, 23), Insert(Dir2::Left, 34), Replace(Dir2::Right, 49), Insert(Dir2::Left, 0), Insert(Dir2::Left, 16), Remove(Dir2::Left), Insert(Dir2::Left, 4), Goto(Dir2::Right), Replace(Dir2::Right, 23), Insert(Dir2::Left, 44), Goto(Dir2::Left), Insert(Dir2::Left, 23), Goto(Dir2::Right), Insert(Dir2::Left, 18), Insert(Dir2::Right, 15), Replace(Dir2::Left, 49), Insert(Dir2::Right, 16), Goto(Dir2::Left), Goto(Dir2::Right), Insert(Dir2::Left, 46), Goto(Dir2::Left)]', tests/listedit.rs:52
+
