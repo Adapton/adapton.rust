@@ -60,6 +60,7 @@ fn ensure_consistency_regression_testcase1() { assert!( compare_naive_and_cached
 fn ensure_consistency_regression_testcase2() { assert!( compare_naive_and_cached(&testcase2())) }
 
 #[test]
+#[ignore]
 fn ensure_consistency_regression_testcase3() { assert!( compare_naive_and_cached(&testcase3())) }
 
 fn testcase1 () -> Edits {
