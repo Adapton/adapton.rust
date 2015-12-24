@@ -29,7 +29,7 @@ fn compare_naive_and_cached(edits: &Edits) -> bool {
     let mut idx = 0;
     for (a, b) in results_1.iter().zip(results_2.iter()) {
         if a.0 != b.0 {
-            println!("after edit {}: {:?}: expected {:?} to be {:?}, but found {:?}",
+            println!("After edit {}, {:?}, expected {:?} to be {:?}, but found {:?}.",
                      idx, edits[idx], &reduction, a.0, b.0);
             return false;
         }
@@ -56,6 +56,9 @@ fn ensure_consistency_regression_testcase1() { assert!( compare_naive_and_cached
 
 #[test]
 fn ensure_consistency_regression_testcase2() { assert!( compare_naive_and_cached(&testcase2())) }
+
+#[test]
+fn ensure_consistency_regression_testcase3() { assert!( compare_naive_and_cached(&testcase3())) }
 
 fn testcase1 () -> Edits {
     vec![
@@ -91,4 +94,21 @@ fn testcase2 () -> Edits {
          CursorEdit::Insert(Dir2::Right, 72), CursorEdit::Insert(Dir2::Right, 70), CursorEdit::Insert(Dir2::Left, 87), CursorEdit::Insert(Dir2::Right, 95),
          CursorEdit::Goto(Dir2::Left), CursorEdit::Goto(Dir2::Left), CursorEdit::Replace(Dir2::Right, 96), CursorEdit::Goto(Dir2::Right),
          CursorEdit::Goto(Dir2::Left), CursorEdit::Remove(Dir2::Left), CursorEdit::Goto(Dir2::Left)]
+}
+
+fn testcase3 () -> Edits {
+    vec![CursorEdit::Insert(Dir2::Left, 86), CursorEdit::Insert(Dir2::Right, 37), CursorEdit::Remove(Dir2::Left), CursorEdit::Insert(Dir2::Left, 42),
+         CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 68), CursorEdit::Insert(Dir2::Right, 18), CursorEdit::Remove(Dir2::Left),
+         CursorEdit::Remove(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Replace(Dir2::Left, 68), CursorEdit::Insert(Dir2::Left, 82),
+         CursorEdit::Insert(Dir2::Right, 30), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 78), CursorEdit::Insert(Dir2::Right, 88), CursorEdit::Insert(Dir2::Left, 38),
+         CursorEdit::Insert(Dir2::Right, 91), CursorEdit::Goto(Dir2::Left), CursorEdit::Insert(Dir2::Right, 67), CursorEdit::Insert(Dir2::Right, 3),
+         CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Right, 16), CursorEdit::Insert(Dir2::Left, 4), CursorEdit::Insert(Dir2::Right, 29),
+         CursorEdit::Insert(Dir2::Right, 92), CursorEdit::Insert(Dir2::Left, 79), CursorEdit::Replace(Dir2::Left, 88), CursorEdit::Goto(Dir2::Right),
+         CursorEdit::Goto(Dir2::Left), CursorEdit::Insert(Dir2::Left, 25), CursorEdit::Insert(Dir2::Left, 46), CursorEdit::Goto(Dir2::Left), CursorEdit::Goto(Dir2::Left),
+         CursorEdit::Insert(Dir2::Left, 18), CursorEdit::Insert(Dir2::Left, 1), CursorEdit::Insert(Dir2::Right, 43), CursorEdit::Goto(Dir2::Left), CursorEdit::Remove(Dir2::Left),
+         CursorEdit::Insert(Dir2::Right, 93), CursorEdit::Goto(Dir2::Left), CursorEdit::Insert(Dir2::Right, 10), CursorEdit::Remove(Dir2::Left),
+         CursorEdit::Insert(Dir2::Right, 34), CursorEdit::Remove(Dir2::Left), CursorEdit::Replace(Dir2::Left, 47), CursorEdit::Goto(Dir2::Right),
+         CursorEdit::Insert(Dir2::Left, 56), CursorEdit::Insert(Dir2::Left, 36), CursorEdit::Replace(Dir2::Right, 99), CursorEdit::Insert(Dir2::Right, 19),
+         CursorEdit::Insert(Dir2::Right, 35), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 94), CursorEdit::Replace(Dir2::Right, 58), CursorEdit::Goto(Dir2::Right),
+         CursorEdit::Insert(Dir2::Left, 71)]
 }
