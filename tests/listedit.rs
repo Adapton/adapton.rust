@@ -45,11 +45,9 @@ fn compare_naive_and_cached(edits: &Edits) -> bool {
     {
         let naive_total = a_cost.eval ;
         let engine_total = b_cost.dirty + b_cost.eval + b_cost.change_prop ;
-        println!("Naive / engine costs is {:.2}, or {:?} / {:?}. Naive:{:?}, Engine:{:?}",
+        println!("Naive / engine costs is {:.2}, or {:6} / {:6}. Engine costs:{:?}",
                  (naive_total as f32) / (engine_total as f32),
-                 naive_total,
-                 engine_total,
-                 a_cost, b_cost);
+                 naive_total, engine_total, b_cost);
     }
     true
 }
