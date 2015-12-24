@@ -1,5 +1,6 @@
 #![feature(test)]
 #![feature(plugin)]
+#![feature(zero_one)]
 #![plugin(quickcheck_macros)]
 
 //
@@ -11,11 +12,13 @@ extern crate test;
 extern crate quickcheck;
 extern crate rand;
 
+use std::num::Zero;
+
 use adapton::adapton_sigs::* ;
 use adapton::collection::*;
 use adapton::engine;
 use adapton::naive;
-   
+
 type Edits = Vec<CursorEdit<u32, Dir2>>;
 
 fn compare_naive_and_cached(edits: &Edits) -> bool {
@@ -27,7 +30,11 @@ fn compare_naive_and_cached(edits: &Edits) -> bool {
     let results_2 = Experiment::run(&mut e_st, edits.clone(), reduction.clone());
     
     let mut idx = 0;
+    let mut a_cost : Cnt = Cnt::zero();
+    let mut b_cost : Cnt = Cnt::zero();
     for (a, b) in results_1.iter().zip(results_2.iter()) {
+        a_cost = &a_cost + &a.1 ;
+        b_cost = &b_cost + &b.1 ;
         if a.0 != b.0 {
             println!("After edit {}, {:?}, expected {:?} to be {:?}, but found {:?}.",
                      idx, edits[idx], &reduction, a.0, b.0);
@@ -35,7 +42,15 @@ fn compare_naive_and_cached(edits: &Edits) -> bool {
         }
         idx += 1;
     }
-    
+    {
+        let naive_total = a_cost.eval ;
+        let engine_total = b_cost.dirty + b_cost.eval + b_cost.change_prop ;
+        println!("Naive / engine costs is {:.2}, or {:?} / {:?}. Naive:{:?}, Engine:{:?}",
+                 (naive_total as f32) / (engine_total as f32),
+                 naive_total,
+                 engine_total,
+                 a_cost, b_cost);
+    }
     true
 }
 

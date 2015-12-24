@@ -875,7 +875,7 @@ pub fn tree_of_list_rec
             let lev_nm = T::lev_inc( T::lev_add( T::lev_bits() , T::lev(&nm) ) ) ;
             if T::lev_lte ( tree_lev , lev_nm.clone() ) && T::lev_lte ( lev_nm.clone() ,  parent_lev.clone() ) {
                 let nil = T::nil(st) ;
-                let (nm1, nm2) = st.name_fork(nm.clone());
+                let (nm1, nm2, nm3, nm4) = st.name_fork4(nm.clone());
                 let (_, (tree2, rest)) =
                     eager!(st, nm1 =>> tree_of_list_rec::<A,X,T,L>,
                            dir_list:dir_list.clone(), list:rest,
@@ -884,13 +884,16 @@ pub fn tree_of_list_rec
                     Dir2::Left  => T::name ( st, nm.clone(), lev_nm.clone(), tree,  tree2 ),
                     Dir2::Right => T::name ( st, nm.clone(), lev_nm.clone(), tree2, tree  ),
                 } ;
-                let art = st.cell(nm, tree3) ;
+                let art = st.cell(nm3, tree3) ;
                 let art = st.read_only( art ) ;
                 let tree3 = T::art( st, art ) ;                
                 let (_, (tree, rest)) =
                     eager!(st, nm2 =>> tree_of_list_rec::<A,X,T,L>,
                            dir_list:dir_list.clone(), list:rest,
                            tree:tree3, tree_lev:lev_nm, parent_lev:parent_lev ) ;
+                let art = st.cell(nm4, tree) ;
+                let art = st.read_only( art ) ;
+                let tree = T::art( st, art ) ;
                 (tree, rest)
             }
             else {

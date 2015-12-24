@@ -4,6 +4,7 @@ use std::rc::Rc;
 use std::marker::PhantomData;
 use macros::{ProgPt};
 use std::ops::Sub;
+use std::ops::Add;
 use std::num::Zero;
 
 // The `Adapton` trait provides a language of
@@ -158,6 +159,28 @@ impl Sub for Cnt {
             dirty : self.dirty - rhs.dirty,
             eval  : self.eval - rhs.eval,
             change_prop : self.change_prop - rhs.change_prop,
+        }
+    }
+}
+
+impl Add for Cnt {
+    type Output=Cnt;
+    fn add(self, rhs: Self) -> Self::Output {
+        Cnt {
+            dirty : self.dirty + rhs.dirty,
+            eval  : self.eval + rhs.eval,
+            change_prop : self.change_prop + rhs.change_prop,
+        }
+    }
+}
+
+impl<'a> Add for &'a Cnt {
+    type Output=Cnt;
+    fn add(self, rhs: Self) -> Self::Output {
+        Cnt {
+            dirty : self.dirty + rhs.dirty,
+            eval  : self.eval + rhs.eval,
+            change_prop : self.change_prop + rhs.change_prop,
         }
     }
 }
