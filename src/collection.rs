@@ -520,7 +520,6 @@ pub trait TreeT<A:Adapton,Leaf> {
         ,      BinC:Fn(&mut A, Self::Lev,     Res, Res ) -> Res
         ,     NameC:Fn(&mut A, A::Name, Self::Lev, Res, Res ) -> Res
     {
-        //debug!(" * ");
         Self::elim
             (st, tree,
              |st| nil(st),
