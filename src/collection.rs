@@ -93,32 +93,32 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,
 {
     type ListEdit = ListZipper<A,X,List<A,X>> ;
     fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<(Vec<X>,Cnt)> {
-        info!("run");
+        println!("run");
         let mut outs : Vec<(Vec<X>,Cnt)> = Vec::new();
         let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
         let mut loop_cnt = 0 as usize;
         for edit in edits.into_iter() {
-            info!("\n----------------------- Loop head; count={}", loop_cnt);
-            info!("zipper: {:?}", z);
+            println!("\n----------------------- Loop head; count={}", loop_cnt);
+            println!("zipper: {:?}", z);
             let consecutive_left  = has_consecutive_names::<A,X,List<A,X>>(st, z.left.clone());
             let consecutive_right = has_consecutive_names::<A,X,List<A,X>>(st, z.right.clone());
-            info!("zipper names: consecutive left: {}, consecutive right: {}",
+            println!("zipper names: consecutive left: {}, consecutive right: {}",
                      consecutive_left, consecutive_right);
             //assert!(!consecutive_left);  // Todo-Later: This assertion generally fails for random interactions
             //assert!(!consecutive_right); // Todo-Later: This assertion generally fails for random interactions
-            info!("edit:   {:?}", edit);
+            println!("edit:   {:?}", edit);
             let (out, cnt) = st.cnt(|st|{
                 let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
                 let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
-                info!("tree:   {:?}", tree);
+                println!("tree:   {:?}", tree);
                 let nm = st.name_of_string("eval_reduce".to_string());
                 let out = st.ns(nm, |st|eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view) );
                 z = z_next;
                 loop_cnt = loop_cnt + 1;
                 out
             }) ;
-            info!("out:    {:?}", out);
-            info!("cnt:    {:?}", cnt);
+            println!("out:    {:?}", out);
+            println!("cnt:    {:?}", cnt);
             outs.push((out,cnt));
         } outs
     }
@@ -147,7 +147,7 @@ fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>,
 
 fn eval_reduce<A:Adapton,X:Zero+Hash+Eq+PartialOrd+Debug+Clone,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) -> Vec<X> {
     match *red {
-        ListReduce::Max => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x > y {x} else {y}) ; info!("max: {:?}", x); vec![ x ] },
+        ListReduce::Max => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x > y {x} else {y}) ; println!("max: {:?}", x); vec![ x ] },
         ListReduce::Min => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x < y {x} else {y}) ; vec![ x ] },
         ListReduce::Median => panic!(""),
         ListReduce::DemandAll(ListTransf::Sort) => panic!(""),
@@ -520,7 +520,7 @@ pub trait TreeT<A:Adapton,Leaf> {
         ,      BinC:Fn(&mut A, Self::Lev,     Res, Res ) -> Res
         ,     NameC:Fn(&mut A, A::Name, Self::Lev, Res, Res ) -> Res
     {
-        //info!(" * ");
+        //println!(" * ");
         Self::elim
             (st, tree,
              |st| nil(st),
