@@ -104,6 +104,8 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,
             let consecutive_right = has_consecutive_names::<A,X,List<A,X>>(st, z.right.clone());
             info!("zipper names: consecutive left: {}, consecutive right: {}",
                      consecutive_left, consecutive_right);
+            //assert!(!consecutive_left);  // Todo-Later: This assertion generally fails for random interactions
+            //assert!(!consecutive_right); // Todo-Later: This assertion generally fails for random interactions
             info!("edit:   {:?}", edit);
             let (out, cnt) = st.cnt(|st|{
                 let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
