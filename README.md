@@ -33,30 +33,34 @@ See also: [`collection.rs`](https://github.com/plum-umd/adapton.rust/blob/master
   - generic fixed-point loop
   - graphs, graph exploration algorithms (e.g., search)
 
-- The library provides interfaces to script interactions using generic **DSLs for editing and querying**
+- The library provides interfaces to script interactions using generic **DSLs for editing and querying**  
 See also: [`collection.rs`](https://github.com/plum-umd/adapton.rust/blob/master/src/collection.rs):  
   - script input creation, editing
   - script computations over input (observations)
 
 
-Supported IC Paradigms:
-----------------------
+Supported Incremental Computation Paradigms:
+--------------------------------------------
 
-- **Pure Function Caching** (*Incremental computation via function caching*)  
-[*Bill Pugh and Tim Teitelbaum, POPL 1989.*](http://dl.acm.org/citation.cfm?id=75305)  
+- **Pure Function Caching**:  
+[*Incremental computation via function caching*](http://dl.acm.org/citation.cfm?id=75305)  
+*Bill Pugh and Tim Teitelbaum.*  
+**POPL 1989.**  
   - hash-cons'd, purely-functional data structures
   - memoized function calls (to pure computations)
 
-- **(Structural) Adapton**: Composable, Demand-Driven Incremental Computation.  
+- **Structural Adapton**:  
+[Adapton: Composable, Demand-Driven Incremental Computation.](https://www.cs.umd.edu/~hammer/adapton/)  
 *Matthew A. Hammer, Yit Phang Khoo, Michael Hicks and Jeffrey S. Foster.*  
 **PLDI 2014.**  
   - changeable input cells
   - bidirectional DCG structure
   - dirtying traversal; repair traversal.
 
-- **Nominal Adapton:** Incremental Computation with Names  
+- **Nominal Adapton:**  
+[Incremental Computation with Names](http://arxiv.org/abs/1503.07792)  
 *Matthew A. Hammer, Joshua Dunfield, Kyle Headley, Nicholas Labich, Jeffrey S. Foster, Michael Hicks, David Van Horn.*  
-*March 2015.*  
+**OOPSLA 2015.**  
   - first-class names
   - nominal memoization
   
