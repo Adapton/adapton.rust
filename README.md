@@ -16,10 +16,10 @@ Library Components:
 See the [`Adapton` trait](https://github.com/cuplv/adapton.rust/blob/master/src/adapton_sigs.rs#L10).  
 
 - The library uses rust macros to provide **syntactic sugar**.  
-See [`macros`](https://github.com/cuplv/adapton.rust/blob/master/src/macros.rs).  
+See [`macros.rs`](https://github.com/cuplv/adapton.rust/blob/master/src/macros.rs).  
 
 - The library implements this interface with an **imperative data structure**, and **without garbage collection**.  
-See [`Engine`](https://github.com/cuplv/adapton.rust/blob/master/src/engine.rs).
+See [`engine.rs`](https://github.com/cuplv/adapton.rust/blob/master/src/engine.rs).
 
 - The library provides generic **incremental data structures and algorithms**.  
 See also: [`collection_traits.rs`](https://github.com/cuplv/adapton.rust/blob/master/src/collection_traits.rs):  Generic trees and lists.  
