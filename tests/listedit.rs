@@ -1,7 +1,7 @@
 #![feature(test)]
 #![feature(plugin)]
 #![feature(zero_one)]
-#![plugin(quickcheck_macros)]
+// #![plugin(quickcheck_macros)]
 
 //
 // cargo test listedit::experiments -- --nocapture

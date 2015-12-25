@@ -39,5 +39,5 @@ log = "0.3.*"
 [dependencies.quickcheck]
 git = "https://github.com/ebfull/quickcheck.git"
 
-[dependencies.quickcheck_macros]
-git = "https://github.com/ebfull/quickcheck.git"
+#[dependencies.quickcheck_macros]
+#git = "https://github.com/ebfull/quickcheck.git"
