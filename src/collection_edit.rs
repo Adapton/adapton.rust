@@ -7,7 +7,6 @@ use macros::* ;
 use adapton_sigs::* ;
 use collection_traits::*;
 use collection_algo::*;
-use collection::*;
 use quickcheck::Arbitrary;
 use quickcheck::Gen;
 use std::num::Zero;
@@ -80,55 +79,7 @@ pub trait ExperimentT<A:Adapton,X,Out> {
     fn run (&mut A, Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<(Out,Cnt)> ;
 }
 
-fn has_consecutive_names<A:Adapton,X,L:ListT<A,X>> (st:&mut A, list:L::List) -> bool {
-    L::elim(st, list,
-            |st| false,
-            |st,x,xs| has_consecutive_names::<A,X,L> (st, xs),
-            |st,n,xs|
-            L::elim(st, xs,
-                    |st| false,
-                    |st,y,ys| has_consecutive_names::<A,X,L> (st, ys),
-                    |st,m,ys| true))
-}
-
-pub struct Experiment ;
-impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,Vec<X>>
-    for Experiment
-{
-    type ListEdit = ListZipper<A,X,List<A,X>> ;
-    fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<(Vec<X>,Cnt)> {
-        debug!("run");
-        let mut outs : Vec<(Vec<X>,Cnt)> = Vec::new();
-        let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
-        let mut loop_cnt = 0 as usize;
-        for edit in edits.into_iter() {
-            debug!("\n----------------------- Loop head; count={}", loop_cnt);
-            debug!("zipper: {:?}", z);
-            let consecutive_left  = has_consecutive_names::<A,X,List<A,X>>(st, z.left.clone());
-            let consecutive_right = has_consecutive_names::<A,X,List<A,X>>(st, z.right.clone());
-            debug!("zipper names: consecutive left: {}, consecutive right: {}",
-                     consecutive_left, consecutive_right);
-            //assert!(!consecutive_left);  // Todo-Later: This assertion generally fails for random interactions
-            //assert!(!consecutive_right); // Todo-Later: This assertion generally fails for random interactions
-            debug!("edit:   {:?}", edit);
-            let (out, cnt) = st.cnt(|st|{
-                let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
-                let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
-                debug!("tree:   {:?}", tree);
-                let nm = st.name_of_string("eval_reduce".to_string());
-                let out = st.ns(nm, |st|eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view) );
-                z = z_next;
-                loop_cnt = loop_cnt + 1;
-                out
-            }) ;
-            debug!("out:    {:?}", out);
-            debug!("cnt:    {:?}", cnt);
-            outs.push((out,cnt));
-        } outs
-    }
-}
-
-fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>, z:E::State, id:usize) -> E::State {
+pub fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>, z:E::State, id:usize) -> E::State {
     match edit {
         CursorEdit::Insert(dir,x) => {
             let z = E::clr_names(st, z, dir.clone()) ;
@@ -151,7 +102,7 @@ fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>,
     }
 }
 
-fn eval_reduce<A:Adapton,X:Zero+Hash+Eq+PartialOrd+Debug+Clone,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) -> Vec<X> {
+pub fn eval_reduce<A:Adapton,X:Zero+Hash+Eq+PartialOrd+Debug+Clone,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) -> Vec<X> {
     match *red {
         ListReduce::Max => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x > y {x} else {y}) ; vec![ x ] },
         ListReduce::Min => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x < y {x} else {y}) ; vec![ x ] },
