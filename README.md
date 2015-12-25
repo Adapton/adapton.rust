@@ -33,12 +33,17 @@ See also: [`collection.rs`](https://github.com/plum-umd/adapton.rust/blob/master
   - generic fixed-point loop
   - graphs, graph exploration algorithms (e.g., search)
 
+- The library provides interfaces to script interactions using generic **DSLs for editing and querying**
+See also: [`collection.rs`](https://github.com/plum-umd/adapton.rust/blob/master/src/collection.rs):  
+  - script input creation, editing
+  - script computations over input (observations)
+
 
 Supported IC Paradigms:
 ----------------------
 
-- **Pure Function Caching**  
-*Bill Pugh and Tim Teitelbaum, POPL 1989.*
+- **Pure Function Caching** (*Incremental computation via function caching*)  
+[*Bill Pugh and Tim Teitelbaum, POPL 1989.*](http://dl.acm.org/citation.cfm?id=75305)  
   - hash-cons'd, purely-functional data structures
   - memoized function calls (to pure computations)
 
@@ -58,25 +63,16 @@ Supported IC Paradigms:
 Future work
 ============
 
-Test Infrastructure
-----------------------
-- random interactions:
-  - generate random inputs, edits
-  - generate random observations
-
-- [report memory statistics](http://stackoverflow.com/questions/30869007/how-to-benchmark-memory-usage-of-a-function)
+- Benchmarking based on tests:
+  - report time statistics
+  - [report memory statistics](http://stackoverflow.com/questions/30869007/how-to-benchmark-memory-usage-of-a-function)
 
 Technical Debt
 ================
 
-Design Issues:
----------------
-- canonical balanced trees for sequences: Data only at leaves (B-Tree style).
-
 Rust-Specific:
 --------------------
-- The concept of "object safety" seems to bite me a lot in naive designs.
-I sidestepped this problem in `adapton_state.rs` twice: by writing `Producer::copy` and the `ShapeShifter` trait.  Both avoid returning a `Self`.  
+- In `engine.rs` I wrote `Producer::copy` and the `ShapeShifter` trait.  Both avoid returning a `Self`.  
 Is there a better way?  
 See also: [0255-object-safety](https://github.com/rust-lang/rfcs/blob/master/text/0255-object-safety.md)  
 - Do I need really need `Rc<Box<Fn (_) -> _>>` instead of `Rc<Fn (_) -> _>`?  
