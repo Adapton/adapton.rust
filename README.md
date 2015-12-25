@@ -13,30 +13,25 @@ Library Components:
 -----------------------
 
 - The library exposes a small **core interface**.  
-See the [`Adapton` trait](https://github.com/plum-umd/adapton.rust/blob/master/src/adapton_sigs.rs#L7).  
+See the [`Adapton` trait](https://github.com/cuplv/adapton.rust/blob/master/src/adapton_sigs.rs#L10).  
 
 - The library uses rust macros to provide **syntactic sugar**.  
-See [`macros`](https://github.com/plum-umd/adapton.rust/blob/master/src/macros.rs).  
+See [`macros`](https://github.com/cuplv/adapton.rust/blob/master/src/macros.rs).  
 
 - The library implements this interface with an **imperative data structure**, and **without garbage collection**.  
-See [`Engine`](https://github.com/plum-umd/adapton.rust/blob/master/src/engine.rs).
+See [`Engine`](https://github.com/cuplv/adapton.rust/blob/master/src/engine.rs).
 
 - The library provides generic **incremental data structures and algorithms**.  
-See also: [`collection.rs`](https://github.com/plum-umd/adapton.rust/blob/master/src/collection.rs):  
-  - generic lists
-  - generic binary trees
-  - tree unfold: balanced trees from a step function
-  - tree folds (left-to-right, right-to-left, bottom-up)
-  - sorting: mergesort
+See also: [`collection_traits.rs`](https://github.com/cuplv/adapton.rust/blob/master/src/collection_traits.rs):  Generic trees and lists.  
+     And: [`collection_algo.rs`](https://github.com/cuplv/adapton.rust/blob/master/src/collection_algo.rs):  Simple algorithms over generic trees and lists.  
+  
+- The library provides interfaces to script interactions using generic **DSLs for editing and querying**  
+See also: [`collection_edit.rs`](https://github.com/cuplv/adapton.rust/blob/master/src/collection_edit.rs):  
+
 - **Next**:  
   - tries that represent sets, maps,
   - generic fixed-point loop
   - graphs, graph exploration algorithms (e.g., search)
-
-- The library provides interfaces to script interactions using generic **DSLs for editing and querying**  
-See also: [`collection.rs`](https://github.com/plum-umd/adapton.rust/blob/master/src/collection.rs):  
-  - script input creation, editing
-  - script computations over input (observations)
 
 
 Supported Incremental Computation Paradigms:
