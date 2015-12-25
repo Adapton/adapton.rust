@@ -79,14 +79,16 @@ fn ensure_consistency_randomly(size:usize, iterations:usize) {
 }
 
 #[test]
-fn ensure_consistency_randomly_100_x_100() {
-    ensure_consistency_randomly(100, 100)
-}
+fn ensure_consistency_randomly_100_x_100() { ensure_consistency_randomly(100, 100) }
 
 #[test]
-fn ensure_consistency_randomly_1000_x_20() {
-    ensure_consistency_randomly(1000, 20)
-}
+fn ensure_consistency_randomly_1k_x_20() { ensure_consistency_randomly(1000, 20) }
+
+#[test]
+fn ensure_consistency_randomly_5k_x_5() { ensure_consistency_randomly(5000, 5) }
+
+#[test]
+fn ensure_consistency_randomly_10k_x_5() { ensure_consistency_randomly(10000, 5) }
 
 #[test]
 fn ensure_consistency_regression_testcase1() { assert!( compare_naive_and_cached(&testcase1())) }
