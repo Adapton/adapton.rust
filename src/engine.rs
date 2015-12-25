@@ -411,6 +411,7 @@ struct ProducerDep<T> { res:T }
 fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq>
     (st:&mut Engine, this_dep:&ProducerDep<Res>, loc:&Rc<Loc>, cache:Res, succs:Vec<Succ>) -> EngineRes
 {
+    st.cnt.change_prop += 1 ;
     for succ in succs.iter() {
         if succ.dirty {
             let succ_dep = & succ.dep ;
@@ -436,7 +437,6 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
     fn change_prop(self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes {
         let stackLen = st.stack.len() ;
         debug!("{} change_prop begin: {:?}", engineMsg!(st), loc);
-        st.cnt.change_prop += 1 ;
         let (res, succs) = { // Handle cases where there is no internal computation to re-compute:
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             match *node {

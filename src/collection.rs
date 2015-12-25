@@ -53,8 +53,8 @@ impl Arbitrary for Dir2 {
     }
 }
 
-impl<X:Arbitrary+Sized+Rand,Dir:Arbitrary+Sized+Rand>
-    Arbitrary for CursorEdit<X,Dir>
+impl<X:Arbitrary+Sized+Rand>
+    Arbitrary for CursorEdit<X,Dir2>
 {
     fn arbitrary<G:Gen> (g: &mut G) -> Self {
         //match Rand::rand(g) as ListEditCmd<X,Name> {
@@ -62,7 +62,8 @@ impl<X:Arbitrary+Sized+Rand,Dir:Arbitrary+Sized+Rand>
             0  ... 50  => { CursorEdit::Insert (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
             50 ... 60  => { CursorEdit::Remove (Arbitrary::arbitrary(g)) },
             60 ... 70  => { CursorEdit::Replace(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
-            70 ... 100 => { CursorEdit::Goto   (Arbitrary::arbitrary(g)) },
+            70 ... 95 =>  { CursorEdit::Goto   (Dir2::Right) },
+            95 ... 100 => { CursorEdit::Goto   (Dir2::Left)  },
             _ => unreachable!()
         }
     }
@@ -128,7 +129,9 @@ fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>,
     match edit {
         CursorEdit::Insert(dir,x) => {
             let z = E::clr_names(st, z, dir.clone()) ;
-            let n = A::name_of_usize(st, id) ;
+            let n = A::name_of_usize(st, id);
+            let m = A::name_of_string(st, format!("input{}", id)) ;
+            let z = E::ins_cell(st, z, dir.clone(), m) ;
             let z = E::ins_name(st, z, dir.clone(), n) ;
             let z = E::insert(st, z, dir, x) ;
             z },
@@ -174,6 +177,7 @@ pub trait ListEdit<A:Adapton,X> {
     // Insert/remove names from the list content:
     fn clr_names (&mut A, Self::State, Self::Dir) -> Self::State;
     fn ins_name  (&mut A, Self::State, Self::Dir, A::Name) -> Self::State;
+    fn ins_cell  (&mut A, Self::State, Self::Dir, A::Name) -> Self::State;
     fn rem_name  (&mut A, Self::State, Self::Dir) -> (Self::State, Option<A::Name>);
 
     fn get_list<L:ListT<A,X>,T:TreeT<A,X>> (&mut A, Self::State, Self::Dir) -> L::List;
@@ -236,14 +240,29 @@ impl<A:Adapton
         }
     }
 
-    fn ins_name (st:&mut A, zip:Self::State, dir:Self::Dir, x:A::Name) -> Self::State {
+    fn ins_name (st:&mut A, zip:Self::State, dir:Self::Dir, name:A::Name) -> Self::State {
         match dir {
             Dir2::Left =>
-                ListZipper{left:L::name(st, x, zip.left),
+                ListZipper{left:L::name(st, name, zip.left),
                            right:zip.right},
             Dir2::Right =>
                 ListZipper{left:zip.left,
-                           right:L::name(st, x, zip.right)},
+                           right:L::name(st, name, zip.right)},
+        }
+    }
+
+    fn ins_cell (st:&mut A, zip:Self::State, dir:Self::Dir, name:A::Name) -> Self::State {
+        match dir {
+            Dir2::Left => {
+                let art = st.cell(name, zip.left) ;
+                let art = st.read_only(art);
+                ListZipper{left:L::art(st, art),
+                           right:zip.right}},                
+            Dir2::Right => {
+                let art = st.cell(name, zip.right) ;
+                let art = st.read_only(art);
+                ListZipper{left:zip.left,
+                           right:L::art(st, art)}},
         }
     }
 

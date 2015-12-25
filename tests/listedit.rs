@@ -45,23 +45,47 @@ fn compare_naive_and_cached(edits: &Edits) -> bool {
     {
         let naive_total = a_cost.eval ;
         let engine_total = b_cost.dirty + b_cost.eval + b_cost.change_prop ;
-        println!("Naive / engine costs is {:.2}, or {:6} / {:6}. Engine costs:{:?}",
+        if false {
+        println!("For {:5} edits, Naive/Engine:{:5} = {:8} / {:8}. Naive/EngineEval:{:5}. In Engine, eval is {:.2} of {:?}",
+                 edits.len(),
                  (naive_total as f32) / (engine_total as f32),
-                 naive_total, engine_total, b_cost);
+                 naive_total, engine_total,
+                 (naive_total as f32) / (b_cost.eval as f32),
+                 (b_cost.eval as f32) / (engine_total as f32),
+                 b_cost);
+        } ;
+        println!("For {:5} edits, Naive/Engine:{:.2}, Naive/EngineEval:{:.2}.  Per-edit: Naive:{:.2} Engine:{:.2} EngineEval:{:.2}",
+                 edits.len(),
+                 (naive_total as f32) / (engine_total as f32),
+                 (naive_total as f32) / (b_cost.eval as f32),
+                 // Per-edit metrics:
+                 (naive_total as f32) / (edits.len() as f32),
+                 (engine_total as f32) / (edits.len() as f32),
+                 (b_cost.eval as f32) / (edits.len() as f32),
+                 );
     }
     true
 }
 
-#[test]
-fn ensure_consistency_randomly_100_x_100() {
+fn ensure_consistency_randomly(size:usize, iterations:usize) {
     let rng = rand::thread_rng();
-    let mut gen = quickcheck::StdGen::new(rng, 100);
-    for _ in 0..100 {
-        let testv = <Edits as quickcheck::Arbitrary>::arbitrary(&mut gen);        
-        if !compare_naive_and_cached(&testv) {
+    let mut gen = quickcheck::StdGen::new(rng, size);
+    for _ in 0..iterations {
+        let testv = Box::new(<Edits as quickcheck::Arbitrary>::arbitrary(&mut gen));
+        if !compare_naive_and_cached(&*testv) {
             panic!("{:?}", testv);
         }
     }
+}
+
+#[test]
+fn ensure_consistency_randomly_100_x_100() {
+    ensure_consistency_randomly(100, 100)
+}
+
+#[test]
+fn ensure_consistency_randomly_1000_x_20() {
+    ensure_consistency_randomly(1000, 20)
 }
 
 #[test]
