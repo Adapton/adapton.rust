@@ -52,12 +52,14 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,
         for edit in edits.into_iter() {
             debug!("\n----------------------- Loop head; count={}", loop_cnt);
             debug!("zipper: {:?}", z);
-            let consecutive_left  = has_consecutive_names::<A,X,List<A,X>>(st, z.left.clone());
-            let consecutive_right = has_consecutive_names::<A,X,List<A,X>>(st, z.right.clone());
-            debug!("zipper names: consecutive left: {}, consecutive right: {}",
-                     consecutive_left, consecutive_right);
-            //assert!(!consecutive_left);  // Todo-Later: This assertion generally fails for random interactions
-            //assert!(!consecutive_right); // Todo-Later: This assertion generally fails for random interactions
+            if false {
+                let consecutive_left  = has_consecutive_names::<A,X,List<A,X>>(st, z.left.clone());
+                let consecutive_right = has_consecutive_names::<A,X,List<A,X>>(st, z.right.clone());
+                debug!("zipper names: consecutive left: {}, consecutive right: {}",
+                       consecutive_left, consecutive_right);
+                assert!(!consecutive_left);  // Todo-Later: This assertion generally fails for random interactions
+                assert!(!consecutive_right); // Todo-Later: This assertion generally fails for random interactions
+            }
             debug!("edit:   {:?}", edit);
             let (out, cnt) = st.cnt(|st|{
                 let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
