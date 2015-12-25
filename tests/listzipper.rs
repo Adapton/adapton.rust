@@ -6,7 +6,10 @@ extern crate test;
 //use adapton::adapton_syntax::* ;
 use adapton::adapton_sigs::* ;
 use adapton::naive::* ;
-use adapton::collection::* ;
+use adapton::collection_traits::* ;
+use adapton::collection_edit::* ;
+use adapton::collection::{List,Tree} ;
+use adapton::collection_algo::* ;
     
 pub fn zipper_get_tree<A:Adapton,L:ListT<A,u64>,T:TreeT<A,u64>> (st:&mut A, _nil1:L) {
     let z = ListZipper::<A,u64,L>::empty(st);

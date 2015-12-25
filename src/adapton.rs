@@ -22,6 +22,9 @@ pub mod engine ;
 pub mod naive ;
 
 pub mod simple ;
+pub mod collection_traits ;
+pub mod collection_algo ;
+pub mod collection_edit ;
 pub mod collection ;
 
 // pub mod fact ;

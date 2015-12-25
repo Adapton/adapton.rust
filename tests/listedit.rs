@@ -15,7 +15,8 @@ extern crate rand;
 use std::num::Zero;
 
 use adapton::adapton_sigs::* ;
-use adapton::collection::*;
+use adapton::collection_traits::*;
+use adapton::collection_edit::*;
 use adapton::engine;
 use adapton::naive;
 
