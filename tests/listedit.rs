@@ -16,6 +16,7 @@ extern crate quickcheck;
 extern crate rand;
 
 use std::num::Zero;
+use std::ops::Add;    
 
 use adapton::adapton_sigs::* ;
 use adapton::collection_traits::*;
@@ -40,7 +41,7 @@ fn has_consecutive_names<A:Adapton,X,L:ListT<A,X>> (st:&mut A, list:L::List) -> 
 }
 
 pub struct Experiment ;
-impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,Vec<X>>
+impl<A:Adapton,X:Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,Vec<X>>
     for Experiment
 {
     type ListEdit = ListZipper<A,X,List<A,X>> ;
@@ -78,13 +79,12 @@ impl<A:Adapton,X:Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,
     }
 }
 
-fn compare_naive_and_cached(edits: &Edits) -> bool {
-    let reduction = ListReduce::Max;
+fn compare_naive_and_cached(edits: &Edits, view:&ListReduce) -> bool {
     let mut n_st = naive::AdaptonFromScratch::new();
     let mut e_st = engine::Engine::new();
     
-    let results_1 = Experiment::run(&mut n_st, edits.clone(), reduction.clone());
-    let results_2 = Experiment::run(&mut e_st, edits.clone(), reduction.clone());
+    let results_1 = Experiment::run(&mut n_st, edits.clone(), view.clone());
+    let results_2 = Experiment::run(&mut e_st, edits.clone(), view.clone());
     
     let mut idx = 0;
     let mut a_cost : Cnt = Cnt::zero();
@@ -94,7 +94,7 @@ fn compare_naive_and_cached(edits: &Edits) -> bool {
         b_cost = &b_cost + &b.1 ;
         if a.0 != b.0 {
             println!("After edit {}, {:?}, expected {:?} to be {:?}, but found {:?}.",
-                     idx, edits[idx], &reduction, a.0, b.0);
+                     idx, edits[idx], &view, a.0, b.0);
             return false;
         }
         idx += 1;
@@ -103,7 +103,8 @@ fn compare_naive_and_cached(edits: &Edits) -> bool {
         let naive_total = a_cost.eval ;
         let engine_total = b_cost.dirty + b_cost.eval + b_cost.change_prop ;
         if false {
-        println!("For {:5} edits, Naive/Engine:{:5} = {:8} / {:8}. Naive/EngineEval:{:5}. In Engine, eval is {:.2} of {:?}",
+        println!("{:?} for {:5} edits, Naive/Engine:{:5} = {:8} / {:8}. Naive/EngineEval:{:5}. In Engine, eval is {:.2} of {:?}",
+                 view,
                  edits.len(),
                  (naive_total as f32) / (engine_total as f32),
                  naive_total, engine_total,
@@ -111,7 +112,8 @@ fn compare_naive_and_cached(edits: &Edits) -> bool {
                  (b_cost.eval as f32) / (engine_total as f32),
                  b_cost);
         } ;
-        println!("For {:5} edits, Naive/Engine:{:.2}, Naive/EngineEval:{:.2}.  Per-edit: Naive:{:.2} Engine:{:.2} EngineEval:{:.2}",
+        println!("{:?} For {:5} edits, Naive/Engine:{:.2}, Naive/EngineEval:{:.2}.  Per-edit: Naive:{:.2} Engine:{:.2} EngineEval:{:.2}",
+                 view,
                  edits.len(),
                  (naive_total as f32) / (engine_total as f32),
                  (naive_total as f32) / (b_cost.eval as f32),
@@ -124,43 +126,63 @@ fn compare_naive_and_cached(edits: &Edits) -> bool {
     true
 }
 
-fn ensure_consistency_randomly(size:usize, iterations:usize) {
+fn ensure_consistency_randomly(size:usize, iterations:usize, view:&ListReduce) {
     let rng = rand::thread_rng();
     let mut gen = quickcheck::StdGen::new(rng, size);
     for _ in 0..iterations {
         let testv = Box::new(<Edits as quickcheck::Arbitrary>::arbitrary(&mut gen));
-        if !compare_naive_and_cached(&*testv) {
+        if !compare_naive_and_cached(&*testv, view) {
             panic!("{:?}", testv);
         }
     }
 }
 
 #[test]
-fn ensure_consistency_randomly_100_x_100() { ensure_consistency_randomly(100, 100) }
+fn ensure_consistency_randomly_100_x_100() {
+    ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
+    ensure_consistency_randomly(100, 100, &ListReduce::Max)
+}
 
 #[test]
-fn ensure_consistency_randomly_1k_x_20() { ensure_consistency_randomly(1000, 20) }
+fn ensure_consistency_randomly_1k_x_20() {
+    ensure_consistency_randomly(1000, 20, &ListReduce::Sum) ;
+    ensure_consistency_randomly(1000, 20, &ListReduce::Max)
+}
 
 #[test]
-fn ensure_consistency_randomly_5k_x_5() { ensure_consistency_randomly(5000, 5) }
+fn ensure_consistency_randomly_5k_x_5() {
+    ensure_consistency_randomly(5000, 5, &ListReduce::Sum) ;
+    ensure_consistency_randomly(5000, 5, &ListReduce::Max)
+}
 
 #[test]
-fn ensure_consistency_randomly_10k_x_5() { ensure_consistency_randomly(10000, 5) }
+fn ensure_consistency_randomly_10k_x_5() {
+    ensure_consistency_randomly(10000, 5, &ListReduce::Sum) ;
+    ensure_consistency_randomly(10000, 5, &ListReduce::Max)
+}
+
+
+// After edit 46, Replace(Left, 93), expected Sum to be [1490], but found [1397].
+//     thread 'ensure_consistency_randomly_100_x_100' panicked at '[Goto(Left), Insert(Right, 93), Insert(Right, 50), Insert(Right, 82), Goto(Right), Insert(Right, 79), Insert(Right, 79), Goto(Right), Goto(Right), Goto(Right), Remove(Right), Insert(Right, 6), Insert(Right, 89), Insert(Left, 45), Replace(Right, 89), Insert(Right, 19), Insert(Left, 55), Insert(Right, 47), Insert(Right, 41), Insert(Left, 83), Insert(Right, 40), Goto(Right), Insert(Right, 84), Insert(Right, 90), Goto(Right), Insert(Right, 95), Insert(Right, 60), Insert(Left, 96), Insert(Right, 80), Goto(Right), Insert(Left, 33), Goto(Right), Goto(Left), Replace(Right, 11), Insert(Left, 94), Insert(Left, 0), Goto(Right), Goto(Right), Insert(Left, 91), Insert(Left, 24), Replace(Left, 8), Goto(Left), Insert(Right, 0), Goto(Right), Insert(Left, 91), Remove(Left), Replace(Left, 93), Insert(Right, 23), Insert(Right, 38), Insert(Right, 3), Insert(Right, 51), Goto(Right), Replace(Right, 58), Insert(Left, 53), Insert(Left, 90), Goto(Right), Goto(Right), Goto(Right), Insert(Right, 16), Replace(Right, 9), Remove(Left), Goto(Right), Remove(Right), Remove(Left), Goto(Right), Remove(Left), Insert(Left, 48), Insert(Left, 39), Goto(Right), Insert(Left, 75), Insert(Right, 26), Goto(Right), Goto(Right), Replace(Left, 92), Replace(Right, 5), Goto(Right), Insert(Left, 97), Insert(Right, 53), Remove(Right)]', tests/listedit.rs:135
+
+// -----------------------------------------------------------------------------------------------------
+// Max Regression tests
+//
 
 #[test]
-fn ensure_consistency_regression_testcase1() { assert!( compare_naive_and_cached(&testcase1())) }
+fn ensure_consistency_regression_testcase1() { assert!( compare_naive_and_cached(&testcase1(), &ListReduce::Max)) }
 
 #[test]
-fn ensure_consistency_regression_testcase2() { assert!( compare_naive_and_cached(&testcase2())) }
+fn ensure_consistency_regression_testcase2() { assert!( compare_naive_and_cached(&testcase2(), &ListReduce::Max)) }
 
 #[test]
-fn ensure_consistency_regression_testcase3() { assert!( compare_naive_and_cached(&testcase3())) }
+fn ensure_consistency_regression_testcase3() { assert!( compare_naive_and_cached(&testcase3(), &ListReduce::Max)) }
 
 #[test]
-fn ensure_consistency_regression_testcase4() { assert!( compare_naive_and_cached(&testcase4())) }
+fn ensure_consistency_regression_testcase4() { assert!( compare_naive_and_cached(&testcase4(), &ListReduce::Max)) }
 
 #[test]
-fn ensure_consistency_regression_testcase5() { assert!( compare_naive_and_cached(&testcase5())) }
+fn ensure_consistency_regression_testcase5() { assert!( compare_naive_and_cached(&testcase5(), &ListReduce::Max)) }
 
 fn testcase1 () -> Edits {
     vec![

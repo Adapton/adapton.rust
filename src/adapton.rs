@@ -2,7 +2,8 @@
 #![feature(associated_type_defaults)]
 #![feature(custom_derive)]
 #![feature(zero_one)]
-
+#![feature(type_ascription)]
+    
 #![cfg_attr(test, feature(plugin))]
 // #![cfg_attr(test, plugin(quickcheck_macros))]
 

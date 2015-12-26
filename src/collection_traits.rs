@@ -255,3 +255,16 @@ impl Rand for Dir2 {
         if rng.gen_weighted_bool(2) { Dir2::Left } else { Dir2::Right }
     }
 }
+
+impl Arbitrary for Dir2 {
+    fn arbitrary<G:Gen> (g: &mut G) -> Self {
+        if g.gen() { Dir2::Left  }
+        else       { Dir2::Right }
+    }
+    fn shrink(&self) -> Box<Iterator<Item=Self>> {
+        match *self {
+            Dir2::Right => Box::new(Some(Dir2::Left).into_iter()),
+            Dir2::Left  => Box::new(None.into_iter())
+        }
+    }
+}

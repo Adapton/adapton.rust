@@ -10,7 +10,7 @@ use collection_algo::*;
 use quickcheck::Arbitrary;
 use quickcheck::Gen;
 use std::num::Zero;
-
+use std::ops::Add;    
 use rand::{Rng,Rand};
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
@@ -37,22 +37,9 @@ pub enum ListTransf {
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
 pub enum ListReduce {
-    Max, Min, Median,
+    Sum, Max, Min, Median,
     DemandAll(ListTransf),
     DemandN(ListTransf, usize),
-}
-
-impl Arbitrary for Dir2 {
-    fn arbitrary<G:Gen> (g: &mut G) -> Self {
-        if g.gen() { Dir2::Left  }
-        else       { Dir2::Right }
-    }
-    fn shrink(&self) -> Box<Iterator<Item=Self>> {
-        match *self {
-            Dir2::Right => Box::new(Some(Dir2::Left).into_iter()),
-            Dir2::Left  => Box::new(None.into_iter())
-        }
-    }
 }
 
 impl<X:Arbitrary+Sized+Rand>
@@ -102,8 +89,9 @@ pub fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::D
     }
 }
 
-pub fn eval_reduce<A:Adapton,X:Zero+Hash+Eq+PartialOrd+Debug+Clone,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) -> Vec<X> {
+pub fn eval_reduce<A:Adapton,X:PartialOrd+Hash+Debug+Clone+Eq+PartialEq+Zero+Add<Output=X>,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) -> Vec<X> {
     match *red {
+        ListReduce::Sum => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| x + y) ; vec![ x ] },
         ListReduce::Max => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x > y {x} else {y}) ; vec![ x ] },
         ListReduce::Min => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x < y {x} else {y}) ; vec![ x ] },
         ListReduce::Median => panic!(""),
