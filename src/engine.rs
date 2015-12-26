@@ -59,7 +59,13 @@ enum ArtId<Name> {
 }
 
 #[derive(Debug)]
+pub struct Flags {
+    pub ignore_nominal_use_structural : bool, // Ignore the Nominal ArtIdChoice, and use Structural behavior instead
+}
+
+#[derive(Debug)]
 pub struct Engine {
+    pub flags : Flags, // public because I dont want to write / design abstract accessors
     root  : Rc<Loc>,
     table : HashMap<Rc<Loc>, Box<GraphNode>>,
     stack : Vec<Frame>,
@@ -578,6 +584,9 @@ impl Adapton for Engine {
                           path:root.path.clone(),
                           succs:Vec::new()} ) ;
         Engine {
+            flags : Flags {
+                ignore_nominal_use_structural : false,
+            },
             root  : root,
             table : HashMap::new (),
             stack : stack,
@@ -688,6 +697,12 @@ impl Adapton for Engine {
          arg:Arg, spurious:Spurious)
          -> Art<Res,Self::Loc>
     {
+        let id =
+            // Apply the logic of engine's flags:
+            match id { ArtIdChoice::Nominal(_)
+                       if self.flags.ignore_nominal_use_structural
+                       => ArtIdChoice::Structural,
+                       id => id } ;
         match id {
             ArtIdChoice::Eager => {
                 Art::Rc(Rc::new(fn_box(self,arg,spurious)))
