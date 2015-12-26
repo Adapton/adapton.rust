@@ -67,7 +67,7 @@ impl<A:Adapton,X:Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> Ex
                 let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
                 debug!("tree:   {:?}", tree);
                 let nm = st.name_of_string("eval_reduce".to_string());
-                let out = st.ns(nm, |st|eval_reduce::<A,X,Tree<A,X,u32>>(st, tree, &view) );
+                let out = st.ns(nm, |st|eval_reduce::<A,X,List<A,X>,Tree<A,X,u32>>(st, tree, &view) );
                 z = z_next;
                 loop_cnt = loop_cnt + 1;
                 out
@@ -82,7 +82,7 @@ impl<A:Adapton,X:Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> Ex
 fn compare_naive_and_cached(edits: &Edits, view:&ListReduce) -> bool {
     let mut n_st = naive::AdaptonFromScratch::new();
     let mut e_st = engine::Engine::new();
-    e_st.flags.ignore_nominal_use_structural = true;
+    // e_st.flags.ignore_nominal_use_structural = true;
     
     let results_1 = Experiment::run(&mut n_st, edits.clone(), view.clone());
     let results_2 = Experiment::run(&mut e_st, edits.clone(), view.clone());
@@ -94,8 +94,8 @@ fn compare_naive_and_cached(edits: &Edits, view:&ListReduce) -> bool {
         a_cost = &a_cost + &a.1 ;
         b_cost = &b_cost + &b.1 ;
         if a.0 != b.0 {
-            println!("After edit {}, {:?}, expected {:?} to be {:?}, but found {:?}.",
-                     idx, edits[idx], &view, a.0, b.0);
+            println!("After edit {}, {:?}, expected {:?} to be {:?}, but found {:?}.\nEdits:\n{:?}",
+                     idx, edits[idx], &view, a.0, b.0, edits);
             return false;
         }
         idx += 1;
@@ -113,15 +113,17 @@ fn compare_naive_and_cached(edits: &Edits, view:&ListReduce) -> bool {
                  (b_cost.eval as f32) / (engine_total as f32),
                  b_cost);
         } ;
-        println!("{:?} For {:5} edits, Naive/Engine:{:.2}, Naive/EngineEval:{:.2}.  Per-edit: Naive:{:.2} Engine:{:.2} EngineEval:{:.2}",
+        println!("{:?} For {:5} edits, Naive/Engine:{:5}, Naive/EngineEval:{:5} \t==> Per-edit ==> Naive:{:8}, Engine:{:6}, EngineEval:{:5},   Naive/Engine:{:5}, Naive/EngineEval:{:5}",
                  view,
                  edits.len(),
-                 (naive_total as f32) / (engine_total as f32),
-                 (naive_total as f32) / (b_cost.eval as f32),
+                 format!("{:.2}", (naive_total as f32) / (engine_total as f32)),
+                 format!("{:.2}", (naive_total as f32) / (b_cost.eval as f32)),
                  // Per-edit metrics:
-                 (naive_total as f32) / (edits.len() as f32),
-                 (engine_total as f32) / (edits.len() as f32),
-                 (b_cost.eval as f32) / (edits.len() as f32),
+                 format!("{:.2}", (naive_total as f32) / (edits.len() as f32)),
+                 format!("{:.2}", (engine_total as f32) / (edits.len() as f32)),
+                 format!("{:.2}", (b_cost.eval as f32) / (edits.len() as f32)),
+                 format!("{:.2}", ((naive_total as f32) / (engine_total as f32)) / (edits.len() as f32)),
+                 format!("{:.2}", ((naive_total as f32) / (b_cost.eval as f32)) / (edits.len() as f32)),
                  );
     }
     true
@@ -132,19 +134,20 @@ fn ensure_consistency_randomly(size:usize, iterations:usize, view:&ListReduce) {
     let mut gen = quickcheck::StdGen::new(rng, size);
     for _ in 0..iterations {
         let testv = Box::new(<Edits as quickcheck::Arbitrary>::arbitrary(&mut gen));
-        if !compare_naive_and_cached(&*testv, view) {
-            panic!("{:?}", testv);
-        }
+        assert!( compare_naive_and_cached(&*testv, view) )
     }
 }
 
 #[test]
-fn ensure_consistency_randomly_100_x_100() {
-    ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
-    ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
-    ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
-    ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
-    ensure_consistency_randomly(100, 100, &ListReduce::Max)
+fn ensure_consistency_randomly_100_x_1000() {
+    ensure_consistency_randomly(100, 1000, &ListReduce::Sum) ;
+    ensure_consistency_randomly(100, 1000, &ListReduce::Max) ;
+}
+
+#[test]
+fn ensure_consistency_randomly_300_x_100() {
+    ensure_consistency_randomly(300, 100, &ListReduce::Sum) ;
+    ensure_consistency_randomly(300, 100, &ListReduce::Max) ;
 }
 
 #[test]
@@ -169,6 +172,11 @@ fn ensure_consistency_randomly_10k_x_5() {
 // After edit 46, Replace(Left, 93), expected Sum to be [1490], but found [1397].
 //     thread 'ensure_consistency_randomly_100_x_100' panicked at '[Goto(Left), Insert(Right, 93), Insert(Right, 50), Insert(Right, 82), Goto(Right), Insert(Right, 79), Insert(Right, 79), Goto(Right), Goto(Right), Goto(Right), Remove(Right), Insert(Right, 6), Insert(Right, 89), Insert(Left, 45), Replace(Right, 89), Insert(Right, 19), Insert(Left, 55), Insert(Right, 47), Insert(Right, 41), Insert(Left, 83), Insert(Right, 40), Goto(Right), Insert(Right, 84), Insert(Right, 90), Goto(Right), Insert(Right, 95), Insert(Right, 60), Insert(Left, 96), Insert(Right, 80), Goto(Right), Insert(Left, 33), Goto(Right), Goto(Left), Replace(Right, 11), Insert(Left, 94), Insert(Left, 0), Goto(Right), Goto(Right), Insert(Left, 91), Insert(Left, 24), Replace(Left, 8), Goto(Left), Insert(Right, 0), Goto(Right), Insert(Left, 91), Remove(Left), Replace(Left, 93), Insert(Right, 23), Insert(Right, 38), Insert(Right, 3), Insert(Right, 51), Goto(Right), Replace(Right, 58), Insert(Left, 53), Insert(Left, 90), Goto(Right), Goto(Right), Goto(Right), Insert(Right, 16), Replace(Right, 9), Remove(Left), Goto(Right), Remove(Right), Remove(Left), Goto(Right), Remove(Left), Insert(Left, 48), Insert(Left, 39), Goto(Right), Insert(Left, 75), Insert(Right, 26), Goto(Right), Goto(Right), Replace(Left, 92), Replace(Right, 5), Goto(Right), Insert(Left, 97), Insert(Right, 53), Remove(Right)]', tests/listedit.rs:135
 
+// Nominal
+// After edit 185, Insert(Left, 120), expected Sum to be [7978], but found [7858].
+// thread 'ensure_consistency_randomly_300_x_100' panicked at '[Insert(Left, 119), Goto(Right), Remove(Left), Replace(Right, 213), Goto(Right), Replace(Left, 209), Insert(Right, 245), Insert(Right, 66), Insert(Left, 281), Remove(Right), Insert(Right, 29), Insert(Right, 4), Goto(Right), Insert(Left, 237), Insert(Left, 57), Goto(Right), Goto(Right), Insert(Left, 112), Remove(Right), Insert(Left, 61), Goto(Right), Remove(Right), Goto(Right), Replace(Left, 108), Insert(Right, 132), Goto(Right), Remove(Left), Remove(Left), Goto(Right), Replace(Left, 151), Goto(Right), Insert(Left, 127), Goto(Left), Goto(Left), Insert(Left, 91), Insert(Right, 115), Goto(Right), Insert(Right, 189), Insert(Right, 261), Insert(Right, 5), Insert(Left, 267), Goto(Right), Insert(Left, 269), Goto(Right), Insert(Right, 9), Insert(Right, 104), Goto(Right), Remove(Left), Insert(Left, 209), Goto(Right), Insert(Left, 29), Insert(Left, 196), Goto(Right), Insert(Left, 92), Goto(Left), Replace(Right, 28), Insert(Left, 260), Replace(Right, 289), Goto(Left), Insert(Left, 164), Goto(Right), Goto(Left), Insert(Left, 236), Remove(Right), Remove(Right), Replace(Left, 47), Insert(Right, 111), Insert(Right, 59), Insert(Right, 167), Goto(Right), Goto(Right), Insert(Left, 129), Replace(Right, 46), Remove(Left), Replace(Right, 109), Insert(Left, 266), Remove(Left), Replace(Left, 257), Remove(Right), Goto(Right), Insert(Left, 92), Insert(Left, 202), Insert(Left, 184), Insert(Left, 98), Insert(Left, 217), Insert(Right, 197), Insert(Right, 219), Remove(Right), Insert(Right, 9), Goto(Right), Goto(Right), Goto(Right), Goto(Left), Insert(Left, 147), Goto(Right), Insert(Right, 141), Insert(Right, 171), Replace(Right, 138), Insert(Right, 38), Insert(Right, 27), Remove(Right), Remove(Right), Goto(Right), Goto(Right), Remove(Left), Insert(Right, 266), Goto(Right), Goto(Right), Insert(Left, 22), Insert(Right, 93), Goto(Right), Insert(Left, 117), Goto(Right), Insert(Right, 233), Remove(Left), Insert(Left, 7), Insert(Left, 103), Insert(Right, 111), Goto(Right), Goto(Right), Insert(Left, 254), Remove(Right), Remove(Left), Goto(Right), Insert(Left, 297), Goto(Right), Remove(Left), Goto(Right), Replace(Right, 97), Insert(Left, 206), Goto(Right), Insert(Left, 121), Insert(Left, 80), Insert(Left, 63), Insert(Left, 145), Insert(Right, 156), Insert(Left, 80), Insert(Left, 224), Remove(Left), Insert(Right, 82), Remove(Right), Goto(Right), Remove(Right), Goto(Right), Goto(Right), Insert(Right, 85), Insert(Left, 294), Replace(Right, 37), Remove(Right), Replace(Left, 71), Goto(Right), Goto(Right), Insert(Right, 35), Goto(Right), Insert(Left, 172), Goto(Right), Goto(Right), Remove(Right), Goto(Right), Goto(Right), Insert(Left, 205), Insert(Right, 0), Replace(Left, 181), Insert(Right, 133), Remove(Right), Insert(Left, 108), Remove(Right), Insert(Right, 171), Insert(Left, 247), Insert(Left, 259), Goto(Left), Insert(Left, 218), Insert(Left, 12), Goto(Right), Remove(Right), Insert(Right, 198), Replace(Right, 96), Goto(Right), Remove(Right), Goto(Right), Goto(Right), Insert(Left, 83), Replace(Right, 37), Insert(Left, 214), Remove(Left), Insert(Left, 120), Replace(Right, 279), Insert(Right, 78), Replace(Left, 243), Remove(Left), Replace(Left, 216), Goto(Right), Goto(Right), Replace(Right, 293), Goto(Right), Goto(Right), Remove(Right), Remove(Right), Remove(Left), Goto(Right), Replace(Left, 115), Goto(Right), Insert(Left, 274), Remove(Right), Insert(Right, 76), Goto(Left), Remove(Right), Insert(Right, 233), Insert(Right, 167), Goto(Right), Remove(Left), Insert(Right, 41), Insert(Right, 138), Insert(Right, 25), Goto(Left), Insert(Right, 251), Insert(Right, 22), Goto(Right), Remove(Left), Insert(Right, 250), Goto(Right), Insert(Right, 139), Goto(Left), Replace(Right, 147), Insert(Left, 56), Insert(Right, 240), Insert(Left, 125), Insert(Left, 46), Goto(Right), Insert(Left, 116), Insert(Right, 203), Insert(Right, 132), Insert(Right, 188), Goto(Right), Insert(Left, 244), Remove(Left), Insert(Left, 263), Replace(Right, 80), Insert(Left, 299), Insert(Right, 212), Goto(Left), Replace(Right, 241), Insert(Left, 291), Goto(Right), Goto(Right)]', tests/listedit.rs:138
+//    test ensure_consistency_randomly_300_x_100 ... FAILED
+
 // Structural
 // After edit 45, Goto(Right), expected Sum to be [952], but found [865].
 // thread 'ensure_consistency_randomly_100_x_100' panicked at '[Insert(Right, 37), Goto(Right), Remove(Right), Replace(Right, 99), Insert(Left, 16), Goto(Right), Insert(Left, 76), Goto(Right), Insert(Left, 60), Goto(Right), Replace(Left, 33), Insert(Right, 60), Insert(Left, 80), Insert(Right, 93), Insert(Left, 49), Replace(Right, 68), Insert(Left, 27), Insert(Left, 82), Insert(Left, 11), Goto(Right), Insert(Left, 37), Insert(Right, 7), Goto(Right), Replace(Right, 28), Goto(Right), Insert(Left, 3), Replace(Left, 32), Goto(Right), Goto(Right), Insert(Left, 69), Replace(Right, 11), Insert(Right, 67), Replace(Right, 31), Insert(Left, 83), Replace(Right, 61), Replace(Right, 60), Goto(Right), Goto(Right), Insert(Right, 69), Insert(Right, 70), Goto(Right), Remove(Right), Insert(Left, 66), Remove(Left), Insert(Right, 87), Goto(Right), Replace(Left, 71), Insert(Left, 34), Replace(Right, 93), Insert(Right, 91), Remove(Right), Insert(Left, 69), Goto(Right), Goto(Right), Insert(Right, 49), Insert(Left, 82), Insert(Left, 8), Replace(Left, 51), Insert(Right, 54), Insert(Left, 19), Goto(Right), Replace(Right, 18), Replace(Right, 63), Remove(Left), Remove(Left), Remove(Left), Goto(Right), Replace(Left, 28), Insert(Left, 88), Insert(Left, 18), Insert(Left, 76), Remove(Left), Goto(Right), Goto(Right), Replace(Left, 83), Goto(Right), Goto(Right), Insert(Left, 83), Insert(Left, 55), Insert(Right, 71), Insert(Left, 1), Goto(Right), Goto(Right), Goto(Right), Insert(Left, 5), Insert(Left, 54), Insert(Right, 29), Insert(Left, 9), Replace(Right, 81), Insert(Right, 55), Insert(Left, 81), Insert(Left, 5), Insert(Right, 13), Goto(Right), Goto(Right), Insert(Left, 49), Insert(Right, 82), Insert(Left, 11)]', tests/listedit.rs:136
@@ -176,7 +184,11 @@ fn ensure_consistency_randomly_10k_x_5() {
 // Structural
 // After edit 53, Goto(Right), expected Sum to be [1110], but found [1066].
 // thread 'ensure_consistency_randomly_100_x_100' panicked at '[Goto(Right), Insert(Right, 18), Insert(Right, 22), Insert(Left, 47), Insert(Right, 32), Insert(Right, 96), Replace(Left, 37), Goto(Left), Goto(Right), Remove(Left), Insert(Left, 88), Insert(Left, 45), Insert(Left, 12), Insert(Left, 6), Insert(Right, 55), Insert(Right, 14), Insert(Right, 34), Replace(Right, 70), Insert(Left, 73), Insert(Left, 56), Insert(Left, 35), Insert(Left, 19), Remove(Right), Insert(Left, 73), Goto(Right), Replace(Right, 12), Goto(Right), Insert(Left, 5), Insert(Right, 50), Remove(Left), Remove(Left), Replace(Left, 44), Goto(Right), Insert(Left, 37), Goto(Right), Insert(Right, 12), Goto(Right), Goto(Right), Goto(Right), Replace(Left, 66), Insert(Left, 50), Insert(Left, 69), Insert(Right, 73), Goto(Right), Insert(Left, 45), Insert(Left, 18), Goto(Right), Replace(Right, 98), Insert(Left, 49), Goto(Right), Insert(Left, 66), Remove(Left), Insert(Right, 44), Goto(Right), Goto(Right), Insert(Left, 20), Insert(Right, 58), Insert(Left, 28), Insert(Right, 82), Goto(Right), Insert(Right, 7), Insert(Right, 87), Insert(Left, 97), Replace(Right, 16), Insert(Left, 79), Insert(Left, 82), Insert(Left, 92), Insert(Right, 91), Insert(Right, 6), Goto(Left), Replace(Right, 44), Insert(Left, 63), Insert(Right, 50), Goto(Left)]', tests/listedit.rs:136
-    
+
+// Structural
+// After edit 43, Goto(Right), expected Sum to be [732], but found [717].
+// thread 'ensure_consistency_randomly_100_x_100' panicked at '[Goto(Right), Insert(Left, 73), Remove(Left), Replace(Right, 2), Insert(Right, 62), Goto(Right), Remove(Right), Goto(Right), Goto(Right), Insert(Right, 75), Goto(Right), Goto(Left), Goto(Right), Goto(Right), Replace(Right, 40), Goto(Right), Remove(Right), Insert(Left, 6), Insert(Left, 95), Remove(Right), Remove(Right), Goto(Right), Insert(Right, 58), Insert(Left, 0), Insert(Left, 12), Goto(Right), Insert(Left, 41), Insert(Left, 93), Insert(Left, 81), Replace(Left, 47), Insert(Right, 42), Insert(Right, 67), Goto(Right), Goto(Right), Insert(Left, 3), Insert(Right, 42), Insert(Left, 74), Goto(Right), Goto(Right), Replace(Right, 60), Goto(Left), Goto(Right), Insert(Right, 15), Goto(Right), Insert(Right, 21), Goto(Right), Insert(Left, 90), Goto(Left), Insert(Left, 84), Insert(Right, 34), Goto(Left), Goto(Right), Goto(Right), Remove(Right), Goto(Right), Insert(Right, 66), Insert(Left, 49), Insert(Right, 62), Goto(Right), Insert(Right, 82), Insert(Right, 87), Insert(Right, 43), Goto(Right), Goto(Right), Insert(Right, 69)]', tests/listedit.rs:136
+
 // -----------------------------------------------------------------------------------------------------
 // Max Regression tests
 //

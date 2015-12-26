@@ -81,6 +81,22 @@ pub fn rev_list_of_tree<A:Adapton,X:Hash+Clone,L:ListT<A,X>,T:TreeT<A,X>>
                )    
 }
 
+pub fn vec_of_list<A:Adapton,X:Clone,L:ListT<A,X>> (st:&mut A, list:L::List, limit:Option<usize>) -> Vec<X> {
+    let mut out = vec![];
+    let mut list = list ;
+    loop {
+        let (hd, rest) = 
+            L::elim( st, list,
+                     |st| (None, None),
+                     |st, x, rest| { (Some(x), Some(rest)) },
+                     |st, _, rest| { (None,    Some(rest)) }
+                     ) ;
+        match hd { Some(x) => out.push(x), _ => () } ;
+        match limit { Some(limit) if out.len() == limit => return out, _ => () } ;
+        match rest { Some(rest) => { list = rest; continue }, None => return out }
+    }
+}
+
 pub fn list_of_vec<A:Adapton,X:Clone,L:ListT<A,X>> (st:&mut A, v:Vec<X>) -> L::List {
     let mut l = L::nil(st);
     for x in v.iter().rev() { l = L::cons(st,x.clone(),l) }

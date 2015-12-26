@@ -89,15 +89,21 @@ pub fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::D
     }
 }
 
-pub fn eval_reduce<A:Adapton,X:PartialOrd+Hash+Debug+Clone+Eq+PartialEq+Zero+Add<Output=X>,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) -> Vec<X> {
+pub fn demand_count<A:Adapton,X:PartialOrd+Hash+Debug+Clone+Eq+PartialEq,L:ListT<A,X>,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, transform:&ListTransf, n:Option<usize>) -> Vec<X> {
+    match *transform {
+        ListTransf::Sort => panic!(""),
+        ListTransf::Reverse => panic!(""),
+    }
+}
+
+pub fn eval_reduce<A:Adapton,X:PartialOrd+Hash+Debug+Clone+Eq+PartialEq+Zero+Add<Output=X>,L:ListT<A,X>,T:TreeT<A,X>> (st:&mut A, tree:T::Tree, red:&ListReduce) -> Vec<X> {
     match *red {
         ListReduce::Sum => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| x + y) ; vec![ x ] },
         ListReduce::Max => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x > y {x} else {y}) ; vec![ x ] },
         ListReduce::Min => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x < y {x} else {y}) ; vec![ x ] },
         ListReduce::Median => panic!(""),
-        ListReduce::DemandAll(ListTransf::Sort) => panic!(""),
-        ListReduce::DemandAll(ListTransf::Reverse) => panic!(""),
-        ListReduce::DemandN(_,_) => panic!(""),
+        ListReduce::DemandAll(ref transform) => demand_count::<A,X,L,T> (st, tree, transform, None),
+        ListReduce::DemandN(ref transform, ref n) => demand_count::<A,X,L,T> (st, tree, transform, Some(n.clone())),
     }
 }
 
