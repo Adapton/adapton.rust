@@ -142,8 +142,8 @@ pub fn tree_of_list_rec
 
         /* Cons */
         |st, hd, rest, (dir_list, tree, tree_lev, parent_lev)| {
-            let lev_hd = T::lev_inc ( T::lev(&hd) ) ;
-            if T::lev_lte ( tree_lev , lev_hd.clone() ) && T::lev_lte ( lev_hd.clone() , parent_lev.clone() ) {
+            let lev_hd = T::lev_inc ( &T::lev(&hd) ) ;
+            if T::lev_lte ( &tree_lev , &lev_hd ) && T::lev_lte ( &lev_hd , &parent_lev ) {
                 let leaf = T::leaf(st, hd) ;
                 let (tree2, rest2) = {
                     tree_of_list_rec::<A,X,T,L> ( st, dir_list.clone(), rest, leaf, T::lev_zero(), lev_hd.clone() )
@@ -160,8 +160,8 @@ pub fn tree_of_list_rec
 
         /* Name */
         |st, nm, rest, (dir_list, tree, tree_lev, parent_lev)|{
-            let lev_nm = T::lev_inc( T::lev_add( T::lev_bits() , T::lev(&nm) ) ) ;
-            if T::lev_lte ( tree_lev , lev_nm.clone() ) && T::lev_lte ( lev_nm.clone() ,  parent_lev.clone() ) {
+            let lev_nm = T::lev_inc( &T::lev_add( &T::lev_bits() , &T::lev(&nm) ) ) ;
+            if T::lev_lte ( &tree_lev , &lev_nm ) && T::lev_lte ( &lev_nm ,  &parent_lev ) {
                 let nil = T::nil(st) ;
                 let (nm1, nm2, nm3, nm4) = st.name_fork4(nm.clone());
                 let (_, (tree2, rest)) =
@@ -275,45 +275,41 @@ pub fn tree_append
     T::bin(st, T::lev_max(), tree1, tree2)
 }
 
-// pub fn tree_append
-//     <A:Adapton
-//     ,X:Clone+Hash+Eq+Debug
-//     ,T:TreeT<A,X,()>
-//     >
-//     (st:&mut A, tree1:T::Tree, tree2:T::Tree) -> T::Tree
-// {
-//     T::elim_move
-//         (st, tree1, tree2,         
-//          /* Nil */  |st,       tree2| tree2,
-//          /* Leaf */ |st,leaf,  tree2| {
-//              T::elim_move
-//                  (st, tree2, leaf,
-//                   /* Nil */  |st, leaf1| T::leaf(st,leaf1),
-//                   /* Leaf */ |st, leaf2, leaf1| {
-//                       let l1 = T::leaf(st,leaf1);
-//                       let l2 = T::leaf(st,leaf2);
-//                       T::bin(st, (), l1, l2)
-//                   },
-//                   /* Bin */  |st, l2, r2, leaf1| {
-//                       let leaf = T::leaf(st, leaf);
-//                       /*T::bin(st, (), leaf, tree2)*/
-//                       panic!("TODO")
-//                   },
-//                   /* Name */ |st, nm, l2, r2, leaf1| {
-//                       panic!("TODO")
-//                   })
-//          },
-//          /* Bin */ |st,_,l,r, tree2| {
-//              /*
-//              T::elim_move
-//                  (st, tree2, (l,r),
-//                   /* Nil */ |st, 
-                  
-//                   let tree1 = T::bin(st, (), l, r);
-//              T::bin(st, (), tree1, tree2)
-//                  */
-//                  panic!("")
-//          },
-//          /* Name */ |st,_,l,r, tree2| panic!(""),
-//          )
-// }
+pub fn tree_append_incomplete
+    <A:Adapton
+    ,X:Clone+Hash+Eq+Debug
+    ,T:TreeT<A,X>
+    >
+    (st:&mut A, tree1:T::Tree, tree2:T::Tree) -> T::Tree
+{
+    T::elim_move
+        (st, tree1, tree2,         
+         /* Nil */  |st,       tree2| tree2,
+         /* Leaf */ |st,leaf,  tree2| {
+             T::elim_move
+                 (st, tree2, leaf,
+                  /* Nil */  |st, leaf1| T::leaf(st,leaf1),
+                  /* Leaf */ |st, leaf2, leaf1| {
+                      let lev1 = T::lev(&leaf1);
+                      let lev2 = T::lev(&leaf2);
+                      let lev = if T::lev_lte(&lev1,&lev2) { lev2 } else { lev1 } ;
+                      let l1 = T::leaf(st,leaf1);
+                      let l2 = T::leaf(st,leaf2);
+                      T::bin(st, lev, l1, l2)
+                  },
+                  /* Bin */  |st, lev2, l2, r2, leaf1| {
+                      let leaf = T::leaf(st, leaf1);
+                      panic!("TODO")
+                  },
+                  /* Name */ |st, nm, lev2, l2, r2, leaf1| {
+                      panic!("TODO")
+                  })
+         },
+         /* Bin */ |st,lev1,l1,r1, tree2| {
+             panic!("")
+         },
+         /* Name */ |st,_,lev1,l1,r1, tree2| {
+             panic!("")
+         }
+         )
+}

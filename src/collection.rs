@@ -105,9 +105,9 @@ impl
     fn lev_bits () -> Self::Lev { 32 }
     fn lev_zero () -> Self::Lev { 0 }
     fn lev_max () -> Self::Lev { u32::max_value() }
-    fn lev_add (x:Self::Lev,y:Self::Lev) -> Self::Lev { x + y }
-    fn lev_inc (x:Self::Lev) -> Self::Lev { x + 1 }
-    fn lev_lte (x:Self::Lev,y:Self::Lev) -> bool { x <= y }
+    fn lev_add (x:&Self::Lev,y:&Self::Lev) -> Self::Lev { x + y }
+    fn lev_inc (x:&Self::Lev) -> Self::Lev { x + 1 }
+    fn lev_lte (x:&Self::Lev,y:&Self::Lev) -> bool { x <= y }
     
     fn nil  (_:&mut A)                                                     -> Self::Tree { Tree::Nil }
     fn leaf (_:&mut A, x:Leaf)                                             -> Self::Tree { Tree::Leaf(x) }

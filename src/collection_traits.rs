@@ -53,10 +53,10 @@ pub trait TreeT<A:Adapton,Leaf> {
     fn lev<X:Hash>(&X) -> Self::Lev ;
     fn lev_bits () -> Self::Lev ;
     fn lev_zero () -> Self::Lev ;
-    fn lev_inc (Self::Lev) -> Self::Lev ;
+    fn lev_inc (&Self::Lev) -> Self::Lev ;
     fn lev_max () -> Self::Lev ;
-    fn lev_add (Self::Lev, Self::Lev) -> Self::Lev ;
-    fn lev_lte (Self::Lev, Self::Lev) -> bool ;
+    fn lev_add (&Self::Lev, &Self::Lev) -> Self::Lev ;
+    fn lev_lte (&Self::Lev, &Self::Lev) -> bool ;
     
     fn nil  (&mut A) -> Self::Tree ;
     fn leaf (&mut A, Leaf) -> Self::Tree ;
