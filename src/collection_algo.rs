@@ -255,6 +255,12 @@ pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Debug+Clone,L:ListT<A,X>,T:TreeT<A,X
     (st:&mut A, list:L::List) -> L::List
 {
     let tree = tree_of_list::<A,X,T,L>(st, Dir2::Left, list);
+    tree_merge_sort::<A,X,L,T>(st, tree)
+}
+
+pub fn tree_merge_sort<A:Adapton,X:Ord+Hash+Debug+Clone,L:ListT<A,X>,T:TreeT<A,X>>
+    (st:&mut A, tree:T::Tree) -> L::List
+{
     T::fold_up (st, tree,
                 &|st|                 L::nil(st),
                 &|st, x|              L::singleton(st, x),
@@ -315,7 +321,7 @@ pub fn tree_append
                           T::bin(st, lev, l, r)
                       }
                   },
-                  /* Name */ |st, _, lev2, l2, r2, leaf1| {
+                  /* Name */ |st, _, lev2, l2, r2, leaf1| { /* TODO-Later: Do we really want to forget about this name? */
                       let tree1 = T::leaf(st, leaf1);
                       let tree2 = T::bin(st, lev2, l2, r2);
                       tree_append::<A,X,T>(st, tree1, tree2)
@@ -365,13 +371,13 @@ pub fn tree_append
                           T::bin(st, lev, l1, tree2)
                       }
                   },
-                  /* Name */ |st, _, lev2, l2, r2, (lev1, l1, r1) | {
+                  /* Name */ |st, _, lev2, l2, r2, (lev1, l1, r1) | { /* TODO-Later: Do we really want to forget about this name? */
                       let tree1 = T::bin(st, lev1, l1, r1);
                       let tree2 = T::bin(st, lev2, l2, r2);
                       tree_append::<A,X,T>(st, tree1, tree2)
                   })
          },
-         /* Name */ |st,_,lev1,l1,r1, tree2| {
+         /* Name */ |st,_,lev1,l1,r1, tree2| { /* TODO-Later: Do we really want to forget about this name? */
              let tree1 = T::bin(st, lev1, l1, r1);
              tree_append::<A,X,T>(st, tree1, tree2)
          }

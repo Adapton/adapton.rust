@@ -447,7 +447,9 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             match *node {
                 Node::Comp(ref nd) => {
-                    let res = match nd.res { Some(ref res) => res.clone(), None => unreachable!() };
+                    let res = match nd.res { Some(ref res) => res.clone(),
+                                             None => unreachable!() // mergesort test is triggering this line ..
+                    };
                     let succs = nd.succs.clone () ;
                     (res, succs)
                 },

@@ -41,7 +41,7 @@ fn has_consecutive_names<A:Adapton,X,L:ListT<A,X>> (st:&mut A, list:L::List) -> 
 }
 
 pub struct Experiment ;
-impl<A:Adapton,X:Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,Vec<X>>
+impl<A:Adapton,X:Ord+Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,Vec<X>>
     for Experiment
 {
     type ListEdit = ListZipper<A,X,List<A,X>> ;
@@ -104,8 +104,8 @@ fn compare_naive_and_cached(edits: &Edits, view:&ListReduce) -> bool {
         let naive_total = a_cost.eval ;
         let engine_total = b_cost.dirty + b_cost.eval + b_cost.change_prop ;
         if false {
-        println!("{:?} for {:5} edits, Naive/Engine:{:5} = {:8} / {:8}. Naive/EngineEval:{:5}. In Engine, eval is {:.2} of {:?}",
-                 view,
+        println!("{:16} for {:5} edits, Naive/Engine:{:5} = {:8} / {:8}. Naive/EngineEval:{:5}. In Engine, eval is {:.2} of {:?}",
+                 format!("{:?}", view),
                  edits.len(),
                  (naive_total as f32) / (engine_total as f32),
                  naive_total, engine_total,
@@ -113,8 +113,8 @@ fn compare_naive_and_cached(edits: &Edits, view:&ListReduce) -> bool {
                  (b_cost.eval as f32) / (engine_total as f32),
                  b_cost);
         } ;
-        println!("{:?} For {:5} edits, Naive/Engine:{:5}, Naive/EngineEval:{:5} \t==> Per-edit ==> Naive:{:8}, Engine:{:6}, EngineEval:{:5},   Naive/Engine:{:5}, Naive/EngineEval:{:5}",
-                 view,
+        println!("{:24} For {:5} edits, Naive/Engine:{:5}, Naive/EngineEval:{:5} \t==> Per-edit ==> Naive:{:8}, Engine:{:6}, EngineEval:{:5},   Naive/Engine:{:5}, Naive/EngineEval:{:5}",
+                 format!("{:?}", view),
                  edits.len(),
                  format!("{:.2}", (naive_total as f32) / (engine_total as f32)),
                  format!("{:.2}", (naive_total as f32) / (b_cost.eval as f32)),
@@ -139,21 +139,27 @@ fn ensure_consistency_randomly(size:usize, iterations:usize, view:&ListReduce) {
 }
 
 #[test]
-fn ensure_consistency_randomly_100_x_1000() {
-    ensure_consistency_randomly(100, 1000, &ListReduce::Sum) ;
-    ensure_consistency_randomly(100, 1000, &ListReduce::Max) ;
+fn ensure_consistency_randomly_100_x_100() {
+    //ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
+    //ensure_consistency_randomly(100, 100, &ListReduce::Max) ;
+    //ensure_consistency_randomly(100, 100, &ListReduce::DemandAll(ListTransf::Reverse)) ;
+    ensure_consistency_randomly(100, 100, &ListReduce::DemandAll(ListTransf::Sort)) ;
 }
 
 #[test]
 fn ensure_consistency_randomly_300_x_100() {
-    ensure_consistency_randomly(300, 100, &ListReduce::Sum) ;
-    ensure_consistency_randomly(300, 100, &ListReduce::Max) ;
+    //ensure_consistency_randomly(300, 100, &ListReduce::Sum) ;
+    //ensure_consistency_randomly(300, 100, &ListReduce::Max) ;
+    //ensure_consistency_randomly(300, 100, &ListReduce::DemandAll(ListTransf::Reverse)) ;
+    ensure_consistency_randomly(300, 100, &ListReduce::DemandAll(ListTransf::Sort)) ;
 }
 
 #[test]
 fn ensure_consistency_randomly_1k_x_20() {
     ensure_consistency_randomly(1000, 20, &ListReduce::Sum) ;
-    ensure_consistency_randomly(1000, 20, &ListReduce::Max)
+    ensure_consistency_randomly(1000, 20, &ListReduce::Max) ;
+    ensure_consistency_randomly(1000, 20, &ListReduce::DemandAll(ListTransf::Reverse)) ;
+    ensure_consistency_randomly(1000, 20, &ListReduce::DemandAll(ListTransf::Sort)) ;
 }
 
 #[test]
