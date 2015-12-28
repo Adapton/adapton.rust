@@ -175,6 +175,31 @@ fn ensure_consistency_randomly_10k_x_5() {
 }
 
 // Nominal
+// After edit 23, Insert(Right, 60), expected DemandAll(Sort) to be [6, 9, 10, 16, 21, 29, 44, 58, 60, 62, 91], but found [6, 9, 10, 16, 21, 29, 44, 58, 62, 91].
+// Edits:
+// [Goto(Right), Insert(Right, 44), Insert(Left, 9), Goto(Right), Goto(Right), Insert(Left, 91), Insert(Right, 29), Insert(Right, 62), Goto(Right), Insert(Right, 71), Remove(Right), Insert(Right, 87), Insert(Left, 4), Remove(Right), Insert(Right, 19), Replace(Left, 21), Insert(Left, 16), Goto(Right), Insert(Right, 6), Insert(Right, 10), Goto(Left), Remove(Right), Insert(Left, 58), Insert(Right, 60), Insert(Right, 86), Insert(Right, 36), Insert(Right, 20), Goto(Right), Insert(Right, 94)]
+
+// Nominal
+// After edit 23, Replace(Right, 75), expected DemandAll(Sort) to be [10, 13, 19, 21, 56, 61, 68, 75, 75, 92], but found [10, 13, 19, 21, 48, 56, 61, 68, 75, 92].
+//    Edits:
+// [Insert(Left, 92), Insert(Left, 99), Insert(Right, 56), Insert(Right, 64), Remove(Left), Insert(Right, 82), Insert(Right, 10), Insert(Left, 22), Goto(Right), Replace(Right, 13), Remove(Left), Goto(Right), Insert(Left, 19), Replace(Right, 10), Goto(Left), Insert(Left, 68), Goto(Right), Insert(Right, 21), Insert(Right, 61), Insert(Right, 48), Goto(Left), Goto(Right), Insert(Left, 75), Replace(Right, 75), Insert(Right, 75), Goto(Right), Insert(Left, 10), Replace(Left, 96), Insert(Left, 86), Insert(Right, 42), Insert(Right, 82), Replace(Right, 38), Remove(Left), Remove(Left), Goto(Right), Insert(Right, 9), Replace(Left, 8), Remove(Right), Replace(Left, 4), Insert(Right, 69), Insert(Right, 40), Goto(Right), Insert(Right, 31), Goto(Right), Insert(Right, 31), Insert(Left, 26), Insert(Right, 92), Insert(Left, 46), Goto(Right), Insert(Right, 98), Insert(Left, 53), Insert(Left, 0), Goto(Right), Insert(Right, 56), Insert(Left, 32), Insert(Left, 0), Replace(Right, 20), Insert(Right, 95), Goto(Right), Insert(Left, 38), Insert(Left, 81), Insert(Right, 79), Insert(Left, 40), Goto(Right), Insert(Left, 27), Insert(Left, 27), Insert(Left, 88), Insert(Left, 37), Goto(Right), Insert(Left, 69)]
+
+// Nominal
+// After edit 36, Insert(Left, 32), expected DemandAll(Sort) to be [1, 26, 31, 32, 55, 64, 65, 79, 81, 85, 88], but found [1, 26, 31, 55, 64, 65, 79, 81, 85, 88].
+// Edits:
+// [Insert(Left, 60), Goto(Right), Insert(Left, 25), Remove(Left), Replace(Left, 86), Goto(Left), Goto(Right), Remove(Right), Replace(Left, 81), Goto(Right), Goto(Right), Remove(Right), Goto(Right), Insert(Left, 85), Insert(Right, 10), Insert(Right, 53), Goto(Right), Replace(Left, 64), Replace(Right, 23), Insert(Left, 66), Remove(Left), Insert(Left, 1), Insert(Right, 17), Insert(Left, 9), Replace(Left, 31), Insert(Right, 32), Insert(Left, 76), Replace(Left, 58), Replace(Left, 55), Remove(Right), Remove(Right), Replace(Right, 26), Insert(Right, 88), Insert(Left, 79), Insert(Left, 65), Goto(Right), Insert(Left, 32)]
+
+// Nominal
+// After edit 33, Insert(Left, 36), expected DemandAll(Sort) to be [2, 6, 18, 21, 26, 31, 35, 35, 36, 36, 43, 66, 69, 72, 72, 77, 80, 94], but found [2, 6, 18, 21, 26, 31, 35, 35, 36, 43, 66, 69, 72, 72, 77, 80, 94].
+//    Edits:
+// [Insert(Left, 35), Insert(Left, 94), Insert(Left, 2), Goto(Right), Insert(Left, 56), Goto(Right), Replace(Left, 43), Goto(Right), Goto(Right), Goto(Right), Insert(Left, 66), Insert(Right, 22), Goto(Right), Goto(Right), Replace(Left, 6), Insert(Right, 26), Goto(Right), Insert(Right, 35), Insert(Right, 36), Goto(Left), Insert(Left, 31), Insert(Right, 6), Insert(Right, 18), Goto(Right), Replace(Right, 77), Goto(Right), Insert(Right, 72), Insert(Right, 69), Insert(Right, 80), Insert(Right, 72), Insert(Left, 72), Insert(Left, 21), Remove(Right), Insert(Left, 36), Remove(Left), Insert(Right, 63), Insert(Left, 30), Remove(Right), Remove(Left), Insert(Left, 14)]
+
+// Nominal
+// After edit 33, Insert(Right, 52), expected DemandAll(Sort) to be [21, 28, 29, 41, 52, 54, 56, 56, 57, 63, 66, 67, 67, 72, 81], but found [21, 28, 29, 41, 54, 56, 56, 57, 63, 66, 67, 67, 72, 81].
+// Edits:
+// [Goto(Left), Insert(Left, 93), Remove(Left), Insert(Left, 38), Insert(Left, 70), Remove(Right), Remove(Left), Replace(Right, 26), Remove(Left), Insert(Right, 53), Insert(Left, 54), Insert(Right, 8), Insert(Left, 56), Insert(Left, 57), Remove(Right), Insert(Left, 67), Remove(Right), Insert(Left, 67), Insert(Left, 41), Insert(Right, 56), Goto(Right), Insert(Left, 63), Insert(Right, 24), Remove(Right), Remove(Right), Insert(Left, 21), Insert(Right, 28), Insert(Right, 81), Insert(Left, 72), Insert(Left, 66), Insert(Right, 29), Goto(Right), Goto(Right), Insert(Right, 52), Insert(Right, 80), Insert(Left, 3), Goto(Right), Insert(Left, 75), Remove(Left), Replace(Left, 69), Insert(Right, 47), Insert(Left, 75), Insert(Right, 28), Goto(Right), Insert(Right, 68), Insert(Right, 5), Goto(Right)]
+
+// Nominal
 // After edit 46, Replace(Left, 93), expected Sum to be [1490], but found [1397].
 //     thread 'ensure_consistency_randomly_100_x_100' panicked at '[Goto(Left), Insert(Right, 93), Insert(Right, 50), Insert(Right, 82), Goto(Right), Insert(Right, 79), Insert(Right, 79), Goto(Right), Goto(Right), Goto(Right), Remove(Right), Insert(Right, 6), Insert(Right, 89), Insert(Left, 45), Replace(Right, 89), Insert(Right, 19), Insert(Left, 55), Insert(Right, 47), Insert(Right, 41), Insert(Left, 83), Insert(Right, 40), Goto(Right), Insert(Right, 84), Insert(Right, 90), Goto(Right), Insert(Right, 95), Insert(Right, 60), Insert(Left, 96), Insert(Right, 80), Goto(Right), Insert(Left, 33), Goto(Right), Goto(Left), Replace(Right, 11), Insert(Left, 94), Insert(Left, 0), Goto(Right), Goto(Right), Insert(Left, 91), Insert(Left, 24), Replace(Left, 8), Goto(Left), Insert(Right, 0), Goto(Right), Insert(Left, 91), Remove(Left), Replace(Left, 93), Insert(Right, 23), Insert(Right, 38), Insert(Right, 3), Insert(Right, 51), Goto(Right), Replace(Right, 58), Insert(Left, 53), Insert(Left, 90), Goto(Right), Goto(Right), Goto(Right), Insert(Right, 16), Replace(Right, 9), Remove(Left), Goto(Right), Remove(Right), Remove(Left), Goto(Right), Remove(Left), Insert(Left, 48), Insert(Left, 39), Goto(Right), Insert(Left, 75), Insert(Right, 26), Goto(Right), Goto(Right), Replace(Left, 92), Replace(Right, 5), Goto(Right), Insert(Left, 97), Insert(Right, 53), Remove(Right)]', tests/listedit.rs:135
 
