@@ -443,16 +443,14 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
     fn change_prop(self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes {
         let stackLen = st.stack.len() ;
         debug!("{} change_prop begin: {:?}", engineMsg!(st), loc);
-        let (res, succs) = { // Handle cases where there is no internal computation to re-compute:
+        let res_succs = { // Handle cases where there is no internal computation to re-compute:
             let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
             match *node {
                 Node::Comp(ref nd) => {
-                    let res = match nd.res { Some(ref res) => res.clone(),
-                                             None => unreachable!() // mergesort test is triggering this line ..
-                    };
-                    let succs = nd.succs.clone () ;
-                    (res, succs)
-                },
+                    match nd.res {
+                        Some(ref res) => Some((res.clone(), nd.succs.clone ())),
+                        None => None
+                    }},
                 Node::Pure(_) => {
                     debug!("{} change_prop early end: {:?} is Pure(_)", engineMsg(Some(stackLen)), loc);
                     return EngineRes{changed:false}
@@ -464,7 +462,14 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
                 _ => panic!("undefined")
             }
         } ;
-        change_prop_comp(st, self, loc, res, succs)
+        match res_succs {
+            Some((res,succs)) => change_prop_comp(st, self, loc, res, succs),
+            None => {
+                let res = produce( st, loc );
+                let changed = self.res != res ;
+                EngineRes{changed:changed}
+            }
+        }
     }
 }
 
