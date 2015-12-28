@@ -51,12 +51,17 @@ pub trait TreeT<A:Adapton,Leaf> {
     type Tree : Debug+Hash+PartialEq+Eq+Clone ;
 
     fn lev<X:Hash>(&X) -> Self::Lev ;
+    fn lev_of_tree (&mut A, &Self::Tree) -> Self::Lev ;
     fn lev_bits () -> Self::Lev ;
     fn lev_zero () -> Self::Lev ;
     fn lev_inc (&Self::Lev) -> Self::Lev ;
-    fn lev_max () -> Self::Lev ;
     fn lev_add (&Self::Lev, &Self::Lev) -> Self::Lev ;
     fn lev_lte (&Self::Lev, &Self::Lev) -> bool ;
+    fn lev_max_val () -> Self::Lev ;
+
+    fn lev_max (a:&Self::Lev, b:&Self::Lev) -> Self::Lev {
+        if Self::lev_lte(a, b) { b.clone() } else { a.clone() }
+    }
     
     fn nil  (&mut A) -> Self::Tree ;
     fn leaf (&mut A, Leaf) -> Self::Tree ;
@@ -73,6 +78,14 @@ pub trait TreeT<A:Adapton,Leaf> {
         ,     LeafC : FnOnce(&mut A, Leaf) -> Res
         ,     BinC  : FnOnce(&mut A, Self::Lev,  Self::Tree, Self::Tree) -> Res
         ,     NameC : FnOnce(&mut A, A::Name, Self::Lev, Self::Tree, Self::Tree) -> Res
+        ;
+
+    fn elim_ref<Res,NilC,LeafC,BinC,NameC>
+        (&mut A, &Self::Tree, NilC, LeafC, BinC, NameC) -> Res
+        where NilC  : FnOnce(&mut A) -> Res
+        ,     LeafC : FnOnce(&mut A, &Leaf) -> Res
+        ,     BinC  : FnOnce(&mut A, &Self::Lev,  &Self::Tree, &Self::Tree) -> Res
+        ,     NameC : FnOnce(&mut A, &A::Name, &Self::Lev, &Self::Tree, &Self::Tree) -> Res
         ;
 
     fn elim_move<Arg,Res,NilC,LeafC,BinC,NameC>

@@ -102,9 +102,17 @@ impl
     fn lev<X:Hash>(x:&X) -> Self::Lev  {
         my_hash(&x).trailing_zeros() as Self::Lev
     }
+    fn lev_of_tree (st:&mut A, tree:&Self::Tree) -> Self::Lev {
+        Tree::elim_ref(st, tree,
+                       |_| 0,
+                       |_,leaf| Self::lev(leaf),
+                       |_,lev,_,_| lev.clone(),
+                       |_,_,lev,_,_| lev.clone(),
+                       )
+    }
     fn lev_bits () -> Self::Lev { 32 }
     fn lev_zero () -> Self::Lev { 0 }
-    fn lev_max () -> Self::Lev { u32::max_value() }
+    fn lev_max_val () -> Self::Lev { u32::max_value() }
     fn lev_add (x:&Self::Lev,y:&Self::Lev) -> Self::Lev { x + y }
     fn lev_inc (x:&Self::Lev) -> Self::Lev { x + 1 }
     fn lev_lte (x:&Self::Lev,y:&Self::Lev) -> bool { x <= y }
@@ -152,6 +160,26 @@ impl
             Tree::Art(art) => {
                 let list = st.force(&art);
                 Self::elim(st, list, nil, leaf, bin, name)
+            }
+        }
+    }
+
+    fn elim_ref<Res,NilC,LeafC,BinC,NameC>
+        (st:&mut A, tree:&Self::Tree, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
+        where NilC  : FnOnce(&mut A) -> Res
+        ,     LeafC : FnOnce(&mut A, &Leaf) -> Res
+        ,     BinC  : FnOnce(&mut A, &Self::Lev, &Self::Tree, &Self::Tree) -> Res
+        ,     NameC : FnOnce(&mut A, &A::Name, &Self::Lev, &Self::Tree, &Self::Tree) -> Res
+    {
+        match *tree {
+            Tree::Nil => nil(st),
+            Tree::Leaf(ref x) => leaf(st, x),
+            Tree::Bin(ref b, ref l, ref r) => bin(st, b, &*l, &*r),
+            Tree::Name(ref nm, ref b, ref l, ref r) => name(st, nm, b, &*l, &*r),
+            Tree::Rc(ref rc) => Self::elim_ref(st, &*rc, nil, leaf, bin, name),
+            Tree::Art(ref art) => {
+                let list = st.force(art);
+                Self::elim_ref(st, &list, nil, leaf, bin, name)
             }
         }
     }
