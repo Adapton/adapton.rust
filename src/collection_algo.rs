@@ -264,7 +264,7 @@ pub fn list_merge_sort<A:Adapton,X:Ord+Hash+Debug+Clone,L:ListT<A,X>,T:TreeT<A,X
                 )
 }
 
-pub fn tree_append
+pub fn tree_append_cheap
     < A:Adapton
     , X:Hash+Clone+Debug
     , T:TreeT<A,X>
@@ -275,7 +275,7 @@ pub fn tree_append
     T::bin(st, T::lev_max_val(), tree1, tree2)
 }
 
-pub fn tree_append_incomplete
+pub fn tree_append
     <A:Adapton
     ,X:Clone+Hash+Eq+Debug
     ,T:TreeT<A,X>
@@ -302,7 +302,7 @@ pub fn tree_append_incomplete
                       let levr2 = T::lev_of_tree(st, &r2);
                       if T::lev_lte(&levl2, &levr2) {
                           let l1 = T::leaf(st,leaf1);
-                          let tree1 = tree_append_incomplete::<A,X,T>(st, l1, l2);
+                          let tree1 = tree_append::<A,X,T>(st, l1, l2);
                           let tree1lev = T::lev_of_tree(st, &tree1);
                           let lev = T::lev_max(&tree1lev, &levr2);
                           T::bin(st, lev, tree1, r2)
@@ -318,7 +318,7 @@ pub fn tree_append_incomplete
                   /* Name */ |st, _, lev2, l2, r2, leaf1| {
                       let tree1 = T::leaf(st, leaf1);
                       let tree2 = T::bin(st, lev2, l2, r2);
-                      tree_append_incomplete::<A,X,T>(st, tree1, tree2)
+                      tree_append::<A,X,T>(st, tree1, tree2)
                   })
          },
          /* Bin */ |st,lev1,l1,r1, tree2| {
@@ -337,7 +337,7 @@ pub fn tree_append_incomplete
                           T::bin(st, lev, tree1, tree2)
                       }
                       else {
-                          let tree2 = tree_append_incomplete::<A,X,T>(st, r1, tree2);
+                          let tree2 = tree_append::<A,X,T>(st, r1, tree2);
                           T::bin(st, lev, l1, tree2)
                       }
                   },
@@ -350,7 +350,7 @@ pub fn tree_append_incomplete
                       if T::lev_lte(&levr1, &levr2) &&
                           T::lev_lte(&levl2, &levr2) {
                               let tree1 = T::bin(st, lev1, l1, r1);
-                              let tree1 = tree_append_incomplete::<A,X,T>(st, tree1, l2);
+                              let tree1 = tree_append::<A,X,T>(st, tree1, l2);
                               T::bin(st, lev, tree1, r2)
                           }
                       else if T::lev_lte(&levr1, &levl2) &&
@@ -361,19 +361,19 @@ pub fn tree_append_incomplete
                           }
                       else {
                           let tree2 = T::bin(st, lev2, l2, r2);
-                          let tree2 = tree_append_incomplete::<A,X,T>(st, r1, tree2);
+                          let tree2 = tree_append::<A,X,T>(st, r1, tree2);
                           T::bin(st, lev, l1, tree2)
                       }
                   },
                   /* Name */ |st, _, lev2, l2, r2, (lev1, l1, r1) | {
                       let tree1 = T::bin(st, lev1, l1, r1);
                       let tree2 = T::bin(st, lev2, l2, r2);
-                      tree_append_incomplete::<A,X,T>(st, tree1, tree2)
+                      tree_append::<A,X,T>(st, tree1, tree2)
                   })
          },
          /* Name */ |st,_,lev1,l1,r1, tree2| {
              let tree1 = T::bin(st, lev1, l1, r1);
-             tree_append_incomplete::<A,X,T>(st, tree1, tree2)
+             tree_append::<A,X,T>(st, tree1, tree2)
          }
          )
 }
