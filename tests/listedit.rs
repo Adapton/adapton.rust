@@ -140,68 +140,89 @@ fn ensure_consistency_randomly(size:usize, iterations:usize, view:&ListReduce) {
 
 #[test]
 fn ensure_consistency_randomly_100_x_100() {
-    //ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
-    //ensure_consistency_randomly(100, 100, &ListReduce::Max) ;
+    ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
+    ensure_consistency_randomly(100, 100, &ListReduce::Max) ;
     //ensure_consistency_randomly(100, 100, &ListReduce::DemandAll(ListTransf::Reverse)) ;
-    ensure_consistency_randomly(100, 100, &ListReduce::DemandAll(ListTransf::Sort)) ;
+    //ensure_consistency_randomly(100, 100, &ListReduce::DemandAll(ListTransf::Sort)) ;
 }
 
+#[ignore]
 #[test]
 fn ensure_consistency_randomly_300_x_100() {
-    //ensure_consistency_randomly(300, 100, &ListReduce::Sum) ;
-    //ensure_consistency_randomly(300, 100, &ListReduce::Max) ;
+    ensure_consistency_randomly(300, 100, &ListReduce::Sum) ;
+    ensure_consistency_randomly(300, 100, &ListReduce::Max) ;
     //ensure_consistency_randomly(300, 100, &ListReduce::DemandAll(ListTransf::Reverse)) ;
-    ensure_consistency_randomly(300, 100, &ListReduce::DemandAll(ListTransf::Sort)) ;
+    //ensure_consistency_randomly(300, 100, &ListReduce::DemandAll(ListTransf::Sort)) ;
 }
 
+#[ignore]
 #[test]
 fn ensure_consistency_randomly_1k_x_20() {
     ensure_consistency_randomly(1000, 20, &ListReduce::Sum) ;
     ensure_consistency_randomly(1000, 20, &ListReduce::Max) ;
-    ensure_consistency_randomly(1000, 20, &ListReduce::DemandAll(ListTransf::Reverse)) ;
-    ensure_consistency_randomly(1000, 20, &ListReduce::DemandAll(ListTransf::Sort)) ;
+    //ensure_consistency_randomly(1000, 20, &ListReduce::DemandAll(ListTransf::Reverse)) ;
+    //ensure_consistency_randomly(1000, 20, &ListReduce::DemandAll(ListTransf::Sort)) ;
 }
 
+#[ignore]
 #[test]
 fn ensure_consistency_randomly_5k_x_5() {
     ensure_consistency_randomly(5000, 5, &ListReduce::Sum) ;
     ensure_consistency_randomly(5000, 5, &ListReduce::Max)
 }
 
+#[ignore]
 #[test]
 fn ensure_consistency_randomly_10k_x_5() {
     ensure_consistency_randomly(10000, 5, &ListReduce::Sum) ;
     ensure_consistency_randomly(10000, 5, &ListReduce::Max)
 }
 
-// Nominal
-// After edit 23, Insert(Right, 60), expected DemandAll(Sort) to be [6, 9, 10, 16, 21, 29, 44, 58, 60, 62, 91], but found [6, 9, 10, 16, 21, 29, 44, 58, 62, 91].
-// Edits:
-// [Goto(Right), Insert(Right, 44), Insert(Left, 9), Goto(Right), Goto(Right), Insert(Left, 91), Insert(Right, 29), Insert(Right, 62), Goto(Right), Insert(Right, 71), Remove(Right), Insert(Right, 87), Insert(Left, 4), Remove(Right), Insert(Right, 19), Replace(Left, 21), Insert(Left, 16), Goto(Right), Insert(Right, 6), Insert(Right, 10), Goto(Left), Remove(Right), Insert(Left, 58), Insert(Right, 60), Insert(Right, 86), Insert(Right, 36), Insert(Right, 20), Goto(Right), Insert(Right, 94)]
 
-// Nominal
-// After edit 23, Replace(Right, 75), expected DemandAll(Sort) to be [10, 13, 19, 21, 56, 61, 68, 75, 75, 92], but found [10, 13, 19, 21, 48, 56, 61, 68, 75, 92].
-//    Edits:
-// [Insert(Left, 92), Insert(Left, 99), Insert(Right, 56), Insert(Right, 64), Remove(Left), Insert(Right, 82), Insert(Right, 10), Insert(Left, 22), Goto(Right), Replace(Right, 13), Remove(Left), Goto(Right), Insert(Left, 19), Replace(Right, 10), Goto(Left), Insert(Left, 68), Goto(Right), Insert(Right, 21), Insert(Right, 61), Insert(Right, 48), Goto(Left), Goto(Right), Insert(Left, 75), Replace(Right, 75), Insert(Right, 75), Goto(Right), Insert(Left, 10), Replace(Left, 96), Insert(Left, 86), Insert(Right, 42), Insert(Right, 82), Replace(Right, 38), Remove(Left), Remove(Left), Goto(Right), Insert(Right, 9), Replace(Left, 8), Remove(Right), Replace(Left, 4), Insert(Right, 69), Insert(Right, 40), Goto(Right), Insert(Right, 31), Goto(Right), Insert(Right, 31), Insert(Left, 26), Insert(Right, 92), Insert(Left, 46), Goto(Right), Insert(Right, 98), Insert(Left, 53), Insert(Left, 0), Goto(Right), Insert(Right, 56), Insert(Left, 32), Insert(Left, 0), Replace(Right, 20), Insert(Right, 95), Goto(Right), Insert(Left, 38), Insert(Left, 81), Insert(Right, 79), Insert(Left, 40), Goto(Right), Insert(Left, 27), Insert(Left, 27), Insert(Left, 88), Insert(Left, 37), Goto(Right), Insert(Left, 69)]
+#[test]
+fn ensure_consistency_regression_sort1() { assert!( compare_naive_and_cached(&testcase_sort_1(), &ListReduce::DemandAll(ListTransf::Sort))) }
 
-// Nominal
-// After edit 36, Insert(Left, 32), expected DemandAll(Sort) to be [1, 26, 31, 32, 55, 64, 65, 79, 81, 85, 88], but found [1, 26, 31, 55, 64, 65, 79, 81, 85, 88].
-// Edits:
-// [Insert(Left, 60), Goto(Right), Insert(Left, 25), Remove(Left), Replace(Left, 86), Goto(Left), Goto(Right), Remove(Right), Replace(Left, 81), Goto(Right), Goto(Right), Remove(Right), Goto(Right), Insert(Left, 85), Insert(Right, 10), Insert(Right, 53), Goto(Right), Replace(Left, 64), Replace(Right, 23), Insert(Left, 66), Remove(Left), Insert(Left, 1), Insert(Right, 17), Insert(Left, 9), Replace(Left, 31), Insert(Right, 32), Insert(Left, 76), Replace(Left, 58), Replace(Left, 55), Remove(Right), Remove(Right), Replace(Right, 26), Insert(Right, 88), Insert(Left, 79), Insert(Left, 65), Goto(Right), Insert(Left, 32)]
+#[test]
+fn ensure_consistency_regression_sort2() { assert!( compare_naive_and_cached(&testcase_sort_2(), &ListReduce::DemandAll(ListTransf::Sort))) }
 
-// Nominal
-// After edit 33, Insert(Left, 36), expected DemandAll(Sort) to be [2, 6, 18, 21, 26, 31, 35, 35, 36, 36, 43, 66, 69, 72, 72, 77, 80, 94], but found [2, 6, 18, 21, 26, 31, 35, 35, 36, 43, 66, 69, 72, 72, 77, 80, 94].
-//    Edits:
-// [Insert(Left, 35), Insert(Left, 94), Insert(Left, 2), Goto(Right), Insert(Left, 56), Goto(Right), Replace(Left, 43), Goto(Right), Goto(Right), Goto(Right), Insert(Left, 66), Insert(Right, 22), Goto(Right), Goto(Right), Replace(Left, 6), Insert(Right, 26), Goto(Right), Insert(Right, 35), Insert(Right, 36), Goto(Left), Insert(Left, 31), Insert(Right, 6), Insert(Right, 18), Goto(Right), Replace(Right, 77), Goto(Right), Insert(Right, 72), Insert(Right, 69), Insert(Right, 80), Insert(Right, 72), Insert(Left, 72), Insert(Left, 21), Remove(Right), Insert(Left, 36), Remove(Left), Insert(Right, 63), Insert(Left, 30), Remove(Right), Remove(Left), Insert(Left, 14)]
+#[test]
+fn ensure_consistency_regression_sort3() { assert!( compare_naive_and_cached(&testcase_sort_3(), &ListReduce::DemandAll(ListTransf::Sort))) }
 
-// Nominal
-// After edit 33, Insert(Right, 52), expected DemandAll(Sort) to be [21, 28, 29, 41, 52, 54, 56, 56, 57, 63, 66, 67, 67, 72, 81], but found [21, 28, 29, 41, 54, 56, 56, 57, 63, 66, 67, 67, 72, 81].
-// Edits:
-// [Goto(Left), Insert(Left, 93), Remove(Left), Insert(Left, 38), Insert(Left, 70), Remove(Right), Remove(Left), Replace(Right, 26), Remove(Left), Insert(Right, 53), Insert(Left, 54), Insert(Right, 8), Insert(Left, 56), Insert(Left, 57), Remove(Right), Insert(Left, 67), Remove(Right), Insert(Left, 67), Insert(Left, 41), Insert(Right, 56), Goto(Right), Insert(Left, 63), Insert(Right, 24), Remove(Right), Remove(Right), Insert(Left, 21), Insert(Right, 28), Insert(Right, 81), Insert(Left, 72), Insert(Left, 66), Insert(Right, 29), Goto(Right), Goto(Right), Insert(Right, 52), Insert(Right, 80), Insert(Left, 3), Goto(Right), Insert(Left, 75), Remove(Left), Replace(Left, 69), Insert(Right, 47), Insert(Left, 75), Insert(Right, 28), Goto(Right), Insert(Right, 68), Insert(Right, 5), Goto(Right)]
+#[test]
+fn ensure_consistency_regression_sort4() { assert!( compare_naive_and_cached(&testcase_sort_4(), &ListReduce::DemandAll(ListTransf::Sort))) }
 
-// Nominal
-// After edit 46, Replace(Left, 93), expected Sum to be [1490], but found [1397].
-//     thread 'ensure_consistency_randomly_100_x_100' panicked at '[Goto(Left), Insert(Right, 93), Insert(Right, 50), Insert(Right, 82), Goto(Right), Insert(Right, 79), Insert(Right, 79), Goto(Right), Goto(Right), Goto(Right), Remove(Right), Insert(Right, 6), Insert(Right, 89), Insert(Left, 45), Replace(Right, 89), Insert(Right, 19), Insert(Left, 55), Insert(Right, 47), Insert(Right, 41), Insert(Left, 83), Insert(Right, 40), Goto(Right), Insert(Right, 84), Insert(Right, 90), Goto(Right), Insert(Right, 95), Insert(Right, 60), Insert(Left, 96), Insert(Right, 80), Goto(Right), Insert(Left, 33), Goto(Right), Goto(Left), Replace(Right, 11), Insert(Left, 94), Insert(Left, 0), Goto(Right), Goto(Right), Insert(Left, 91), Insert(Left, 24), Replace(Left, 8), Goto(Left), Insert(Right, 0), Goto(Right), Insert(Left, 91), Remove(Left), Replace(Left, 93), Insert(Right, 23), Insert(Right, 38), Insert(Right, 3), Insert(Right, 51), Goto(Right), Replace(Right, 58), Insert(Left, 53), Insert(Left, 90), Goto(Right), Goto(Right), Goto(Right), Insert(Right, 16), Replace(Right, 9), Remove(Left), Goto(Right), Remove(Right), Remove(Left), Goto(Right), Remove(Left), Insert(Left, 48), Insert(Left, 39), Goto(Right), Insert(Left, 75), Insert(Right, 26), Goto(Right), Goto(Right), Replace(Left, 92), Replace(Right, 5), Goto(Right), Insert(Left, 97), Insert(Right, 53), Remove(Right)]', tests/listedit.rs:135
+#[test]
+fn ensure_consistency_regression_sort5() { assert!( compare_naive_and_cached(&testcase_sort_5(), &ListReduce::DemandAll(ListTransf::Sort))) }
+
+#[test]
+fn ensure_consistency_regression_sort6() { assert!( compare_naive_and_cached(&testcase_sort_6(), &ListReduce::DemandAll(ListTransf::Sort))) }
+
+fn testcase_sort_1 () -> Edits {
+    vec![CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 44), CursorEdit::Insert(Dir2::Left, 9), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 91), CursorEdit::Insert(Dir2::Right, 29), CursorEdit::Insert(Dir2::Right, 62), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 71), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Right, 87), CursorEdit::Insert(Dir2::Left, 4), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Right, 19), CursorEdit::Replace(Dir2::Left, 21), CursorEdit::Insert(Dir2::Left, 16), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 6), CursorEdit::Insert(Dir2::Right, 10), CursorEdit::Goto(Dir2::Left), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Left, 58), CursorEdit::Insert(Dir2::Right, 60), CursorEdit::Insert(Dir2::Right, 86), CursorEdit::Insert(Dir2::Right, 36), CursorEdit::Insert(Dir2::Right, 20), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 94)]
+}
+
+
+fn testcase_sort_2 () -> Edits {
+    vec![CursorEdit::Insert(Dir2::Left, 92), CursorEdit::Insert(Dir2::Left, 99), CursorEdit::Insert(Dir2::Right, 56), CursorEdit::Insert(Dir2::Right, 64), CursorEdit::Remove(Dir2::Left), CursorEdit::Insert(Dir2::Right, 82), CursorEdit::Insert(Dir2::Right, 10), CursorEdit::Insert(Dir2::Left, 22), CursorEdit::Goto(Dir2::Right), CursorEdit::Replace(Dir2::Right, 13), CursorEdit::Remove(Dir2::Left), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 19), CursorEdit::Replace(Dir2::Right, 10), CursorEdit::Goto(Dir2::Left), CursorEdit::Insert(Dir2::Left, 68), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 21), CursorEdit::Insert(Dir2::Right, 61), CursorEdit::Insert(Dir2::Right, 48), CursorEdit::Goto(Dir2::Left), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 75), CursorEdit::Replace(Dir2::Right, 75), CursorEdit::Insert(Dir2::Right, 75), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 10), CursorEdit::Replace(Dir2::Left, 96), CursorEdit::Insert(Dir2::Left, 86), CursorEdit::Insert(Dir2::Right, 42), CursorEdit::Insert(Dir2::Right, 82), CursorEdit::Replace(Dir2::Right, 38), CursorEdit::Remove(Dir2::Left), CursorEdit::Remove(Dir2::Left), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 9), CursorEdit::Replace(Dir2::Left, 8), CursorEdit::Remove(Dir2::Right), CursorEdit::Replace(Dir2::Left, 4), CursorEdit::Insert(Dir2::Right, 69), CursorEdit::Insert(Dir2::Right, 40), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 31), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 31), CursorEdit::Insert(Dir2::Left, 26), CursorEdit::Insert(Dir2::Right, 92), CursorEdit::Insert(Dir2::Left, 46), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 98), CursorEdit::Insert(Dir2::Left, 53), CursorEdit::Insert(Dir2::Left, 0), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 56), CursorEdit::Insert(Dir2::Left, 32), CursorEdit::Insert(Dir2::Left, 0), CursorEdit::Replace(Dir2::Right, 20), CursorEdit::Insert(Dir2::Right, 95), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 38), CursorEdit::Insert(Dir2::Left, 81), CursorEdit::Insert(Dir2::Right, 79), CursorEdit::Insert(Dir2::Left, 40), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 27), CursorEdit::Insert(Dir2::Left, 27), CursorEdit::Insert(Dir2::Left, 88), CursorEdit::Insert(Dir2::Left, 37), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 69)]
+}
+
+fn testcase_sort_3 () -> Edits {
+    vec![CursorEdit::Insert(Dir2::Left, 60), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 25), CursorEdit::Remove(Dir2::Left), CursorEdit::Replace(Dir2::Left, 86), CursorEdit::Goto(Dir2::Left), CursorEdit::Goto(Dir2::Right), CursorEdit::Remove(Dir2::Right), CursorEdit::Replace(Dir2::Left, 81), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Remove(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 85), CursorEdit::Insert(Dir2::Right, 10), CursorEdit::Insert(Dir2::Right, 53), CursorEdit::Goto(Dir2::Right), CursorEdit::Replace(Dir2::Left, 64), CursorEdit::Replace(Dir2::Right, 23), CursorEdit::Insert(Dir2::Left, 66), CursorEdit::Remove(Dir2::Left), CursorEdit::Insert(Dir2::Left, 1), CursorEdit::Insert(Dir2::Right, 17), CursorEdit::Insert(Dir2::Left, 9), CursorEdit::Replace(Dir2::Left, 31), CursorEdit::Insert(Dir2::Right, 32), CursorEdit::Insert(Dir2::Left, 76), CursorEdit::Replace(Dir2::Left, 58), CursorEdit::Replace(Dir2::Left, 55), CursorEdit::Remove(Dir2::Right), CursorEdit::Remove(Dir2::Right), CursorEdit::Replace(Dir2::Right, 26), CursorEdit::Insert(Dir2::Right, 88), CursorEdit::Insert(Dir2::Left, 79), CursorEdit::Insert(Dir2::Left, 65), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 32)]
+}
+
+
+fn testcase_sort_4 () -> Edits {
+    vec![CursorEdit::Insert(Dir2::Left, 35), CursorEdit::Insert(Dir2::Left, 94), CursorEdit::Insert(Dir2::Left, 2), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 56), CursorEdit::Goto(Dir2::Right), CursorEdit::Replace(Dir2::Left, 43), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 66), CursorEdit::Insert(Dir2::Right, 22), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Replace(Dir2::Left, 6), CursorEdit::Insert(Dir2::Right, 26), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 35), CursorEdit::Insert(Dir2::Right, 36), CursorEdit::Goto(Dir2::Left), CursorEdit::Insert(Dir2::Left, 31), CursorEdit::Insert(Dir2::Right, 6), CursorEdit::Insert(Dir2::Right, 18), CursorEdit::Goto(Dir2::Right), CursorEdit::Replace(Dir2::Right, 77), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 72), CursorEdit::Insert(Dir2::Right, 69), CursorEdit::Insert(Dir2::Right, 80), CursorEdit::Insert(Dir2::Right, 72), CursorEdit::Insert(Dir2::Left, 72), CursorEdit::Insert(Dir2::Left, 21), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Left, 36), CursorEdit::Remove(Dir2::Left), CursorEdit::Insert(Dir2::Right, 63), CursorEdit::Insert(Dir2::Left, 30), CursorEdit::Remove(Dir2::Right), CursorEdit::Remove(Dir2::Left), CursorEdit::Insert(Dir2::Left, 14)]
+}
+
+fn testcase_sort_5 () -> Edits {
+    vec![CursorEdit::Goto(Dir2::Left), CursorEdit::Insert(Dir2::Left, 93), CursorEdit::Remove(Dir2::Left), CursorEdit::Insert(Dir2::Left, 38), CursorEdit::Insert(Dir2::Left, 70), CursorEdit::Remove(Dir2::Right), CursorEdit::Remove(Dir2::Left), CursorEdit::Replace(Dir2::Right, 26), CursorEdit::Remove(Dir2::Left), CursorEdit::Insert(Dir2::Right, 53), CursorEdit::Insert(Dir2::Left, 54), CursorEdit::Insert(Dir2::Right, 8), CursorEdit::Insert(Dir2::Left, 56), CursorEdit::Insert(Dir2::Left, 57), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Left, 67), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Left, 67), CursorEdit::Insert(Dir2::Left, 41), CursorEdit::Insert(Dir2::Right, 56), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 63), CursorEdit::Insert(Dir2::Right, 24), CursorEdit::Remove(Dir2::Right), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Left, 21), CursorEdit::Insert(Dir2::Right, 28), CursorEdit::Insert(Dir2::Right, 81), CursorEdit::Insert(Dir2::Left, 72), CursorEdit::Insert(Dir2::Left, 66), CursorEdit::Insert(Dir2::Right, 29), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 52), CursorEdit::Insert(Dir2::Right, 80), CursorEdit::Insert(Dir2::Left, 3), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 75), CursorEdit::Remove(Dir2::Left), CursorEdit::Replace(Dir2::Left, 69), CursorEdit::Insert(Dir2::Right, 47), CursorEdit::Insert(Dir2::Left, 75), CursorEdit::Insert(Dir2::Right, 28), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 68), CursorEdit::Insert(Dir2::Right, 5), CursorEdit::Goto(Dir2::Right)]
+}
+
+fn testcase_sort_6 () -> Edits {
+    vec![CursorEdit::Goto(Dir2::Left), CursorEdit::Insert(Dir2::Right, 93), CursorEdit::Insert(Dir2::Right, 50), CursorEdit::Insert(Dir2::Right, 82), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 79), CursorEdit::Insert(Dir2::Right, 79), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Right, 6), CursorEdit::Insert(Dir2::Right, 89), CursorEdit::Insert(Dir2::Left, 45), CursorEdit::Replace(Dir2::Right, 89), CursorEdit::Insert(Dir2::Right, 19), CursorEdit::Insert(Dir2::Left, 55), CursorEdit::Insert(Dir2::Right, 47), CursorEdit::Insert(Dir2::Right, 41), CursorEdit::Insert(Dir2::Left, 83), CursorEdit::Insert(Dir2::Right, 40), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 84), CursorEdit::Insert(Dir2::Right, 90), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 95), CursorEdit::Insert(Dir2::Right, 60), CursorEdit::Insert(Dir2::Left, 96), CursorEdit::Insert(Dir2::Right, 80), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 33), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Left), CursorEdit::Replace(Dir2::Right, 11), CursorEdit::Insert(Dir2::Left, 94), CursorEdit::Insert(Dir2::Left, 0), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 91), CursorEdit::Insert(Dir2::Left, 24), CursorEdit::Replace(Dir2::Left, 8), CursorEdit::Goto(Dir2::Left), CursorEdit::Insert(Dir2::Right, 0), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 91), CursorEdit::Remove(Dir2::Left), CursorEdit::Replace(Dir2::Left, 93), CursorEdit::Insert(Dir2::Right, 23), CursorEdit::Insert(Dir2::Right, 38), CursorEdit::Insert(Dir2::Right, 3), CursorEdit::Insert(Dir2::Right, 51), CursorEdit::Goto(Dir2::Right), CursorEdit::Replace(Dir2::Right, 58), CursorEdit::Insert(Dir2::Left, 53), CursorEdit::Insert(Dir2::Left, 90), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 16), CursorEdit::Replace(Dir2::Right, 9), CursorEdit::Remove(Dir2::Left), CursorEdit::Goto(Dir2::Right), CursorEdit::Remove(Dir2::Right), CursorEdit::Remove(Dir2::Left), CursorEdit::Goto(Dir2::Right), CursorEdit::Remove(Dir2::Left), CursorEdit::Insert(Dir2::Left, 48), CursorEdit::Insert(Dir2::Left, 39), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 75), CursorEdit::Insert(Dir2::Right, 26), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Replace(Dir2::Left, 92), CursorEdit::Replace(Dir2::Right, 5), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 97), CursorEdit::Insert(Dir2::Right, 53), CursorEdit::Remove(Dir2::Right)]
+}
+
 
 // Nominal
 // After edit 185, Insert(Left, 120), expected Sum to be [7978], but found [7858].
@@ -406,4 +427,3 @@ fn testcase5 () -> Edits {
 // ---- ensure_consistency stdout ----
 //     after edit 41: Goto(Dir2::Dir2::Right): expected Max to be [49], but found [44]
 //     thread 'ensure_consistency' panicked at '[Replace(Dir2::Dir2::Right, 45), Insert(Dir2::Dir2::Right, 0), Insert(Dir2::Dir2::Left, 12), Insert(Dir2::Dir2::Right, 22), Goto(Dir2::Dir2::Right), Goto(Dir2::Dir2::Right), Insert(Dir2::Dir2::Left, 16), Replace(Dir2::Dir2::Right, 7), Goto(Dir2::Dir2::Right), Insert(Dir2::Dir2::Left, 16), Insert(Dir2::Dir2::Right, 27), Insert(Dir2::Dir2::Left, 0), Goto(Dir2::Dir2::Right), Insert(Dir2::Dir2::Right, 36), Goto(Dir2::Dir2::Right), Goto(Dir2::Dir2::Right), Insert(Dir2::Dir2::Right, 11), Goto(Dir2::Dir2::Right), Insert(Dir2::Dir2::Right, 32), Remove(Dir2::Dir2::Left), Insert(Dir2::Dir2::Right, 14), Remove(Dir2::Dir2::Right), Goto(Dir2::Dir2::Right), Replace(Dir2::Dir2::Right, 23), Insert(Dir2::Dir2::Left, 34), Replace(Dir2::Dir2::Right, 49), Insert(Dir2::Dir2::Left, 0), Insert(Dir2::Dir2::Left, 16), Remove(Dir2::Dir2::Left), Insert(Dir2::Dir2::Left, 4), Goto(Dir2::Dir2::Right), Replace(Dir2::Dir2::Right, 23), Insert(Dir2::Dir2::Left, 44), Goto(Dir2::Dir2::Left), Insert(Dir2::Dir2::Left, 23), Goto(Dir2::Dir2::Right), Insert(Dir2::Dir2::Left, 18), Insert(Dir2::Dir2::Right, 15), Replace(Dir2::Dir2::Left, 49), Insert(Dir2::Dir2::Right, 16), Goto(Dir2::Dir2::Left), Goto(Dir2::Dir2::Right), Insert(Dir2::Dir2::Left, 46), Goto(Dir2::Dir2::Left)]', tests/listedit.rs:52
-
