@@ -46,16 +46,27 @@ impl Debug for Name {
 pub struct Loc {
     hash : u64, // hash of (path,id)
     path : Rc<Path>,
-    id   : Rc<ArtId<Name>>,
+    id   : Rc<ArtId>,
 }
 impl Debug for Loc {
-    fn fmt(&self, f:&mut Formatter) -> Result { self.path.fmt(f) ; self.id.fmt(f) }
+    fn fmt(&self, f:&mut Formatter) -> Result {
+        write!(f,"{:?}*{:?}",self.path,self.id)
+    }
 }
 
-#[derive(Hash,Debug,PartialEq,Eq,Clone)]
-enum ArtId<Name> {
+#[derive(Hash,PartialEq,Eq,Clone)]
+enum ArtId {
     Structural(u64), // Identifies an Art::Loc based on hashing content.
     Nominal(Name),   // Identifies an Art::Loc based on a programmer-chosen name.
+}
+
+impl Debug for ArtId {
+    fn fmt(&self, f:&mut Formatter) -> Result {
+        match *self {
+            ArtId::Structural(ref hash) => write!(f, "{}", hash),
+            ArtId::Nominal(ref name) => write!(f, "{:?}", name),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -81,7 +92,7 @@ impl Clone for     Engine { fn clone(&self) -> Self { unimplemented!() } }
 // NameSyms: For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
 // http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf
 //
-#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+#[derive(Hash,PartialEq,Eq,Clone)]
 enum NameSym {
     Root, // Root identifies the outside environment of Rust code.
     String(String), // Strings encode globally-unique symbols.
@@ -93,11 +104,33 @@ enum NameSym {
     //Nil,  // Nil for non-symbolic, hash-based names.
 }
 
+impl Debug for NameSym {
+    fn fmt(&self, f:&mut Formatter) -> Result {
+        match *self {
+            NameSym::Root => write!(f, "/"),
+            NameSym::String(ref s) => write!(f, "{}", s),
+            NameSym::Usize(ref n) => write!(f, "{}", n),
+            NameSym::Pair(ref l, ref r) => write!(f, "({:?},{:?})",l,r),
+            NameSym::ForkL(ref s) => write!(f, "{:?}.l", s),
+            NameSym::ForkR(ref s) => write!(f, "{:?}.R", s),
+        }
+    }
+}
+
 // Paths are built implicitly via the Adapton::ns command.
-#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+#[derive(Hash,PartialEq,Eq,Clone)]
 enum Path {
     Empty,
     Child(Rc<Path>,Name),
+}
+
+impl Debug for Path {
+    fn fmt(&self, f:&mut Formatter) -> Result {
+        match *self {
+            Path::Empty => write!(f, ""),
+            Path::Child(ref p, ref n) => write!(f, "{:?}.{:?}", p, n),
+        }
+    }
 }
 
 // The DCG structure consists of `GraphNode`s:
@@ -482,7 +515,7 @@ fn revoke_succs<'x> (st:&mut Engine, src:&Rc<Loc>, succs:&Vec<Succ>) {
     }
 }
 
-fn loc_of_id(path:Rc<Path>,id:Rc<ArtId<Name>>) -> Rc<Loc> {
+fn loc_of_id(path:Rc<Path>,id:Rc<ArtId>) -> Rc<Loc> {
     let hash = my_hash(&(&path,&id));
     Rc::new(Loc{path:path,id:id,hash:hash})
 }
@@ -889,7 +922,7 @@ impl Adapton for Engine {
                                 _ => unreachable!(),
                             }}
                         else {
-                            debug!("{} force {:?}: no change prop necessary.", engineMsg!(self), &loc);
+                            debug!("{} force {:?}: not a computation. (no change prop necessary).", engineMsg!(self), &loc);
                             res.clone()
                         }
                     }

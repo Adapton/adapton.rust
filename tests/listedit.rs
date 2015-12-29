@@ -46,34 +46,34 @@ impl<A:Adapton,X:Ord+Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd
 {
     type ListEdit = ListZipper<A,X,List<A,X>> ;
     fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<(Vec<X>,Cnt)> {
-        debug!("run");
+        println!("run");
         let mut outs : Vec<(Vec<X>,Cnt)> = Vec::new();
         let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
         let mut loop_cnt = 0 as usize;
         for edit in edits.into_iter() {
-            debug!("\n----------------------- Loop head; count={}", loop_cnt);
-            debug!("zipper: {:?}", z);
+            println!("\n----------------------- Loop head; count={}", loop_cnt);
+            println!("zipper: {:?}", z);
             if false {
                 let consecutive_left  = has_consecutive_names::<A,X,List<A,X>>(st, z.left.clone());
                 let consecutive_right = has_consecutive_names::<A,X,List<A,X>>(st, z.right.clone());
-                debug!("zipper names: consecutive left: {}, consecutive right: {}",
+                println!("zipper names: consecutive left: {}, consecutive right: {}",
                        consecutive_left, consecutive_right);
                 assert!(!consecutive_left);  // Todo-Later: This assertion generally fails for random interactions
                 assert!(!consecutive_right); // Todo-Later: This assertion generally fails for random interactions
             }
-            debug!("edit:   {:?}", edit);
+            println!("edit:   {:?}", edit);
             let (out, cnt) = st.cnt(|st|{
                 let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
                 let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
-                debug!("tree:   {:?}", tree);
+                println!("tree:   {:?}", tree);
                 let nm = st.name_of_string("eval_reduce".to_string());
                 let out = st.ns(nm, |st|eval_reduce::<A,X,List<A,X>,Tree<A,X,u32>>(st, tree, &view) );
                 z = z_next;
                 loop_cnt = loop_cnt + 1;
                 out
             }) ;
-            debug!("out:    {:?}", out);
-            debug!("cnt:    {:?}", cnt);
+            println!("out:    {:?}", out);
+            println!("cnt:    {:?}", cnt);
             outs.push((out,cnt));
         } outs
     }
