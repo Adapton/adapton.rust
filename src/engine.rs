@@ -554,7 +554,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
                     println!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
                     false
                 }} ;
-            if !stop {
+            if true || !stop {
                 dirty_pred_observers(st,&pred_loc);
             } else { println!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen))) }
         }
