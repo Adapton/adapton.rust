@@ -51,29 +51,29 @@ impl<A:Adapton,X:Ord+Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd
         let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
         let mut loop_cnt = 0 as usize;
         for edit in edits.into_iter() {
-            println!("\n----------------------- Loop head; count={}", loop_cnt);
-            println!("zipper: {:?}", z);
+            debug!("\n----------------------- Loop head; count={}", loop_cnt);
+            debug!("zipper: {:?}", z);
             if false {
                 let consecutive_left  = has_consecutive_names::<A,X,List<A,X>>(st, z.left.clone());
                 let consecutive_right = has_consecutive_names::<A,X,List<A,X>>(st, z.right.clone());
-                println!("zipper names: consecutive left: {}, consecutive right: {}",
+                debug!("zipper names: consecutive left: {}, consecutive right: {}",
                        consecutive_left, consecutive_right);
                 assert!(!consecutive_left);  // Todo-Later: This assertion generally fails for random interactions
                 assert!(!consecutive_right); // Todo-Later: This assertion generally fails for random interactions
             }
-            println!("edit:   {:?}", edit);
+            debug!("edit:   {:?}", edit);
             let (out, cnt) = st.cnt(|st|{
                 let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
                 let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
-                println!("tree:   {:?}", tree);
+                debug!("tree:   {:?}", tree);
                 let nm = st.name_of_string("eval_reduce".to_string());
                 let out = st.ns(nm, |st|eval_reduce::<A,X,List<A,X>,Tree<A,X,u32>>(st, tree, &view) );
                 z = z_next;
                 loop_cnt = loop_cnt + 1;
                 out
             }) ;
-            println!("out:    {:?}", out);
-            println!("cnt:    {:?}", cnt);
+            debug!("out:    {:?}", out);
+            debug!("cnt:    {:?}", cnt);
             outs.push((out,cnt));
         } outs
     }
@@ -94,7 +94,7 @@ fn compare_naive_and_cached(edits: &Edits, view:&ListReduce) -> bool {
         a_cost = &a_cost + &a.1 ;
         b_cost = &b_cost + &b.1 ;
         if a.0 != b.0 {
-            println!("After edit {}, {:?}, expected {:?} to be {:?}, but found {:?}.\nEdits:\n{:?}",
+            debug!("After edit {}, {:?}, expected {:?} to be {:?}, but found {:?}.\nEdits:\n{:?}",
                      idx, edits[idx], &view, a.0, b.0, edits);
             return false;
         }
@@ -104,7 +104,7 @@ fn compare_naive_and_cached(edits: &Edits, view:&ListReduce) -> bool {
         let naive_total = a_cost.eval ;
         let engine_total = b_cost.dirty + b_cost.eval + b_cost.change_prop ;
         if false {
-        println!("{:16} for {:5} edits, Naive/Engine:{:5} = {:8} / {:8}. Naive/EngineEval:{:5}. In Engine, eval is {:.2} of {:?}",
+        debug!("{:16} for {:5} edits, Naive/Engine:{:5} = {:8} / {:8}. Naive/EngineEval:{:5}. In Engine, eval is {:.2} of {:?}",
                  format!("{:?}", view),
                  edits.len(),
                  (naive_total as f32) / (engine_total as f32),
@@ -113,7 +113,7 @@ fn compare_naive_and_cached(edits: &Edits, view:&ListReduce) -> bool {
                  (b_cost.eval as f32) / (engine_total as f32),
                  b_cost);
         } ;
-        println!("{:24} For {:5} edits, Naive/Engine:{:5}, Naive/EngineEval:{:5} \t==> Per-edit ==> Naive:{:8}, Engine:{:6}, EngineEval:{:5},   Naive/Engine:{:5}, Naive/EngineEval:{:5}",
+        debug!("{:24} For {:5} edits, Naive/Engine:{:5}, Naive/EngineEval:{:5} \t==> Per-edit ==> Naive:{:8}, Engine:{:6}, EngineEval:{:5},   Naive/Engine:{:5}, Naive/EngineEval:{:5}",
                  format!("{:?}", view),
                  edits.len(),
                  format!("{:.2}", (naive_total as f32) / (engine_total as f32)),
