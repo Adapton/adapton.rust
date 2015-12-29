@@ -809,10 +809,10 @@ impl Adapton for Engine {
                     }
                 ;
                 let stackLen = self.stack.len() ;
-                let (do_dirty, do_insert, existing_preds) = { match self.table.get_mut( &loc ) {
+                let (do_dirty, do_insert) = { match self.table.get_mut( &loc ) {
                     None => {
                         // do_dirty=false; do_insert=true
-                        (false, true, None)
+                        (false, true)
                     },
                     Some(node) => {
                         let node: &mut Box<GraphNode> = node ;
@@ -835,7 +835,7 @@ impl Adapton for Engine {
                             if app.get_arg() == arg {
                                 // Case: Same argument; Nothing else to do:
                                 // do_dirty=false; do_insert=false
-                                (false, false, None)
+                                (false, false)
                             }
                             else { // Case: Not the same argument:
                                 debug!("{} alloc thunk: Nominal match: replacing {:?} ~~> {:?}",
@@ -843,7 +843,7 @@ impl Adapton for Engine {
                                 app.consume(arg.clone()); // overwrite the old argument
                                 comp_nd.res = None ; // clear the cache
                                 // do_dirty=true; do_insert=false
-                                (true, false, Some(comp_nd.preds.clone()))
+                                (true, false)
                             }}
                         else {
                             panic!("TODO-Sometime: producers not equal!")
@@ -868,9 +868,7 @@ impl Adapton for Engine {
                 }};
                 if do_insert {
                     let node : CompNode<Res> = CompNode{
-                        preds:match existing_preds {
-                            Some(preds) => preds,
-                            None => Vec::new() },
+                        preds:Vec::new(),
                         succs:Vec::new(),
                         producer:Box::new(producer),
                         res:None,
