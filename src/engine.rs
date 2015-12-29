@@ -530,7 +530,7 @@ fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc
     println!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
     for succ in nd.succs_mut().iter_mut() {
         if (succ.effect == eff) && (&succ.loc == tgt_loc) {
-            println!("{} get_succ_mut: resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
+            println!("{} get_succ_mut:  resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
             return succ
         } else {}
     } ;
@@ -809,10 +809,10 @@ impl Adapton for Engine {
                     }
                 ;
                 let stackLen = self.stack.len() ;
-                let (do_dirty, do_insert) = { match self.table.get_mut( &loc ) {
+                let (do_dirty, do_insert, existing_preds) = { match self.table.get_mut( &loc ) {
                     None => {
                         // do_dirty=false; do_insert=true
-                        (false, true)
+                        (false, true, None)
                     },
                     Some(node) => {
                         let node: &mut Box<GraphNode> = node ;
@@ -835,7 +835,7 @@ impl Adapton for Engine {
                             if app.get_arg() == arg {
                                 // Case: Same argument; Nothing else to do:
                                 // do_dirty=false; do_insert=false
-                                (false, false)
+                                (false, false, None)
                             }
                             else { // Case: Not the same argument:
                                 println!("{} alloc thunk: Nominal match: replacing {:?} ~~> {:?}",
@@ -843,7 +843,7 @@ impl Adapton for Engine {
                                 app.consume(arg.clone()); // overwrite the old argument
                                 comp_nd.res = None ; // clear the cache
                                 // do_dirty=true; do_insert=false
-                                (true, false)
+                                (true, false, Some(comp_nd.preds.clone()))
                             }}
                         else {
                             panic!("TODO-Sometime: producers not equal!")
@@ -868,7 +868,9 @@ impl Adapton for Engine {
                 }};
                 if do_insert {
                     let node : CompNode<Res> = CompNode{
-                        preds:Vec::new(),
+                        preds:match existing_preds {
+                            Some(preds) => preds,
+                            None => Vec::new() },
                         succs:Vec::new(),
                         producer:Box::new(producer),
                         res:None,
