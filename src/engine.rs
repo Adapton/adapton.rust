@@ -452,7 +452,8 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq>
 {
     st.cnt.change_prop += 1 ;
     for succ in succs.iter() {
-        if succ.dirty {  // XXX-Bug?: This dirty flag may be stale. (Consider the depth-first style of cleaning).
+        let dirty = { get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty } ;
+        if dirty {
             let succ_dep = & succ.dep ;
             let res = succ_dep.change_prop(st, &succ.loc) ;
             if res.changed {
