@@ -542,6 +542,11 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq>
                 return EngineRes{changed:changed}
             }
             else {
+                // BUGFIX: Set this flag back to false after change
+                // propagation is finished.  Otherwise, the code that
+                // omits this would violate the post condition of
+                // change propagation (viz., all succs are clean,
+                // transitively).
                 get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty = false ;
             }
         }
