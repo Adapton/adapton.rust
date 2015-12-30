@@ -362,7 +362,11 @@ mod wf {
         let node = match st.table.get(loc) { Some(x) => x, None => panic!("") } ;
         for pred in node.preds_obs () {
             // Todo: Assert that pred has a dirty succ edge that targets loc
-            dirty(st, cs, &pred)
+            let succ = super::get_succ(st, &pred, super::Effect::Observe, loc) ;
+            if succ.dirty {} else {
+                panic!("Expected dirty edge, but found clean edge: {:?} --Observe--dirty:!--> {:?}", &pred, loc);
+            } ; // The edge is dirty.
+            dirty(st, cs, &pred)                
         }
     }
 
@@ -377,12 +381,13 @@ mod wf {
         } ;
         if ! node.succs_def () { return } ;
         for succ in node.succs () {
-            // Todo: Assert that pred has a dirty succ edge that targets loc
+            let succ = super::get_succ(st, loc, super::Effect::Observe, &succ.loc) ;
+            assert!( ! succ.dirty ); // The edge is clean.
             clean(st, cs, &succ.loc)
         }
     }
 
-    pub fn check_dcg (st:&Engine) {
+    pub fn check_dcg (st:&Engine) {        
         let mut cs = HashMap::new() ;
         for frame in st.stack.iter() {
             clean(st, &mut cs, &frame.loc)
@@ -394,7 +399,7 @@ mod wf {
                     dirty(st, &mut cs, loc)
                 }
             }
-        }
+        }        
     }
 }
 
@@ -601,6 +606,23 @@ fn loc_of_id(path:Rc<Path>,id:Rc<ArtId>) -> Rc<Loc> {
     Rc::new(Loc{path:path,id:id,hash:hash})
 }
 
+fn get_succ<'r>(st:&'r Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r Succ {
+    let stackLen = st.stack.len() ;
+    let nd = st.table.get(src_loc);
+    let nd = match nd {
+        None => panic!(""),
+        Some(nd) => nd
+    } ;    
+    debug!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
+    for succ in nd.succs() {
+        if (succ.effect == eff) && (&succ.loc == tgt_loc) {
+            debug!("{} get_succ_mut:  resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
+            return succ
+        } else {}
+    } ;
+    panic!("tgt_loc is dangling in src_node.dem_succs")
+}
+
 // Implement "sharing" of the dirty bit.
 // The succ edge is returned as a mutable borrow, to permit checking
 // and mutating the dirty bit.
@@ -634,7 +656,8 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
                     debug!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
                     false
                 }} ;
-            if true || !stop {
+            if //true ||
+                !stop {
                 dirty_pred_observers(st,&pred_loc);
             } else { debug!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen))) }
         }

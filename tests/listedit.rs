@@ -138,6 +138,7 @@ fn ensure_consistency_randomly(size:usize, iterations:usize, view:&ListReduce) {
     }
 }
 
+#[ignore]
 #[test]
 fn ensure_consistency_randomly_100_x_100() {
     ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
