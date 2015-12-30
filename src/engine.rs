@@ -514,16 +514,6 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
             _ => panic!("internal error"),
         }
     } ;
-    // XXX -- This seems extraneous!
-    // The same code exists in the implementation of `force`.
-    //
-    // match st.stack.last_mut() { None => (), Some(frame) => {
-    //     let succ = Succ{loc:loc.clone(),
-    //                     effect:Effect::Observe,
-    //                     dep:Rc::new(Box::new(ProducerDep{res:res.clone()})),
-    //                     dirty:false};
-    //     frame.succs.push(succ)
-    // }};
     println!("{} produce end: {:?} produces {:?}", engineMsg!(st), &loc, &res);
     res
 }
