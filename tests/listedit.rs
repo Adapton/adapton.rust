@@ -138,7 +138,7 @@ fn ensure_consistency_randomly(size:usize, iterations:usize, view:&ListReduce) {
     }
 }
 
-#[ignore]
+//#[ignore]
 #[test]
 fn ensure_consistency_randomly_100_x_100() {
     ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
@@ -147,7 +147,7 @@ fn ensure_consistency_randomly_100_x_100() {
     ensure_consistency_randomly(100, 100, &ListReduce::DemandAll(ListTransf::Sort)) ;
 }
 
-#[ignore]
+//#[ignore]
 #[test]
 fn ensure_consistency_randomly_300_x_100() {
     ensure_consistency_randomly(300, 100, &ListReduce::Sum) ;
@@ -156,7 +156,7 @@ fn ensure_consistency_randomly_300_x_100() {
     ensure_consistency_randomly(300, 100, &ListReduce::DemandAll(ListTransf::Sort)) ;
 }
 
-#[ignore]
+//#[ignore]
 #[test]
 fn ensure_consistency_randomly_1k_x_20() {
     ensure_consistency_randomly(1000, 20, &ListReduce::Sum) ;
