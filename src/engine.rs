@@ -337,8 +337,9 @@ mod wf {
         Dirty, Clean, Unknown
     }
 
-    fn add_constraint (cs:&mut HashMap<Rc<Loc>, NodeStatus>,
-                       loc:&Rc<Loc>, new_status: NodeStatus)
+    type Cs = HashMap<Rc<Loc>, NodeStatus> ;
+
+    fn add_constraint (cs:&mut Cs, loc:&Rc<Loc>, new_status: NodeStatus)
     {
         let old_status = match
             cs.get(loc) { None => NodeStatus::Unknown,
@@ -355,27 +356,23 @@ mod wf {
         }
     }
 
-    // fn visit_node (node:&mut Box<GraphNode>, cs:&mut HashMap) {
-    //     for succ in node.succs_mut () {
-    //         if succ.dirty {
-    //             add_constraint(cs, &node.id, NodeStatus::Dirty)
-    //         }
-    //     }
-    // }
+    fn dirty (st:&Engine, cs:&mut Cs, loc:&Rc<Loc>) {
+        add_constraint(cs, loc, NodeStatus::Dirty) ;
+        let node = match st.table.get(loc) { Some(x) => x, None => panic!("") } ;
+        for pred in node.preds_obs () {
+            // Todo: Assert that pred has a dirty succ edge that targets loc
+            dirty(st, cs, &pred)
+        }
+    }
 
-    pub fn visit_dcg (st:&mut Engine) {
+    pub fn visit_dcg (st:&Engine) {
         let mut cs = HashMap::new() ;
         for frame in st.stack.iter() {
             add_constraint(&mut cs, &frame.loc, NodeStatus::Clean)
         }
         for (loc, node) in &st.table {
             for succ in node.succs () {
-                if succ.dirty {
-                    add_constraint(&mut cs, loc, NodeStatus::Dirty) ;
-                    for pred in node.preds_obs () {
-                        add_constraint(&mut cs, &pred, NodeStatus::Dirty)
-                    }
-                }
+                if succ.dirty { dirty(st, &mut cs, loc) }
             }
         }
     }
