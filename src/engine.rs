@@ -369,19 +369,26 @@ mod wf {
     // Constrains loc and all successors (transitive) to be clean
     fn clean (st:&Engine, cs:&mut Cs, loc:&Rc<Loc>) {
         add_constraint(cs, loc, NodeStatus::Clean) ;
-        let node = match st.table.get(loc) { Some(x) => x, None => panic!("") } ;
+        let node = match st.table.get(loc) {
+            Some(x) => x,
+            None => {
+                if &st.root == loc { return }
+                else { panic!("dangling: {:?}", loc) } }
+        } ;
+        if ! node.succs_def () { return } ;
         for succ in node.succs () {
             // Todo: Assert that pred has a dirty succ edge that targets loc
             clean(st, cs, &succ.loc)
         }
     }
 
-    pub fn visit_dcg (st:&Engine) {
+    pub fn check_dcg (st:&Engine) {
         let mut cs = HashMap::new() ;
         for frame in st.stack.iter() {
             clean(st, &mut cs, &frame.loc)
         }
         for (loc, node) in &st.table {
+            if ! node.succs_def () { continue } ;
             for succ in node.succs () {
                 if succ.dirty {
                     dirty(st, &mut cs, loc)
@@ -760,6 +767,7 @@ impl Adapton for Engine {
         +'static // TODO-Later: Needed on T because of lifetime issues.
         >
         (self:&mut Engine, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
+            wf::check_dcg(self);
             let path = self.stack[0].path.clone();
             let id   = Rc::new(ArtId::Nominal(nm));
             let hash = my_hash(&(&path,&id));
@@ -811,6 +819,7 @@ impl Adapton for Engine {
          arg:Arg, spurious:Spurious)
          -> Art<Res,Self::Loc>
     {
+        wf::check_dcg(self);
         let id =
             // Apply the logic of engine's flags:
             match id { ArtIdChoice::Nominal(_)
@@ -960,6 +969,7 @@ impl Adapton for Engine {
     fn force<T:'static+Eq+Debug+Clone> (self:&mut Engine,
                                         art:&Art<T,Self::Loc>) -> T
     {
+        wf::check_dcg(self);
         match *art {
             Art::Rc(ref v) => (**v).clone(),
             Art::Loc(ref loc) => {
