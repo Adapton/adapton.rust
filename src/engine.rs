@@ -368,7 +368,8 @@ mod wf {
     pub fn visit_dcg (st:&Engine) {
         let mut cs = HashMap::new() ;
         for frame in st.stack.iter() {
-            add_constraint(&mut cs, &frame.loc, NodeStatus::Clean)
+            add_constraint(&mut cs, &frame.loc, NodeStatus::Clean) ;
+            // Todo: Assert that successors of frame.loc are clean, transitively.
         }
         for (loc, node) in &st.table {
             for succ in node.succs () {
