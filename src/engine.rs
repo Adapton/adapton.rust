@@ -141,6 +141,7 @@ trait GraphNode {
     fn preds_remove<'r>(self:&'r mut Self, &Rc<Loc>) -> () ;
     fn succs_def<'r>   (self:&'r mut Self) -> bool ;
     fn succs_mut<'r>   (self:&'r mut Self) -> &'r mut Vec<Succ> ;
+    fn succs<'r>       (self:&'r     Self) -> &'r     Vec<Succ> ;
 }
 
 #[derive(Debug)]
@@ -323,6 +324,60 @@ fn res_node_of_loc<'r,Res> (st:&'r mut Engine, loc:&Rc<Loc>) -> &'r mut Box<Node
     unsafe { transmute::<_,_>(abs_node) }
 }
 
+
+/// Well-formedness tests; for documentation and for debugging.
+mod wf {
+    use std::collections::HashMap;
+    use std::rc::Rc;
+
+    use super::*;
+
+    #[derive(Eq,PartialEq,Clone)]
+    enum NodeStatus {
+        Dirty, Clean, Unknown
+    }
+
+    fn add_constraint (cs:&mut HashMap<Rc<Loc>, NodeStatus>,
+                       loc:&Rc<Loc>, new_status: NodeStatus)
+    {
+        let old_status = match
+            cs.get(loc) { None => NodeStatus::Unknown,
+                          Some(x) => (*x).clone() } ;
+        match (old_status, new_status) {
+            (NodeStatus::Clean, NodeStatus::Dirty) |
+            (NodeStatus::Dirty, NodeStatus::Clean) => {
+                panic!("{:?}: Constrained to be both clean and dirty: Inconsistent status => DCG is not well-formed.")
+            },
+            (NodeStatus::Unknown, new_status) => { cs.insert(loc.clone(), new_status); () },
+            (old_status, NodeStatus::Unknown) => { cs.insert(loc.clone(), old_status); () },
+            (ref old_status, ref new_status) if old_status == new_status => { },
+            _ => unreachable!(),
+        }
+    }
+
+    // fn visit_node (node:&mut Box<GraphNode>, cs:&mut HashMap) {
+    //     for succ in node.succs_mut () {
+    //         if succ.dirty {
+    //             add_constraint(cs, &node.id, NodeStatus::Dirty)
+    //         }
+    //     }
+    // }
+
+    pub fn visit_dcg (st:&mut Engine) {
+        let mut cs = HashMap::new() ;
+        for frame in st.stack.iter() {
+            add_constraint(&mut cs, &frame.loc, NodeStatus::Clean)
+        }
+        for (loc, node) in &st.table {
+            for succ in node.succs () {
+                if succ.dirty {
+                    add_constraint(&mut cs, loc, NodeStatus::Dirty)
+                }
+            }
+        }
+    }
+}
+
 // ---------- Node implementation:
 
 impl <Res> GraphNode for Node<Res> {
@@ -332,7 +387,7 @@ impl <Res> GraphNode for Node<Res> {
                       Node::Pure(_) => unreachable!(),
                       _ => unreachable!(),
         }}
-                      
+
     fn preds_obs<'r>(self:&'r mut Self) -> Vec<Rc<Loc>> {
         match *self { Node::Mut(ref mut nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Observe { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
                       Node::Comp(ref mut nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Observe { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
@@ -357,6 +412,11 @@ impl <Res> GraphNode for Node<Res> {
     fn succs_mut<'r>(self:&'r mut Self) -> &'r mut Vec<Succ> {
         match *self { Node::Comp(ref mut n) => &mut n.succs,
                      _ => panic!("undefined"),
+        }
+    }
+    fn succs<'r>(self:&'r Self) -> &'r Vec<Succ> {
+        match *self { Node::Comp(ref n) => &n.succs,
+                      _ => panic!("undefined"),
         }
     }
 }
@@ -748,7 +808,7 @@ impl Adapton for Engine {
             ArtIdChoice::Eager => {
                 Art::Rc(Rc::new(fn_box(self,arg,spurious)))
             },
-            
+
             ArtIdChoice::Structural => {
                 let hash = my_hash (&(&prog_pt, &arg)) ;
                 let loc = loc_of_id(self.stack[0].path.clone(),
@@ -793,7 +853,7 @@ impl Adapton for Engine {
                                   Box::new(Node::Comp(node)));
                 Art::Loc(loc)
             },
-            
+
             ArtIdChoice::Nominal(nm) => {
                 let loc = loc_of_id(self.stack[0].path.clone(),
                                     Rc::new(ArtId::Nominal(nm)));
@@ -817,7 +877,7 @@ impl Adapton for Engine {
                     Some(node) => {
                         let node: &mut Box<GraphNode> = node ;
                         let res_nd: &mut Box<Node<Res>> = unsafe { transmute::<_,_>( node ) } ;
-                        let comp_nd: &mut CompNode<Res> = match ** res_nd {                            
+                        let comp_nd: &mut CompNode<Res> = match ** res_nd {
                             Node::Pure(_)=> unreachable!(),
                             Node::Mut(_) => panic!("TODO-Sometime"),
                             Node::Comp(ref mut comp) => comp,
@@ -942,4 +1002,3 @@ impl Adapton for Engine {
 }
 
 pub fn main () { }
-
