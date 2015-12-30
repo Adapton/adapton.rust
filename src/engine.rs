@@ -541,6 +541,9 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq>
                 println!("{} change_prop end (2/2): {:?} has a changed succ dependency: {:?}. End re-production.", engineMsg!(st), loc, &succ.loc);
                 return EngineRes{changed:changed}
             }
+            else {
+                get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty = false ;
+            }
         }
     } ;
     // BUGFIX: Do this comparison here; do not return 'false' unconditionally, as before!
