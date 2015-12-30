@@ -168,7 +168,7 @@ fn ensure_consistency_randomly_1k_x_20() {
 #[test]
 fn ensure_consistency_randomly_5k_x_5() {
     ensure_consistency_randomly(5000, 5, &ListReduce::Sum) ;
-    ensure_consistency_randomly(5000, 5, &ListReduce::Max)
+    ensure_consistency_randomly(5000, 5, &ListReduce::Max) ;
     ensure_consistency_randomly(5000, 5, &ListReduce::DemandAll(ListTransf::Reverse)) ;
     ensure_consistency_randomly(5000, 5, &ListReduce::DemandAll(ListTransf::Sort)) ;
 }

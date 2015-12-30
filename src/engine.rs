@@ -135,13 +135,13 @@ impl Debug for Path {
 
 // The DCG structure consists of `GraphNode`s:
 trait GraphNode {
-    fn preds_alloc<'r> (self:&'r mut Self) -> Vec<Rc<Loc>> ;
-    fn preds_obs<'r>   (self:&'r mut Self) -> Vec<Rc<Loc>> ;
+    fn preds_alloc<'r> (self:&Self) -> Vec<Rc<Loc>> ;
+    fn preds_obs<'r>   (self:&Self) -> Vec<Rc<Loc>> ;
     fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>) -> () ;
     fn preds_remove<'r>(self:&'r mut Self, &Rc<Loc>) -> () ;
-    fn succs_def<'r>   (self:&'r mut Self) -> bool ;
+    fn succs_def<'r>   (self:&Self) -> bool ;
     fn succs_mut<'r>   (self:&'r mut Self) -> &'r mut Vec<Succ> ;
-    fn succs<'r>       (self:&'r     Self) -> &'r     Vec<Succ> ;
+    fn succs<'r>       (self:&'r Self) -> &'r Vec<Succ> ;
 }
 
 #[derive(Debug)]
@@ -371,7 +371,10 @@ mod wf {
         for (loc, node) in &st.table {
             for succ in node.succs () {
                 if succ.dirty {
-                    add_constraint(&mut cs, loc, NodeStatus::Dirty)
+                    add_constraint(&mut cs, loc, NodeStatus::Dirty) ;
+                    for pred in node.preds_obs () {
+                        add_constraint(&mut cs, &pred, NodeStatus::Dirty)
+                    }
                 }
             }
         }
@@ -381,16 +384,16 @@ mod wf {
 // ---------- Node implementation:
 
 impl <Res> GraphNode for Node<Res> {
-    fn preds_alloc<'r>(self:&'r mut Self) -> Vec<Rc<Loc>> {
-        match *self { Node::Mut(ref mut nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
-                      Node::Comp(ref mut nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
+    fn preds_alloc(self:&Self) -> Vec<Rc<Loc>> {
+        match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
+                      Node::Comp(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
                       Node::Pure(_) => unreachable!(),
                       _ => unreachable!(),
         }}
 
-    fn preds_obs<'r>(self:&'r mut Self) -> Vec<Rc<Loc>> {
-        match *self { Node::Mut(ref mut nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Observe { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
-                      Node::Comp(ref mut nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Observe { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
+    fn preds_obs(self:&Self) -> Vec<Rc<Loc>> {
+        match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Observe { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
+                      Node::Comp(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Observe { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
                       Node::Pure(_) => unreachable!(),
                       _ => unreachable!(),
         }}
@@ -406,7 +409,7 @@ impl <Res> GraphNode for Node<Res> {
                       Node::Pure(_) => unreachable!(),
                       _ => unreachable!(),
         }}
-    fn succs_def<'r>(self:&'r mut Self) -> bool {
+    fn succs_def(self:&Self) -> bool {
         match *self { Node::Comp(_) => true, _ => false
         }}
     fn succs_mut<'r>(self:&'r mut Self) -> &'r mut Vec<Succ> {
