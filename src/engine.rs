@@ -387,7 +387,7 @@ mod wf {
         }
     }
 
-    pub fn check_dcg (st:&Engine) {        
+    pub fn check_dcg (st:&Engine) {
         let mut cs = HashMap::new() ;
         for frame in st.stack.iter() {
             clean(st, &mut cs, &frame.loc)
@@ -656,8 +656,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
                     debug!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
                     false
                 }} ;
-            if //true ||
-                !stop {
+            if !stop {
                 dirty_pred_observers(st,&pred_loc);
             } else { debug!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen))) }
         }
