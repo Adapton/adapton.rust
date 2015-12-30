@@ -387,7 +387,7 @@ mod wf {
         }
     }
 
-    pub fn check_dcg (st:&Engine) {
+    pub fn check_dcg (st:&Engine) { if false { // XXX Find a better way of doing this, with a flag.
         let mut cs = HashMap::new() ;
         for frame in st.stack.iter() {
             clean(st, &mut cs, &frame.loc)
@@ -400,7 +400,7 @@ mod wf {
                 }
             }
         }        
-    }
+    }}
 }
 
 // ---------- Node implementation:
