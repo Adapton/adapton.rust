@@ -356,6 +356,7 @@ mod wf {
         }
     }
 
+    // Constrains loc and all predecessors (transitive) to be dirty
     fn dirty (st:&Engine, cs:&mut Cs, loc:&Rc<Loc>) {
         add_constraint(cs, loc, NodeStatus::Dirty) ;
         let node = match st.table.get(loc) { Some(x) => x, None => panic!("") } ;
@@ -365,15 +366,26 @@ mod wf {
         }
     }
 
+    // Constrains loc and all successors (transitive) to be clean
+    fn clean (st:&Engine, cs:&mut Cs, loc:&Rc<Loc>) {
+        add_constraint(cs, loc, NodeStatus::Clean) ;
+        let node = match st.table.get(loc) { Some(x) => x, None => panic!("") } ;
+        for succ in node.succs () {
+            // Todo: Assert that pred has a dirty succ edge that targets loc
+            clean(st, cs, &succ.loc)
+        }
+    }
+
     pub fn visit_dcg (st:&Engine) {
         let mut cs = HashMap::new() ;
         for frame in st.stack.iter() {
-            add_constraint(&mut cs, &frame.loc, NodeStatus::Clean) ;
-            // Todo: Assert that successors of frame.loc are clean, transitively.
+            clean(st, &mut cs, &frame.loc)
         }
         for (loc, node) in &st.table {
             for succ in node.succs () {
-                if succ.dirty { dirty(st, &mut cs, loc) }
+                if succ.dirty {
+                    dirty(st, &mut cs, loc)
+                }
             }
         }
     }
