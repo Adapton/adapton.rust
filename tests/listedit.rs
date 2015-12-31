@@ -140,29 +140,38 @@ fn ensure_consistency_randomly(size:usize, iterations:usize, view:&ListReduce) {
 
 //#[ignore]
 #[test]
+fn ensure_consistency_randomly_500_x_100_tree() {
+    ensure_consistency_randomly(500, 100, &ListReduce::Tree(ListTransf::Reverse, None)) ;
+    ensure_consistency_randomly(500, 100, &ListReduce::Tree(ListTransf::Sort, None)) ;
+    ensure_consistency_randomly(500, 100, &ListReduce::Sum) ;
+    ensure_consistency_randomly(500, 100, &ListReduce::Max) ;
+}
+
+#[ignore]
+#[test]
 fn ensure_consistency_randomly_100_x_100() {
     ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
     ensure_consistency_randomly(100, 100, &ListReduce::Max) ;
-    ensure_consistency_randomly(100, 100, &ListReduce::DemandAll(ListTransf::Reverse)) ;
-    ensure_consistency_randomly(100, 100, &ListReduce::DemandAll(ListTransf::Sort)) ;
+    ensure_consistency_randomly(100, 100, &ListReduce::Vec(ListTransf::Reverse, None)) ;
+    ensure_consistency_randomly(100, 100, &ListReduce::Vec(ListTransf::Sort, None)) ;
 }
 
-//#[ignore]
+#[ignore]
 #[test]
 fn ensure_consistency_randomly_300_x_100() {
     ensure_consistency_randomly(300, 100, &ListReduce::Sum) ;
     ensure_consistency_randomly(300, 100, &ListReduce::Max) ;
-    ensure_consistency_randomly(300, 100, &ListReduce::DemandAll(ListTransf::Reverse)) ;
-    ensure_consistency_randomly(300, 100, &ListReduce::DemandAll(ListTransf::Sort)) ;
+    ensure_consistency_randomly(300, 100, &ListReduce::Vec(ListTransf::Reverse, None)) ;
+    ensure_consistency_randomly(300, 100, &ListReduce::Vec(ListTransf::Sort, None)) ;
 }
 
-//#[ignore]
+#[ignore]
 #[test]
 fn ensure_consistency_randomly_1k_x_20() {
     ensure_consistency_randomly(1000, 20, &ListReduce::Sum) ;
     ensure_consistency_randomly(1000, 20, &ListReduce::Max) ;
-    ensure_consistency_randomly(1000, 20, &ListReduce::DemandAll(ListTransf::Reverse)) ;
-    ensure_consistency_randomly(1000, 20, &ListReduce::DemandAll(ListTransf::Sort)) ;
+    ensure_consistency_randomly(1000, 20, &ListReduce::Vec(ListTransf::Reverse, None)) ;
+    ensure_consistency_randomly(1000, 20, &ListReduce::Vec(ListTransf::Sort, None)) ;
 }
 
 #[ignore]
@@ -170,8 +179,8 @@ fn ensure_consistency_randomly_1k_x_20() {
 fn ensure_consistency_randomly_5k_x_5() {
     ensure_consistency_randomly(5000, 5, &ListReduce::Sum) ;
     ensure_consistency_randomly(5000, 5, &ListReduce::Max) ;
-    ensure_consistency_randomly(5000, 5, &ListReduce::DemandAll(ListTransf::Reverse)) ;
-    ensure_consistency_randomly(5000, 5, &ListReduce::DemandAll(ListTransf::Sort)) ;
+    ensure_consistency_randomly(5000, 5, &ListReduce::Vec(ListTransf::Reverse, None)) ;
+    ensure_consistency_randomly(5000, 5, &ListReduce::Vec(ListTransf::Sort, None)) ;
 }
 
 #[ignore]
@@ -179,28 +188,28 @@ fn ensure_consistency_randomly_5k_x_5() {
 fn ensure_consistency_randomly_10k_x_5() {
     ensure_consistency_randomly(10000, 5, &ListReduce::Sum) ;
     ensure_consistency_randomly(10000, 5, &ListReduce::Max) ;
-    ensure_consistency_randomly(10000, 5, &ListReduce::DemandAll(ListTransf::Reverse)) ;
-    ensure_consistency_randomly(10000, 5, &ListReduce::DemandAll(ListTransf::Sort)) ;
+    ensure_consistency_randomly(10000, 5, &ListReduce::Vec(ListTransf::Reverse, None)) ;
+    ensure_consistency_randomly(10000, 5, &ListReduce::Vec(ListTransf::Sort, None)) ;
 }
 
 
 #[test]
-fn ensure_consistency_regression_sort1() { assert!( compare_naive_and_cached(&testcase_sort_1(), &ListReduce::DemandAll(ListTransf::Sort))) }
+fn ensure_consistency_regression_sort1() { assert!( compare_naive_and_cached(&testcase_sort_1(), &ListReduce::Vec(ListTransf::Sort, None))) }
 
 #[test]
-fn ensure_consistency_regression_sort2() { assert!( compare_naive_and_cached(&testcase_sort_2(), &ListReduce::DemandAll(ListTransf::Sort))) }
+fn ensure_consistency_regression_sort2() { assert!( compare_naive_and_cached(&testcase_sort_2(), &ListReduce::Vec(ListTransf::Sort, None))) }
 
 #[test]
-fn ensure_consistency_regression_sort3() { assert!( compare_naive_and_cached(&testcase_sort_3(), &ListReduce::DemandAll(ListTransf::Sort))) }
+fn ensure_consistency_regression_sort3() { assert!( compare_naive_and_cached(&testcase_sort_3(), &ListReduce::Vec(ListTransf::Sort, None))) }
 
 #[test]
-fn ensure_consistency_regression_sort4() { assert!( compare_naive_and_cached(&testcase_sort_4(), &ListReduce::DemandAll(ListTransf::Sort))) }
+fn ensure_consistency_regression_sort4() { assert!( compare_naive_and_cached(&testcase_sort_4(), &ListReduce::Vec(ListTransf::Sort, None))) }
 
 #[test]
-fn ensure_consistency_regression_sort5() { assert!( compare_naive_and_cached(&testcase_sort_5(), &ListReduce::DemandAll(ListTransf::Sort))) }
+fn ensure_consistency_regression_sort5() { assert!( compare_naive_and_cached(&testcase_sort_5(), &ListReduce::Vec(ListTransf::Sort, None))) }
 
 #[test]
-fn ensure_consistency_regression_sort6() { assert!( compare_naive_and_cached(&testcase_sort_6(), &ListReduce::DemandAll(ListTransf::Sort))) }
+fn ensure_consistency_regression_sort6() { assert!( compare_naive_and_cached(&testcase_sort_6(), &ListReduce::Vec(ListTransf::Sort, None))) }
 
 fn testcase_sort_1 () -> Edits {
     vec![CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 44), CursorEdit::Insert(Dir2::Left, 9), CursorEdit::Goto(Dir2::Right), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Left, 91), CursorEdit::Insert(Dir2::Right, 29), CursorEdit::Insert(Dir2::Right, 62), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 71), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Right, 87), CursorEdit::Insert(Dir2::Left, 4), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Right, 19), CursorEdit::Replace(Dir2::Left, 21), CursorEdit::Insert(Dir2::Left, 16), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 6), CursorEdit::Insert(Dir2::Right, 10), CursorEdit::Goto(Dir2::Left), CursorEdit::Remove(Dir2::Right), CursorEdit::Insert(Dir2::Left, 58), CursorEdit::Insert(Dir2::Right, 60), CursorEdit::Insert(Dir2::Right, 86), CursorEdit::Insert(Dir2::Right, 36), CursorEdit::Insert(Dir2::Right, 20), CursorEdit::Goto(Dir2::Right), CursorEdit::Insert(Dir2::Right, 94)]

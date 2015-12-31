@@ -38,8 +38,8 @@ pub enum ListTransf {
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
 pub enum ListReduce {
     Sum, Max, Min, Median,
-    DemandAll(ListTransf),
-    DemandN(ListTransf, usize),
+    Vec(ListTransf, Option<usize>),
+    Tree(ListTransf, Option<usize>),
 }
 
 impl<X:Arbitrary+Sized+Rand>
@@ -89,7 +89,7 @@ pub fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::D
     }
 }
 
-pub fn demand_count
+pub fn demand_vec
     <A:Adapton
     ,X:Ord+PartialOrd+Hash+Debug+Clone+Eq+PartialEq
     ,L:ListT<A,X>
@@ -109,6 +109,29 @@ pub fn demand_count
     }
 }
 
+pub fn demand_tree
+    <A:Adapton
+    ,X:Ord+PartialOrd+Hash+Debug+Clone+Eq+PartialEq
+    ,L:ListT<A,X>
+    ,T:TreeT<A,X>
+    >
+    (st:&mut A, tree:T::Tree, transform:&ListTransf, count:Option<usize>) -> Vec<X>
+{
+    // Todo: Respect the `count` argument
+    match *transform {
+        ListTransf::Sort => {
+            let output = tree_merge_sort::<A,X,L,T>(st, tree) ;
+            let tree = tree_of_list::<A,X,T,L>(st, Dir2::Left, output) ;
+            vec![]
+        },
+        ListTransf::Reverse => {
+            let output = rev_list_of_tree::<A,X,L,T>(st, tree) ;
+            let tree = tree_of_list::<A,X,T,L>(st, Dir2::Left, output) ;
+            vec![]
+        }
+    }
+}
+
 pub fn eval_reduce
     <A:Adapton
     ,X:Ord+PartialOrd+Hash+Debug+Clone+Eq+PartialEq+Zero+Add<Output=X>
@@ -121,9 +144,9 @@ pub fn eval_reduce
         ListReduce::Sum => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| x + y) ; vec![ x ] },
         ListReduce::Max => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x > y {x} else {y}) ; vec![ x ] },
         ListReduce::Min => { let x = tree_reduce_monoid::<A,X,T,_> (st, tree, X::zero(), &|st,x,y| if x < y {x} else {y}) ; vec![ x ] },
-        ListReduce::DemandAll(ref transform)      => demand_count::<A,X,L,T> (st, tree, transform, None),
-        ListReduce::DemandN(ref transform, ref n) => demand_count::<A,X,L,T> (st, tree, transform, Some(n.clone())),
         ListReduce::Median => panic!(""),
+        ListReduce::Vec (ref transform, ref n) => demand_vec:: <A,X,L,T> (st, tree, transform, n.clone()),
+        ListReduce::Tree(ref transform, ref n) => demand_tree::<A,X,L,T> (st, tree, transform, n.clone()),
     }
 }
 
