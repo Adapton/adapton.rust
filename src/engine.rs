@@ -688,8 +688,8 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
     }
 }
 
-fn do_set<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
-    debug!("{} do_set: {:?} <--- {:?}", engineMsg!(st), cell, val);
+fn set_<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
+    debug!("{} set_: {:?} <--- {:?}", engineMsg!(st), cell, val);
     let changed : bool = {
         let node = res_node_of_loc( st, &cell.loc ) ;
         match **node {
@@ -804,25 +804,23 @@ impl Adapton for Engine {
             let hash = my_hash(&(&path,&id));
             let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
             debug!("{} alloc cell: {:?} <--- {:?}", engineMsg!(self), &loc, &val);
-            let cell = match self.table.get_mut(&loc) {
-                None => None,
-                Some(ref mut _nd) => {
-                    Some(MutArt{loc:loc.clone(),
-                                phantom:PhantomData})
-                },
-            } ;
-            match cell {
-                Some(cell) => {
-                    let cell_loc = cell.loc.clone();
-                    do_set(self, cell, val.clone()) ;
-                },
-                None => {
-                    let node = Node::Mut(MutNode{
-                        preds:Vec::new(),
-                        val:val.clone(),
-                    }) ;
-                    self.table.insert(loc.clone(), Box::new(node));
-                },
+            let (do_dirty, do_set, succs, do_insert) =
+                if self.table.contains_key(&loc) {
+                    let node : &Box<Node<T>> = res_node_of_loc(self, &loc) ;
+                    match **node {
+                        Node::Mut(ref nd) => { (false, true,  None, false) }
+                        Node::Comp(ref nd)=> { (true,  false, Some(nd.succs.clone()),  true ) }
+                        _                 => { (true,  false, None, true ) }
+                    }} else                  { (false, false, None, true ) } ;
+            if do_dirty { dirty_alloc(self, &loc) } ;
+            if do_set   { set_(self, MutArt{loc:loc.clone(), phantom:PhantomData}, val.clone()) } ;
+            match succs { Some(succs) => revoke_succs(self, &loc, &succs), None => () } ;
+            if do_insert {
+                let node = Node::Mut(MutNode{
+                    preds:Vec::new(),
+                    val:val.clone(),
+                }) ;
+                self.table.insert(loc.clone(), Box::new(node));
             } ;
             let stackLen = self.stack.len() ;
             match self.stack.last_mut() { None => (), Some(frame) => {
@@ -839,7 +837,7 @@ impl Adapton for Engine {
 
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:T) {
         assert!( self.stack.is_empty() ); // => outer layer has control.
-        do_set(self, cell, val);
+        set_(self, cell, val);
     }
 
     fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+'static>
@@ -930,36 +928,40 @@ impl Adapton for Engine {
                     Some(node) => {
                         let node: &mut Box<GraphNode> = node ;
                         let res_nd: &mut Box<Node<Res>> = unsafe { transmute::<_,_>( node ) } ;
-                        let comp_nd: &mut CompNode<Res> = match ** res_nd {
+                        match ** res_nd {
                             Node::Pure(_)=> unreachable!(),
-                            Node::Mut(_) => panic!("TODO-Sometime: {:?}: Was mut, now a thunk: {:?} {:?}", &loc, prog_pt, &arg),
-                            Node::Comp(ref mut comp) => comp,
+                            Node::Mut(_) => {
+                                //panic!("TODO-Sometime: {:?}: Was mut, now a thunk: {:?} {:?}", &loc, prog_pt, &arg)
+                                (true, true) // Todo: Do we need to preserve preds?
+                            },
+                            Node::Comp(ref mut comp_nd) => {
+                                let equal_producer_prog_pts : bool =
+                                    comp_nd.producer.prog_pt().eq( producer.prog_pt() ) ;
+                                debug!("{} alloc thunk: Nominal match: equal_producer_prog_pts: {:?}",
+                                       engineMsg(Some(stackLen)), equal_producer_prog_pts);
+                                if equal_producer_prog_pts { // => safe cast to Box<Consumer<Arg>>
+                                    let app: &mut Box<App<Arg,Spurious,Res>> =
+                                        unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
+                                    ;
+                                    debug!("{} alloc thunk: Nominal match: app: {:?}", engineMsg(Some(stackLen)), app);
+                                    if app.get_arg() == arg {
+                                        // Case: Same argument; Nothing else to do:
+                                        // do_dirty=false; do_insert=false
+                                        (false, false)
+                                    }
+                                    else { // Case: Not the same argument:
+                                        debug!("{} alloc thunk: Nominal match: replacing {:?} ~~> {:?}",
+                                               engineMsg(Some(stackLen)), app.get_arg(), arg);
+                                        app.consume(arg.clone()); // overwrite the old argument
+                                        comp_nd.res = None ; // clear the cache
+                                        // do_dirty=true; do_insert=false
+                                        (true, false)
+                                    }}
+                                else {
+                                    panic!("TODO-Sometime: producers not equal!")
+                                }
+                            },
                             _ => unreachable!(),
-                        } ;
-                        let equal_producer_prog_pts : bool =
-                            comp_nd.producer.prog_pt().eq( producer.prog_pt() ) ;
-                        debug!("{} alloc thunk: Nominal match: equal_producer_prog_pts: {:?}",
-                                 engineMsg(Some(stackLen)), equal_producer_prog_pts);
-                        if equal_producer_prog_pts { // => safe cast to Box<Consumer<Arg>>
-                            let app: &mut Box<App<Arg,Spurious,Res>> =
-                                unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
-                            ;
-                            debug!("{} alloc thunk: Nominal match: app: {:?}", engineMsg(Some(stackLen)), app);
-                            if app.get_arg() == arg {
-                                // Case: Same argument; Nothing else to do:
-                                // do_dirty=false; do_insert=false
-                                (false, false)
-                            }
-                            else { // Case: Not the same argument:
-                                debug!("{} alloc thunk: Nominal match: replacing {:?} ~~> {:?}",
-                                         engineMsg(Some(stackLen)), app.get_arg(), arg);
-                                app.consume(arg.clone()); // overwrite the old argument
-                                comp_nd.res = None ; // clear the cache
-                                // do_dirty=true; do_insert=false
-                                (true, false)
-                            }}
-                        else {
-                            panic!("TODO-Sometime: producers not equal!")
                         }
                     }
                 } } ;

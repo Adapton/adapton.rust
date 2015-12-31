@@ -140,31 +140,24 @@ fn ensure_consistency_randomly(size:usize, iterations:usize, view:&ListReduce) {
 
 //#[ignore]
 #[test]
-fn ensure_consistency_randomly_500_x_100_reverse__out_tree() {
-    ensure_consistency_randomly(500, 100, &ListReduce::Tree(ListTransf::Reverse, None)) ;
-}
-
-#[test]
-fn ensure_consistency_randomly_500_x_100_sort__out_tree() {
-    ensure_consistency_randomly(500, 100, &ListReduce::Tree(ListTransf::Sort, None)) ;
-}
-
-#[ignore]
-#[test]
 fn ensure_consistency_randomly_100_x_100() {
     ensure_consistency_randomly(100, 100, &ListReduce::Sum) ;
     ensure_consistency_randomly(100, 100, &ListReduce::Max) ;
     ensure_consistency_randomly(100, 100, &ListReduce::Vec(ListTransf::Reverse, None)) ;
     ensure_consistency_randomly(100, 100, &ListReduce::Vec(ListTransf::Sort, None)) ;
+    ensure_consistency_randomly(100, 100, &ListReduce::Tree(ListTransf::Sort, None)) ;
+    ensure_consistency_randomly(100, 100, &ListReduce::Tree(ListTransf::Reverse, None)) ;
 }
 
-#[ignore]
+//#[ignore]
 #[test]
 fn ensure_consistency_randomly_300_x_100() {
     ensure_consistency_randomly(300, 100, &ListReduce::Sum) ;
     ensure_consistency_randomly(300, 100, &ListReduce::Max) ;
     ensure_consistency_randomly(300, 100, &ListReduce::Vec(ListTransf::Reverse, None)) ;
     ensure_consistency_randomly(300, 100, &ListReduce::Vec(ListTransf::Sort, None)) ;
+    ensure_consistency_randomly(300, 100, &ListReduce::Tree(ListTransf::Sort, None)) ;
+    ensure_consistency_randomly(300, 100, &ListReduce::Tree(ListTransf::Reverse, None)) ;
 }
 
 #[ignore]
