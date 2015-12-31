@@ -21,14 +21,14 @@ pub enum CursorEdit<X,Dir> {
     Goto    (Dir),   // Move the cursor
 }
 
-#[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
-pub enum Cmd<X,Dir,Name> {
-    Basic    (CursorEdit<X,Dir>),
-    InsName  (Dir,Name), // Insert name
-    RemName  (Dir),      // Remove immediately-adjacent
-    ShowView (ListReduce),   // Show the given view
-    HideView (ListReduce),   // Remove the given view
-}
+// #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
+// pub enum Cmd<X,Dir,Name> {
+//     Basic    (CursorEdit<X,Dir>),
+//     InsName  (Dir,Name), // Insert name
+//     RemName  (Dir),      // Remove immediately-adjacent
+//     ShowView (ListReduce),   // Show the given view
+//     HideView (ListReduce),   // Remove the given view
+// }
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
 pub enum ListTransf {
