@@ -140,11 +140,13 @@ fn ensure_consistency_randomly(size:usize, iterations:usize, view:&ListReduce) {
 
 //#[ignore]
 #[test]
-fn ensure_consistency_randomly_500_x_100_tree() {
+fn ensure_consistency_randomly_500_x_100_reverse__out_tree() {
     ensure_consistency_randomly(500, 100, &ListReduce::Tree(ListTransf::Reverse, None)) ;
+}
+
+#[test]
+fn ensure_consistency_randomly_500_x_100_sort__out_tree() {
     ensure_consistency_randomly(500, 100, &ListReduce::Tree(ListTransf::Sort, None)) ;
-    ensure_consistency_randomly(500, 100, &ListReduce::Sum) ;
-    ensure_consistency_randomly(500, 100, &ListReduce::Max) ;
 }
 
 #[ignore]

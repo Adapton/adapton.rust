@@ -270,7 +270,7 @@ pub fn tree_merge_sort<A:Adapton,X:Ord+Hash+Debug+Clone,L:ListT<A,X>,T:TreeT<A,X
                 )
 }
 
-pub fn tree_append_cheap
+pub fn tree_append
     < A:Adapton
     , X:Hash+Clone+Debug
     , T:TreeT<A,X>
@@ -281,7 +281,7 @@ pub fn tree_append_cheap
     T::bin(st, T::lev_max_val(), tree1, tree2)
 }
 
-pub fn tree_append
+pub fn tree_append__name_dropping // drops/forgets names in the new path created by the append
     <A:Adapton
     ,X:Clone+Hash+Eq+Debug
     ,T:TreeT<A,X>

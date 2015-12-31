@@ -121,12 +121,14 @@ pub fn demand_tree
     match *transform {
         ListTransf::Sort => {
             let output = tree_merge_sort::<A,X,L,T>(st, tree) ;
-            let tree = tree_of_list::<A,X,T,L>(st, Dir2::Left, output) ;
+            let nm = st.name_of_string("tree_of_output".to_string());
+            let tree = st.ns(nm, |st| tree_of_list::<A,X,T,L>(st, Dir2::Left, output) );
             vec![]
         },
         ListTransf::Reverse => {
             let output = rev_list_of_tree::<A,X,L,T>(st, tree) ;
-            let tree = tree_of_list::<A,X,T,L>(st, Dir2::Left, output) ;
+            let nm = st.name_of_string("tree_of_output".to_string());
+            let tree = st.ns(nm, |st| tree_of_list::<A,X,T,L>(st, Dir2::Left, output) );
             vec![]
         }
     }

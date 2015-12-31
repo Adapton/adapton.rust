@@ -708,6 +708,14 @@ fn do_set<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
     else { }
 }
 
+
+fn current_path (st:&Engine) -> Rc<Path> {
+    match st.stack.last() {
+        None => panic!(""),
+        Some(frame) => frame.path.clone()
+    }
+}
+
 impl Adapton for Engine {
     type Name = Name;
     type Loc  = Loc;
@@ -791,7 +799,7 @@ impl Adapton for Engine {
         >
         (self:&mut Engine, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
             wf::check_dcg(self);
-            let path = self.stack[0].path.clone();
+            let path = current_path(self) ;
             let id   = Rc::new(ArtId::Nominal(nm));
             let hash = my_hash(&(&path,&id));
             let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
@@ -856,7 +864,7 @@ impl Adapton for Engine {
 
             ArtIdChoice::Structural => {
                 let hash = my_hash (&(&prog_pt, &arg)) ;
-                let loc = loc_of_id(self.stack[0].path.clone(),
+                let loc = loc_of_id(current_path(self),
                                     Rc::new(ArtId::Structural(hash)));
                 if false {
                     debug!("{} alloc thunk: Structural {:?}\n{} ;; {:?}\n{} ;; {:?}",
@@ -900,14 +908,14 @@ impl Adapton for Engine {
             },
 
             ArtIdChoice::Nominal(nm) => {
-                let loc = loc_of_id(self.stack[0].path.clone(),
+                let loc = loc_of_id(current_path(self),
                                     Rc::new(ArtId::Nominal(nm)));
                 debug!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
                          engineMsg!(self), &loc,
                          engineMsg!(self), &prog_pt.symbol,
                          engineMsg!(self), &arg);
                 let producer : App<Arg,Spurious,Res> =
-                    App{prog_pt:prog_pt,
+                    App{prog_pt:prog_pt.clone(),
                         fn_box:fn_box,
                         arg:arg.clone(),
                         spurious:spurious.clone(),
@@ -924,7 +932,7 @@ impl Adapton for Engine {
                         let res_nd: &mut Box<Node<Res>> = unsafe { transmute::<_,_>( node ) } ;
                         let comp_nd: &mut CompNode<Res> = match ** res_nd {
                             Node::Pure(_)=> unreachable!(),
-                            Node::Mut(_) => panic!("TODO-Sometime"),
+                            Node::Mut(_) => panic!("TODO-Sometime: {:?}: Was mut, now a thunk: {:?} {:?}", &loc, prog_pt, &arg),
                             Node::Comp(ref mut comp) => comp,
                             _ => unreachable!(),
                         } ;
