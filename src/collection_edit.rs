@@ -173,9 +173,9 @@ pub trait ListEdit<A:Adapton,X> {
     fn ins_cell  (&mut A, Self::State, Dir2, A::Name) -> Self::State;
     fn rem_name  (&mut A, Self::State, Dir2) -> (Self::State, Option<A::Name>);
 
+    fn clear_side (&mut A, Self::State, Dir2) -> Self::State ;
     fn get_list<L:ListT<A,X>,T:TreeT<A,X>> (&mut A, Self::State, Dir2) -> L::List;
     fn get_tree<T:TreeT<A,X>>              (&mut A, Self::State, Dir2) -> T::Tree;
-
 
 }
 
@@ -361,6 +361,15 @@ impl<A:Adapton
         }
     }
 
+    fn clear_side
+        (st:&mut A, zip:Self::State, dir:Dir2) -> Self::State {
+            let emp = List::nil(st) ;
+            match dir {
+                Dir2::Right => ListZipper{left:zip.left, right:emp},
+                Dir2::Left  => ListZipper{left:emp, right:zip.right},
+            }
+        }
+        
     fn get_list<N:ListT<A,X>,T:TreeT<A,X>>
         (st:&mut A, zip:Self::State, dir:Dir2) -> N::List
     {
