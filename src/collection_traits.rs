@@ -10,7 +10,7 @@ use quickcheck::Gen;
 use std::num::Zero;
 
 use rand::{Rng,Rand};
-pub trait ListT<A:Adapton,Hd> : Debug+Clone {
+pub trait ListT<A:Adapton,Hd> : Debug+Clone+Hash+PartialEq+Eq {
     type List : Debug+Hash+PartialEq+Eq+Clone ;
     
     fn nil  (&mut A) -> Self::List ;

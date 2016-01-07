@@ -66,7 +66,7 @@ pub trait ExperimentT<A:Adapton,X,Out> {
     fn run (&mut A, Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<(Out,Cnt)> ;
 }
 
-pub fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,E::Dir>, z:E::State, id:usize) -> E::State {
+pub fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,Dir2>, z:E::State, id:usize) -> E::State {
     match edit {
         CursorEdit::Insert(dir,x) => {
             let z = E::clr_names(st, z, dir.clone()) ;
@@ -157,24 +157,24 @@ pub fn eval_reduce
 /// type `X`, and list implementation `L`.
 pub trait ListEdit<A:Adapton,X> {
     /// The State of the Editor is abstract.
-    type State ;
+    type State : Clone+Hash+Eq+PartialEq+Debug;
     /// Lists with foci admit two directions for movement.
-    type Dir:Clone+Hash+Eq+PartialEq=Dir2;
+
     fn empty    (&mut A) -> Self::State;
-    fn insert   (&mut A, Self::State, Self::Dir, X) -> Self::State;
-    fn remove   (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
-    fn replace  (&mut A, Self::State, Self::Dir, X) -> (Self::State, X, bool);
-    fn goto     (&mut A, Self::State, Self::Dir)    -> (Self::State, bool);
-    fn observe  (&mut A, Self::State, Self::Dir)    -> (Self::State, Option<X>);
+    fn insert   (&mut A, Self::State, Dir2, X) -> Self::State;
+    fn remove   (&mut A, Self::State, Dir2)    -> (Self::State, Option<X>);
+    fn replace  (&mut A, Self::State, Dir2, X) -> (Self::State, X, bool);
+    fn goto     (&mut A, Self::State, Dir2)    -> (Self::State, bool);
+    fn observe  (&mut A, Self::State, Dir2)    -> (Self::State, Option<X>);
 
     // Insert/remove names from the list content:
-    fn clr_names (&mut A, Self::State, Self::Dir) -> Self::State;
-    fn ins_name  (&mut A, Self::State, Self::Dir, A::Name) -> Self::State;
-    fn ins_cell  (&mut A, Self::State, Self::Dir, A::Name) -> Self::State;
-    fn rem_name  (&mut A, Self::State, Self::Dir) -> (Self::State, Option<A::Name>);
+    fn clr_names (&mut A, Self::State, Dir2) -> Self::State;
+    fn ins_name  (&mut A, Self::State, Dir2, A::Name) -> Self::State;
+    fn ins_cell  (&mut A, Self::State, Dir2, A::Name) -> Self::State;
+    fn rem_name  (&mut A, Self::State, Dir2) -> (Self::State, Option<A::Name>);
 
-    fn get_list<L:ListT<A,X>,T:TreeT<A,X>> (&mut A, Self::State, Self::Dir) -> L::List;
-    fn get_tree<T:TreeT<A,X>>              (&mut A, Self::State, Self::Dir) -> T::Tree;
+    fn get_list<L:ListT<A,X>,T:TreeT<A,X>> (&mut A, Self::State, Dir2) -> L::List;
+    fn get_tree<T:TreeT<A,X>>              (&mut A, Self::State, Dir2) -> T::Tree;
 
 
 }
@@ -200,9 +200,8 @@ impl<A:Adapton
     ListZipper<A,X,L>
 {
     type State=ListZipper<A,X,L>;
-    type Dir=Dir2;
     
-    fn clr_names (st:&mut A, zip:Self::State, dir:Self::Dir) -> Self::State {
+    fn clr_names (st:&mut A, zip:Self::State, dir:Dir2) -> Self::State {
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
@@ -223,7 +222,7 @@ impl<A:Adapton
         }
     }
 
-    fn ins_name (st:&mut A, zip:Self::State, dir:Self::Dir, name:A::Name) -> Self::State {
+    fn ins_name (st:&mut A, zip:Self::State, dir:Dir2, name:A::Name) -> Self::State {
         match dir {
             Dir2::Left =>
                 ListZipper{left:L::name(st, name, zip.left),
@@ -234,7 +233,7 @@ impl<A:Adapton
         }
     }
 
-    fn ins_cell (st:&mut A, zip:Self::State, dir:Self::Dir, name:A::Name) -> Self::State {
+    fn ins_cell (st:&mut A, zip:Self::State, dir:Dir2, name:A::Name) -> Self::State {
         match dir {
             Dir2::Left => {
                 let art = st.cell(name, zip.left) ;
@@ -249,7 +248,7 @@ impl<A:Adapton
         }
     }
 
-    fn rem_name  (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, Option<A::Name>) {
+    fn rem_name  (st:&mut A, zip:Self::State, dir:Dir2) -> (Self::State, Option<A::Name>) {
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
@@ -272,7 +271,7 @@ impl<A:Adapton
         ListZipper{left:nil1, right:nil2}
     }
     
-    fn insert (st:&mut A, zip:Self::State, dir:Self::Dir, x:X) -> Self::State {
+    fn insert (st:&mut A, zip:Self::State, dir:Dir2, x:X) -> Self::State {
         match dir {
             Dir2::Left =>
                 ListZipper{left:L::cons(st, x, zip.left),
@@ -283,7 +282,7 @@ impl<A:Adapton
         }
     }
 
-    fn remove  (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, Option<X>) {
+    fn remove  (st:&mut A, zip:Self::State, dir:Dir2) -> (Self::State, Option<X>) {
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
@@ -303,7 +302,7 @@ impl<A:Adapton
     }
 
     
-    fn goto (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State, bool) {
+    fn goto (st:&mut A, zip:Self::State, dir:Dir2) -> (Self::State, bool) {
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
@@ -322,7 +321,7 @@ impl<A:Adapton
         }
     }
 
-    fn observe (st:&mut A, zip:Self::State, dir:Self::Dir) -> (Self::State,Option<X>) {
+    fn observe (st:&mut A, zip:Self::State, dir:Dir2) -> (Self::State,Option<X>) {
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
@@ -343,7 +342,7 @@ impl<A:Adapton
         }
     }
 
-    fn replace (st:&mut A, zip:Self::State, dir:Self::Dir, y:X) -> (Self::State, X, bool) {
+    fn replace (st:&mut A, zip:Self::State, dir:Dir2, y:X) -> (Self::State, X, bool) {
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, (zip.right, y),
@@ -363,7 +362,7 @@ impl<A:Adapton
     }
 
     fn get_list<N:ListT<A,X>,T:TreeT<A,X>>
-        (st:&mut A, zip:Self::State, dir:Self::Dir) -> N::List
+        (st:&mut A, zip:Self::State, dir:Dir2) -> N::List
     {
         let tree = Self::get_tree::<T>(st, zip, dir);
         list_of_tree::<A,X,N,T>(st, tree)
@@ -373,7 +372,7 @@ impl<A:Adapton
     /// When `dir=Left`,  the tree's leaves are ordered from left-to-right, i.e., as (rev left) @ right.
     /// When `dir=Right`, the tree's leaves are ordered from right-to-left, i.e., as (rev right) @ left.
     fn get_tree<T:TreeT<A,X>>
-        (st:&mut A, zip:Self::State, dir:Self::Dir) -> T::Tree
+        (st:&mut A, zip:Self::State, dir:Dir2) -> T::Tree
     {
         match dir {
             Dir2::Left  => {
