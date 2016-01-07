@@ -363,7 +363,7 @@ impl<A:Adapton
 
     fn clear_side
         (st:&mut A, zip:Self::State, dir:Dir2) -> Self::State {
-            let emp = List::nil(st) ;
+            let emp = L::nil(st) ;
             match dir {
                 Dir2::Right => ListZipper{left:zip.left, right:emp},
                 Dir2::Left  => ListZipper{left:emp, right:zip.right},
