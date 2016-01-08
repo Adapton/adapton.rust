@@ -10,11 +10,14 @@ use quickcheck::Gen;
 use std::num::Zero;
 
 use rand::{Rng,Rand};
-pub trait ListT<A:Adapton,Hd> : Debug+Clone+Hash+PartialEq+Eq {
+pub trait ListT<A:Adapton,Elm> : Debug+Clone+Hash+PartialEq+Eq {
     type List : Debug+Hash+PartialEq+Eq+Clone ;
-    
+    type Tree : Debug+Hash+PartialEq+Eq+Clone ;
+
     fn nil  (&mut A) -> Self::List ;
-    fn cons (&mut A, Hd, Self::List) -> Self::List ;
+    fn cons (&mut A, Elm, Self::List) -> Self::List ;
+
+    fn tree (&mut A, Self::Tree, Dir2, Self::List) -> Self::List ;
     
     // requisite "adaptonic" constructors: `name` and `art`:
     fn name (&mut A, A::Name, Self::List) -> Self::List ;
@@ -23,16 +26,16 @@ pub trait ListT<A:Adapton,Hd> : Debug+Clone+Hash+PartialEq+Eq {
 
     fn elim<Res,Nil,Cons,Name> (&mut A, Self::List, Nil, Cons, Name) -> Res
         where Nil:FnOnce(&mut A) -> Res
-        ,    Cons:FnOnce(&mut A, Hd, Self::List) -> Res
+        ,    Cons:FnOnce(&mut A, Elm, Self::List) -> Res
         ,    Name:FnOnce(&mut A, A::Name, Self::List) -> Res ;
 
     fn elim_move<Arg,Res,Nil,Cons,Name> (&mut A, Self::List, Arg, Nil, Cons, Name) -> Res
         where Nil:FnOnce(&mut A, Arg) -> Res
-        ,    Cons:FnOnce(&mut A, Hd, Self::List, Arg) -> Res
+        ,    Cons:FnOnce(&mut A, Elm, Self::List, Arg) -> Res
         ,    Name:FnOnce(&mut A, A::Name, Self::List, Arg) -> Res ;
 
     // Derived from `cons` and `nil` above:
-    fn singleton (st:&mut A, hd:Hd) -> Self::List {
+    fn singleton (st:&mut A, hd:Elm) -> Self::List {
         let nil = Self::nil(st);
         Self::cons(st, hd, nil)
     }
@@ -73,7 +76,7 @@ pub trait TreeT<A:Adapton,Leaf> {
     fn rc   (&mut A, Rc<Self::Tree>) -> Self::Tree ;
 
     fn elim<Res,NilC,LeafC,BinC,NameC>
-        (&mut A, Self::Tree, NilC, LeafC, BinC, NameC) -> Res
+        (&mut A, Self::Tree, NilC, LeafC, BinC, NameC) -> Res        
         where NilC  : FnOnce(&mut A) -> Res
         ,     LeafC : FnOnce(&mut A, Leaf) -> Res
         ,     BinC  : FnOnce(&mut A, Self::Lev,  Self::Tree, Self::Tree) -> Res

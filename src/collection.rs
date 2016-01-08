@@ -13,35 +13,41 @@ use std::num::Zero;
 use rand::{Rng,Rand};
 
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
-pub enum List<A:Adapton,Hd> {
+pub enum List<A:Adapton,Elm,T:TreeT<A,Elm>> {
     Nil,
-    Cons(Hd,      Box<List<A,Hd>>),
-    Rc(           Rc<List<A,Hd>>),
-    Name(A::Name, Box<List<A,Hd>>),
-    Art(          Art<List<A,Hd>, A::Loc>),
+    Cons(Elm,     Box<List<A,Elm,T>>),
+    Tree(T::Tree, Dir2, Box<List<A,Elm,T>>),
+    Rc(           Rc<List<A,Elm,T>>),
+    Name(A::Name, Box<List<A,Elm,T>>),
+    Art(          Art<List<A,Elm,T>, A::Loc>),
 }
 
 // TODO: Why Does Adapton have to implement all of these?
 //       It's not actually *contained* within the List structure; it cannot be ecountered there.
 //       It's only ever present in a negative position (as a function parameter).
 impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
-    , Hd:Debug+Hash+PartialEq+Eq+Clone
+    , Elm:Debug+Hash+PartialEq+Eq+Clone
     >
-    ListT<A,Hd>
-    for List<A,Hd>
+    ListT<A,Elm>
+    for List<A,Elm,Tree<A,Elm,u32>>
 {
-    type List = List<A,Hd>;
+    type List = List<A,Elm,Tree<A,Elm,u32>>;
+    type Tree = Tree<A,Elm,u32>;
 
     fn nil  (_:&mut A)                             -> Self::List { List::Nil }
-    fn cons (_:&mut A, hd:Hd, tl:Self::List)       -> Self::List { List::Cons(hd,Box::new(tl)) }
+    fn cons (_:&mut A, hd:Elm, tl:Self::List)       -> Self::List { List::Cons(hd,Box::new(tl)) }
     fn name (_:&mut A, nm:A::Name, tl:Self::List)  -> Self::List { List::Name(nm, Box::new(tl)) }
-    fn rc   (_:&mut A, rc:Rc<List<A,Hd>>)          -> Self::List { List::Rc(rc) }
-    fn art  (_:&mut A, art:Art<List<A,Hd>,A::Loc>) -> Self::List { List::Art(art) }
+    fn rc   (_:&mut A, rc:Rc<List<A,Elm,Tree<A,Elm,u32>>>)          -> Self::List { List::Rc(rc) }
+    fn art  (_:&mut A, art:Art<List<A,Elm,Tree<A,Elm,u32>>,A::Loc>) -> Self::List { List::Art(art) }
+
+    fn tree (_:&mut A, tr:Self::Tree, dir:Dir2, tl:Self::List) -> Self::List {
+        List::Tree(tr, dir, Box::new(tl))
+    }
 
     fn elim<Res,Nil,Cons,Name>
         (st:&mut A, list:Self::List, nilf:Nil, consf:Cons, namef:Name) -> Res
         where Nil:FnOnce(&mut A) -> Res
-        ,    Cons:FnOnce(&mut A, Hd, Self::List) -> Res
+        ,    Cons:FnOnce(&mut A, Elm, Self::List) -> Res
         ,    Name:FnOnce(&mut A, A::Name, Self::List) -> Res
     {
         match list {
@@ -52,6 +58,9 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
             List::Art(ref art) => {
                 let list = st.force(art);
                 Self::elim(st, list, nilf, consf, namef)
+            },
+            List::Tree(tree, dir, tl) => {
+                unimplemented!()
             }
         }
     }
@@ -59,7 +68,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
     fn elim_move<Arg,Res,Nil,Cons,Name>
         (st:&mut A, list:Self::List, arg:Arg, nilf:Nil, consf:Cons, namef:Name) -> Res
         where Nil:FnOnce(&mut A, Arg) -> Res
-        ,    Cons:FnOnce(&mut A, Hd, Self::List, Arg) -> Res
+        ,    Cons:FnOnce(&mut A, Elm, Self::List, Arg) -> Res
         ,    Name:FnOnce(&mut A, A::Name, Self::List, Arg) -> Res
     {
         match list {
@@ -70,6 +79,9 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
             List::Art(ref art) => {
                 let list = st.force(art);
                 Self::elim_move(st, list, arg, nilf, consf, namef)
+            },
+            List::Tree(tree, dir, tl) => {
+                unimplemented!()
             }
         }
     }

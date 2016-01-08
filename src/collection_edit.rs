@@ -155,11 +155,10 @@ pub fn eval_reduce
 /// `ListEdit<A,X,L>` gives a simple notion of list-editing that is
 /// generic with respect to adapton implementation `A`, list element
 /// type `X`, and list implementation `L`.
-pub trait ListEdit<A:Adapton,X> {
+pub trait ListEdit<A:Adapton,X,T:TreeT<A,X>> {
     /// The State of the Editor is abstract.
     type State : Clone+Hash+Eq+PartialEq+Debug;
-    /// Lists with foci admit two directions for movement.
-
+    
     fn empty    (&mut A) -> Self::State;
     fn insert   (&mut A, Self::State, Dir2, X) -> Self::State;
     fn remove   (&mut A, Self::State, Dir2)    -> (Self::State, Option<X>);
@@ -173,10 +172,12 @@ pub trait ListEdit<A:Adapton,X> {
     fn ins_cell  (&mut A, Self::State, Dir2, A::Name) -> Self::State;
     fn rem_name  (&mut A, Self::State, Dir2) -> (Self::State, Option<A::Name>);
 
-    fn clear_side (&mut A, Self::State, Dir2) -> Self::State ;
-    fn get_list<L:ListT<A,X>,T:TreeT<A,X>> (&mut A, Self::State, Dir2) -> L::List;
-    fn get_tree<T:TreeT<A,X>>              (&mut A, Self::State, Dir2) -> T::Tree;
+    fn ins_tree (&mut A, Self::State, Dir2, T::Tree) -> Self::State;
 
+    fn clear_side (&mut A, Self::State, Dir2) -> Self::State ;
+
+    fn get_list<L:ListT<A,X>,T2:TreeT<A,X>> (&mut A, Self::State, Dir2) -> L::List;
+    fn get_tree<T2:TreeT<A,X>>              (&mut A, Self::State, Dir2) -> T2::Tree;
 }
 
 /// Lists with a focus; suitable to implement `ListEdit`.
@@ -222,6 +223,17 @@ impl<A:Adapton
         }
     }
 
+    fn ins_tree (st:&mut A, zip:Self::State, dir:Dir2, tree:L::Tree) -> Self::State {
+        match dir {
+            Dir2::Left =>
+                ListZipper{left:L::cons_tree(st, tree, zip.left),
+                           right:zip.right},
+            Dir2::Right =>
+                ListZipper{left:zip.left,
+                           right:L::cons_tree(st, tree, zip.right)},
+        }
+    }
+    
     fn ins_name (st:&mut A, zip:Self::State, dir:Dir2, name:A::Name) -> Self::State {
         match dir {
             Dir2::Left =>
