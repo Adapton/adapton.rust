@@ -69,7 +69,8 @@ pub fn zipper_test () {
     let mut st = AdaptonFromScratch::new();
     let nil1 = List::nil(&mut st);
     zipper_get_tree::< AdaptonFromScratch,
+    Tree<AdaptonFromScratch,u64,u32>,
     List<AdaptonFromScratch,u64>,
-    Tree<AdaptonFromScratch,u64,u32> > (&mut st, nil1);
+    > (&mut st, nil1);
 }
 

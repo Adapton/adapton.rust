@@ -44,11 +44,11 @@ pub struct Experiment ;
 impl<A:Adapton,X:Ord+Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,Vec<X>>
     for Experiment
 {
-    type ListEdit = ListZipper<A,X,Tree<A,X,u32>,List<A,X,Tree<A,X,u32>>> ;
+    type ListEdit = ListZipper<A,X,Tree<A,X,u32>,List<A,X>> ;
     fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<(Vec<X>,Cnt)> {
         debug!("run");
         let mut outs : Vec<(Vec<X>,Cnt)> = Vec::new();
-        let mut z : ListZipper<A,X,List<A,X>> = Self::ListEdit::empty(st) ;
+        let mut z : ListZipper<A,X,Tree<A,X,u32>,List<A,X>> = Self::ListEdit::empty(st) ;
         let mut loop_cnt = 0 as usize;
         for edit in edits.into_iter() {
             debug!("\n----------------------- Loop head; count={}", loop_cnt);
