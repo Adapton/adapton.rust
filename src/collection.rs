@@ -13,13 +13,23 @@ use std::num::Zero;
 use rand::{Rng,Rand};
 
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
-pub enum List<A:Adapton,Elm,T:TreeT<A,Elm>> {
+pub enum List<A:Adapton,Elm> {
     Nil,
-    Cons(Elm,     Box<List<A,Elm,T>>),
-    Tree(T::Tree, Dir2, Box<List<A,Elm,T>>),
-    Rc(           Rc<List<A,Elm,T>>),
-    Name(A::Name, Box<List<A,Elm,T>>),
-    Art(          Art<List<A,Elm,T>, A::Loc>),
+    Cons(Elm, Box<List<A,Elm>>),
+    Tree(Tree<A,Elm,u32>, Dir2, Box<List<A,Elm>>),
+    Rc(Rc<List<A,Elm>>),
+    Name(A::Name, Box<List<A,Elm>>),
+    Art(Art<List<A,Elm>, A::Loc>),
+}
+
+#[derive(Debug,PartialEq,Eq,Hash,Clone)]
+pub enum Tree<A:Adapton,X,Lev> {
+    Nil,
+    Leaf(X),
+    Bin(          Lev, Box<Tree<A,X,Lev>>, Box<Tree<A,X,Lev>> ),
+    Name(A::Name, Lev, Box<Tree<A,X,Lev>>, Box<Tree<A,X,Lev>> ),
+    Rc(                 Rc<Tree<A,X,Lev>>),
+    Art(               Art<Tree<A,X,Lev>, A::Loc>),
 }
 
 // TODO: Why Does Adapton have to implement all of these?
@@ -29,18 +39,18 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
     , Elm:Debug+Hash+PartialEq+Eq+Clone
     >
     ListT<A,Elm>
-    for List<A,Elm,Tree<A,Elm,u32>>
+    for List<A,Elm>
 {
-    type List = List<A,Elm,Tree<A,Elm,u32>>;
+    type List = List<A,Elm>;
 
     // XXX
     // type Tree = Tree<A,Elm,u32>;
 
-    fn nil  (_:&mut A)                             -> Self::List { List::Nil }
+    fn nil  (_:&mut A)                              -> Self::List { List::Nil }
     fn cons (_:&mut A, hd:Elm, tl:Self::List)       -> Self::List { List::Cons(hd,Box::new(tl)) }
-    fn name (_:&mut A, nm:A::Name, tl:Self::List)  -> Self::List { List::Name(nm, Box::new(tl)) }
-    fn rc   (_:&mut A, rc:Rc<List<A,Elm,Tree<A,Elm,u32>>>)          -> Self::List { List::Rc(rc) }
-    fn art  (_:&mut A, art:Art<List<A,Elm,Tree<A,Elm,u32>>,A::Loc>) -> Self::List { List::Art(art) }
+    fn name (_:&mut A, nm:A::Name, tl:Self::List)   -> Self::List { List::Name(nm, Box::new(tl)) }
+    fn rc   (_:&mut A, rc:Rc<List<A,Elm>>)          -> Self::List { List::Rc(rc) }
+    fn art  (_:&mut A, art:Art<List<A,Elm>,A::Loc>) -> Self::List { List::Art(art) }
 
     // fn tree (_:&mut A, tr:Self::Tree, dir:Dir2, tl:Self::List) -> Self::List {
     //     List::Tree(tr, dir, Box::new(tl))
@@ -89,14 +99,15 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
     }
 }
 
-#[derive(Debug,PartialEq,Eq,Hash,Clone)]
-pub enum Tree<A:Adapton,X,Lev> {
-    Nil,
-    Leaf(X),
-    Bin(          Lev, Box<Tree<A,X,Lev>>, Box<Tree<A,X,Lev>> ),
-    Name(A::Name, Lev, Box<Tree<A,X,Lev>>, Box<Tree<A,X,Lev>> ),
-    Rc(                 Rc<Tree<A,X,Lev>>),
-    Art(               Art<Tree<A,X,Lev>, A::Loc>),
+impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
+    , Elm:Debug+Hash+PartialEq+Eq+Clone
+    >
+    TreeListT<A,Elm,Tree<A,Elm,u32>>
+    for List<A,Elm>
+{
+    fn tree (_:&mut A, tr:Tree<A,Elm,u32>, dir:Dir2, tl:Self::List) -> Self::List {
+        List::Tree(tr, dir, Box::new(tl))
+    }
 }
 
 // TODO: Why Does Adapton have to implement all of these?

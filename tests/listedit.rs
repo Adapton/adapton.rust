@@ -44,7 +44,7 @@ pub struct Experiment ;
 impl<A:Adapton,X:Ord+Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,Vec<X>>
     for Experiment
 {
-    type ListEdit = ListZipper<A,X,List<A,X>> ;
+    type ListEdit = ListZipper<A,X,Tree<A,X,u32>,List<A,X,Tree<A,X,u32>>> ;
     fn run (st:&mut A, edits:Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<(Vec<X>,Cnt)> {
         debug!("run");
         let mut outs : Vec<(Vec<X>,Cnt)> = Vec::new();

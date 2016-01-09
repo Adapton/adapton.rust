@@ -11,8 +11,8 @@ use adapton::collection_edit::* ;
 use adapton::collection::{List,Tree} ;
 use adapton::collection_algo::* ;
     
-pub fn zipper_get_tree<A:Adapton,L:ListT<A,u64>,T:TreeT<A,u64>> (st:&mut A, _nil1:L) {
-    let z = ListZipper::<A,u64,L>::empty(st);
+pub fn zipper_get_tree<A:Adapton,T:TreeT<A,u64>,L:TreeListT<A,u64,T>> (st:&mut A, _nil1:L) {
+    let z = ListZipper::<A,u64,T,L>::empty(st);
     let z = ListZipper::insert(st, z, Dir2::Left,  1);
     let z = ListZipper::insert(st, z, Dir2::Right, 2);
     let z = ListZipper::insert(st, z, Dir2::Left,  3);
