@@ -41,7 +41,7 @@ fn has_consecutive_names<A:Adapton,X,L:ListT<A,X>> (st:&mut A, list:L::List) -> 
 }
 
 pub struct Experiment ;
-impl<A:Adapton,X:Ord+Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,Vec<X>>
+impl<A:Adapton,X:Ord+Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd> ExperimentT<A,X,Tree<A,X,u32>,Vec<X>>
     for Experiment
 {
     type ListEdit = ListZipper<A,X,Tree<A,X,u32>,List<A,X>> ;
@@ -63,7 +63,7 @@ impl<A:Adapton,X:Ord+Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd
             }
             debug!("edit:   {:?}", edit);
             let (out, cnt) = st.cnt(|st|{
-                let z_next = eval_edit::<A,X,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
+                let z_next = eval_edit::<A,X,Tree<A,X,u32>,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
                 let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
                 debug!("tree:   {:?}", tree);
                 let nm = st.name_of_string("eval_reduce".to_string());
