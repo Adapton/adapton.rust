@@ -62,12 +62,12 @@ impl<X:Arbitrary+Sized+Rand>
     }
 }
 
-pub trait ExperimentT<A:Adapton,X,Out> {
-    type ListEdit : ListEdit<A,X> ;
+pub trait ExperimentT<A:Adapton,X,Tree:TreeT<A,X>,Out> {
+    type ListEdit : ListEdit<A,X,Tree> ;
     fn run (&mut A, Vec<CursorEdit<X,Dir2>>, view:ListReduce) -> Vec<(Out,Cnt)> ;
 }
 
-pub fn eval_edit<A:Adapton,X,E:ListEdit<A,X>> (st:&mut A, edit:CursorEdit<X,Dir2>, z:E::State, id:usize) -> E::State {
+pub fn eval_edit<A:Adapton,X,T:TreeT<A,X>,E:ListEdit<A,X,T>> (st:&mut A, edit:CursorEdit<X,Dir2>, z:E::State, id:usize) -> E::State {
     match edit {
         CursorEdit::Insert(dir,x) => {
             let z = E::clr_names(st, z, dir.clone()) ;
@@ -156,7 +156,7 @@ pub fn eval_reduce
 /// `ListEdit<A,X,L>` gives a simple notion of list-editing that is
 /// generic with respect to adapton implementation `A`, list element
 /// type `X`, and list implementation `L`.
-pub trait ListEdit<A:Adapton,X> {
+pub trait ListEdit<A:Adapton,X,T:TreeT<A,X>> {
     /// The State of the Editor is abstract.
     type State : Clone+Hash+Eq+PartialEq+Debug;
 
@@ -177,7 +177,7 @@ pub trait ListEdit<A:Adapton,X> {
     fn rem_name  (&mut A, Self::State, Dir2) -> (Self::State, Option<A::Name>);
 
     // XXX
-    // fn ins_tree (&mut A, Self::State, Dir2, Self::Tree) -> Self::State;
+    fn ins_tree (&mut A, Self::State, Dir2, T::Tree) -> Self::State;
 
     fn clear_side (&mut A, Self::State, Dir2) -> Self::State ;
 
@@ -214,14 +214,14 @@ impl<A:Adapton
     ,T:TreeT<A,X>
     ,L:TreeListT<A,X,T>
     >
-    ListEdit<A,X>
+    ListEdit<A,X,T>
     for
     ListZipper<A,X,T,L>
 {
     type State=ListZipper<A,X,T,L>;
 
     // XXX
-    // type Tree=L::Tree;
+    // type Tree=T;
     
     fn clr_names (st:&mut A, zip:Self::State, dir:Dir2) -> Self::State {
         match dir {
@@ -245,16 +245,16 @@ impl<A:Adapton
     }
 
     // XXX
-    // fn ins_tree (st:&mut A, zip:Self::State, dir:Dir2, tree:L::Tree) -> Self::State {
-    //     match dir {
-    //         Dir2::Left =>
-    //             zipper!{L::cons_tree(st, tree, zip.left),
-    //                        zip.right},
-    //         Dir2::Right =>
-    //             zipper!{zip.left,
-    //                        L::cons_tree(st, tree, zip.right)},
-    //     }
-    // }
+    fn ins_tree (st:&mut A, zip:Self::State, dir:Dir2, tree:T::Tree) -> Self::State {
+        match dir {
+            Dir2::Left =>
+                zipper!{L::tree(st, tree, dir, zip.left),
+                        zip.right},
+            Dir2::Right =>
+                zipper!{zip.left,
+                        L::tree(st, tree, dir, zip.right)},
+        }
+    }
     
     fn ins_name (st:&mut A, zip:Self::State, dir:Dir2, name:A::Name) -> Self::State {
         match dir {
