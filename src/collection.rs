@@ -72,7 +72,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
                 Self::elim(st, list, nilf, consf, namef)
             },
             List::Tree(tree, dir, tl) => {
-                unimplemented!()
+                unimplemented!() // TODO-Now
             }
         }
     }
@@ -93,7 +93,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
                 Self::elim_move(st, list, arg, nilf, consf, namef)
             },
             List::Tree(tree, dir, tl) => {
-                unimplemented!()
+                unimplemented!() // TODO-Now
             }
         }
     }
