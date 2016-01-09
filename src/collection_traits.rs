@@ -13,14 +13,8 @@ use rand::{Rng,Rand};
 pub trait ListT<A:Adapton,Elm> : Debug+Clone+Hash+PartialEq+Eq {
     type List : Debug+Hash+PartialEq+Eq+Clone ;
 
-    // XXX
-    //type Tree : Debug+Hash+PartialEq+Eq+Clone ;
-
     fn nil  (&mut A) -> Self::List ;
     fn cons (&mut A, Elm, Self::List) -> Self::List ;
-
-    // XXX
-    //fn tree (&mut A, Self::Tree, Dir2, Self::List) -> Self::List ;
     
     // requisite "adaptonic" constructors: `name` and `art`:
     fn name (&mut A, A::Name, Self::List) -> Self::List ;
@@ -51,6 +45,12 @@ pub trait ListT<A:Adapton,Elm> : Debug+Clone+Hash+PartialEq+Eq {
                    |st,_,tl| Self::is_empty(st,tl))
     }
 }
+
+/// Just like ListT, except with an additional constructor: `tree`
+pub trait TreeListT<A:Adapton,Elm,T:TreeT<A,Elm>> : ListT<A,Elm> {    
+    fn tree (&mut A, T::Tree, Dir2, Self::List) -> Self::List ;
+}
+
 
 pub trait TreeT<A:Adapton,Leaf> {
     type Lev  : Debug+Hash+PartialEq+Eq+Clone ;
