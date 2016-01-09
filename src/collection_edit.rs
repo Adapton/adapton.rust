@@ -12,6 +12,7 @@ use quickcheck::Gen;
 use std::num::Zero;
 use std::ops::Add;    
 use rand::{Rng,Rand};
+use std::marker::PhantomData;
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
 pub enum CursorEdit<X,Dir> {
@@ -186,11 +187,23 @@ pub trait ListEdit<A:Adapton,X> {
 
 /// Lists with a focus; suitable to implement `ListEdit`.
 #[derive(Debug,Hash,PartialEq,Eq,Clone)]
-pub struct ListZipper<A:Adapton,X,L:ListT<A,X>> {
+pub struct ListZipper<A:Adapton,X,T:TreeT<A,X>,L:TreeListT<A,X,T>> {
     /// Elements to the left of the focus, nearest to furthest.
     pub left: L::List,
     /// Elements to the right of the focus, nearest to furthest.
     pub right: L::List,
+
+    /// Todo-Later: This phantom field should *not* be needed, but is, due to rustc being confused (?).
+    /// It complains that the parameter T is not used, though it is (by the type parameter L's trait bound).
+    phantom:PhantomData<T::Tree>,
+}
+
+macro_rules! zipper {
+    { $left:expr , $right:expr } => {
+        {
+            ListZipper{ left:$left, right:$right, phantom:PhantomData}
+        }
+    };
 }
 
 /// Implement `ListEdit` for `ListZipper` generically with respect to
@@ -198,13 +211,14 @@ pub struct ListZipper<A:Adapton,X,L:ListT<A,X>> {
 /// implementation `L`.
 impl<A:Adapton
     ,X:Debug+Hash+PartialEq+Eq+Clone
-    ,L:ListT<A,X>
+    ,T:TreeT<A,X>
+    ,L:TreeListT<A,X,T>
     >
     ListEdit<A,X>
     for
-    ListZipper<A,X,L>
+    ListZipper<A,X,T,L>
 {
-    type State=ListZipper<A,X,L>;
+    type State=ListZipper<A,X,T,L>;
 
     // XXX
     // type Tree=L::Tree;
@@ -213,19 +227,19 @@ impl<A:Adapton
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right| ListZipper{left:L::nil(st), right:right},
-                 |st,x,left,right| ListZipper{left:L::cons(st,x,left), right:right},
+                 |st,right| zipper!{L::nil(st), right},
+                 |st,x,left,right| zipper!{L::cons(st,x,left), right},
                  |st,nm,left,right| {
                      let right = L::name(st,nm,right);
-                     Self::clr_names(st, ListZipper{left:left, right:right}, dir)}
+                     Self::clr_names(st, zipper!{left, right}, dir)}
                  ),
             Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left| ListZipper{right:L::nil(st), left:left},
-                 |st,x,right,left| ListZipper{right:L::cons(st,x,right), left:left},
+                 |st,left| zipper!{L::nil(st), left},
+                 |st,x,right,left| zipper!{L::cons(st,x,right), left},
                  |st,nm,right,left| {
                      let left = L::name(st,nm,left);
-                     Self::clr_names(st, ListZipper{left:left, right:right}, dir)}
+                     Self::clr_names(st, zipper!{left, right}, dir)}
                  ),
         }
     }
@@ -234,22 +248,22 @@ impl<A:Adapton
     // fn ins_tree (st:&mut A, zip:Self::State, dir:Dir2, tree:L::Tree) -> Self::State {
     //     match dir {
     //         Dir2::Left =>
-    //             ListZipper{left:L::cons_tree(st, tree, zip.left),
-    //                        right:zip.right},
+    //             zipper!{L::cons_tree(st, tree, zip.left),
+    //                        zip.right},
     //         Dir2::Right =>
-    //             ListZipper{left:zip.left,
-    //                        right:L::cons_tree(st, tree, zip.right)},
+    //             zipper!{zip.left,
+    //                        L::cons_tree(st, tree, zip.right)},
     //     }
     // }
     
     fn ins_name (st:&mut A, zip:Self::State, dir:Dir2, name:A::Name) -> Self::State {
         match dir {
             Dir2::Left =>
-                ListZipper{left:L::name(st, name, zip.left),
-                           right:zip.right},
+                zipper!{L::name(st, name, zip.left),
+                           zip.right},
             Dir2::Right =>
-                ListZipper{left:zip.left,
-                           right:L::name(st, name, zip.right)},
+                zipper!{zip.left,
+                           L::name(st, name, zip.right)},
         }
     }
 
@@ -258,13 +272,13 @@ impl<A:Adapton
             Dir2::Left => {
                 let art = st.cell(name, zip.left) ;
                 let art = st.read_only(art);
-                ListZipper{left:L::art(st, art),
-                           right:zip.right}},                
+                zipper!{L::art(st, art),
+                           zip.right}},                
             Dir2::Right => {
                 let art = st.cell(name, zip.right) ;
                 let art = st.read_only(art);
-                ListZipper{left:zip.left,
-                           right:L::art(st, art)}},
+                zipper!{zip.left,
+                           L::art(st, art)}},
         }
     }
 
@@ -272,15 +286,15 @@ impl<A:Adapton
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right|         (ListZipper{left:L::nil(st), right:right}, None ),
-                 |_,x,left,right|   (ListZipper{left:left,       right:right}, None ),
-                 |st,nm,left,right| (ListZipper{left:left, right:right},       Some(nm))
+                 |st,right|         (zipper!{L::nil(st), right}, None ),
+                 |_,x,left,right|   (zipper!{left,       right}, None ),
+                 |st,nm,left,right| (zipper!{left, right},       Some(nm))
                  ),
             Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left|          (ListZipper{left:left, right:L::nil(st)}, None ),
-                 |_,x,right,left|   (ListZipper{left:left, right:right},      None ),
-                 |st,nm,right,left| (ListZipper{left:left, right:right},      Some(nm))
+                 |st,left|          (zipper!{left, L::nil(st)}, None ),
+                 |_,x,right,left|   (zipper!{left, right},      None ),
+                 |st,nm,right,left| (zipper!{left, right},      Some(nm))
                  ),
         }
     }
@@ -288,17 +302,17 @@ impl<A:Adapton
     fn empty (st: &mut A) -> Self::State {
         let nil1 = L::nil(st);
         let nil2 = nil1.clone();
-        ListZipper{left:nil1, right:nil2}
+        zipper!{nil1, nil2}
     }
     
     fn insert (st:&mut A, zip:Self::State, dir:Dir2, x:X) -> Self::State {
         match dir {
             Dir2::Left =>
-                ListZipper{left:L::cons(st, x, zip.left),
-                           right:zip.right},
+                zipper!{L::cons(st, x, zip.left),
+                           zip.right},
             Dir2::Right =>
-                ListZipper{left:zip.left,
-                           right:L::cons(st, x, zip.right)},
+                zipper!{zip.left,
+                           L::cons(st, x, zip.right)},
         }
     }
 
@@ -306,16 +320,16 @@ impl<A:Adapton
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right|         (ListZipper{left:L::nil(st), right:right}, None   ),
-                 |_,x,left,right|   (ListZipper{left:left,       right:right}, Some(x)),
-                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right)};
+                 |st,right|         (zipper!{L::nil(st), right}, None   ),
+                 |_,x,left,right|   (zipper!{left,       right}, Some(x)),
+                 |st,nm,left,right| {let zip = zipper!{left, L::name(st,nm,right)};
                                      Self::remove (st, zip, Dir2::Left)}
                  ),
             Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left|          (ListZipper{left:left, right:L::nil(st)}, None   ),
-                 |_,x,right,left|   (ListZipper{left:left, right:right},      Some(x)),
-                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right};
+                 |st,left|          (zipper!{left, L::nil(st)}, None   ),
+                 |_,x,right,left|   (zipper!{left, right},      Some(x)),
+                 |st,nm,right,left| {let zip = zipper!{L::name(st,nm,left), right};
                                      Self::remove (st, zip, Dir2::Right)}
                  ),
         }
@@ -326,16 +340,16 @@ impl<A:Adapton
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right|         (ListZipper{left:L::nil(st), right:right}              , false ),
-                 |st,x,left,right|  (ListZipper{left:left,       right:L::cons(st,x,right)}, true  ),
-                 |st,nm,left,right| {let zip = ListZipper{left:left, right:L::name(st,nm,right)};
+                 |st,right|         (zipper!{L::nil(st), right}              , false ),
+                 |st,x,left,right|  (zipper!{left,       L::cons(st,x,right)}, true  ),
+                 |st,nm,left,right| {let zip = zipper!{left, L::name(st,nm,right)};
                                      Self::goto (st, zip, Dir2::Left)}
                  ),
             Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left|          (ListZipper{left:left,              right:L::nil(st)}, false ),
-                 |st,x,right,left|  (ListZipper{left:L::cons(st,x,left),right:right}     , true  ),
-                 |st,nm,right,left| {let zip = ListZipper{left:L::name(st,nm,left), right:right};
+                 |st,left|          (zipper!{left,              L::nil(st)}, false ),
+                 |st,x,right,left|  (zipper!{L::cons(st,x,left),right}     , true  ),
+                 |st,nm,right,left| {let zip = zipper!{L::name(st,nm,left), right};
                                      Self::goto (st, zip, Dir2::Right)}
                  ),
         }
@@ -345,18 +359,18 @@ impl<A:Adapton
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, zip.right,
-                 |st,right|         (ListZipper{left:L::nil(st), right:right}, None),
+                 |st,right|         (zipper!{L::nil(st), right}, None),
                  |st,x,left,right| {let x2 = x.clone();
-                                    (ListZipper{left:L::cons(st,x,left), right:right}, Some(x2))},
-                 |st,nm,left,right|{let zip = ListZipper{left:left,right:L::name(st,nm,right)};
+                                    (zipper!{L::cons(st,x,left), right}, Some(x2))},
+                 |st,nm,left,right|{let zip = zipper!{left,L::name(st,nm,right)};
                                     Self::observe (st, zip, Dir2::Left)}
                  ),
             Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left|         (ListZipper{left:left, right:L::nil(st)}, None),
+                 |st,left|         (zipper!{left, L::nil(st)}, None),
                  |st,x,right,left| {let x2 = x.clone();
-                                    (ListZipper{left:left, right:L::cons(st,x,right)}, Some(x2))},
-                 |st,nm,right,left|{let zip = ListZipper{left:L::name(st,nm,left),right:right};
+                                    (zipper!{left, L::cons(st,x,right)}, Some(x2))},
+                 |st,nm,right,left|{let zip = zipper!{L::name(st,nm,left),right};
                                     Self::observe (st, zip, Dir2::Right)}
                  ),
         }
@@ -366,16 +380,16 @@ impl<A:Adapton
         match dir {
             Dir2::Left => L::elim_move
                 (st, zip.left, (zip.right, y),
-                 |st,(right,y)|        (ListZipper{left:L::nil(st),         right:right}, y, false),
-                 |st,x,left,(right,y)| (ListZipper{left:L::cons(st,y,left), right:right}, x, true ),
-                 |st,nm,left,(right,y)|{let zip = ListZipper{left:left,right:L::name(st,nm,right)};
+                 |st,(right,y)|        (zipper!{L::nil(st),         right}, y, false),
+                 |st,x,left,(right,y)| (zipper!{L::cons(st,y,left), right}, x, true ),
+                 |st,nm,left,(right,y)|{let zip = zipper!{left,L::name(st,nm,right)};
                                         Self::replace (st, zip, Dir2::Left, y)}
                  ),
             Dir2::Right => L::elim_move
                 (st, zip.right, (zip.left,y),
-                 |st,(left,y)|         (ListZipper{left:left, right:L::nil(st)},          y, false),
-                 |st,x,right,(left,y)| (ListZipper{left:left, right:L::cons(st,y,right)}, x, true ),
-                 |st,nm,right,(left,y)|{let zip = ListZipper{left:L::name(st,nm,left),right:right};
+                 |st,(left,y)|         (zipper!{left, L::nil(st)},          y, false),
+                 |st,x,right,(left,y)| (zipper!{left, L::cons(st,y,right)}, x, true ),
+                 |st,nm,right,(left,y)|{let zip = zipper!{L::name(st,nm,left),right};
                                         Self::replace (st, zip, Dir2::Right, y)}
                  ),
         }
@@ -385,34 +399,34 @@ impl<A:Adapton
         (st:&mut A, zip:Self::State, dir:Dir2) -> Self::State {
             let emp = L::nil(st) ;
             match dir {
-                Dir2::Right => ListZipper{left:zip.left, right:emp},
-                Dir2::Left  => ListZipper{left:emp, right:zip.right},
+                Dir2::Right => zipper!{zip.left, emp},
+                Dir2::Left  => zipper!{emp, zip.right},
             }
         }
         
-    fn get_list<N:ListT<A,X>,T:TreeT<A,X>>
+    fn get_list<N:ListT<A,X>,Out:TreeT<A,X>>
         (st:&mut A, zip:Self::State, dir:Dir2) -> N::List
     {
-        let tree = Self::get_tree::<T>(st, zip, dir);
-        list_of_tree::<A,X,N,T>(st, tree)
+        let tree = Self::get_tree::<Out>(st, zip, dir);
+        list_of_tree::<A,X,N,Out>(st, tree)
     }
 
     /// Creates a tree whose leaves hold the contents of the zipper, in order.
     /// When `dir=Left`,  the tree's leaves are ordered from left-to-right, i.e., as (rev left) @ right.
     /// When `dir=Right`, the tree's leaves are ordered from right-to-left, i.e., as (rev right) @ left.
-    fn get_tree<T:TreeT<A,X>>
-        (st:&mut A, zip:Self::State, dir:Dir2) -> T::Tree
+    fn get_tree<Out:TreeT<A,X>>
+        (st:&mut A, zip:Self::State, dir:Dir2) -> Out::Tree
     {
         match dir {
             Dir2::Left  => {
-                let left  = tree_of_list::<A,X,T,L>(st, Dir2::Right, zip.left);
-                let right = tree_of_list::<A,X,T,L>(st, Dir2::Left,  zip.right);
-                tree_append::<A,X,T>(st, left, right)}
+                let left  = tree_of_list::<A,X,Out,L>(st, Dir2::Right, zip.left);
+                let right = tree_of_list::<A,X,Out,L>(st, Dir2::Left,  zip.right);
+                tree_append::<A,X,Out>(st, left, right)}
             
             Dir2::Right => {
-                let right = tree_of_list::<A,X,T,L>(st, Dir2::Right, zip.right);
-                let left  = tree_of_list::<A,X,T,L>(st, Dir2::Left,  zip.left);
-                tree_append::<A,X,T>(st, right, left)}
+                let right = tree_of_list::<A,X,Out,L>(st, Dir2::Right, zip.right);
+                let left  = tree_of_list::<A,X,Out,L>(st, Dir2::Left,  zip.left);
+                tree_append::<A,X,Out>(st, right, left)}
         }
     }
 }
