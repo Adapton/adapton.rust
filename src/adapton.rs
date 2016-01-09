@@ -26,8 +26,7 @@ pub mod simple ;
 pub mod collection_traits ;
 pub mod collection_algo ;
 pub mod collection ;
-
-//pub mod collection_edit ;
+pub mod collection_edit ;
 
 
 // pub mod fact ;
