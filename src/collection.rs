@@ -118,7 +118,29 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
   }
 
   fn next_leaf_rec (st:&mut A, tree:Tree<A,Elm,u32>, dir:Dir2, rest:Self::List) -> Option<(Elm,Self::List)> {
-    unimplemented!()
+    match tree {
+      Tree::Nil => {
+        List::elim_move(st, rest, dir,
+                        |_, _| None,
+                        |st, x, xs, _  | Some((x,xs)),
+                        |st, _, xs, dir| Self::next_leaf_rec(st, Tree::Nil, dir, xs)
+                        )
+      },
+      Tree::Rc(rc) => Self::next_leaf_rec(st, (*rc).clone(), dir, rest),
+      Tree::Art(ref art) => {
+        let tree = st.force(art);
+        Self::next_leaf_rec(st, tree, dir, rest)
+      }
+      Tree::Leaf(leaf) => {
+        Some((leaf, rest))
+      }
+      Tree::Bin(_,l,r) | Tree::Name(_,_,l,r) => {
+        match dir {
+          Dir2::Left  => Self::next_leaf_rec(st, *l, Dir2::Left,  List::Tree(*r, Dir2::Left,  Box::new(rest))),
+          Dir2::Right => Self::next_leaf_rec(st, *r, Dir2::Right, List::Tree(*l, Dir2::Right, Box::new(rest))),
+        }
+      },
+    }
   }
 
   fn next_leaf (st:&mut A, tree:Tree<A,Elm,u32>, dir:Dir2) -> Option<(Elm,Self::List)> {
