@@ -72,7 +72,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
                 Self::elim(st, list, nilf, consf, namef)
             },
             List::Tree(tree, dir, tl) => {
-              let res = List::next_elm(st, List::Tree(tree, dir, tl)) ;
+              let res = List::next_leaf_rec(st, tree, dir, *tl) ;
               match res {
                 None => nilf(st),
                 Some((elm, rest)) => consf(st, elm, rest),
@@ -97,7 +97,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
                 Self::elim_move(st, list, arg, nilf, consf, namef)
             },
             List::Tree(tree, dir, tl) => {
-              let res = List::next_elm(st, List::Tree(tree, dir, tl)) ;
+              let res = List::next_leaf_rec(st, tree, dir, *tl) ;
               match res {
                 None => nilf(st, arg),
                 Some((elm, rest)) => consf(st, elm, rest, arg),
@@ -117,8 +117,12 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
     List::Tree(tr, dir, Box::new(tl))
   }
 
-  fn next_elm (st:&mut A, list:Self::List) -> Option<(Elm,Self::List)> {
+  fn next_leaf_rec (st:&mut A, tree:Tree<A,Elm,u32>, dir:Dir2, rest:Self::List) -> Option<(Elm,Self::List)> {
     unimplemented!()
+  }
+
+  fn next_leaf (st:&mut A, tree:Tree<A,Elm,u32>, dir:Dir2) -> Option<(Elm,Self::List)> {
+    Self::next_leaf_rec(st, tree, dir, List::Nil)
   }
 
   fn tree_elim_move<Arg,Res,Treef,Nil,Cons,Name>
