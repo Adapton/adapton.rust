@@ -248,11 +248,11 @@ impl<A:Adapton
     fn ins_tree (st:&mut A, zip:Self::State, dir:Dir2, tree:T::Tree) -> Self::State {
         match dir {
             Dir2::Left =>
-                zipper!{L::tree(st, tree, dir, zip.left),
+                zipper!{L::tree(st, tree, dir.opp(), zip.left),
                         zip.right},
             Dir2::Right =>
                 zipper!{zip.left,
-                        L::tree(st, tree, dir, zip.right)},
+                        L::tree(st, tree, dir.opp(), zip.right)},
         }
     }
     

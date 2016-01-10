@@ -280,6 +280,14 @@ pub trait GraphT
 /// Lists are one-dimensional structures; movement admits two possible directions.
 #[derive(Debug,Hash,PartialEq,Eq,Clone)]
 pub enum Dir2 { Left, Right }
+impl Dir2 {
+    pub fn opp(&self) -> Dir2 {
+        match *self {
+            Dir2::Left => {Dir2::Right}
+            Dir2::Right => {Dir2::Left}
+        }
+    }
+}
 
 impl Rand for Dir2 {
     fn rand<R: Rng>(rng: &mut R) -> Dir2 {
