@@ -31,7 +31,7 @@ pub enum Tree<A:Adapton,X,Lev> {
     Rc(                 Rc<Tree<A,X,Lev>>),
     Art(               Art<Tree<A,X,Lev>, A::Loc>),
 }
-
+ 
 // TODO: Why Does Adapton have to implement all of these?
 //       It's not actually *contained* within the List structure; it cannot be ecountered there.
 //       It's only ever present in a negative position (as a function parameter).
@@ -72,7 +72,11 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
                 Self::elim(st, list, nilf, consf, namef)
             },
             List::Tree(tree, dir, tl) => {
-                unimplemented!() // TODO-Now
+              let res = List::next_elm(st, List::Tree(tree, dir, tl)) ;
+              match res {
+                None => nilf(st),
+                Some((elm, rest)) => consf(st, elm, rest),
+              }
             }
         }
     }
@@ -93,7 +97,11 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
                 Self::elim_move(st, list, arg, nilf, consf, namef)
             },
             List::Tree(tree, dir, tl) => {
-                unimplemented!() // TODO-Now
+              let res = List::next_elm(st, List::Tree(tree, dir, tl)) ;
+              match res {
+                None => nilf(st, arg),
+                Some((elm, rest)) => consf(st, elm, rest, arg),
+              }
             }
         }
     }
@@ -105,9 +113,33 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
     TreeListT<A,Elm,Tree<A,Elm,u32>>
     for List<A,Elm>
 {
-    fn tree (_:&mut A, tr:Tree<A,Elm,u32>, dir:Dir2, tl:Self::List) -> Self::List {
-        List::Tree(tr, dir, Box::new(tl))
+  fn tree (_:&mut A, tr:Tree<A,Elm,u32>, dir:Dir2, tl:Self::List) -> Self::List {
+    List::Tree(tr, dir, Box::new(tl))
+  }
+
+  fn next_elm (st:&mut A, list:Self::List) -> Option<(Elm,Self::List)> {
+    unimplemented!()
+  }
+
+  fn tree_elim_move<Arg,Res,Treef,Nil,Cons,Name>
+    (st:&mut A, list:Self::List, arg:Arg, treef:Treef, nilf:Nil, consf:Cons, namef:Name) -> Res
+    where Treef:FnOnce(&mut A, Tree<A,Elm,u32>, Dir2, Self::List, Arg) -> Res
+    ,       Nil:FnOnce(&mut A, Arg) -> Res
+    ,      Cons:FnOnce(&mut A, Elm, Self::List, Arg) -> Res
+    ,     Name:FnOnce(&mut A, A::Name, Self::List, Arg) -> Res
+  {
+    match list {
+      List::Nil => nilf(st, arg),
+      List::Cons(hd, tl) => consf(st, hd, *tl, arg),
+      List::Name(nm, tl) => namef(st, nm, *tl, arg),
+      List::Rc(rc) => Self::elim_move(st, (*rc).clone(), arg, nilf, consf, namef),
+      List::Art(ref art) => {
+        let list = st.force(art);
+        Self::elim_move(st, list, arg, nilf, consf, namef)
+      },
+      List::Tree(tree, dir, tl) => treef(st, tree, dir, *tl, arg),
     }
+  }
 }
 
 // TODO: Why Does Adapton have to implement all of these?

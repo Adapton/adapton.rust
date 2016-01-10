@@ -48,7 +48,17 @@ pub trait ListT<A:Adapton,Elm> : Debug+Clone+Hash+PartialEq+Eq {
 
 /// Just like ListT, except with an additional constructor: `tree`
 pub trait TreeListT<A:Adapton,Elm,T:TreeT<A,Elm>> : ListT<A,Elm> {    
-    fn tree (&mut A, T::Tree, Dir2, Self::List) -> Self::List ;
+  fn tree (&mut A, T::Tree, Dir2, Self::List) -> Self::List ;
+
+  fn next_elm (&mut A, Self::List) -> Option<(Elm,Self::List)> ;
+
+  fn tree_elim_move<Arg,Res,Tree,Nil,Cons,Name>
+    (&mut A, Self::List, Arg, Tree, Nil, Cons, Name) -> Res
+    where Tree:FnOnce(&mut A, T::Tree, Dir2, Self::List, Arg) -> Res
+    ,      Nil:FnOnce(&mut A, Arg) -> Res
+    ,     Cons:FnOnce(&mut A, Elm, Self::List, Arg) -> Res
+    ,     Name:FnOnce(&mut A, A::Name, Self::List, Arg) -> Res
+    ;
 }
 
 
