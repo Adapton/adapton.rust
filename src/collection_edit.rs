@@ -180,8 +180,8 @@ pub trait ListEdit<A:Adapton,X,T:TreeT<A,X>> {
 
     fn clear_side (&mut A, Self::State, Dir2) -> Self::State ;
 
-    fn get_list<L:ListT<A,X>,T2:TreeT<A,X>> (&mut A, Self::State, Dir2) -> L::List;
-    fn get_tree<T2:TreeT<A,X>>              (&mut A, Self::State, Dir2) -> T2::Tree;
+    fn get_list<L:ListT<A,X>> (&mut A, Self::State, Dir2) -> L::List;
+    fn get_tree               (&mut A, Self::State, Dir2) -> T::Tree;
 }
 
 /// Lists with a focus; suitable to implement `ListEdit`.
@@ -402,29 +402,28 @@ impl<A:Adapton
             }
         }
         
-    fn get_list<N:ListT<A,X>,Out:TreeT<A,X>>
+    fn get_list<N:ListT<A,X>>
         (st:&mut A, zip:Self::State, dir:Dir2) -> N::List
     {
-        let tree = Self::get_tree::<Out>(st, zip, dir);
-        list_of_tree::<A,X,N,Out>(st, tree)
+        let tree = Self::get_tree(st, zip, dir);
+        list_of_tree::<A,X,N,T>(st, tree)
     }
 
     /// Creates a tree whose leaves hold the contents of the zipper, in order.
     /// When `dir=Left`,  the tree's leaves are ordered from left-to-right, i.e., as (rev left) @ right.
     /// When `dir=Right`, the tree's leaves are ordered from right-to-left, i.e., as (rev right) @ left.
-    fn get_tree<Out:TreeT<A,X>>
-        (st:&mut A, zip:Self::State, dir:Dir2) -> Out::Tree
+    fn get_tree(st:&mut A, zip:Self::State, dir:Dir2) -> T::Tree
     {
         match dir {
             Dir2::Left  => {
-                let left  = tree_of_list::<A,X,Out,L>(st, Dir2::Right, zip.left);
-                let right = tree_of_list::<A,X,Out,L>(st, Dir2::Left,  zip.right);
-                tree_append::<A,X,Out>(st, left, right)}
+                let left  = tree_of_treelist::<A,X,T,L>(st, Dir2::Right, zip.left);
+                let right = tree_of_treelist::<A,X,T,L>(st, Dir2::Left,  zip.right);
+                tree_append::<A,X,T>(st, left, right)}
             
             Dir2::Right => {
-                let right = tree_of_list::<A,X,Out,L>(st, Dir2::Right, zip.right);
-                let left  = tree_of_list::<A,X,Out,L>(st, Dir2::Left,  zip.left);
-                tree_append::<A,X,Out>(st, right, left)}
+                let right = tree_of_treelist::<A,X,T,L>(st, Dir2::Right, zip.right);
+                let left  = tree_of_treelist::<A,X,T,L>(st, Dir2::Left,  zip.left);
+                tree_append::<A,X,T>(st, right, left)}
         }
     }
 }

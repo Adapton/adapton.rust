@@ -16,7 +16,7 @@ use rand::{Rng,Rand};
 pub enum List<A:Adapton,Elm> {
     Nil,
     Cons(Elm, Box<List<A,Elm>>),
-    Tree(Tree<A,Elm,u32>, Dir2, Box<List<A,Elm>>),
+    Tree(Box<Tree<A,Elm,u32>>, Dir2, Box<List<A,Elm>>),
     Rc(Rc<List<A,Elm>>),
     Name(A::Name, Box<List<A,Elm>>),
     Art(Art<List<A,Elm>, A::Loc>),
@@ -72,7 +72,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
                 Self::elim(st, list, nilf, consf, namef)
             },
             List::Tree(tree, dir, tl) => {
-              let res = List::next_leaf_rec(st, tree, dir, *tl) ;
+              let res = List::next_leaf_rec(st, *tree, dir, *tl) ;
               match res {
                 None => nilf(st),
                 Some((elm, rest)) => consf(st, elm, rest),
@@ -97,7 +97,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
                 Self::elim_move(st, list, arg, nilf, consf, namef)
             },
             List::Tree(tree, dir, tl) => {
-              let res = List::next_leaf_rec(st, tree, dir, *tl) ;
+              let res = List::next_leaf_rec(st, *tree, dir, *tl) ;
               match res {
                 None => nilf(st, arg),
                 Some((elm, rest)) => consf(st, elm, rest, arg),
@@ -114,7 +114,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
     for List<A,Elm>
 {
   fn tree (_:&mut A, tr:Tree<A,Elm,u32>, dir:Dir2, tl:Self::List) -> Self::List {
-    List::Tree(tr, dir, Box::new(tl))
+    List::Tree(Box::new(tr), dir, Box::new(tl))
   }
 
   fn next_leaf_rec (st:&mut A, tree:Tree<A,Elm,u32>, dir:Dir2, rest:Self::List) -> Option<(Elm,Self::List)> {
@@ -136,8 +136,8 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
       }
       Tree::Bin(_,l,r) | Tree::Name(_,_,l,r) => {
         match dir {
-          Dir2::Left  => Self::next_leaf_rec(st, *l, Dir2::Left,  List::Tree(*r, Dir2::Left,  Box::new(rest))),
-          Dir2::Right => Self::next_leaf_rec(st, *r, Dir2::Right, List::Tree(*l, Dir2::Right, Box::new(rest))),
+          Dir2::Left  => Self::next_leaf_rec(st, *l, Dir2::Left,  List::Tree(r, Dir2::Left,  Box::new(rest))),
+          Dir2::Right => Self::next_leaf_rec(st, *r, Dir2::Right, List::Tree(l, Dir2::Right, Box::new(rest))),
         }
       },
     }
@@ -163,7 +163,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
         let list = st.force(art);
         Self::elim_move(st, list, arg, nilf, consf, namef)
       },
-      List::Tree(tree, dir, tl) => treef(st, tree, dir, *tl, arg),
+      List::Tree(tree, dir, tl) => treef(st, *tree, dir, *tl, arg),
     }
   }
 }

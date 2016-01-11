@@ -64,7 +64,7 @@ impl<A:Adapton,X:Ord+Add<Output=X>+Zero+Hash+Debug+PartialEq+Eq+Clone+PartialOrd
             debug!("edit:   {:?}", edit);
             let (out, cnt) = st.cnt(|st|{
                 let z_next = eval_edit::<A,X,Tree<A,X,u32>,Self::ListEdit>(st, edit, z.clone(), loop_cnt);
-                let tree = Self::ListEdit::get_tree::<Tree<A,X,u32>>(st, z_next.clone(), Dir2::Left);
+                let tree = Self::ListEdit::get_tree(st, z_next.clone(), Dir2::Left);
                 debug!("tree:   {:?}", tree);
                 let nm = st.name_of_string("eval_reduce".to_string());
                 let out = st.ns(nm, |st|eval_reduce::<A,X,List<A,X>,Tree<A,X,u32>>(st, tree, &view) );

@@ -190,6 +190,93 @@ pub fn tree_of_list_rec
         )
 }
 
+pub fn tree_of_treelist
+    < A:Adapton
+    , X:Hash+Clone+Debug
+    , T:TreeT<A,X>
+    , L:TreeListT<A,X,T>
+    >
+    (st:&mut A, dir_list:Dir2, list:L::List) -> T::Tree {
+        let tnil = T::nil(st);
+        let lnil = L::nil(st);
+        let (tree, list) = tree_of_treelist_rec::<A,X,T,L>(st, dir_list, list, tnil, T::lev_zero(), T::lev_max_val());
+        assert_eq!(list, lnil);
+        tree
+    }
+
+pub fn tree_of_treelist_rec
+    < A:Adapton
+    , X:Hash+Clone+Debug
+    , T:TreeT<A,X>
+    , L:TreeListT<A,X,T>
+    >
+    (st:&mut A,
+     dir_list:Dir2, list:L::List,
+     tree:T::Tree, tree_lev:T::Lev, parent_lev:T::Lev)
+     -> (T::Tree, L::List)
+{
+  L::tree_elim_move (
+    st, list, (dir_list, tree, tree_lev, parent_lev),
+
+    /* Tree */
+    |st, tree2, dir_tree, rest, (dir_list, tree1, _, _)| {
+      let tree = tree_append::<A,X,T>(st, tree1, tree2) ;
+      (tree, rest)
+    },
+    
+    /* Nil */
+    |st, (_dir_list, tree, _, _)| (tree, L::nil(st)),
+
+    /* Cons */
+    |st, hd, rest, (dir_list, tree, tree_lev, parent_lev)| {
+      let lev_hd = T::lev_inc ( &T::lev(&hd) ) ;
+      if T::lev_lte ( &tree_lev , &lev_hd ) && T::lev_lte ( &lev_hd , &parent_lev ) {
+        let leaf = T::leaf(st, hd) ;
+        let (tree2, rest2) = {
+          tree_of_treelist_rec::<A,X,T,L> ( st, dir_list.clone(), rest, leaf, T::lev_zero(), lev_hd.clone() )
+        };
+        let tree3 = match dir_list.clone() {
+          Dir2::Left  => T::bin ( st, lev_hd.clone(), tree,  tree2 ),
+          Dir2::Right => T::bin ( st, lev_hd.clone(), tree2, tree  ),
+        } ;
+        tree_of_treelist_rec::<A,X,T,L> ( st, dir_list, rest2, tree3, lev_hd, parent_lev )
+      }
+      else {
+        (tree, L::cons(st,hd,rest))
+      }},
+
+    /* Name */
+    |st, nm, rest, (dir_list, tree, tree_lev, parent_lev)|{
+      let lev_nm = T::lev_inc( &T::lev_add( &T::lev_bits() , &T::lev(&nm) ) ) ;
+      if T::lev_lte ( &tree_lev , &lev_nm ) && T::lev_lte ( &lev_nm ,  &parent_lev ) {
+        let nil = T::nil(st) ;
+        let (nm1, nm2, nm3, nm4) = st.name_fork4(nm.clone());
+        let (_, (tree2, rest)) =
+          eager!(st, nm1 =>> tree_of_treelist_rec::<A,X,T,L>,
+                 dir_list:dir_list.clone(), list:rest,
+                 tree:nil, tree_lev:T::lev_zero(), parent_lev:lev_nm.clone() ) ;
+        let tree3 = match dir_list.clone() {
+          Dir2::Left  => T::name ( st, nm.clone(), lev_nm.clone(), tree,  tree2 ),
+          Dir2::Right => T::name ( st, nm.clone(), lev_nm.clone(), tree2, tree  ),
+        } ;
+        let art = st.cell(nm3, tree3) ;
+        let art = st.read_only( art ) ;
+        let tree3 = T::art( st, art ) ;
+        let (_, (tree, rest)) =
+          eager!(st, nm2 =>> tree_of_treelist_rec::<A,X,T,L>,
+                 dir_list:dir_list.clone(), list:rest,
+                 tree:tree3, tree_lev:lev_nm, parent_lev:parent_lev ) ;
+        let art = st.cell(nm4, tree) ;
+        let art = st.read_only( art ) ;
+        let tree = T::art( st, art ) ;
+        (tree, rest)
+      }
+      else {
+        (tree, L::name(st,nm,rest))
+      }},
+    )
+}
+
 pub fn list_merge<A:Adapton,X:Ord+Clone+Debug,L:ListT<A,X>>
     (st:&mut A,
      n1:Option<A::Name>, l1:L::List,

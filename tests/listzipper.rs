@@ -25,7 +25,7 @@ pub fn zipper_get_tree<A:Adapton,T:TreeT<A,u64>,L:TreeListT<A,u64,T>> (st:&mut A
     
     for get_tree_dir in vec![Dir2::Left,Dir2::Right].iter()
     {
-        let t = ListZipper::get_tree::<T>(st, z.clone(), get_tree_dir.clone());
+        let t = ListZipper::get_tree(st, z.clone(), get_tree_dir.clone());
         println!("t = get_tree z = {:?}\n", t);
         
         let l_spec = match *get_tree_dir {
