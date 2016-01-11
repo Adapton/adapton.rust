@@ -958,7 +958,10 @@ impl Adapton for Engine {
                                         (true, false)
                                     }}
                                 else {
-                                    panic!("TODO-Sometime: producers not equal!")
+                                  panic!("TODO-Sometime: Memozied functions not equal!\nwas:{:?}\nnow:{:?}",
+                                         comp_nd.producer.prog_pt(),
+                                         producer.prog_pt()
+                                         )
                                 }
                             },
                             _ => unreachable!(),
