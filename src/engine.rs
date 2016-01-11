@@ -958,7 +958,7 @@ impl Adapton for Engine {
                                         (true, false)
                                     }}
                                 else {
-                                  panic!("TODO-Sometime: Memozied functions not equal!\nwas:{:?}\nnow:{:?}",
+                                  panic!("TODO-Sometime: Memozied functions not equal!\nwas:{:?}\nnow:{:?}\nHint:Consider using namespaces, via `Adapton::ns`",
                                          comp_nd.producer.prog_pt(),
                                          producer.prog_pt()
                                          )
