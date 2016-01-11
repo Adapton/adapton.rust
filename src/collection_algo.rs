@@ -220,6 +220,7 @@ pub fn tree_of_treelist_rec
 
     /* Tree */
     |st, tree2, dir_tree, rest, (dir_list, tree1, tree_lev, parent_lev)| {
+      // XXX Ignoring dir_tree, which may lead to ordering problems in general!
       let tree = tree_append::<A,X,T>(st, tree1, tree2) ;
       // XXX Using this tree_lev is not quite right for maintaining balance;
       // XXX The level may be affected by the append on the prior line.
