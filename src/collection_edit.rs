@@ -234,8 +234,8 @@ impl<A:Adapton
                  ),
             Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
-                 |st,left| zipper!{L::nil(st), left},
-                 |st,x,right,left| zipper!{L::cons(st,x,right), left},
+                 |st,left| zipper!{left, L::nil(st)},
+                 |st,x,right,left| zipper!{left, L::cons(st,x,right)},
                  |st,nm,right,left| {
                      let left = L::name(st,nm,left);
                      Self::clr_names(st, zipper!{left, right}, dir)}
