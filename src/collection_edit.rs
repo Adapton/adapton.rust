@@ -333,24 +333,25 @@ impl<A:Adapton
         }
     }
 
-    
+
+  // XXX rename 'move'
     fn goto (st:&mut A, zip:Self::State, dir:Dir2) -> (Self::State, bool) {
-        match dir {
-            Dir2::Left => L::elim_move
-                (st, zip.left, zip.right,
-                 |st,right|         (zipper!{L::nil(st), right}              , false ),
-                 |st,x,left,right|  (zipper!{left,       L::cons(st,x,right)}, true  ),
-                 |st,nm,left,right| {let zip = zipper!{left, L::name(st,nm,right)};
-                                     Self::goto (st, zip, Dir2::Left)}
-                 ),
-            Dir2::Right => L::elim_move
-                (st, zip.right, zip.left,
-                 |st,left|          (zipper!{left,              L::nil(st)}, false ),
-                 |st,x,right,left|  (zipper!{L::cons(st,x,left),right}     , true  ),
-                 |st,nm,right,left| {let zip = zipper!{L::name(st,nm,left), right};
-                                     Self::goto (st, zip, Dir2::Right)}
-                 ),
-        }
+      match dir {
+        Dir2::Left => L::elim_move
+          (st, zip.left, zip.right,
+           /* Nil */  |st,right|          (zipper!{L::nil(st), right}          , false ),
+           /* Cons */ |st,elm,left,right| (zipper!{left, L::cons(st,elm,right)}, true  ),
+           /* Name */ |st,nm,left,right| {let zip = zipper!{left, right};
+                                          Self::goto (st, zip, Dir2::Left)}
+           ),
+        Dir2::Right => L::elim_move
+          (st, zip.right, zip.left,
+           /* Nil */ |st,left|           (zipper!{left,              L::nil(st)}, false ),
+           /* Cons */ |st,x,right,left|  (zipper!{L::cons(st,x,left),right}     , true  ),
+           /* Name */ |st,nm,right,left| {let zip = zipper!{left, right};
+                                          Self::goto (st, zip, Dir2::Right)}
+           ),
+      }
     }
 
     fn observe (st:&mut A, zip:Self::State, dir:Dir2) -> (Self::State,Option<X>) {
