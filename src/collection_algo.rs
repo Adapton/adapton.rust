@@ -219,12 +219,19 @@ pub fn tree_of_treelist_rec
     st, list, (dir_list, tree, tree_lev, parent_lev),
 
     /* Tree */
-    |st, tree2, dir_tree, rest, (dir_list, tree1, tree_lev, parent_lev)| {
+    |st, tree2, dir_tree2, rest,
+    /* Accums: */ (dir_tree1, tree1, tree_lev, parent_lev)| {
+      assert!( dir_tree1 == dir_tree2 );
+      
       // XXX Ignoring dir_tree, which may lead to ordering problems in general!
-      let tree = tree_append::<A,X,T>(st, tree1, tree2) ;
+      let tree =
+        match dir_tree1 {
+          Dir2::Left  => tree_append::<A,X,T>(st, tree1, tree2),
+          Dir2::Right => tree_append::<A,X,T>(st, tree2, tree1),
+        } ;
       // XXX Using this tree_lev is not quite right for maintaining balance;
       // XXX The level may be affected by the append on the prior line.
-      tree_of_treelist_rec::<A,X,T,L>(st, dir_list, rest, tree, tree_lev, parent_lev)
+      tree_of_treelist_rec::<A,X,T,L>(st, dir_tree1, rest, tree, tree_lev, parent_lev)
     },
     
     /* Nil */
