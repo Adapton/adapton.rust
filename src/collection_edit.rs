@@ -182,7 +182,34 @@ pub trait ListEdit<A:Adapton,X,T:TreeT<A,X>> {
 
     fn get_list<L:ListT<A,X>> (&mut A, Self::State, Dir2) -> L::List;
     fn get_tree               (&mut A, Self::State, Dir2) -> T::Tree;
+
+
+  fn insert_optnm (st:&mut A, z:Self::State, dir:Dir2, nm:Option<A::Name>, elm:X) -> Self::State {
+    match nm {
+      None => Self::insert(st, z, dir, elm),
+      Some(nm) => {
+        let z = Self::insert(st, z, dir.clone(), elm) ;
+        let z = Self::ins_cell(st, z, dir.clone(), nm.clone()) ;
+        let z = Self::ins_name(st, z, dir, nm) ;
+        z
+      }}}
+      
+  
+  fn move_optnm (st:&mut A, z:Self::State, dir:Dir2, nm:Option<A::Name>) -> (Self::State, bool) {
+    match nm {
+      None => Self::goto(st, z, dir),
+      Some(nm) => {
+        let (z, success) = Self::goto(st, z, dir.clone()) ;
+        if success {
+          let z = Self::ins_cell(st, z, dir.clone().opp(), nm.clone()) ;
+          let z = Self::ins_name(st, z, dir.opp(), nm) ;
+          (z, true)
+        } else {
+          (z, false)
+        }
+     }}}
 }
+
 
 /// Lists with a focus; suitable to implement `ListEdit`.
 #[derive(Debug,Hash,PartialEq,Eq,Clone)]
