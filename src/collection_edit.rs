@@ -349,14 +349,14 @@ impl<A:Adapton
                 (st, zip.left, zip.right,
                  |st,right|         (zipper!{L::nil(st), right}, None   ),
                  |_,x,left,right|   (zipper!{left,       right}, Some(x)),
-                 |st,nm,left,right| {let zip = zipper!{left, L::name(st,nm,right)};
+                 |st,nm,left,right| {let zip = zipper!{left, right};
                                      Self::remove (st, zip, Dir2::Left)}
                  ),
             Dir2::Right => L::elim_move
                 (st, zip.right, zip.left,
                  |st,left|          (zipper!{left, L::nil(st)}, None   ),
                  |_,x,right,left|   (zipper!{left, right},      Some(x)),
-                 |st,nm,right,left| {let zip = zipper!{L::name(st,nm,left), right};
+                 |st,nm,right,left| {let zip = zipper!{left, right};
                                      Self::remove (st, zip, Dir2::Right)}
                  ),
         }
@@ -390,7 +390,7 @@ impl<A:Adapton
                  |st,right|         (zipper!{L::nil(st), right}, None),
                  |st,x,left,right| {let x2 = x.clone();
                                     (zipper!{L::cons(st,x,left), right}, Some(x2))},
-                 |st,nm,left,right|{let zip = zipper!{left,L::name(st,nm,right)};
+                 |st,nm,left,right|{let zip = zipper!{left,right};
                                     Self::observe (st, zip, Dir2::Left)}
                  ),
             Dir2::Right => L::elim_move
@@ -398,7 +398,7 @@ impl<A:Adapton
                  |st,left|         (zipper!{left, L::nil(st)}, None),
                  |st,x,right,left| {let x2 = x.clone();
                                     (zipper!{left, L::cons(st,x,right)}, Some(x2))},
-                 |st,nm,right,left|{let zip = zipper!{L::name(st,nm,left),right};
+                 |st,nm,right,left|{let zip = zipper!{left,right};
                                     Self::observe (st, zip, Dir2::Right)}
                  ),
         }
@@ -410,14 +410,14 @@ impl<A:Adapton
                 (st, zip.left, (zip.right, y),
                  |st,(right,y)|        (zipper!{L::nil(st),         right}, y, false),
                  |st,x,left,(right,y)| (zipper!{L::cons(st,y,left), right}, x, true ),
-                 |st,nm,left,(right,y)|{let zip = zipper!{left,L::name(st,nm,right)};
+                 |st,nm,left,(right,y)|{let zip = zipper!{left,right};
                                         Self::replace (st, zip, Dir2::Left, y)}
                  ),
             Dir2::Right => L::elim_move
                 (st, zip.right, (zip.left,y),
                  |st,(left,y)|         (zipper!{left, L::nil(st)},          y, false),
                  |st,x,right,(left,y)| (zipper!{left, L::cons(st,y,right)}, x, true ),
-                 |st,nm,right,(left,y)|{let zip = zipper!{L::name(st,nm,left),right};
+                 |st,nm,right,(left,y)|{let zip = zipper!{left,right};
                                         Self::replace (st, zip, Dir2::Right, y)}
                  ),
         }
