@@ -131,10 +131,10 @@ pub trait TreeT<A:Adapton,Leaf> : Debug+Hash+PartialEq+Eq+Clone {
                  res
              },
              |st,n,x,l,r,res| {
-                 let (n1,n2,n3) = st.name_fork3(n.clone());
+                 let (n1,n2) = st.name_fork(n.clone());
                  let res = memo!(st, n1 =>> Self::fold_lr, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
-                 let res = name(st, n2, x, res);
-                 let res = memo!(st, n3 =>> Self::fold_lr, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
+                 let res = name(st, n, x, res);
+                 let res = memo!(st, n2 =>> Self::fold_lr, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
                  res
              }
              )
@@ -157,10 +157,10 @@ pub trait TreeT<A:Adapton,Leaf> : Debug+Hash+PartialEq+Eq+Clone {
                  res
              },
              |st,n,x,l,r,res| {
-                 let (n1,n2,n3) = st.name_fork3(n);
+                 let (n1,n2) = st.name_fork(n.clone());
                  let res = memo!(st, n1 =>> Self::fold_rl, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
-                 let res = name(st, n2, x, res);
-                 let res = memo!(st, n3 =>> Self::fold_rl, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
+                 let res = name(st, n, x, res);
+                 let res = memo!(st, n2 =>> Self::fold_rl, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
                  res
              }
              )
@@ -184,10 +184,10 @@ pub trait TreeT<A:Adapton,Leaf> : Debug+Hash+PartialEq+Eq+Clone {
                  res
              },
              |st,n,x,l,r| {
-                 let (n1,n2,n3) = st.name_fork3(n);
+                 let (n1,n2) = st.name_fork(n.clone());
                  let resl = memo!(st, n1 =>> Self::fold_up, tree:l ;; nil:nil, leaf:leaf, bin:bin, name:name);
                  let resr = memo!(st, n2 =>> Self::fold_up, tree:r ;; nil:nil, leaf:leaf, bin:bin, name:name);
-                 let res = name(st, n3, x, resl, resr);
+                 let res = name(st, n, x, resl, resr);
                  res
              }
              )
