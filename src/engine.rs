@@ -144,7 +144,7 @@ trait GraphNode {
     fn succs<'r>       (self:&'r Self) -> &'r Vec<Succ> ;
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 struct Frame {
     loc   : Rc<Loc>,    // The currently-executing node
     path  : Rc<Path>,   // The current path for creating new nodes; invariant: (prefix-of frame.loc.path frame.path)
@@ -401,6 +401,23 @@ mod wf {
             }
         }        
     }}
+
+  pub fn check_stack_is_clean (st:&Engine) {
+    let stack = st.stack.clone() ;
+    for frame in stack.iter() {
+      let node = match st.table.get(&frame.loc) {
+        Some(x) => x,
+        None => {
+          if &st.root == &frame.loc { return }
+          else { panic!("dangling: {:?}", &frame.loc) } }
+      } ;
+      if ! node.succs_def () { return } ;
+      for succ in node.succs () {
+        let succ = super::get_succ(st, &frame.loc, succ.effect.clone(), &succ.loc) ;
+        assert!( ! succ.dirty ); // The edge is clean.
+      }
+    }
+  }
 }
 
 // ---------- Node implementation:
@@ -686,6 +703,9 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
             } else { debug!("{} dirty_alloc: early stop", engineMsg(Some(stackLen))) }
         }
     }
+  if true /* XXX Check make this better, as a statically/dynamically-set flag? */ {
+    wf::check_stack_is_clean(st)
+  }
 }
 
 fn set_<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
