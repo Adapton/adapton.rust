@@ -8,6 +8,7 @@ use std::marker::PhantomData;
 use std::fmt::{Formatter,Result};
 use std::hash::{Hash,Hasher};
 use std::num::Zero;
+use std::env;
 
 use macros::*;
 use adapton_sigs::*;
@@ -72,6 +73,7 @@ impl Debug for ArtId {
 #[derive(Debug)]
 pub struct Flags {
     pub ignore_nominal_use_structural : bool, // Ignore the Nominal ArtIdChoice, and use Structural behavior instead
+  pub check_dcg_is_wf : bool, // After each Adapton operation, check that the DCG is well-formed
 }
 
 #[derive(Debug)]
@@ -387,7 +389,7 @@ mod wf {
         }
     }
 
-    pub fn check_dcg (st:&Engine) { if false { // XXX Find a better way of doing this, with a flag.
+    pub fn check_dcg (st:&Engine) { if st.flags.check_dcg_is_wf {
         let mut cs = HashMap::new() ;
         for frame in st.stack.iter() {
             clean(st, &mut cs, &frame.loc)
@@ -414,7 +416,7 @@ mod wf {
       if ! node.succs_def () { return } ;
       for succ in node.succs () {
         let succ = super::get_succ(st, &frame.loc, succ.effect.clone(), &succ.loc) ;
-        assert!( ! succ.dirty ); // The edge is clean.
+        assert!( succ.dirty ); // The edge is clean.
       }
     }
   }
@@ -679,6 +681,9 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
             } else { debug!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen))) }
         }
     }
+  if false /* XXX Check make this better, as a statically/dynamically-set flag? */ {
+    wf::check_stack_is_clean(st)
+  }
 }
 
 fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
@@ -703,7 +708,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
             } else { debug!("{} dirty_alloc: early stop", engineMsg(Some(stackLen))) }
         }
     }
-  if true /* XXX Check make this better, as a statically/dynamically-set flag? */ {
+  if false /* XXX Check make this better, as a statically/dynamically-set flag? */ {
     wf::check_stack_is_clean(st)
   }
 }
@@ -755,9 +760,11 @@ impl Adapton for Engine {
         stack.push( Frame{loc:root.clone(),
                           path:root.path.clone(),
                           succs:Vec::new()} ) ;
+
         Engine {
             flags : Flags {
                 ignore_nominal_use_structural : false,
+                check_dcg_is_wf : { match env::var("ADAPTON_CHECK_DCG") { Ok(val) => true, _ => false } },
             },
             root  : root,
             table : HashMap::new (),
