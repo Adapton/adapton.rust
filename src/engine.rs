@@ -404,6 +404,8 @@ mod wf {
         }        
     }}
 
+  // XXX Does not catch errors in IC_Edit that I expected it would
+  // XXX Not sure if it works as I expected
   pub fn check_stack_is_clean (st:&Engine) {
     let stack = st.stack.clone() ;
     for frame in stack.iter() {
