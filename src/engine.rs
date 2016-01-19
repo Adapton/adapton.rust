@@ -136,7 +136,7 @@ impl Debug for Path {
 }
 
 // The DCG structure consists of `GraphNode`s:
-trait GraphNode {
+trait GraphNode : Debug {
     fn preds_alloc<'r> (self:&Self) -> Vec<Rc<Loc>> ;
     fn preds_obs<'r>   (self:&Self) -> Vec<Rc<Loc>> ;
     fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>) -> () ;
@@ -155,10 +155,10 @@ struct Frame {
 
 #[derive(Debug,Clone)]
 struct Succ {
+    dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change
+    loc    : Rc<Loc>, // Target of the effect, aka, the successor, by this edge
     effect : Effect,
     dep    : Rc<Box<EngineDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
-    loc    : Rc<Loc>, // Target of the effect, aka, the successor, by this edge
-    dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change
 }
 
 #[derive(PartialEq,Eq,Debug,Clone)]
@@ -195,11 +195,11 @@ trait ShapeShifter {
     fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<GraphNode> ;
 }
 
-impl fmt::Debug for GraphNode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(GraphNode)")
-    }
-}
+// impl fmt::Debug for GraphNode {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(f, "(GraphNode)")
+//     }
+// }
 
 // Structureful (Non-opaque) nodes:
 #[allow(dead_code)] // Pure case: not introduced currently.
@@ -366,6 +366,7 @@ mod wf {
             // Todo: Assert that pred has a dirty succ edge that targets loc
             let succ = super::get_succ(st, &pred, super::Effect::Observe, loc) ;
             if succ.dirty {} else {
+                debug_dcg(st);
                 panic!("Expected dirty edge, but found clean edge: {:?} --Observe--dirty:!--> {:?}", &pred, loc);
             } ; // The edge is dirty.
             dirty(st, cs, &pred)                
@@ -404,6 +405,25 @@ mod wf {
         }        
     }}
 
+  pub fn debug_dcg (st:&Engine) {
+    let prefix = "debug_dcg::stack: " ;
+    let mut frame_num = 0;
+    for frame in st.stack.iter() {
+      println!("{} frame {}: {:?}", prefix, frame_num, frame.loc);
+      for succ in frame.succs.iter() {
+        println!("{} frame {}: \t\t {:?}", prefix, frame_num, &succ);
+      }
+    }
+    let prefix = "debug_dcg::table: " ;
+    for (loc, node) in &st.table {
+      if ! node.succs_def () { continue } ;
+      println!("{} {:?} ==> {:?}", prefix, loc, node);
+      for succ in node.succs () {
+        println!("{}\t\t{:?}", prefix, succ);
+      }
+    }      
+  }
+
   // XXX Does not catch errors in IC_Edit that I expected it would
   // XXX Not sure if it works as I expected
   pub fn check_stack_is_clean (st:&Engine) {
@@ -426,7 +446,7 @@ mod wf {
 
 // ---------- Node implementation:
 
-impl <Res> GraphNode for Node<Res> {
+impl <Res:Debug> GraphNode for Node<Res> {
     fn preds_alloc(self:&Self) -> Vec<Rc<Loc>> {
         match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
                       Node::Comp(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
@@ -716,7 +736,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
 }
 
 fn set_<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
-    debug!("{} set_: {:?} <--- {:?}", engineMsg!(st), cell, val);
+    println!("{} set_: {:?} <--- {:?}", engineMsg!(st), cell, val);
     let changed : bool = {
         let node = res_node_of_loc( st, &cell.loc ) ;
         match **node {
@@ -931,13 +951,14 @@ impl Adapton for Engine {
                 } ;
                 self.table.insert(loc.clone(),
                                   Box::new(Node::Comp(node)));
+                wf::check_dcg(self);
                 Art::Loc(loc)
             },
 
             ArtIdChoice::Nominal(nm) => {
                 let loc = loc_of_id(current_path(self),
                                     Rc::new(ArtId::Nominal(nm)));
-                debug!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
+                println!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
                          engineMsg!(self), &loc,
                          engineMsg!(self), &prog_pt.symbol,
                          engineMsg!(self), &arg);
@@ -999,7 +1020,7 @@ impl Adapton for Engine {
                 } } ;
                 if do_dirty {
                     debug!("{} alloc thunk: dirty_alloc {:?}.", engineMsg!(self), &loc);
-                    dirty_alloc(self, &loc)
+                    dirty_alloc(self, &loc);
                 } else {
                     debug!("{} alloc thunk: No dirtying.", engineMsg!(self))
                 } ;
@@ -1022,9 +1043,11 @@ impl Adapton for Engine {
                     } ;
                     self.table.insert(loc.clone(),
                                       Box::new(Node::Comp(node)));
+                    wf::check_dcg(self);
                     Art::Loc(loc)
                 }
                 else {
+                    wf::check_dcg(self);
                     Art::Loc(loc)
                 }
             }
