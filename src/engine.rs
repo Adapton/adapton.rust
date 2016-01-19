@@ -233,6 +233,7 @@ struct MutNode<T> {
 // (1) producer may change, which may affect the result and (2) the
 // values produced by the successors may change, indirectly
 // influencing how the producer produces its resulting value.
+// #[derive(Debug)]
 struct CompNode<Res> {
     preds    : Vec<(Effect, Rc<Loc>)>,
     succs    : Vec<Succ>,
@@ -413,11 +414,12 @@ mod wf {
       for succ in frame.succs.iter() {
         println!("{} frame {}: \t\t {:?}", prefix, frame_num, &succ);
       }
+      frame_num += 1;
     }
     let prefix = "debug_dcg::table: " ;
     for (loc, node) in &st.table {
-      if ! node.succs_def () { continue } ;
       println!("{} {:?} ==> {:?}", prefix, loc, node);
+      if ! node.succs_def () { continue } ;
       for succ in node.succs () {
         println!("{}\t\t{:?}", prefix, succ);
       }
@@ -505,7 +507,8 @@ impl ShapeShifter for Box<GraphNode> {
 
 impl<Res> fmt::Debug for CompNode<Res> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(CompNode)")
+      //write!(f, "(CompNode)")
+      self.producer.fmt(f)
     }
 }
 
