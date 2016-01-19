@@ -736,7 +736,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
 }
 
 fn set_<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
-    println!("{} set_: {:?} <--- {:?}", engineMsg!(st), cell, val);
+    debug!("{} set_: {:?} <--- {:?}", engineMsg!(st), cell, val);
     let changed : bool = {
         let node = res_node_of_loc( st, &cell.loc ) ;
         match **node {
@@ -958,7 +958,7 @@ impl Adapton for Engine {
             ArtIdChoice::Nominal(nm) => {
                 let loc = loc_of_id(current_path(self),
                                     Rc::new(ArtId::Nominal(nm)));
-                println!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
+                debug!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
                          engineMsg!(self), &loc,
                          engineMsg!(self), &prog_pt.symbol,
                          engineMsg!(self), &arg);
