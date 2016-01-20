@@ -150,7 +150,7 @@ trait GraphNode : Debug {
 #[derive(Debug,Clone)]
 struct Frame {
     loc   : Rc<Loc>,    // The currently-executing node
-    path  : Rc<Path>,   // The current path for creating new nodes; invariant: (prefix-of frame.loc.path frame.path)
+    //path  : Rc<Path>,   // The current path for creating new nodes; invariant: (prefix-of frame.loc.path frame.path)
     succs : Vec<Succ>,  // The currently-executing node's effects (viz., the nodes it demands)
 }
 
@@ -525,8 +525,10 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
     } ;
     revoke_succs( st, loc, &succs );
     st.stack.push ( Frame{loc:loc.clone(),
-                          path:loc.path.clone(),
+                          //path:loc.path.clone(),
                           succs:Vec::new(), } );
+    let prev_path = st.path.clone () ;
+    st.path = loc.path.clone() ;
     let producer : Box<Producer<Res>> = {
         let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
         match *node {
@@ -535,6 +537,7 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
         }
     } ;
     let res = producer.produce( st ) ;
+    st.path = prev_path ;
     let frame = match st.stack.pop() {
         None => panic!("expected Some _: stack invariants are broken"),
         Some(frame) => frame
@@ -761,14 +764,14 @@ fn set_<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
 
 
 fn current_path (st:&Engine) -> Rc<Path> {
-  if false { // Todo-Minor: Kill this dead code, once we are happy.
-    match st.stack.last() {
-        None => panic!(""),
-        Some(frame) => frame.path.clone()
-    }
-  } else {
+  // if false { // Todo-Minor: Kill this dead code, once we are happy.
+  //   match st.stack.last() {
+  //       None => panic!(""),
+  //       Some(frame) => frame.path.clone()
+  //   }
+  // } else {
     st.path.clone()
-  }  
+  //}  
 }
 
 impl Adapton for Engine {
@@ -790,7 +793,7 @@ impl Adapton for Engine {
         let mut stack = Vec::new() ;
         if false { // Todo-Minor: Kill this code once we are happy with new design.
           stack.push( Frame{loc:root.clone(),
-                            path:root.path.clone(),
+                            //path:root.path.clone(),
                             succs:Vec::new()} ) ;
         }
 
@@ -835,21 +838,21 @@ impl Adapton for Engine {
     }
 
     fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
-      if false { // Todo-Minor: Kill this dead code, once we are happy.
-        let path = match self.stack.last() { None => unreachable!(), Some(frame) => frame.path.clone() } ;
-        let path_body = Rc::new(Path::Child(path, nm)) ;
-        let path_pre = match self.stack.last_mut() { None => unreachable!(), Some(frame) => replace(&mut frame.path, path_body) } ;
-        let x = body(self) ;
-        let path_body = match self.stack.last_mut() { None => unreachable!(), Some(frame) => replace(&mut frame.path, path_pre) } ;
-        drop(path_body);
-        x
-      } else {
+      // if false { // Todo-Minor: Kill this dead code, once we are happy.
+      //   let path = match self.stack.last() { None => unreachable!(), Some(frame) => frame.path.clone() } ;
+      //   let path_body = Rc::new(Path::Child(path, nm)) ;
+      //   let path_pre = match self.stack.last_mut() { None => unreachable!(), Some(frame) => replace(&mut frame.path, path_body) } ;
+      //   let x = body(self) ;
+      //   let path_body = match self.stack.last_mut() { None => unreachable!(), Some(frame) => replace(&mut frame.path, path_pre) } ;
+      //   drop(path_body);
+      //   x
+      // } else {
         let base_path = self.path.clone();
         self.path = Rc::new(Path::Child(self.path.clone(), nm)) ; // Todo-Minor: Avoid this clone.
         let x = body(self) ;
         self.path = base_path ;
         x
-      }
+      //}
     }
 
     fn cnt<Res,F> (self: &mut Self, body:F) -> (Res,Cnt)
@@ -1028,7 +1031,7 @@ impl Adapton for Engine {
                                         (true, false)
                                     }}
                                 else {
-                                  panic!("TODO-Sometime: Memozied functions not equal!\nwas:{:?} \tProducer:{:?}\nnow:{:?} \tProducer:{:?}\nCommon location:{:?}\nHint:Consider using namespaces, via `Adapton::ns`\n",
+                                  panic!("TODO-Sometime: Memozied functions not equal!\nFunction was:{:?} \tProducer:{:?}\nFunction now:{:?} \tProducer:{:?}\nCommon location:{:?}\nHint:Consider using distinct namespaces, via `Adapton::ns`\n",
                                          comp_nd.producer.prog_pt(), &comp_nd.producer,
                                          producer.prog_pt(), &producer,
                                          &loc,
