@@ -1028,9 +1028,10 @@ impl Adapton for Engine {
                                         (true, false)
                                     }}
                                 else {
-                                  panic!("TODO-Sometime: Memozied functions not equal!\nwas:{:?} \tProducer:{:?}\nnow:{:?} \tProducer:{:?}\nHint:Consider using namespaces, via `Adapton::ns`\n",
+                                  panic!("TODO-Sometime: Memozied functions not equal!\nwas:{:?} \tProducer:{:?}\nnow:{:?} \tProducer:{:?}\nCommon location:{:?}\nHint:Consider using namespaces, via `Adapton::ns`\n",
                                          comp_nd.producer.prog_pt(), &comp_nd.producer,
                                          producer.prog_pt(), &producer,
+                                         &loc,
                                          )
                                 }
                             },
