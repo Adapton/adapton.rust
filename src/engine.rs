@@ -381,7 +381,7 @@ mod wf {
         let node = match st.table.get(loc) {
             Some(x) => x,
             None => {
-                if &st.root == loc { return }
+                if &st.root == loc { return } // Todo-Question: Dead code?
                 else { panic!("dangling: {:?}", loc) } }
         } ;
         if ! node.succs_def () { return } ;
@@ -435,7 +435,7 @@ mod wf {
       let node = match st.table.get(&frame.loc) {
         Some(x) => x,
         None => {
-          if &st.root == &frame.loc { return }
+          if &st.root == &frame.loc { return } // Todo-Question: Dead code?
           else { panic!("dangling: {:?}", &frame.loc) } }
       } ;
       if ! node.succs_def () { return } ;
@@ -691,7 +691,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
     let stackLen = st.stack.len() ;
     let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs() ;
     for pred_loc in pred_locs {
-        if st.root.eq (&pred_loc) { panic!("root in preds") }
+        if st.root.eq (&pred_loc) { panic!("root in preds") } // Todo-Question: Dead code?
         else {
             let stop : bool = {
                 // The stop bit communicates information from st for use below.
@@ -718,7 +718,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
     let stackLen = st.stack.len() ;
     let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc() ;
     for pred_loc in pred_locs {
-        if st.root.eq (&pred_loc) { panic!("root in preds") }
+        if st.root.eq (&pred_loc) { panic!("root in preds") } // Todo-Question: Dead code?
         else {
             let stop : bool = {
                 // The stop bit communicates information from st for use below.
@@ -761,10 +761,14 @@ fn set_<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
 
 
 fn current_path (st:&Engine) -> Rc<Path> {
+  if false { // Todo-Minor: Kill this dead code, once we are happy.
     match st.stack.last() {
         None => panic!(""),
         Some(frame) => frame.path.clone()
     }
+  } else {
+    st.path.clone()
+  }  
 }
 
 impl Adapton for Engine {
@@ -784,16 +788,18 @@ impl Adapton for Engine {
             loc
         } ;
         let mut stack = Vec::new() ;
-        stack.push( Frame{loc:root.clone(),
-                          path:root.path.clone(),
-                          succs:Vec::new()} ) ;
+        if false { // Todo-Minor: Kill this code once we are happy with new design.
+          stack.push( Frame{loc:root.clone(),
+                            path:root.path.clone(),
+                            succs:Vec::new()} ) ;
+        }
 
         Engine {
             flags : Flags {
                 ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true, _ => false } },
                 check_dcg_is_wf               : { match env::var("ADAPTON_CHECK_DCG")  { Ok(val) => true, _ => false } },
             },
-            root  : root,
+            root  : root, // Todo-Question: Don't need this?
             table : HashMap::new (),
             stack : stack,
             path  : path,
@@ -829,6 +835,7 @@ impl Adapton for Engine {
     }
 
     fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
+      if false { // Todo-Minor: Kill this dead code, once we are happy.
         let path = match self.stack.last() { None => unreachable!(), Some(frame) => frame.path.clone() } ;
         let path_body = Rc::new(Path::Child(path, nm)) ;
         let path_pre = match self.stack.last_mut() { None => unreachable!(), Some(frame) => replace(&mut frame.path, path_body) } ;
@@ -836,6 +843,13 @@ impl Adapton for Engine {
         let path_body = match self.stack.last_mut() { None => unreachable!(), Some(frame) => replace(&mut frame.path, path_pre) } ;
         drop(path_body);
         x
+      } else {
+        let base_path = self.path.clone();
+        self.path = Rc::new(Path::Child(self.path.clone(), nm)) ; // Todo-Minor: Avoid this clone.
+        let x = body(self) ;
+        self.path = base_path ;
+        x
+      }
     }
 
     fn cnt<Res,F> (self: &mut Self, body:F) -> (Res,Cnt)
