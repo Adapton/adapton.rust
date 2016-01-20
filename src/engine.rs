@@ -82,6 +82,7 @@ pub struct Engine {
     root  : Rc<Loc>,
     table : HashMap<Rc<Loc>, Box<GraphNode>>,
     stack : Vec<Frame>,
+    path  : Rc<Path>,
     cnt   : Cnt,
 }
 
@@ -771,8 +772,9 @@ impl Adapton for Engine {
     type Loc  = Loc;
 
     fn new () -> Engine {
+        let path = Rc::new(Path::Empty);
         let root = {
-            let path   = Rc::new(Path::Empty);
+            let path   = path.clone();
             let symbol = Rc::new(NameSym::Root);
             let hash   = my_hash(&symbol);
             let name   = Name{symbol:symbol,hash:hash};
@@ -788,12 +790,13 @@ impl Adapton for Engine {
 
         Engine {
             flags : Flags {
-                ignore_nominal_use_structural : false,
-                check_dcg_is_wf : { match env::var("ADAPTON_CHECK_DCG") { Ok(val) => true, _ => false } },
+                ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true, _ => false } },
+                check_dcg_is_wf               : { match env::var("ADAPTON_CHECK_DCG")  { Ok(val) => true, _ => false } },
             },
             root  : root,
             table : HashMap::new (),
             stack : stack,
+            path  : path,
             cnt   : Cnt::zero (),
         }
     }
