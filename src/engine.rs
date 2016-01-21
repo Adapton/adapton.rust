@@ -74,6 +74,7 @@ impl Debug for ArtId {
 pub struct Flags {
     pub ignore_nominal_use_structural : bool, // Ignore the Nominal ArtIdChoice, and use Structural behavior instead
   pub check_dcg_is_wf : bool, // After each Adapton operation, check that the DCG is well-formed
+  pub write_dcg : bool, // Within each well-formedness check, write the DCG to the local filesystem
 }
 
 #[derive(Debug)]
@@ -84,6 +85,7 @@ pub struct Engine {
     stack : Vec<Frame>,
     path  : Rc<Path>,
     cnt   : Cnt,
+    dcg_count : usize,
 }
 
 impl Hash  for     Engine { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
@@ -333,6 +335,10 @@ fn res_node_of_loc<'r,Res> (st:&'r mut Engine, loc:&Rc<Loc>) -> &'r mut Box<Node
 mod wf {
     use std::collections::HashMap;
     use std::rc::Rc;
+    use std::io;
+  use std::io::prelude::*;
+  use std::io::BufWriter;
+  use std::fs::File;
 
     use super::*;
 
@@ -369,6 +375,7 @@ mod wf {
             let succ = super::get_succ(st, &pred, super::Effect::Observe, loc) ;
             if succ.dirty {} else {
                 debug_dcg(st);
+                write_next_dcg(st, None);
                 panic!("Expected dirty edge, but found clean edge: {:?} --Observe--dirty:!--> {:?}", &pred, loc);
             } ; // The edge is dirty.
             dirty(st, cs, &pred)                
@@ -392,7 +399,13 @@ mod wf {
         }
     }
 
-    pub fn check_dcg (st:&Engine) { if st.flags.check_dcg_is_wf {
+  pub fn check_dcg (st:&mut Engine) {
+    if st.flags.write_dcg {
+      let dcg_count = st.dcg_count;
+      st.dcg_count += 1;
+      write_next_dcg(st, Some(dcg_count));
+    } ;
+    if st.flags.check_dcg_is_wf {
         let mut cs = HashMap::new() ;
         for frame in st.stack.iter() {
             clean(st, &mut cs, &frame.loc)
@@ -407,6 +420,43 @@ mod wf {
         }        
     }}
 
+  pub fn write_next_dcg (st:&Engine, num:Option<usize>) {
+    let name = match num {
+      None => format!("adapton-dcg.dot"),
+      Some(n) => format!("adapton-dcg-{:08}.dot", n),
+    } ;
+    let mut file = File::create(name).unwrap() ;
+    write_dcg_file(st, &mut file);
+  }
+  
+  pub fn write_dcg_file (st:&Engine, file:&mut File) {
+    let mut writer = BufWriter::new(file);
+    writeln!(&mut writer, "digraph {{\n").unwrap();
+    writeln!(&mut writer, "ordering=out;").unwrap();
+    let mut frame_num = 0;
+    for frame in st.stack.iter() {
+      writeln!(&mut writer, "\"{:?}\" [color=blue,penwidth=10];", frame.loc);
+      for succ in frame.succs.iter() {
+        writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=blue,weight=10,penwidth=10];", &frame.loc, &succ.loc).unwrap();
+      }
+      frame_num += 1;
+    };
+    for (loc, node) in &st.table {
+      if ! node.succs_def () {
+        writeln!(&mut writer, "\"{:?}\" [shape=box];", loc).unwrap();
+        continue;
+      } ;
+      for succ in node.succs () {
+        if succ.dirty {
+          writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=red,weight=5,penwidth=5];", &loc, &succ.loc).unwrap();
+        } else {
+          writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [weight={}];", &loc, &succ.loc, (match succ.effect { super::Effect::Observe => 0.1, super::Effect::Allocate => 2.0 }) ).unwrap();
+        }
+      }
+    }
+    writeln!(&mut writer, "}}\n").unwrap();
+  }
+  
   pub fn debug_dcg (st:&Engine) {
     let prefix = "debug_dcg::stack: " ;
     let mut frame_num = 0;
@@ -801,12 +851,14 @@ impl Adapton for Engine {
             flags : Flags {
                 ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true, _ => false } },
                 check_dcg_is_wf               : { match env::var("ADAPTON_CHECK_DCG")  { Ok(val) => true, _ => false } },
+                write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(val) => true, _ => false } },
             },
             root  : root, // Todo-Question: Don't need this?
             table : HashMap::new (),
             stack : stack,
             path  : path,
             cnt   : Cnt::zero (),
+            dcg_count : 0,
         }
     }
 
