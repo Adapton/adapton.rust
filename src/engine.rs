@@ -924,6 +924,14 @@ impl Adapton for Engine {
                 symbol:Rc::new(NameSym::ForkR(nm.symbol)) } )
     }
 
+    fn structural<T,F> (self: &mut Self, body:F) -> T where F:FnOnce(&mut Self) -> T {
+      let saved = self.flags.ignore_nominal_use_structural ;
+      self.flags.ignore_nominal_use_structural = true ;
+      let x = body(self) ;
+      self.flags.ignore_nominal_use_structural = saved;
+      x
+    }
+  
     fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
       // if false { // Todo-Minor: Kill this dead code, once we are happy.
       //   let path = match self.stack.last() { None => unreachable!(), Some(frame) => frame.path.clone() } ;
@@ -959,7 +967,14 @@ impl Adapton for Engine {
         (self:&mut Engine, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
             wf::check_dcg(self);
             let path = current_path(self) ;
-            let id   = Rc::new(ArtId::Nominal(nm));
+            let id   = {
+              if ! self.flags.ignore_nominal_use_structural {
+                Rc::new(ArtId::Nominal(nm)) // Ordinary case: Use provided name.
+              } else {
+                let hash = my_hash (&val) ;           
+                Rc::new(ArtId::Structural(hash)) // Ignore the name; do hash-consing instead.
+              }
+            };            
             let hash = my_hash(&(&path,&id));
             let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
             debug!("{} alloc cell: {:?} <--- {:?}", engineMsg!(self), &loc, &val);

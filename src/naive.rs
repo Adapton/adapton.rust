@@ -43,6 +43,7 @@ impl Adapton for AdaptonFromScratch {
     fn name_pair (self: &mut AdaptonFromScratch, _fst:Name, _snd:Name) -> Name { Name }
     fn name_fork (self:&mut AdaptonFromScratch, _nm:Name) -> (Name, Name) { (Name,Name) }
     fn ns<T,F> (self: &mut AdaptonFromScratch, _nm:Name, body:F) -> T where F:FnOnce(&mut AdaptonFromScratch) -> T { body(self) }
+    fn structural<T,F> (self: &mut AdaptonFromScratch, body:F) -> T where F:FnOnce(&mut AdaptonFromScratch) -> T { body(self) }
     fn cnt<Res,F> (self: &mut AdaptonFromScratch, body:F) -> (Res,Cnt) where F:FnOnce(&mut AdaptonFromScratch) -> Res {
         let c = self.cnt.clone();
         let x = body(self);

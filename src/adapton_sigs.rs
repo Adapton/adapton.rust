@@ -49,7 +49,11 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     
     /// Creates or re-enters a given namespace; performs the given computation there.
     fn ns<T,F> (self: &mut Self, Self::Name, body:F) -> T
-        where F:FnOnce(&mut Self) -> T ;
+      where F:FnOnce(&mut Self) -> T ;
+  
+    /// Enters a special "namespace" where all name uses are ignored; instead, Adapton uses structural identity.
+    fn structural<T,F> (self: &mut Self, body:F) -> T
+      where F:FnOnce(&mut Self) -> T ;
 
     fn cnt<Res,F> (self: &mut Self, body:F) -> (Res, Cnt)
         where F:FnOnce(&mut Self) -> Res ;
