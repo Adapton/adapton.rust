@@ -142,6 +142,7 @@ pub fn tree_of_list_rec
 
         /* Cons */
         |st, hd, rest, (dir_list, tree, tree_lev, parent_lev)| {
+                                                               
             let lev_hd = T::lev_inc ( &T::lev(&hd) ) ;
             if T::lev_lte ( &tree_lev , &lev_hd ) && T::lev_lte ( &lev_hd , &parent_lev ) {
                 let leaf = T::leaf(st, hd) ;

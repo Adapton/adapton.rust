@@ -2,7 +2,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
-    
+
 use macros::* ;
 use adapton_sigs::* ;
 use collection_traits::*;

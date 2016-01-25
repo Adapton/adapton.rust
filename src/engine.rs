@@ -450,7 +450,12 @@ mod wf {
         if succ.dirty {
           writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=red,weight=5,penwidth=5];", &loc, &succ.loc).unwrap();
         } else {
-          writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [weight={}];", &loc, &succ.loc, (match succ.effect { super::Effect::Observe => 0.1, super::Effect::Allocate => 2.0 }) ).unwrap();
+          let (weight, penwidth, color) =
+            match succ.effect {
+              super::Effect::Observe => (0.1, 1, "grey"),
+              super::Effect::Allocate => (2.0, 3, "darkgreen") } ;
+          writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [weight={},penwidth={},color={}];",
+                   &loc, &succ.loc, weight, penwidth, color).unwrap();
         }
       }
     }
@@ -956,12 +961,15 @@ impl Adapton for Engine {
                 debug!("{} alloc cell: edge: {:?} --> {:?}", engineMsg(Some(stackLen)), &frame.loc, &loc);
                 frame.succs.push(succ)
             }} ;
+            wf::check_dcg(self);
             MutArt{loc:loc,phantom:PhantomData}
         }
 
     fn set<T:Eq+Debug> (self:&mut Self, cell:MutArt<T,Self::Loc>, val:T) {
+        wf::check_dcg(self);
         assert!( self.stack.is_empty() ); // => outer layer has control.
         set_(self, cell, val);
+        wf::check_dcg(self);
     }
 
     fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+'static>
@@ -985,6 +993,7 @@ impl Adapton for Engine {
             },
 
             ArtIdChoice::Structural => {
+                wf::check_dcg(self);
                 let hash = my_hash (&(&prog_pt, &arg)) ;
                 let loc = loc_of_id(current_path(self),
                                     Rc::new(ArtId::Structural(hash)));
@@ -1031,6 +1040,7 @@ impl Adapton for Engine {
             },
 
             ArtIdChoice::Nominal(nm) => {
+                wf::check_dcg(self);
                 let loc = loc_of_id(current_path(self),
                                     Rc::new(ArtId::Nominal(nm)));
                 debug!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
@@ -1183,9 +1193,8 @@ impl Adapton for Engine {
                              dirty:false};
                     frame.succs.push(succ);
                 }} ;
+                wf::check_dcg(self);
                 result
             }
         }}
 }
-
-pub fn main () { }
