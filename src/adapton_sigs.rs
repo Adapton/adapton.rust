@@ -58,13 +58,13 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> Art<T,Self::Loc> ;
 
     /// Creates a mutable articulation.
-    fn cell<T:Eq+Debug+Clone> (self:&mut Self, Self::Name, T) -> MutArt<T,Self::Loc> ;
+    fn cell<T:Eq+Debug+Clone+Hash> (self:&mut Self, Self::Name, T) -> MutArt<T,Self::Loc> ;
 
     /// Mutates a mutable articulation.
     fn set<T:Eq+Debug+Clone> (self:&mut Self, MutArt<T,Self::Loc>, T) ;
 
     /// Creates an articulated computation.
-    fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone>
+    fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone+Hash>
         (self:&mut Self,
          id:ArtIdChoice<Self::Name>,
          prog_pt:ProgPt,
@@ -73,7 +73,7 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
          -> Art<Res,Self::Loc> ;
 
     /// Demand & observe arts (all kinds): force
-    fn force<T:Eq+Debug+Clone> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
+    fn force<T:Eq+Debug+Clone+Hash> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
   
 
     ///  # Derived fork functions:

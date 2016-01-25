@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::fmt;
 use std::marker::PhantomData;
 use std::fmt::{Formatter,Result};
-use std::hash::{Hash,Hasher};
+use std::hash::{Hash,Hasher,SipHasher};
 use std::num::Zero;
 use std::env;
 
@@ -86,6 +86,7 @@ pub struct Engine {
     path  : Rc<Path>,
     cnt   : Cnt,
     dcg_count : usize,
+    dcg_hash  : u64,
 }
 
 impl Hash  for     Engine { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
@@ -147,6 +148,7 @@ trait GraphNode : Debug {
     fn succs_def<'r>   (self:&Self) -> bool ;
     fn succs_mut<'r>   (self:&'r mut Self) -> &'r mut Vec<Succ> ;
     fn succs<'r>       (self:&'r Self) -> &'r Vec<Succ> ;
+    fn hash_seeded     (self:&Self, u64) -> u64 ;
 }
 
 #[derive(Debug,Clone)]
@@ -164,7 +166,7 @@ struct Succ {
     dep    : Rc<Box<EngineDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
 }
 
-#[derive(PartialEq,Eq,Debug,Clone)]
+#[derive(PartialEq,Eq,Debug,Clone,Hash)]
 enum Effect {
     Observe,
     Allocate,
@@ -178,6 +180,13 @@ trait EngineDep : Debug {
     fn change_prop (self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes ;
 }
 
+impl Hash for Succ {
+  fn hash<H>(&self, hasher: &mut H) where H: Hasher {
+    self.dirty.hash( hasher );
+    self.loc.hash( hasher );
+    self.effect.hash( hasher );
+  }
+}
 
 // ----------------------------------------------------------------------------------------------------
 
@@ -206,7 +215,7 @@ trait ShapeShifter {
 
 // Structureful (Non-opaque) nodes:
 #[allow(dead_code)] // Pure case: not introduced currently.
-#[derive(Debug)]
+#[derive(Debug,Hash)]
 enum Node<Res> {
     Comp(CompNode<Res>),
     Pure(PureNode<Res>),
@@ -216,7 +225,7 @@ enum Node<Res> {
 
 // PureNode<T> for pure hash-consing of T's.
 // Location in table never changes value.
-#[derive(Debug)]
+#[derive(Debug,Hash)]
 struct PureNode<T> {
     val : T,
 }
@@ -225,7 +234,7 @@ struct PureNode<T> {
 // The set operation mutates a MutNode; set may only be called by *outer* Rust environment.
 // Its notable that the CompNodes' producers do not directly change the value of MutNodes with set.
 // They may indirectly mutate these nodes by performing nominal allocation; mutation is limited to "one-shot" changes.
-#[derive(Debug)]
+#[derive(Debug,Hash)]
 struct MutNode<T> {
     preds : Vec<(Effect,Rc<Loc>)>,
     val   : T,
@@ -236,7 +245,6 @@ struct MutNode<T> {
 // (1) producer may change, which may affect the result and (2) the
 // values produced by the successors may change, indirectly
 // influencing how the producer produces its resulting value.
-// #[derive(Debug)]
 struct CompNode<Res> {
     preds    : Vec<(Effect, Rc<Loc>)>,
     succs    : Vec<Succ>,
@@ -276,7 +284,7 @@ impl<Arg:Hash+Debug,Spurious,Res> Hash for App<Arg,Spurious,Res> {
 
 // ---------- App implementation of Producer and Consumer traits:
 
-impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Debug> Producer<Res>
+impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Debug+Hash> Producer<Res>
     for App<Arg,Spurious,Res>
 {
     fn produce(self:&Self, st:&mut Engine) -> Res {
@@ -339,6 +347,7 @@ mod wf {
   use std::io::prelude::*;
   use std::io::BufWriter;
   use std::fs::File;
+  use macros::*;
 
     use super::*;
 
@@ -401,9 +410,14 @@ mod wf {
 
   pub fn check_dcg (st:&mut Engine) {
     if st.flags.write_dcg {
-      let dcg_count = st.dcg_count;
-      st.dcg_count += 1;
-      write_next_dcg(st, Some(dcg_count));
+      let dcg_hash = my_hash(format!("{:?}",st.table)); // XXX: This assumes that the table's debugging string identifies it uniquely
+      if dcg_hash != st.dcg_hash {
+        println!("adapton: dcg #{} hash: {:?}", st.dcg_count, dcg_hash);
+        st.dcg_hash = dcg_hash;
+        let dcg_count = st.dcg_count;
+        st.dcg_count += 1;
+        write_next_dcg(st, Some(dcg_count));
+      }
     } ;
     if st.flags.check_dcg_is_wf {
         let mut cs = HashMap::new() ;
@@ -504,7 +518,7 @@ mod wf {
 
 // ---------- Node implementation:
 
-impl <Res:Debug> GraphNode for Node<Res> {
+impl <Res:Debug+Hash> GraphNode for Node<Res> {
     fn preds_alloc(self:&Self) -> Vec<Rc<Loc>> {
         match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
                       Node::Comp(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
@@ -543,6 +557,12 @@ impl <Res:Debug> GraphNode for Node<Res> {
                       _ => panic!("undefined"),
         }
     }
+  fn hash_seeded(self:&Self, seed:u64) -> u64 {
+    let mut hasher = SipHasher::new();
+    seed.hash(&mut hasher);
+    self.hash(&mut hasher);
+    hasher.finish()
+  }
 }
 
 impl <Res> ShapeShifter for Box<Node<Res>> {
@@ -568,9 +588,18 @@ impl<Res> fmt::Debug for CompNode<Res> {
     }
 }
 
+impl<Res:Hash> Hash for CompNode<Res> {
+    fn hash<H:Hasher>(&self, h: &mut H) {
+      self.preds.hash(h);
+      self.succs.hash(h);
+      self.res.hash(h);
+      (format!("{:?}",self.producer)).hash(h); // Todo-Later: This defines hash value based on debug string for producer.
+    }
+}
+
 // Performs the computation at loc, produces a result of type Res.
 // Error if loc is not a Node::Comp.
-fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -> Res
+fn produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(st:&mut Engine, loc:&Rc<Loc>) -> Res
 {
     debug!("{} produce begin: {:?}", engineMsg!(st), &loc);
     let succs : Vec<Succ> = {
@@ -628,7 +657,7 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone>(st:&mut Engine, loc:&Rc<Loc>) -
 #[derive(Debug)]
 struct ProducerDep<T> { res:T }
 
-fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq>
+fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
     (st:&mut Engine, this_dep:&ProducerDep<Res>, loc:&Rc<Loc>, cache:Res, succs:Vec<Succ>) -> EngineRes
 {
     st.cnt.change_prop += 1 ;
@@ -660,7 +689,7 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq>
     EngineRes{changed:changed}
 }
 
-impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone>
+impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
     EngineDep for ProducerDep<Res>
 {
     fn change_prop(self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes {
@@ -851,7 +880,7 @@ impl Adapton for Engine {
                             //path:root.path.clone(),
                             succs:Vec::new()} ) ;
         }
-
+        let table = HashMap::new ();
         Engine {
             flags : Flags {
                 ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true, _ => false } },
@@ -859,11 +888,12 @@ impl Adapton for Engine {
                 write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(val) => true, _ => false } },
             },
             root  : root, // Todo-Question: Don't need this?
-            table : HashMap::new (),
+            table : table,
             stack : stack,
             path  : path,
             cnt   : Cnt::zero (),
             dcg_count : 0,
+            dcg_hash : 0, // XXX This makes assumptions about hashing implementation
         }
     }
 
@@ -923,7 +953,7 @@ impl Adapton for Engine {
 
     fn put<T:Eq> (self:&mut Engine, x:T) -> Art<T,Self::Loc> { Art::Rc(Rc::new(x)) }
 
-    fn cell<T:Eq+Debug+Clone
+    fn cell<T:Eq+Debug+Clone+Hash
         +'static // TODO-Later: Needed on T because of lifetime issues.
         >
         (self:&mut Engine, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
@@ -972,7 +1002,7 @@ impl Adapton for Engine {
         wf::check_dcg(self);
     }
 
-    fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+'static>
+    fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+Hash+'static>
         (self:&mut Engine,
          id:ArtIdChoice<Self::Name>,
          prog_pt:ProgPt,
@@ -1140,7 +1170,7 @@ impl Adapton for Engine {
         }
     }
 
-    fn force<T:'static+Eq+Debug+Clone> (self:&mut Engine,
+    fn force<T:'static+Eq+Debug+Clone+Hash> (self:&mut Engine,
                                         art:&Art<T,Self::Loc>) -> T
     {
         wf::check_dcg(self);

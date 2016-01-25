@@ -70,7 +70,7 @@ pub trait ExperimentT<A:Adapton,X,Tree:TreeT<A,X>,Out> {
 pub fn eval_edit<A:Adapton,X,T:TreeT<A,X>,E:ListEdit<A,X,T>> (st:&mut A, edit:CursorEdit<X,Dir2>, z:E::State, id:usize) -> E::State {
     match edit {
         CursorEdit::Insert(dir,x) => {
-            let z = E::clr_names(st, z, dir.clone()) ;
+            //let z = E::clr_names(st, z, dir.clone()) ;
             let n = A::name_of_usize(st, id);
             let m = A::name_of_string(st, format!("input{}", id)) ;
             let z = E::ins_cell(st, z, dir.clone(), m) ;
@@ -251,25 +251,26 @@ impl<A:Adapton
     // XXX
     // type Tree=T;
     
-    fn clr_names (st:&mut A, zip:Self::State, dir:Dir2) -> Self::State {
-        match dir {
-            Dir2::Left => L::elim_move
-                (st, zip.left, zip.right,
-                 |st,right| zipper!{L::nil(st), right},
-                 |st,x,left,right| zipper!{L::cons(st,x,left), right},
-                 |st,nm,left,right| {
-                     let right = L::name(st,nm,right);
-                     Self::clr_names(st, zipper!{left, right}, dir)}
-                 ),
-            Dir2::Right => L::elim_move
-                (st, zip.right, zip.left,
-                 |st,left| zipper!{left, L::nil(st)},
-                 |st,x,right,left| zipper!{left, L::cons(st,x,right)},
-                 |st,nm,right,left| {
-                     let left = L::name(st,nm,left);
-                     Self::clr_names(st, zipper!{left, right}, dir)}
-                 ),
-        }
+  fn clr_names (st:&mut A, zip:Self::State, dir:Dir2) -> Self::State {
+    panic!("clr_names generally re-associates names");
+        // match dir {
+        //     Dir2::Left => L::elim_move
+        //         (st, zip.left, zip.right,
+        //          |st,right| zipper!{L::nil(st), right},
+        //          |st,x,left,right| zipper!{L::cons(st,x,left), right},
+        //          |st,nm,left,right| {
+        //              let right = L::name(st,nm,right);
+        //              Self::clr_names(st, zipper!{left, right}, dir)}
+        //          ),
+        //     Dir2::Right => L::elim_move
+        //         (st, zip.right, zip.left,
+        //          |st,left| zipper!{left, L::nil(st)},
+        //          |st,x,right,left| zipper!{left, L::cons(st,x,right)},
+        //          |st,nm,right,left| {
+        //              let left = L::name(st,nm,left);
+        //              Self::clr_names(st, zipper!{left, right}, dir)}
+        //          ),
+        // }
     }
 
     fn ins_tree (st:&mut A, zip:Self::State, ins_dir:Dir2, tree:T::Tree, tree_dir:Dir2) -> Self::State {
