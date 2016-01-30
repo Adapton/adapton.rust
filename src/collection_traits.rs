@@ -5,8 +5,8 @@ use std::rc::Rc;
     
 use macros::* ;
 use adapton_sigs::* ;
-use quickcheck::Arbitrary;
-use quickcheck::Gen;
+// use quickcheck::Arbitrary;
+// use quickcheck::Gen;
 use std::num::Zero;
 use rand::{Rng,Rand};
 
@@ -295,15 +295,15 @@ impl Rand for Dir2 {
     }
 }
 
-impl Arbitrary for Dir2 {
-    fn arbitrary<G:Gen> (g: &mut G) -> Self {
-        if g.gen() { Dir2::Left  }
-        else       { Dir2::Right }
-    }
-    fn shrink(&self) -> Box<Iterator<Item=Self>> {
-        match *self {
-            Dir2::Right => Box::new(Some(Dir2::Left).into_iter()),
-            Dir2::Left  => Box::new(None.into_iter())
-        }
-    }
-}
+// impl Arbitrary for Dir2 {
+//     fn arbitrary<G:Gen> (g: &mut G) -> Self {
+//         if g.gen() { Dir2::Left  }
+//         else       { Dir2::Right }
+//     }
+//     fn shrink(&self) -> Box<Iterator<Item=Self>> {
+//         match *self {
+//             Dir2::Right => Box::new(Some(Dir2::Left).into_iter()),
+//             Dir2::Left  => Box::new(None.into_iter())
+//         }
+//     }
+// }

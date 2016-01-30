@@ -7,10 +7,10 @@ use macros::* ;
 use adapton_sigs::* ;
 use collection_traits::*;
 use collection_algo::*;
-use quickcheck::Arbitrary;
-use quickcheck::Gen;
+// use quickcheck::Arbitrary;
+// use quickcheck::Gen;
 use std::num::Zero;
-use std::ops::Add;    
+use std::ops::{Add,Rem};
 use rand::{Rng,Rand};
 use std::marker::PhantomData;
 
@@ -43,23 +43,20 @@ pub enum ListReduce {
     Tree(ListTransf, Option<usize>),
 }
 
-impl<X:Arbitrary+Sized+Rand>
-    Arbitrary for CursorEdit<X,Dir2>
+impl Rand for CursorEdit<u32,Dir2>
 {
-    fn arbitrary<G:Gen> (g: &mut G) -> Self {
-        //match Rand::rand(g) as ListEditCmd<X,Name> {
-        match g.gen_range(0, 100) {
-            0  ... 50  => { CursorEdit::Insert (Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
-            50 ... 60  => { CursorEdit::Remove (Arbitrary::arbitrary(g)) },
-            60 ... 70  => { CursorEdit::Replace(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)) },
-            70 ... 95 =>  { CursorEdit::Goto   (Dir2::Right) },
-            95 ... 100 => { CursorEdit::Goto   (Dir2::Left)  },
-            _ => unreachable!()
-        }
+  fn rand<R:Rng> (r: &mut R) -> Self {
+    let m : u32 = 1024 * 1024 ;
+    let n : u32 = Rand::rand(r) ;
+    match r.gen_range(0, 100) {
+      0  ... 50  => { CursorEdit::Insert (Rand::rand(r), n % m) },
+      50 ... 60  => { CursorEdit::Remove (Rand::rand(r)) },
+      60 ... 70  => { CursorEdit::Replace(Rand::rand(r), n % m) },
+      70 ... 95 =>  { CursorEdit::Goto   (Dir2::Right) },
+      95 ... 100 => { CursorEdit::Goto   (Dir2::Left)  },
+      _ => unreachable!()
     }
-    fn shrink(&self) -> Box<Iterator<Item=Self>> {
-        Box::new(None.into_iter())
-    }
+  }
 }
 
 pub trait ExperimentT<A:Adapton,X,Tree:TreeT<A,X>,Out> {

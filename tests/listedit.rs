@@ -12,11 +12,12 @@
 
 extern crate adapton ;
 extern crate test;
-extern crate quickcheck;
+// extern crate quickcheck;
 extern crate rand;
 
 use std::num::Zero;
 use std::ops::Add;    
+use rand::Rand;
 
 use adapton::adapton_sigs::* ;
 use adapton::collection_traits::*;
@@ -130,12 +131,14 @@ fn compare_naive_and_cached(edits: &Edits, view:&ListReduce) -> bool {
 }
 
 fn ensure_consistency_randomly(size:usize, iterations:usize, view:&ListReduce) {
-    let rng = rand::thread_rng();
-    let mut gen = quickcheck::StdGen::new(rng, size);
-    for _ in 0..iterations {
-        let testv = Box::new(<Edits as quickcheck::Arbitrary>::arbitrary(&mut gen));
-        assert!( compare_naive_and_cached(&*testv, view) )
-    }
+  let mut rng = rand::thread_rng();
+  let mut testv = vec![ ];
+  for i in 0..size {
+    testv.push(<CursorEdit<u32,Dir2> as Rand>::rand(&mut rng))
+  };  
+  for _ in 0..iterations {
+    assert!( compare_naive_and_cached(&testv, view) )
+  }
 }
 
 //#[ignore]

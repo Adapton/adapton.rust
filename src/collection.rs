@@ -6,8 +6,8 @@ use std::rc::Rc;
 use macros::* ;
 use adapton_sigs::* ;
 use collection_traits::*;
-use quickcheck::Arbitrary;
-use quickcheck::Gen;
+// use quickcheck::Arbitrary;
+// use quickcheck::Gen;
 use std::num::Zero;
 
 use rand::{Rng,Rand};

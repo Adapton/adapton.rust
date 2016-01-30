@@ -10,7 +10,7 @@
 #![crate_name = "adapton"]
 #![crate_type = "lib"]
     
-extern crate quickcheck;
+// extern crate quickcheck;
 extern crate rand;
 
 #[macro_use]
