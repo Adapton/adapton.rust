@@ -774,9 +774,9 @@ fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc
 
 fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
     debug!("{} dirty_pred_observers: {:?}", engineMsg!(st), loc);
-    st.cnt.dirty += 1 ;
     let stackLen = st.stack.len() ;
     let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs() ;
+    let mut dirty_edge_count = 0;
     for pred_loc in pred_locs {
         if st.root.eq (&pred_loc) { panic!("root in preds") } // Todo-Question: Dead code?
         else {
@@ -785,6 +785,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
                 debug!("{} dirty_pred_observers: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);
                 let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
                 if succ.dirty { true } else {
+                    dirty_edge_count += 1 ;
                     replace(&mut succ.dirty, true);
                     debug!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
                     false
@@ -794,9 +795,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
             } else { debug!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen))) }
         }
     }
-  if false /* XXX Check make this better, as a statically/dynamically-set flag? */ {
-    wf::check_stack_is_clean(st)
-  }
+    st.cnt.dirty += dirty_edge_count ;
 }
 
 fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
@@ -827,7 +826,6 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
 }
 
 fn set_<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
-    debug!("{} set_: {:?} <--- {:?}", engineMsg!(st), cell, val);
     let changed : bool = {
         let node = res_node_of_loc( st, &cell.loc ) ;
         match **node {
