@@ -180,9 +180,9 @@ pub fn tree_of_list_rec
                     eager!(st, nm2 =>> tree_of_list_rec::<A,X,T,L>,
                            dir_list:dir_list.clone(), list:rest,
                            tree:tree3, tree_lev:lev_nm, parent_lev:parent_lev ) ;
-                let art = st.cell(nm4, tree) ;
-                let art = st.read_only( art ) ;
-                let tree = T::art( st, art ) ;
+                //let art = st.cell(nm4, tree) ;
+                //let art = st.read_only( art ) ;
+                //let tree = T::art( st, art ) ;
                 (tree, rest)
             }
             else {
