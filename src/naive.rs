@@ -7,6 +7,7 @@ use std::fmt::{Formatter,Result};
 use std::mem::transmute;
 use std::marker::PhantomData;
 use std::num::Zero;
+use std::fs::File;
 
 pub type Loc = usize;
 
@@ -18,7 +19,7 @@ trait Void : Debug { }
 pub struct AdaptonFromScratch {
     /// need a store; the Adapton trait provides a store semantics (viz., see `set` and `force`).
     store : Vec<Box<Void>>,
-    cnt : Cnt,
+  cnt : Cnt,  
 }
 
 impl Hash  for     AdaptonFromScratch { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
@@ -37,7 +38,8 @@ impl Adapton for AdaptonFromScratch {
             cnt : Cnt::zero(),
         }
     }
-
+    fn gmlog(self:&mut AdaptonFromScratch) -> Option<&mut File> {  None }
+  
     fn name_of_string (self:&mut AdaptonFromScratch, _sym:String) -> Name { Name }
     fn name_of_usize (self:&mut AdaptonFromScratch, _sym:usize) -> Name { Name }
     fn name_pair (self: &mut AdaptonFromScratch, _fst:Name, _snd:Name) -> Name { Name }

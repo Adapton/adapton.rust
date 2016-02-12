@@ -9,27 +9,27 @@ use adapton::collection_edit::ListZipper;
 use adapton::collection_traits::{TreeT, TreeListT};
 use adapton::adapton_sigs::Adapton;
 
-impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
-gm::GMLog<A> for List<A,E> {
-  fn log_snapshot(self: &Self, st: &mut A, file: &mut File, msg: Option<&str>) {
-    gm::startframe(file, &format!("List logged at {}", time::now().asctime()), msg);
-    list_out(st, self, file, "list_root");
+impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,T:TreeT<A,E>,L:TreeListT<A,E,T,List=List<A,E>>>
+gm::GMLog<A> for ListZipper<A,E,T,L> {
+  fn log_snapshot(self: &Self, st: &mut A, msg: Option<&str>) {
+    gm::startframe(st, &format!("Zipper logged at {}", time::now().asctime()), msg);
+    zipper_out(st, self, "cursor");
   }
 }
 
-impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,T:TreeT<A,E>,L:TreeListT<A,E,T,List=List<A,E>>>
-gm::GMLog<A> for ListZipper<A,E,T,L> {
-  fn log_snapshot(self: &Self, st: &mut A, file: &mut File, msg: Option<&str>) {
-    gm::startframe(file, &format!("Zipper logged at {}", time::now().asctime()), msg);
-    zipper_out(st, self, file, "cursor");
+impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
+gm::GMLog<A> for List<A,E> {
+  fn log_snapshot(self: &Self, st: &mut A, msg: Option<&str>) {
+    gm::startframe(st, &format!("List logged at {}", time::now().asctime()), msg);
+    list_out(st, self, "list_root");
   }
 }
 
 impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
 gm::GMLog<A> for Tree<A,E,L> {
-  fn log_snapshot(self: &Self, st: &mut A, file: &mut File, msg: Option<&str>) {
-    gm::startframe(file, &format!("Tree logged at {}", time::now().asctime()), msg);
-    tree_out(st, self, file, "tree_root", "c");
+  fn log_snapshot(self: &Self, st: &mut A, msg: Option<&str>) {
+    gm::startframe(st, &format!("Tree logged at {}", time::now().asctime()), msg);
+    tree_out(st, self, "tree_root", "c");
   }
 }
 
@@ -44,48 +44,48 @@ gm::GMLog<A> for Tree<A,E,L> {
 // }
  
 fn tree_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
-(st: &mut A, t: &Tree<A,E,L>, f: &mut File, up: &str, side: &str) {
+(st: &mut A, t: &Tree<A,E,L>, up: &str, side: &str) {
   let leaf = "green";
   let bin = "yellow";
   let name = "orange";
   let rc = "yellow";
   let art = "blue";
-  fn edge(f: &mut File, from: &str, to: &str) {
-      gm::addedge(f, from, to, "", "black", "", None)
+  fn edge<A:Adapton>(st: &mut A, from: &str, to: &str) {
+    gm::addedge(st, from, to, "", "black", "", None)
   }
   match *t {
     Tree::Nil => {}
     Tree::Leaf(ref d) => {
       let node = format!("{:?}<-{}-{}",d,side,up);
-      gm::addnode(f, &node, leaf, "", None);
-      edge(f, up, &node);
+      gm::addnode(st, &node, leaf, "", None);
+      edge(st, up, &node);
     }
     Tree::Bin(_, ref t1, ref t2) => {
       let node = format!("bin<-{}-{}",side,up);
-      gm::addnode(f, &node, bin, "", None);
-      edge(f, up, &node);
-      tree_out(st, &**t1, f, &node, "l");
-      tree_out(st, &**t2, f, &node, "r");
+      gm::addnode(st, &node, bin, "", None);
+      edge(st, up, &node);
+      tree_out(st, &**t1, &node, "l");
+      tree_out(st, &**t2, &node, "r");
     }
     Tree::Name(ref n,_, ref t1, ref t2) => {
       let node = format!("{:?}<-{}-{}",n,side,up);
-      gm::addnode(f, &node, name, "", None);
-      edge(f, up, &node);
-      tree_out(st, &**t1, f, &node, "l");
-      tree_out(st, &**t2, f, &node, "r");          
+      gm::addnode(st, &node, name, "", None);
+      edge(st, up, &node);
+      tree_out(st, &**t1, &node, "l");
+      tree_out(st, &**t2, &node, "r");          
     }
     Tree::Rc(ref t) => {
       let node = format!("rc<-{}-{}",side,up);
-      gm::addnode(f, &node, rc, "", None);
-      edge(f, up, &node);
-      tree_out(st, &**t, f, &node, "c");
+      gm::addnode(st, &node, rc, "", None);
+      edge(st, up, &node);
+      tree_out(st, &**t, &node, "c");
     }
     Tree::Art(ref a) => {
       let node = format!("{:?}<-{}-",a,side);
       let t = st.force(a);
-      gm::addnode(f, &node, art, "", None);
-      edge(f, up, &node);
-      tree_out(st, &t, f, &node, "c");          
+      gm::addnode(st, &node, art, "", None);
+      edge(st, up, &node);
+      tree_out(st, &t, &node, "c");          
     }
   }
 }
@@ -101,14 +101,14 @@ fn tree_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
 // }
 
 fn list_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
-(st: &mut A, t: &List<A,E>, f: &mut File, up: &str) {
+(st: &mut A, t: &List<A,E>, up: &str) {
   let cons = "green";
   let tree = "green";
   let name = "orange";
   let rc = "yellow";
   let art = "blue";
-  fn edge(f: &mut File, from: &str, to: &str) {
-      gm::addedge(f, from, to, "", "black", "", None)
+  fn edge<A:Adapton>(st: &mut A, from: &str, to: &str) {
+      gm::addedge(st, from, to, "", "black", "", None)
   }
   match *t {
     List::Nil => {}
@@ -118,35 +118,35 @@ fn list_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
       //up.hash(hasher);
       //let hash = hasher.finish();
       let node = format!("{:?}::{}",e, up);
-      gm::addnode(f, &node, cons, "", None);
-      edge(f, up, &node);
-      list_out(st, &**t, f, &node);
+      gm::addnode(st, &node, cons, "", None);
+      edge(st, up, &node);
+      list_out(st, &**t, &node);
     }
     List::Tree(ref tr, _, ref t) => {
       let node = format!("root::{}", up);
-      gm::addnode(f, &node, tree, "", None);
-      edge(f, up, &node);
-      list_out(st, &**t, f, &node);
-      tree_out(st, &**tr, f, &node, "c");
+      gm::addnode(st, &node, tree, "", None);
+      edge(st, up, &node);
+      list_out(st, &**t, &node);
+      tree_out(st, &**tr, &node, "c");
     }
     List::Name(ref n, ref t) => {
       let node = format!("{:?}::{}", n,up);
-      gm::addnode(f, &node, name, "", None);
-      edge(f, up, &node);
-      list_out(st, &**t, f, &node);
+      gm::addnode(st, &node, name, "", None);
+      edge(st, up, &node);
+      list_out(st, &**t, &node);
     }
     List::Rc(ref t) => {
       let node = format!("rc::{}",up);
-      gm::addnode(f, &node, rc, "", None);
-      edge(f, up, &node);
-      list_out(st, &**t, f, &node);
+      gm::addnode(st, &node, rc, "", None);
+      edge(st, up, &node);
+      list_out(st, &**t, &node);
     }
     List::Art(ref a) => {
       let node = format!("{:?}::", a);
       let t = st.force(a);
-      gm::addnode(f, &node, art, "", None);
-      edge(f, up, &node);
-      list_out(st, &t, f, &node);          
+      gm::addnode(st, &node, art, "", None);
+      edge(st, up, &node);
+      list_out(st, &t, &node);          
     }
   }
 }
@@ -164,11 +164,11 @@ fn list_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
 // }
 
 fn zipper_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,T:TreeT<A,E>,L:TreeListT<A,E,T,List=List<A,E>>>
-(st: &mut A, z: &ListZipper<A,E,T,L>, f: &mut File, up: &str) {
+(st: &mut A, z: &ListZipper<A,E,T,L>, up: &str) {
   let node = format!("{:?}", up);
-  gm::addnode(f, &node, "black", "", None);
-  list_out(st, &z.left, f, &node);
-  list_out(st, &z.right, f, &node);
+  gm::addnode(st, &node, "black", "", None);
+  list_out(st, &z.left, &node);
+  list_out(st, &z.right, &node);
 }
 
 

@@ -6,6 +6,7 @@ use macros::{ProgPt};
 use std::ops::Sub;
 use std::ops::Add;
 use std::num::Zero;
+use std::fs::File;
 
 // The `Adapton` trait provides a language of
 // dependence-graph-building operations based on the core calculus
@@ -79,6 +80,9 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     /// Demand & observe arts (all kinds): force
     fn force<T:Eq+Debug+Clone+Hash> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
   
+  // GraphMovie logging, using this web-based tool:
+  // https://github.com/kyleheadley/graphmovie
+  fn gmlog(self:&mut Self) -> Option<&mut File>;
 
     ///  # Derived fork functions:
     
@@ -99,6 +103,7 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     fn read_only<T> (self:&mut Self, mutart:MutArt<T,Self::Loc>) -> Art<T,Self::Loc> {
         Art::Loc(mutart.loc)
     }
+
 }
 
 // I wanted to have a shorthand, but I get an ICE if I use this.

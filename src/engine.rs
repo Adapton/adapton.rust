@@ -9,6 +9,7 @@ use std::fmt::{Formatter,Result};
 use std::hash::{Hash,Hasher,SipHasher};
 use std::num::Zero;
 use std::env;
+use std::fs::{OpenOptions,File};
 
 use macros::*;
 use adapton_sigs::*;
@@ -86,7 +87,8 @@ pub struct Engine {
     path  : Rc<Path>,
     cnt   : Cnt,
     dcg_count : usize,
-    dcg_hash  : u64,
+  dcg_hash  : u64,
+  gmfile : Option<File>,
 }
 
 impl Hash  for     Engine { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
@@ -878,23 +880,39 @@ impl Adapton for Engine {
                             //path:root.path.clone(),
                             succs:Vec::new()} ) ;
         }
-        let table = HashMap::new ();
-        Engine {
-            flags : Flags {
-                ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true, _ => false } },
-                check_dcg_is_wf               : { match env::var("ADAPTON_CHECK_DCG")  { Ok(val) => true, _ => false } },
-                write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(val) => true, _ => false } },
-            },
-            root  : root, // Todo-Question: Don't need this?
-            table : table,
-            stack : stack,
-            path  : path,
-            cnt   : Cnt::zero (),
-            dcg_count : 0,
-            dcg_hash : 0, // XXX This makes assumptions about hashing implementation
-        }
+      let table = HashMap::new ();
+      let mut outfile =
+        match env::var("ADAPTON_WRITE_GMLOG")  {
+          Ok(ref filename) if filename.len() > 0 => 
+            Some(OpenOptions::new()
+                 .create(true)
+                 .write(true)
+                 .append(true)
+                 .open(filename)
+                 .unwrap()),
+          _ => None
+        } ;
+      Engine {
+        flags : Flags {
+          ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true, _ => false } },
+          check_dcg_is_wf               : { match env::var("ADAPTON_CHECK_DCG")  { Ok(val) => true, _ => false } },
+          write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(val) => true, _ => false } },
+        },
+        root  : root, // Todo-Question: Don't need this?
+        table : table,
+        stack : stack,
+        path  : path,
+        cnt   : Cnt::zero (),
+        dcg_count : 0,
+        dcg_hash : 0, // XXX This makes assumptions about hashing implementation
+        gmfile : outfile,
+      }
     }
 
+  fn gmlog (self:& mut Engine) -> Option<& mut File> {
+    self.gmfile.as_mut()
+  }
+  
     fn name_of_string (self:&mut Engine, sym:String) -> Name {
         let h = my_hash(&sym);
         let s = NameSym::String(sym) ;

@@ -14,22 +14,22 @@ use adapton::engine::Engine;
 pub const DEFAULT_STYLE: &'static str = "active";
 
 pub trait GMLog<A:Adapton> {
-  fn log_snapshot(self: &Self, st: &mut A, file: &mut File, msg: Option<&str>) {
-    startframe(file, &format!("Logged at {}", time::now().asctime()), msg);
+  fn log_snapshot(self: &Self, st: &mut A, msg: Option<&str>) {
+    startframe(st, &format!("Logged at {}", time::now().asctime()), msg)
   }
-  fn log_comment(self: &Self, _:&mut A, file: &mut File, msg: Option<&str>) {
-    makecomment(file, &format!("Commented at {}", time::now().asctime()), msg);
+  fn log_comment(self: &Self, st:&mut A, msg: Option<&str>) {
+    makecomment(st, &format!("Commented at {}", time::now().asctime()), msg)
   }
 }
 
-pub trait GMAutoLog {
-  fn set_file(self: &mut Self, file: &mut File);
-  fn get_file(self: &Self) -> &mut File;
-  fn start(self: &Self, msg: Option<&str>);
-  fn snapshot(self: &Self, msg: Option<&str>);
-  fn comment(self: &Self, msg: Option<&str>);
-  fn end(self: &Self, msg: Option<&str>);
-}
+// pub trait GMAutoLog {
+//   fn set_file(self: &mut Self, st: &mut File);
+//   fn get_file(self: &Self) -> &mut File;
+//   fn start(self: &Self, msg: Option<&str>);
+//   fn snapshot(self: &Self, msg: Option<&str>);
+//   fn comment(self: &Self, msg: Option<&str>);
+//   fn end(self: &Self, msg: Option<&str>);
+// }
 
 trait CombineStr {
   fn join(self: &mut Self, sep: &str) -> String;
@@ -48,46 +48,49 @@ impl<'a,I> CombineStr for I where I: Iterator<Item=&'a str> {
   }
 }
 
-fn addtitle(file: &mut File, title: &str, comment: Option<&str>) {
-  let title = title.lines().join(" ");
-  writeln!(file, "{}", title).unwrap();
-  if let Some(comment) = comment {
-    let comment = comment.lines().join("\n ");
-    writeln!(file, " {}", comment).unwrap();
+fn addtitle<A:Adapton>(st: &mut A, title: &str, comment: Option<&str>) {
+  if let Some(file) = st.gmlog() {
+    let title = title.lines().join(" ");
+    writeln!(file, "{}", title).unwrap();
+    if let Some(comment) = comment {
+      let comment = comment.lines().join("\n ");
+      writeln!(file, " {}", comment).unwrap();
+    }
   }
 }
 
-pub fn startframe(file: &mut File, title: &str, comment: Option<&str>) {
-  write!(file, "[state]").unwrap();
-  addtitle(file, title, comment);
+pub fn startframe<A:Adapton>(st: &mut A, title: &str, comment: Option<&str>) {
+  if let Some(file) = st.gmlog() {write!(file, "[state]").unwrap(); }
+  addtitle(st, title, comment);
 }
 
-pub fn startdframe(file: &mut File, title: &str, comment: Option<&str>) {
-  write!(file, "[change]").unwrap();
-  addtitle(file, title, comment);
+pub fn startdframe<A:Adapton>(st: &mut A, title: &str, comment: Option<&str>) {
+  if let Some(file) = st.gmlog() { write!(file, "[change]").unwrap(); }
+  addtitle(st, title, comment);
 }
 
-pub fn addnode(file: &mut File, id: &str, style: &str, name: &str, comment: Option<&str>) {
-  //TODO: remove square brackets
-  let id = id.split("\"").join("").split_whitespace().join("_");
-  let style = style.split("\"").join("").split_whitespace().join("_");
-  write!(file, "[node {} {}]", id, style).unwrap();
-  addtitle(file, name, comment);
+pub fn addnode<A:Adapton>(st: &mut A, id: &str, style: &str, name: &str, comment: Option<&str>) {
+    let id = id.split("\"").join("").split_whitespace().join("_");
+    let style = style.split("\"").join("").split_whitespace().join("_");
+    if let Some(file) = st.gmlog() { write!(file, "[node {} {}]", id, style).unwrap(); }
+    addtitle(st, name, comment);
 }
 
-pub fn addedge(file: &mut File, from: &str, to: &str, tag: &str, style: &str, name: &str, comment: Option<&str>) {
-  //TODO: remove square brackets
+pub fn addedge<A:Adapton>(st: &mut A, from: &str, to: &str, tag: &str, style: &str, name: &str, comment: Option<&str>) {
   let from = from.split("\"").join("").split_whitespace().join("_");
   let to = to.split("\"").join("").split_whitespace().join("_");
   let tag = tag.split("\"").join("").split_whitespace().join("_");
   let style = style.split("\"").join("").split_whitespace().join("_");
-  write!(file, "[edge {} {} {} {}]", from, to, tag, style).unwrap();
-  addtitle(file, name, comment);
+  if let Some(file) = st.gmlog() { write!(file, "[edge {} {} {} {}]", from, to, tag, style).unwrap(); }
+  addtitle(st, name, comment);
 }
 
-pub fn makecomment(file: &mut File, short: &str, long: Option<&str>) {
-  write!(file, "[comment]").unwrap();
-  addtitle(file, short, long);
+
+pub fn makecomment<A:Adapton>(st: &mut A, short: &str, long: Option<&str>) {
+  if let Some(file) = st.gmlog() {
+    write!(file, "[comment]").unwrap();
+  }
+  addtitle(st, short, long);
 }
 
 #[test]
