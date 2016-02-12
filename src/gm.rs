@@ -93,26 +93,26 @@ pub fn makecomment<A:Adapton>(st: &mut A, short: &str, long: Option<&str>) {
   addtitle(st, short, long);
 }
 
-#[test]
-fn it_works() {
-  let f = &mut File::create("testlogging.txt").unwrap();
-  startframe(f, &"first".to_string(), None);
-  startdframe(f, "", Some("no title here?"));
-  startframe(f, "", None);
-  startdframe(f, "one\nmore", Some("then we're done"));
-  startframe(f, "this is it!", Some(" the
-    last
-    one!!!
-    "));
-  startdframe(f, "done", None);
-  addnode(f, "node 1", "blue", "a first node", None);
-  addedge(f, " node 1", "node2", "", "green", "", Some("a green line!\nbeat that ;)"));
+// #[test]
+// fn it_works() {
+//   let f = &mut File::create("testlogging.txt").unwrap();
+//   startframe(f, &"first".to_string(), None);
+//   startdframe(f, "", Some("no title here?"));
+//   startframe(f, "", None);
+//   startdframe(f, "one\nmore", Some("then we're done"));
+//   startframe(f, "this is it!", Some(" the
+//     last
+//     one!!!
+//     "));
+//   startdframe(f, "done", None);
+//   addnode(f, "node 1", "blue", "a first node", None);
+//   addedge(f, " node 1", "node2", "", "green", "", Some("a green line!\nbeat that ;)"));
 
-  impl<A:Adapton> GMLog<A> for String {};
-  let l: String = String::from("a logger");
+//   impl<A:Adapton> GMLog<A> for String {};
+//   let l: String = String::from("a logger");
 
-  let st = &mut Engine::new();
-  l.log_snapshot(st, f, Some("first snap"));
-  l.log_snapshot(st, f, None);
-  l.log_comment(st, f, Some("some words"));
-}
+//   let st = &mut Engine::new();
+//   l.log_snapshot(st, f, Some("first snap"));
+//   l.log_snapshot(st, f, None);
+//   l.log_comment(st, f, Some("some words"));
+// }
