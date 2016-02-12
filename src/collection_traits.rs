@@ -9,6 +9,7 @@ use adapton_sigs::* ;
 // use quickcheck::Gen;
 use std::num::Zero;
 use rand::{Rng,Rand};
+use gm::GMLog;
 
 pub trait ListT<A:Adapton,Elm> : Debug+Clone+Hash+PartialEq+Eq {
     type List : Debug+Hash+PartialEq+Eq+Clone ;
@@ -66,7 +67,7 @@ pub trait TreeListT<A:Adapton,Elm,T:TreeT<A,Elm>> : ListT<A,Elm> {
 
 pub trait TreeT<A:Adapton,Leaf> : Debug+Hash+PartialEq+Eq+Clone {
     type Lev  : Debug+Hash+PartialEq+Eq+Clone ;
-    type Tree : Debug+Hash+PartialEq+Eq+Clone ;
+    type Tree : Debug+Hash+PartialEq+Eq+Clone+GMLog<A> ;
 
     fn lev<X:Hash>(&X) -> Self::Lev ;
     fn lev_of_tree (&mut A, &Self::Tree) -> Self::Lev ;

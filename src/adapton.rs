@@ -13,6 +13,8 @@
 // extern crate quickcheck;
 extern crate rand;
 
+extern crate time;
+
 #[macro_use]
 extern crate log;
 
@@ -22,11 +24,15 @@ pub mod adapton_sigs ;
 pub mod engine ;
 pub mod naive ;
 
+pub mod gm ;
+pub mod gm_impl ;
+  
 pub mod simple ;
 pub mod collection_traits ;
 pub mod collection_algo ;
 pub mod collection ;
 pub mod collection_edit ;
+
 
 
 // pub mod fact ;
