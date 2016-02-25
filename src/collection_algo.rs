@@ -2,7 +2,8 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
-
+use gm::GMLog;
+  
 use macros::* ;
 use adapton_sigs::* ;
 use collection_traits::*;
@@ -10,9 +11,10 @@ use collection_traits::*;
 // use quickcheck::Gen;
 use std::num::Zero;
 
+
 use rand::{Rng,Rand};
 
-pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm>,BinOp>
+pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug+GMLog<A>,T:TreeT<A,Elm>,BinOp>
     (st:&mut A, tree:T::Tree, zero:Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
@@ -24,7 +26,7 @@ pub fn tree_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,T:TreeT<A,Elm>,BinOp
                )
 }
 
-pub fn list_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug,L:ListT<A,Elm>,BinOp,T:TreeT<A,Elm>>
+pub fn list_reduce_monoid<A:Adapton,Elm:Eq+Hash+Clone+Debug+GMLog<A>,L:ListT<A,Elm>,BinOp,T:TreeT<A,Elm>>
     (st:&mut A, list:L::List, zero:Elm, binop:&BinOp) -> Elm
     where BinOp:Fn(&mut A, Elm, Elm) -> Elm
 {
@@ -375,8 +377,10 @@ pub fn tree_append
     >
     (st:&mut A,tree1:T::Tree,tree2:T::Tree) -> T::Tree
 {
-    // XXX: This is a hack. Make this balanced, a la Pugh 1989.
-    T::bin(st, T::lev_max_val(), tree1, tree2)
+  // XXX: This is a hack. Make this balanced, a la Pugh 1989.
+  if      T::is_empty(st, tree1.clone()) { tree2 }
+  else if T::is_empty(st, tree2.clone()) { tree1 }
+  else    { T::bin(st, T::lev_max_val(), tree1, tree2) }
 }
 
 pub fn tree_append__name_dropping // drops/forgets names in the new path created by the append

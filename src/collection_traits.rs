@@ -12,7 +12,7 @@ use rand::{Rng,Rand};
 use gm::GMLog;
 
 pub trait ListT<A:Adapton,Elm> : Debug+Clone+Hash+PartialEq+Eq {
-    type List : Debug+Hash+PartialEq+Eq+Clone ;
+    type List : Debug+Hash+PartialEq+Eq+Clone+GMLog<A> ;
 
     fn nil  (&mut A) -> Self::List ;
     fn cons (&mut A, Elm, Self::List) -> Self::List ;
@@ -90,7 +90,7 @@ pub trait TreeT<A:Adapton,Leaf> : Debug+Hash+PartialEq+Eq+Clone {
     fn name (&mut A, A::Name, Self::Lev, Self::Tree, Self::Tree) -> Self::Tree ;
     fn art  (&mut A, Art<Self::Tree,A::Loc>) -> Self::Tree ;
     fn rc   (&mut A, Rc<Self::Tree>) -> Self::Tree ;
-
+  
     fn elim<Res,NilC,LeafC,BinC,NameC>
         (&mut A, Self::Tree, NilC, LeafC, BinC, NameC) -> Res        
         where NilC  : FnOnce(&mut A) -> Res
@@ -114,7 +114,17 @@ pub trait TreeT<A:Adapton,Leaf> : Debug+Hash+PartialEq+Eq+Clone {
         ,     BinC  : FnOnce(&mut A, Self::Lev,  Self::Tree, Self::Tree, Arg) -> Res
         ,     NameC : FnOnce(&mut A, A::Name, Self::Lev, Self::Tree, Self::Tree, Arg) -> Res
         ;
-    
+
+  // Derived from `elim` above:
+  fn is_empty (st:&mut A, tree:Self::Tree) -> bool {
+    Self::elim(st, tree,
+               |_|       true,
+               |_,_|     false,
+               |st,_,l,r|   Self::is_empty(st,l) && Self::is_empty(st,r),
+               |st,_,_,l,r| Self::is_empty(st,l) && Self::is_empty(st,r)
+               )
+  }
+  
     fn fold_lr<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
         (st:&mut A, tree:Self::Tree, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
         where LeafC:Fn(&mut A, Leaf,    Res ) -> Res

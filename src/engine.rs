@@ -13,6 +13,7 @@ use std::fs::{OpenOptions,File};
 
 use macros::*;
 use adapton_sigs::*;
+use gm;
 
 const engineMsgStr : &'static str = "adapton::engine:";
 
@@ -628,9 +629,21 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(st:&mut Engine, loc:&Rc<Lo
         None => panic!("expected Some _: stack invariants are broken"),
         Some(frame) => frame
     } ;
-    assert!( &frame.loc == loc );
+  assert!( &frame.loc == loc );
+  let mut succ_idx = 0;
     for succ in &frame.succs {
-        debug!("{} produce: edge: {:?} --{:?}--dirty?:{:?}--> {:?}", engineMsg!(st), &loc, &succ.effect, &succ.dirty, &succ.loc);
+      debug!("{} produce: edge: {:?} --{:?}--dirty?:{:?}--> {:?}", engineMsg!(st), &loc, &succ.effect, &succ.dirty, &succ.loc);
+      let (effect, is_weak) =
+        match succ.effect {
+          //Effect::Observe => ("observe", true),
+          Effect::Observe => ("observe", false), // XXX
+          Effect::Allocate => ("allocate", false)
+        } ;
+      gm::startdframe(st, &format!("{:?}--{}->{:?}", loc, effect, succ.loc), None);
+      gm::addedge(st, &format!("{:?}",loc), &format!("{:?}",succ.loc),
+                  &format!("{}",succ_idx),
+                  effect, "", None, is_weak);
+      succ_idx += 1;
         if succ.dirty {
             // This case witnesses an illegal use of nominal side effects
             panic!("invariants broken: newly-built DCG edge should be clean, but is dirty.")
@@ -730,10 +743,15 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
 // ---------- Node implementation:
 
 fn revoke_succs<'x> (st:&mut Engine, src:&Rc<Loc>, succs:&Vec<Succ>) {
-    for succ in succs.iter() {
-        let succ_node : &mut Box<GraphNode> = lookup_abs(st, &succ.loc) ;
-        succ_node.preds_remove(src)
-    }
+  let mut succ_idx = 0;
+  for succ in succs.iter() {
+    gm::startdframe(st, &format!("revoke_succ {:?} {} --> {:?}", src, succ_idx, succ.loc), None);
+    gm::remedge(st, &format!("{:?}",src), &format!("{:?}",succ.loc),
+                &format!("{}",succ_idx), "", None);
+    let succ_node : &mut Box<GraphNode> = lookup_abs(st, &succ.loc) ;
+    succ_idx += 1;
+    succ_node.preds_remove(src)
+  }
 }
 
 fn loc_of_id(path:Rc<Path>,id:Rc<ArtId>) -> Rc<Loc> {
@@ -977,7 +995,7 @@ impl Adapton for Engine {
 
     fn put<T:Eq> (self:&mut Engine, x:T) -> Art<T,Self::Loc> { Art::Rc(Rc::new(x)) }
 
-    fn cell<T:Eq+Debug+Clone+Hash
+    fn cell<T:Eq+Debug+Clone+Hash+gm::GMLog<Self>
         +'static // TODO-Later: Needed on T because of lifetime issues.
         >
         (self:&mut Engine, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
@@ -1002,6 +1020,11 @@ impl Adapton for Engine {
                         Node::Comp(ref nd)=> { (true,  false, Some(nd.succs.clone()),  true ) }
                         _                 => { (true,  false, None, true ) }
                     }} else                  { (false, false, None, true ) } ;
+            if do_set || do_insert {
+              gm::startdframe(self, &format!("cell {:?}", loc), None);
+              gm::addnode(self, &format!("{:?}",loc), "cell", "", Some(&format!("cell {:?}", loc)));
+              val.log_snapshot(self, &format!("{:?}",loc), None);
+            }
             if do_dirty { dirty_alloc(self, &loc) } ;
             if do_set   { set_(self, MutArt{loc:loc.clone(), phantom:PhantomData}, val.clone()) } ;
             match succs { Some(succs) => revoke_succs(self, &loc, &succs), None => () } ;
@@ -1087,7 +1110,9 @@ impl Adapton for Engine {
                                  fn_box:fn_box,
                                  arg:arg.clone(),
                                  spurious:spurious.clone()})
-                    ;
+                ;
+                gm::startdframe(self, &format!("structural thunk {:?}", loc), None);
+                gm::addnode(self, &format!("{:?}",loc), "structural-thunk", "", Some(&format!("thunk {:?}", &producer)));
                 let node : CompNode<Res> = CompNode{
                     preds:Vec::new(),
                     succs:Vec::new(),
@@ -1181,7 +1206,9 @@ impl Adapton for Engine {
                              dirty:false};
                     frame.succs.push(succ)
                 }};
-                if do_insert {
+              if do_insert {
+                    gm::startdframe(self, &format!("nominal thunk {:?}", loc), None);
+                    gm::addnode(self, &format!("{:?}",loc), "nominal-thunk", "", Some(&format!("thunk {:?}", &producer)));
                     let node : CompNode<Res> = CompNode{
                         preds:Vec::new(),
                         succs:Vec::new(),
@@ -1252,10 +1279,12 @@ impl Adapton for Engine {
                              dep:Rc::new(Box::new(ProducerDep{res:result.clone()})),
                              effect:Effect::Observe,
                              dirty:false};
-                    frame.succs.push(succ);
+                     frame.succs.push(succ);                  
                 }} ;
-                wf::check_dcg(self);
-                result
+              wf::check_dcg(self);
+              //gm::startdframe(self, &format!("force {:?}", loc), None);
+              //result.log_snapshot(self, &format!("{:?}",loc), None);
+              result
             }
         }}
 }

@@ -21,11 +21,12 @@ extern crate log;
 #[macro_use]
 pub mod macros ;
 pub mod adapton_sigs ;
-pub mod engine ;
-pub mod naive ;
 
 pub mod gm ;
 pub mod gm_impl ;
+
+pub mod engine ;
+pub mod naive ;
   
 pub mod simple ;
 pub mod collection_traits ;

@@ -11,25 +11,46 @@ use adapton::adapton_sigs::Adapton;
 
 impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,T:TreeT<A,E>,L:TreeListT<A,E,T,List=List<A,E>>>
 gm::GMLog<A> for ListZipper<A,E,T,L> {
-  fn log_snapshot(self: &Self, st: &mut A, msg: Option<&str>) {
-    gm::startframe(st, &format!("Zipper logged at {}", time::now().asctime()), msg);
-    zipper_out(st, self, "cursor");
+  fn log_snapshot(self: &Self, st: &mut A, root:&str, msg: Option<&str>) {
+    gm::startdframe(st, &format!("Zipper logged at {}", time::now().asctime()), msg);
+    zipper_out(st, self, root);
   }
 }
 
 impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
 gm::GMLog<A> for List<A,E> {
-  fn log_snapshot(self: &Self, st: &mut A, msg: Option<&str>) {
-    gm::startframe(st, &format!("List logged at {}", time::now().asctime()), msg);
-    list_out(st, self, "list_root");
+  fn log_snapshot(self: &Self, st: &mut A, root:&str, msg: Option<&str>) {
+    gm::startdframe(st, &format!("List logged at {}", time::now().asctime()), msg);
+    list_out(st, self, root);
   }
 }
 
 impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
 gm::GMLog<A> for Tree<A,E,L> {
-  fn log_snapshot(self: &Self, st: &mut A, msg: Option<&str>) {
-    gm::startframe(st, &format!("Tree logged at {}", time::now().asctime()), msg);
-    tree_out(st, self, "tree_root", "c");
+  fn log_snapshot(self: &Self, st: &mut A, root:&str, msg: Option<&str>) {
+    gm::startdframe(st, &format!("Tree logged at {}", time::now().asctime()), msg);
+    tree_out(st, self, root, "");
+  }
+}
+
+impl<A:Adapton>
+gm::GMLog<A> for usize {
+  fn log_snapshot(self: &Self, st: &mut A, root:&str, msg: Option<&str>) {
+  }
+}
+
+impl<A:Adapton>
+gm::GMLog<A> for u64 {
+  fn log_snapshot(self: &Self, st: &mut A, root:&str, msg: Option<&str>) {
+  }
+}
+
+impl<A:Adapton,X:gm::GMLog<A>,Y:gm::GMLog<A>>
+gm::GMLog<A> for (X,Y) {
+  fn log_snapshot(self: &Self, st: &mut A, root:&str, msg: Option<&str>) {
+    let (ref x, ref y) = *self;
+    x.log_snapshot(st, root, msg);
+    y.log_snapshot(st, root, msg);
   }
 }
 
@@ -51,7 +72,7 @@ fn tree_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
   let rc = "yellow";
   let art = "blue";
   fn edge<A:Adapton>(st: &mut A, from: &str, to: &str) {
-    gm::addedge(st, from, to, "", "black", "", None)
+    gm::addedge(st, from, to, "", "black", "", None, false)
   }
   match *t {
     Tree::Nil => {}
@@ -82,10 +103,10 @@ fn tree_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
     }
     Tree::Art(ref a) => {
       let node = format!("{:?}<-{}-",a,side);
-      let t = st.force(a);
       gm::addnode(st, &node, art, "", None);
       edge(st, up, &node);
-      tree_out(st, &t, &node, "c");          
+      //let t = st.force(a);
+      //tree_out(st, &t, &node, "c");          
     }
   }
 }
@@ -108,7 +129,7 @@ fn list_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
   let rc = "yellow";
   let art = "blue";
   fn edge<A:Adapton>(st: &mut A, from: &str, to: &str) {
-      gm::addedge(st, from, to, "", "black", "", None)
+      gm::addedge(st, from, to, "", "black", "", None, false)
   }
   match *t {
     List::Nil => {}
@@ -143,10 +164,10 @@ fn list_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
     }
     List::Art(ref a) => {
       let node = format!("{:?}::", a);
-      let t = st.force(a);
       gm::addnode(st, &node, art, "", None);
       edge(st, up, &node);
-      list_out(st, &t, &node);          
+      //let t = st.force(a);
+      //list_out(st, &t, &node);          
     }
   }
 }

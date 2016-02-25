@@ -14,10 +14,10 @@ use adapton::engine::Engine;
 pub const DEFAULT_STYLE: &'static str = "active";
 
 pub trait GMLog<A:Adapton> {
-  fn log_snapshot(self: &Self, st: &mut A, msg: Option<&str>) {
+  fn log_snapshot(self: &Self, st: &mut A, root:&str, msg: Option<&str>) {
     startframe(st, &format!("Logged at {}", time::now().asctime()), msg)
   }
-  fn log_comment(self: &Self, st:&mut A, msg: Option<&str>) {
+  fn log_comment(self: &Self, st:&mut A, root:&str, msg: Option<&str>) {
     makecomment(st, &format!("Commented at {}", time::now().asctime()), msg)
   }
 }
@@ -59,6 +59,17 @@ fn addtitle<A:Adapton>(st: &mut A, title: &str, comment: Option<&str>) {
   }
 }
 
+fn addtitle2<A:Adapton>(st: &mut A, title: &str, comment: Option<String>) {
+  if let Some(file) = st.gmlog() {
+    let title = title.lines().join(" ");
+    writeln!(file, "{}", title).unwrap();
+    if let Some(comment) = comment {
+      let comment = comment.lines().join("\n ");
+      writeln!(file, " {}", comment).unwrap();
+    }
+  }
+}
+
 pub fn startframe<A:Adapton>(st: &mut A, title: &str, comment: Option<&str>) {
   if let Some(file) = st.gmlog() {write!(file, "[state]").unwrap(); }
   addtitle(st, title, comment);
@@ -73,16 +84,30 @@ pub fn addnode<A:Adapton>(st: &mut A, id: &str, style: &str, name: &str, comment
     let id = id.split("\"").join("").split_whitespace().join("_");
     let style = style.split("\"").join("").split_whitespace().join("_");
     if let Some(file) = st.gmlog() { write!(file, "[node {} {}]", id, style).unwrap(); }
-    addtitle(st, name, comment);
+    let comment = comment.map(|x|x.split("\"").join("").split_whitespace().join("_"));
+  addtitle2(st, name, comment);
 }
 
-pub fn addedge<A:Adapton>(st: &mut A, from: &str, to: &str, tag: &str, style: &str, name: &str, comment: Option<&str>) {
+pub fn addedge<A:Adapton>(st: &mut A, from: &str, to: &str, tag: &str, style: &str, name: &str,
+                          comment: Option<&str>, is_weak:bool) {
   let from = from.split("\"").join("").split_whitespace().join("_");
   let to = to.split("\"").join("").split_whitespace().join("_");
   let tag = tag.split("\"").join("").split_whitespace().join("_");
   let style = style.split("\"").join("").split_whitespace().join("_");
-  if let Some(file) = st.gmlog() { write!(file, "[edge {} {} {} {}]", from, to, tag, style).unwrap(); }
-  addtitle(st, name, comment);
+  let comment = comment.map(|x|x.split("\"").join("").split_whitespace().join("_"));
+  if let Some(file) = st.gmlog() { write!(file, "[{}edge {} {} {} {}]", if is_weak {"weak"} else {""},
+                                          from, to, tag, style).unwrap(); }
+  addtitle2(st, name, comment);
+}
+
+pub fn remedge<A:Adapton>(st: &mut A, from: &str, to: &str, tag: &str, name: &str, comment: Option<&str>) {
+  let from = from.split("\"").join("").split_whitespace().join("_");
+  let to = to.split("\"").join("").split_whitespace().join("_");
+  let tag = tag.split("\"").join("").split_whitespace().join("_");
+  //let style = style.split("\"").join("").split_whitespace().join("_");
+  if let Some(file) = st.gmlog() { write!(file, "[edge {} {} {} nonactive]", from, to, tag).unwrap(); }
+  let comment = comment.map(|x|x.split("\"").join("").split_whitespace().join("_"));
+  addtitle2(st, name, comment);
 }
 
 

@@ -2,7 +2,8 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
-    
+use gm::GMLog;
+
 use macros::* ;
 use adapton_sigs::* ;
 use collection_traits::*;
@@ -134,7 +135,7 @@ pub fn demand_tree
 
 pub fn eval_reduce
     <A:Adapton
-    ,X:Ord+PartialOrd+Hash+Debug+Clone+Eq+PartialEq+Zero+Add<Output=X>
+    ,X:Ord+PartialOrd+Hash+Debug+Clone+Eq+PartialEq+Zero+Add<Output=X>+GMLog<A>
     ,L:ListT<A,X>
     ,T:TreeT<A,X>
     >

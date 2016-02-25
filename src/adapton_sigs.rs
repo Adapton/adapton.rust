@@ -7,6 +7,7 @@ use std::ops::Sub;
 use std::ops::Add;
 use std::num::Zero;
 use std::fs::File;
+use gm::GMLog;
 
 // The `Adapton` trait provides a language of
 // dependence-graph-building operations based on the core calculus
@@ -63,7 +64,7 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> Art<T,Self::Loc> ;
 
     /// Creates a mutable articulation.
-    fn cell<T:Eq+Debug+Clone+Hash> (self:&mut Self, Self::Name, T) -> MutArt<T,Self::Loc> ;
+    fn cell<T:Eq+Debug+Clone+Hash+GMLog<Self>> (self:&mut Self, Self::Name, T) -> MutArt<T,Self::Loc> ;
 
     /// Mutates a mutable articulation.
     fn set<T:Eq+Debug+Clone> (self:&mut Self, MutArt<T,Self::Loc>, T) ;
@@ -78,6 +79,7 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
          -> Art<Res,Self::Loc> ;
 
     /// Demand & observe arts (all kinds): force
+    // fn force<T:Eq+Debug+Clone+Hash+GMLog<Self>> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
     fn force<T:Eq+Debug+Clone+Hash> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
   
   // GraphMovie logging, using this web-based tool:
