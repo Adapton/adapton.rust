@@ -77,6 +77,7 @@ pub struct Flags {
     pub ignore_nominal_use_structural : bool, // Ignore the Nominal ArtIdChoice, and use Structural behavior instead
   pub check_dcg_is_wf : bool, // After each Adapton operation, check that the DCG is well-formed
   pub write_dcg : bool, // Within each well-formedness check, write the DCG to the local filesystem
+  pub gmlog_dcg : bool, // At certain points in the Engine's code, write state changes as graph-movie output
 }
 
 #[derive(Debug)]
@@ -88,7 +89,7 @@ pub struct Engine {
     path  : Rc<Path>,
     cnt   : Cnt,
     dcg_count : usize,
-  dcg_hash  : u64,
+  dcg_hash  : u64,  
   gmfile : Option<File>,
 }
 
@@ -639,10 +640,12 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(st:&mut Engine, loc:&Rc<Lo
           Effect::Observe => ("observe", false), // XXX
           Effect::Allocate => ("allocate", false)
         } ;
-      gm::startdframe(st, &format!("{:?}--{}->{:?}", loc, effect, succ.loc), None);
-      gm::addedge(st, &format!("{:?}",loc), &format!("{:?}",succ.loc),
-                  &format!("{}",succ_idx),
-                  effect, "", None, is_weak);
+      if st.flags.gmlog_dcg {
+        gm::startdframe(st, &format!("{:?}--{}->{:?}", loc, effect, succ.loc), None);
+        gm::addedge(st, &format!("{:?}",loc), &format!("{:?}",succ.loc),
+                    &format!("{}",succ_idx),
+                    effect, "", None, is_weak);
+      }
       succ_idx += 1;
         if succ.dirty {
             // This case witnesses an illegal use of nominal side effects
@@ -745,9 +748,11 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
 fn revoke_succs<'x> (st:&mut Engine, src:&Rc<Loc>, succs:&Vec<Succ>) {
   let mut succ_idx = 0;
   for succ in succs.iter() {
-    gm::startdframe(st, &format!("revoke_succ {:?} {} --> {:?}", src, succ_idx, succ.loc), None);
-    gm::remedge(st, &format!("{:?}",src), &format!("{:?}",succ.loc),
-                &format!("{}",succ_idx), "", None);
+    if st.flags.gmlog_dcg {
+      gm::startdframe(st, &format!("revoke_succ {:?} {} --> {:?}", src, succ_idx, succ.loc), None);
+      gm::remedge(st, &format!("{:?}",src), &format!("{:?}",succ.loc),
+                  &format!("{}",succ_idx), "", None);
+    } ;
     let succ_node : &mut Box<GraphNode> = lookup_abs(st, &succ.loc) ;
     succ_idx += 1;
     succ_node.preds_remove(src)
@@ -915,6 +920,7 @@ impl Adapton for Engine {
           ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true, _ => false } },
           check_dcg_is_wf               : { match env::var("ADAPTON_CHECK_DCG")  { Ok(val) => true, _ => false } },
           write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(val) => true, _ => false } },
+          gmlog_dcg                     : { match env::var("ADAPTON_GMLOG_DCG")  { Ok(val) => true, _ => false } },
         },
         root  : root, // Todo-Question: Don't need this?
         table : table,
@@ -1020,10 +1026,12 @@ impl Adapton for Engine {
                         Node::Comp(ref nd)=> { (true,  false, Some(nd.succs.clone()),  true ) }
                         _                 => { (true,  false, None, true ) }
                     }} else                  { (false, false, None, true ) } ;
-            if do_set || do_insert {
+          if do_set || do_insert {
+            if self.flags.gmlog_dcg {
               gm::startdframe(self, &format!("cell {:?}", loc), None);
               gm::addnode(self, &format!("{:?}",loc), "cell", "", Some(&format!("cell {:?}", loc)));
               val.log_snapshot(self, &format!("{:?}",loc), None);
+            }
             }
             if do_dirty { dirty_alloc(self, &loc) } ;
             if do_set   { set_(self, MutArt{loc:loc.clone(), phantom:PhantomData}, val.clone()) } ;
@@ -1111,8 +1119,10 @@ impl Adapton for Engine {
                                  arg:arg.clone(),
                                  spurious:spurious.clone()})
                 ;
-                gm::startdframe(self, &format!("structural thunk {:?}", loc), None);
-                gm::addnode(self, &format!("{:?}",loc), "structural-thunk", "", Some(&format!("thunk {:?}", &producer)));
+                if self.flags.gmlog_dcg {
+                  gm::startdframe(self, &format!("structural thunk {:?}", loc), None);
+                  gm::addnode(self, &format!("{:?}",loc), "structural-thunk", "", Some(&format!("thunk {:?}", &producer)));
+                } ;
                 let node : CompNode<Res> = CompNode{
                     preds:Vec::new(),
                     succs:Vec::new(),
@@ -1207,8 +1217,10 @@ impl Adapton for Engine {
                     frame.succs.push(succ)
                 }};
               if do_insert {
-                    gm::startdframe(self, &format!("nominal thunk {:?}", loc), None);
-                    gm::addnode(self, &format!("{:?}",loc), "nominal-thunk", "", Some(&format!("thunk {:?}", &producer)));
+                    if self.flags.gmlog_dcg {
+                      gm::startdframe(self, &format!("nominal thunk {:?}", loc), None);
+                      gm::addnode(self, &format!("{:?}",loc), "nominal-thunk", "", Some(&format!("thunk {:?}", &producer)));
+                    } ;
                     let node : CompNode<Res> = CompNode{
                         preds:Vec::new(),
                         succs:Vec::new(),
@@ -1282,8 +1294,10 @@ impl Adapton for Engine {
                      frame.succs.push(succ);                  
                 }} ;
               wf::check_dcg(self);
+              // if self.flags.gmlog_dcg {
               //gm::startdframe(self, &format!("force {:?}", loc), None);
               //result.log_snapshot(self, &format!("{:?}",loc), None);
+              // }
               result
             }
         }}
