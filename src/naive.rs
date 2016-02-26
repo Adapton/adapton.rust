@@ -46,12 +46,15 @@ impl Adapton for AdaptonFromScratch {
     fn name_fork (self:&mut AdaptonFromScratch, _nm:Name) -> (Name, Name) { (Name,Name) }
     fn ns<T,F> (self: &mut AdaptonFromScratch, _nm:Name, body:F) -> T where F:FnOnce(&mut AdaptonFromScratch) -> T { body(self) }
     fn structural<T,F> (self: &mut AdaptonFromScratch, body:F) -> T where F:FnOnce(&mut AdaptonFromScratch) -> T { body(self) }
-    fn cnt<Res,F> (self: &mut AdaptonFromScratch, body:F) -> (Res,Cnt) where F:FnOnce(&mut AdaptonFromScratch) -> Res {
-        let c = self.cnt.clone();
-        let x = body(self);
-        let d = self.cnt.clone() - c;
-        (x,d)
-    }
+  fn cnt<Res,F> (self: &mut AdaptonFromScratch, body:F) -> (Res,Cnt) where F:FnOnce(&mut AdaptonFromScratch) -> Res {
+    let c : Cnt = self.cnt.clone() ;
+    self.cnt = Zero::zero();
+    let x = body(self) ;
+    let d : Cnt = self.cnt.clone() ;
+    self.cnt = c + d.clone();
+    (x, d)
+  }
+  
     fn put<T:Eq> (self:&mut AdaptonFromScratch, x:T) -> Art<T,Loc> { Art::Rc(Rc::new(x)) }
 
     fn cell<T:Eq+Debug+Clone

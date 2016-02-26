@@ -26,11 +26,11 @@ use gm::GMLog;
 //      * Pure values (see `Adapton::put`)
 //      * Mutable reference cells (see `Adapton::cell`),
 //      * Thunks (see `Adapton::thunk`),
-//                  
+//
 //   - Adapton::Name : identify DCG nodes before they are made
 //   - Adapton::Loc  : identify DCG nodes after they are made
 //
-// 
+//
 
 /// The `Adapton` trait provides a language of
 /// dependence-graph-building operations based on the core calculus
@@ -48,18 +48,18 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     fn name_of_string (self:&mut Self, String) -> Self::Name ;
     fn name_pair      (self:&mut Self, Self::Name, Self::Name) -> Self::Name               ;
     fn name_fork      (self:&mut Self, Self::Name)             -> (Self::Name, Self::Name) ;
-    
+
     /// Creates or re-enters a given namespace; performs the given computation there.
     fn ns<T,F> (self: &mut Self, Self::Name, body:F) -> T
       where F:FnOnce(&mut Self) -> T ;
-  
+
     /// Enters a special "namespace" where all name uses are ignored; instead, Adapton uses structural identity.
     fn structural<T,F> (self: &mut Self, body:F) -> T
       where F:FnOnce(&mut Self) -> T ;
 
     fn cnt<Res,F> (self: &mut Self, body:F) -> (Res, Cnt)
         where F:FnOnce(&mut Self) -> Res ;
-    
+
     /// Creates immutable, eager articulation.
     fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> Art<T,Self::Loc> ;
 
@@ -81,20 +81,20 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     /// Demand & observe arts (all kinds): force
     // fn force<T:Eq+Debug+Clone+Hash+GMLog<Self>> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
     fn force<T:Eq+Debug+Clone+Hash> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
-  
+
   // GraphMovie logging, using this web-based tool:
   // https://github.com/kyleheadley/graphmovie
   fn gmlog(self:&mut Self) -> Option<&mut File>;
 
     ///  # Derived fork functions:
-    
+
     fn name_fork3 (self:&mut Self, n:Self::Name)
                    -> (Self::Name,Self::Name,Self::Name) {
         let (n1,n)  = self.name_fork(n);
         let (n2,n3) = self.name_fork(n);
         (n1,n2,n3)
     }
-    
+
     fn name_fork4 (self:&mut Self, n:Self::Name)
                    -> (Self::Name,Self::Name,Self::Name,Self::Name) {
         let (n1,n2,n) = self.name_fork3(n);
@@ -153,9 +153,11 @@ pub enum ArtIdChoice<Name> {
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone)]
 pub struct Cnt {
-    pub dirty : usize,
-    pub eval  : usize,
-    pub change_prop : usize,
+  pub create : usize, // Add trait performs sum
+  pub eval   : usize, // Add trait performs sum
+  pub dirty  : usize, // Add trait performs sum
+  pub clean  : usize, // Add trait performs sum
+  pub stack  : usize, // Add trait performs max
 }
 
 // pub trait Sub<RHS = Self> {
@@ -163,45 +165,52 @@ pub struct Cnt {
 //     fn sub(self, rhs: RHS) -> Self::Output;
 // }
 
-impl Sub for Cnt {
-    type Output=Cnt;
-    fn sub(self, rhs: Self) -> Self::Output {
-        Cnt {
-            dirty : self.dirty - rhs.dirty,
-            eval  : self.eval - rhs.eval,
-            change_prop : self.change_prop - rhs.change_prop,
-        }
-    }
-}
+// impl Sub for Cnt {
+//   type Output=Cnt;
+//   fn sub(self, rhs: Self) -> Self::Output {
+//     Cnt {
+//       create : self.create - rhs.create,
+//       eval   : self.eval - rhs.eval,
+//       dirty  : self.dirty - rhs.dirty,
+//       clean  : self.clean - rhs.clean,
+//     }
+//   }
+// }
 
 impl Add for Cnt {
-    type Output=Cnt;
-    fn add(self, rhs: Self) -> Self::Output {
-        Cnt {
-            dirty : self.dirty + rhs.dirty,
-            eval  : self.eval + rhs.eval,
-            change_prop : self.change_prop + rhs.change_prop,
-        }
+  type Output=Cnt;
+  fn add(self, rhs: Self) -> Self::Output {
+    Cnt {
+      create : self.create + rhs.create,
+      eval   : self.eval + rhs.eval,
+      dirty  : self.dirty + rhs.dirty,
+      clean  : self.clean + rhs.clean,
+      stack  : if self.stack > rhs.stack { self.stack } else { rhs.stack }
     }
+  }
 }
 
 impl<'a> Add for &'a Cnt {
-    type Output=Cnt;
-    fn add(self, rhs: Self) -> Self::Output {
-        Cnt {
-            dirty : self.dirty + rhs.dirty,
-            eval  : self.eval + rhs.eval,
-            change_prop : self.change_prop + rhs.change_prop,
-        }
+  type Output=Cnt;
+  fn add(self, rhs: Self) -> Self::Output {
+    Cnt {
+      create : self.create + rhs.create,
+      eval   : self.eval + rhs.eval,
+      dirty  : self.dirty + rhs.dirty,
+      clean  : self.clean + rhs.clean,
+      stack  : if self.stack > rhs.stack { self.stack } else { rhs.stack }
     }
+  }
 }
 
 impl Zero for Cnt {
-    fn zero() -> Self {
-        Cnt {
-            dirty : 0 as usize,
-            change_prop : 0 as usize,
-            eval : 0 as usize,
-        }
+  fn zero() -> Self {
+    Cnt {
+      create : 0 as usize,
+      eval   : 0 as usize,
+      dirty  : 0 as usize,
+      clean  : 0 as usize,
+      stack  : 0 as usize,
     }
+  }
 }

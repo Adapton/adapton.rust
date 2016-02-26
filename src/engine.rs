@@ -181,7 +181,8 @@ struct EngineRes {
 // EngineDep abstracts over the value produced by a dependency, as
 // well as mechanisms to update and/or re-produce it.
 trait EngineDep : Debug {
-    fn change_prop (self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes ;
+  // Todo-later(?): Rename `change_prop` to `clean`?
+  fn change_prop (self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes ;
 }
 
 impl Hash for Succ {
@@ -615,6 +616,7 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(st:&mut Engine, loc:&Rc<Lo
     st.stack.push ( Frame{loc:loc.clone(),
                           //path:loc.path.clone(),
                           succs:Vec::new(), } );
+    st.cnt.stack = if st.cnt.stack > st.stack.len() { st.cnt.stack } else { st.stack.len() } ;
     let prev_path = st.path.clone () ;
     st.path = loc.path.clone() ;
     let producer : Box<Producer<Res>> = {
@@ -678,7 +680,7 @@ struct ProducerDep<T> { res:T }
 fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
     (st:&mut Engine, this_dep:&ProducerDep<Res>, loc:&Rc<Loc>, cache:Res, succs:Vec<Succ>) -> EngineRes
 {
-    st.cnt.change_prop += 1 ;
+    st.cnt.clean += 1 ;
     for succ in succs.iter() {
         let dirty = { get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty } ;
         if dirty {
@@ -990,14 +992,16 @@ impl Adapton for Engine {
       //}
     }
 
-    fn cnt<Res,F> (self: &mut Self, body:F) -> (Res,Cnt)
-        where F:FnOnce(&mut Self) -> Res
-    {
-        let c = self.cnt.clone() ;
-        let x = body(self) ;
-        let d = self.cnt.clone() - c ;
-        (x, d)
-    }
+  fn cnt<Res,F> (self: &mut Self, body:F) -> (Res,Cnt)
+    where F:FnOnce(&mut Self) -> Res
+  {    
+    let c : Cnt = self.cnt.clone() ;
+    self.cnt = Zero::zero();
+    let x = body(self) ;
+    let d : Cnt = self.cnt.clone() ;
+    self.cnt = c + d.clone();
+    (x, d)
+  }
 
     fn put<T:Eq> (self:&mut Engine, x:T) -> Art<T,Self::Loc> { Art::Rc(Rc::new(x)) }
 
@@ -1041,6 +1045,7 @@ impl Adapton for Engine {
                     preds:Vec::new(),
                     val:val.clone(),
                 }) ;
+                self.cnt.create += 1;
                 self.table.insert(loc.clone(), Box::new(node));
             } ;
             let stackLen = self.stack.len() ;
@@ -1129,6 +1134,7 @@ impl Adapton for Engine {
                     producer:producer,
                     res:None,
                 } ;
+                self.cnt.create += 1;
                 self.table.insert(loc.clone(),
                                   Box::new(Node::Comp(node)));
                 wf::check_dcg(self);
@@ -1227,6 +1233,7 @@ impl Adapton for Engine {
                         producer:Box::new(producer),
                         res:None,
                     } ;
+                    self.cnt.create += 1;
                     self.table.insert(loc.clone(),
                                       Box::new(Node::Comp(node)));
                     wf::check_dcg(self);
