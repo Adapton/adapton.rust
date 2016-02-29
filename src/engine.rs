@@ -680,7 +680,6 @@ struct ProducerDep<T> { res:T }
 fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
     (st:&mut Engine, this_dep:&ProducerDep<Res>, loc:&Rc<Loc>, cache:Res, succs:Vec<Succ>) -> EngineRes
 {
-    st.cnt.clean += 1 ;
     for succ in succs.iter() {
         let dirty = { get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty } ;
         if dirty {
@@ -694,12 +693,13 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
                 return EngineRes{changed:changed}
             }
             else {
-                // BUGFIX: Set this flag back to false after change
-                // propagation is finished.  Otherwise, the code that
-                // omits this would violate the post condition of
-                // change propagation (viz., all succs are clean,
-                // transitively).
-                get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty = false ;
+              // BUGFIX: Set this flag back to false after change
+              // propagation is finished.  Otherwise, the code that
+              // omits this would violate the post condition of
+              // change propagation (viz., all succs are clean,
+              // transitively).
+              st.cnt.clean += 1 ;                
+              get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty = false ;
             }
         }
     } ;
@@ -1045,8 +1045,9 @@ impl Adapton for Engine {
                     preds:Vec::new(),
                     val:val.clone(),
                 }) ;
-                self.cnt.create += 1;
-                self.table.insert(loc.clone(), Box::new(node));
+              self.cnt.create += 1;
+              //println!("create: {:?}", &loc);
+              self.table.insert(loc.clone(), Box::new(node));
             } ;
             let stackLen = self.stack.len() ;
             match self.stack.last_mut() { None => (), Some(frame) => {
@@ -1118,6 +1119,7 @@ impl Adapton for Engine {
                                  dirty:false};
                         frame.succs.push(succ)
                     }};
+              //println!("create: {:?} {:?} {:?}", &loc, &prog_pt, &arg);
                 let producer : Box<Producer<Res>> =
                     Box::new(App{prog_pt:prog_pt,
                                  fn_box:fn_box,
@@ -1134,7 +1136,7 @@ impl Adapton for Engine {
                     producer:producer,
                     res:None,
                 } ;
-                self.cnt.create += 1;
+              self.cnt.create += 1;
                 self.table.insert(loc.clone(),
                                   Box::new(Node::Comp(node)));
                 wf::check_dcg(self);
@@ -1233,7 +1235,8 @@ impl Adapton for Engine {
                         producer:Box::new(producer),
                         res:None,
                     } ;
-                    self.cnt.create += 1;
+                self.cnt.create += 1;
+                //println!("create: {:?}", &loc);
                     self.table.insert(loc.clone(),
                                       Box::new(Node::Comp(node)));
                     wf::check_dcg(self);
