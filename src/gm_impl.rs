@@ -106,7 +106,7 @@ fn tree_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
       gm::addnode(st, &node, art, "", None);
       edge(st, up, &node);
       //let t = st.force(a);
-      //tree_out(st, &t, &node, "c");          
+      //tree_out(st, &t, &node, "c");
     }
   }
 }
@@ -167,7 +167,7 @@ fn list_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
       gm::addnode(st, &node, art, "", None);
       edge(st, up, &node);
       //let t = st.force(a);
-      //list_out(st, &t, &node);          
+      //list_out(st, &t, &node);
     }
   }
 }
