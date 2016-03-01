@@ -224,9 +224,7 @@ pub fn tree_of_treelist_rec
     /* Tree */
     |st, tree2, dir_tree2, rest,
     /* Accums: */ (dir_tree1, tree1, tree_lev, parent_lev)| {
-      assert!( dir_tree1 == dir_tree2 );
-      
-      // XXX Ignoring dir_tree, which may lead to ordering problems in general!
+      assert!( dir_tree1 == dir_tree2 );      
       let tree =
         match dir_tree1 {
           Dir2::Left  => tree_append::<A,X,T>(st, tree1, tree2),
@@ -383,6 +381,8 @@ pub fn tree_append
   else    { T::bin(st, T::lev_max_val(), tree1, tree2) }
 }
 
+
+
 pub fn tree_append__name_dropping // drops/forgets names in the new path created by the append
     <A:Adapton
     ,X:Clone+Hash+Eq+Debug
@@ -390,6 +390,35 @@ pub fn tree_append__name_dropping // drops/forgets names in the new path created
     >
     (st:&mut A, tree1:T::Tree, tree2:T::Tree) -> T::Tree
 {
+  fn merge<A:Adapton
+    ,X:Clone+Hash+Eq+Debug
+    ,T:TreeT<A,X>
+    >
+    (st:&mut A,
+           n1:Option<A::Name>, lev1:T::Lev, l1:T::Tree, r1:T::Tree,
+           n2:Option<A::Name>, lev2:T::Lev, l2:T::Tree, r2:T::Tree) -> T::Tree {
+    let levl1 = T::lev_of_tree(st, &l1);
+    let levr1 = T::lev_of_tree(st, &r1);
+    let levl2 = T::lev_of_tree(st, &l2);
+    let levr2 = T::lev_of_tree(st, &r2);
+    let lev   = T::lev_max(&lev1, &lev2);
+    if T::lev_lte(&levr1, &levr2) &&
+      T::lev_lte(&levl2, &levr2) {
+        let tree1 = T::bin(st, lev1, l1, r1);
+        let tree1 = tree_append::<A,X,T>(st, tree1, l2);
+        T::bin(st, lev, tree1, r2)
+      }
+    else if T::lev_lte(&levr1, &levl2) &&
+      ! T::lev_lte(&levl2, &levr2) {
+        let tree1 = T::bin(st, lev1, l1, r1);
+        let tree2 = T::bin(st, lev2, l2, r2);
+        T::bin(st, lev, tree1, tree2)
+      }
+    else {
+      let tree2 = T::bin(st, lev2, l2, r2);
+      let tree2 = tree_append::<A,X,T>(st, r1, tree2);
+      T::bin(st, lev, l1, tree2)
+    }};    
     T::elim_move
         (st, tree1, tree2,
          /* Nil */  |_, tree2| tree2,
@@ -423,10 +452,8 @@ pub fn tree_append__name_dropping // drops/forgets names in the new path created
                           T::bin(st, lev, l, r)
                       }
                   },
-                  /* Name */ |st, _, lev2, l2, r2, leaf1| { /* TODO-Later: Do we really want to forget about this name? */
-                      let tree1 = T::leaf(st, leaf1);
-                      let tree2 = T::bin(st, lev2, l2, r2);
-                      tree_append::<A,X,T>(st, tree1, tree2)
+                  /* Name */ |st, _, lev2, l2, r2, leaf1| {
+                    panic!("")
                   })
          },
          /* Bin */ |st,lev1,l1,r1, tree2| {
@@ -450,38 +477,14 @@ pub fn tree_append__name_dropping // drops/forgets names in the new path created
                       }
                   },
                   /* Bin */  |st, lev2, l2, r2, (lev1, l1, r1)| {
-                      let levl1 = T::lev_of_tree(st, &l1);
-                      let levr1 = T::lev_of_tree(st, &r1);
-                      let levl2 = T::lev_of_tree(st, &l2);
-                      let levr2 = T::lev_of_tree(st, &r2);
-                      let lev   = T::lev_max(&lev1, &lev2);
-                      if T::lev_lte(&levr1, &levr2) &&
-                          T::lev_lte(&levl2, &levr2) {
-                              let tree1 = T::bin(st, lev1, l1, r1);
-                              let tree1 = tree_append::<A,X,T>(st, tree1, l2);
-                              T::bin(st, lev, tree1, r2)
-                          }
-                      else if T::lev_lte(&levr1, &levl2) &&
-                          ! T::lev_lte(&levl2, &levr2) {
-                              let tree1 = T::bin(st, lev1, l1, r1);
-                              let tree2 = T::bin(st, lev2, l2, r2);
-                              T::bin(st, lev, tree1, tree2)
-                          }
-                      else {
-                          let tree2 = T::bin(st, lev2, l2, r2);
-                          let tree2 = tree_append::<A,X,T>(st, r1, tree2);
-                          T::bin(st, lev, l1, tree2)
-                      }
+                    merge::<A,X,T>(st, None, lev1, l1, r1, None, lev2, l2, r2)
                   },
-                  /* Name */ |st, _, lev2, l2, r2, (lev1, l1, r1) | { /* TODO-Later: Do we really want to forget about this name? */
-                      let tree1 = T::bin(st, lev1, l1, r1);
-                      let tree2 = T::bin(st, lev2, l2, r2);
-                      tree_append::<A,X,T>(st, tree1, tree2)
+                  /* Name */ |st, n2, lev2, l2, r2, (lev1, l1, r1) | {
+                    merge::<A,X,T>(st, Some(n2), lev1, l1, r1, None, lev2, l2, r2)
                   })
          },
-         /* Name */ |st,_,lev1,l1,r1, tree2| { /* TODO-Later: Do we really want to forget about this name? */
-             let tree1 = T::bin(st, lev1, l1, r1);
-             tree_append::<A,X,T>(st, tree1, tree2)
+         /* Name */ |st,_,lev1,l1,r1, tree2| {
+           panic!("")
          }
          )
 }
