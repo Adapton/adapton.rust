@@ -192,6 +192,16 @@ pub trait ListEdit<A:Adapton,X,T:TreeT<A,X>> {
         z
       }}}
       
+  fn ins_tree_optnm (st:&mut A, z:Self::State, dir:Dir2, nm:Option<A::Name>, tr:T::Tree, tdir:Dir2) -> Self::State {
+    match nm {
+      None => Self::ins_tree(st, z, dir, tr, tdir),
+      Some(nm) => {
+        let z = Self::ins_tree(st, z, dir.clone(), tr, tdir) ;
+        let z = Self::ins_cell(st, z, dir.clone(), nm.clone()) ;
+        let z = Self::ins_name(st, z, dir, nm) ;
+        z
+      }}}
+      
   
   fn move_optnm (st:&mut A, z:Self::State, dir:Dir2, nm:Option<A::Name>) -> (Self::State, bool) {
     match nm {
