@@ -230,6 +230,9 @@ pub fn tree_of_treelist_rec
           Dir2::Left  => tree_append::<A,X,T>(st, tree1, tree2),
           Dir2::Right => tree_append::<A,X,T>(st, tree2, tree1),
         } ;
+      // using this tree level may end up failing the invariant that rest == Nil at completion
+      // let tree_lev = T::lev_of_tree(st, &tree);
+
       // XXX Using this tree_lev is not quite right for maintaining balance;
       // XXX The level may be affected by the append on the prior line.
       tree_of_treelist_rec::<A,X,T,L>(st, dir_tree1, rest, tree, tree_lev, parent_lev)
@@ -277,6 +280,7 @@ pub fn tree_of_treelist_rec
           eager!(st, nm2 =>> tree_of_treelist_rec::<A,X,T,L>,
                  dir_list:dir_list.clone(), list:rest,
                  tree:tree3, tree_lev:lev_nm, parent_lev:parent_lev ) ;
+        // this creates unnecessary arts at the head of a tree
         //let art = st.cell(nm4, tree) ;
         //let art = st.read_only( art ) ;
         //let tree = T::art( st, art ) ;
@@ -383,7 +387,7 @@ pub fn tree_append__simple_join
 
 
 
-pub fn tree_append<
+pub fn tree_append__Pugh_join<
   A:Adapton,
   X:Clone+Hash+Eq+Debug,
   T:TreeT<A,X>
@@ -543,5 +547,143 @@ pub fn tree_append<
         }
       )
     }
+  )
+}
+
+pub fn tree_append<
+  A:Adapton,
+  X:Clone+Hash+Eq+Debug,
+  T:TreeT<A,X>
+>(st:&mut A, tree1:T::Tree, tree2:T::Tree) -> T::Tree {
+  T::elim_move(
+    st, tree1, tree2,
+    /* Nil */  |_, tree2| tree2,
+    /* Leaf */ |st,leaf,  tree2| {
+      T::elim_move(
+        st, tree2, leaf,
+        /* Leaf-Nil */  |st, leaf1| T::leaf(st,leaf1),
+        /* Leaf-Leaf */ |st, leaf2, leaf1| {
+          let lev1 = T::lev(&leaf1);
+          let lev2 = T::lev(&leaf2);
+          let lev = T::lev_max(&lev1,&lev2) ;
+          let l1 = T::leaf(st,leaf1);
+          let l2 = T::leaf(st,leaf2);
+          T::bin(st, lev, l1, l2)
+        },
+        /* Leaf-Bin */  |st, lev2, l2, r2, leaf1| {
+          let lev1 = T::lev(&leaf1);
+          if T::lev_lte(&lev1, &lev2) {
+            let l1 = T::leaf(st,leaf1);
+            let tree1 = tree_append::<A,X,T>(st, l1, l2);
+            let tree1lev = T::lev_of_tree(st, &tree1);
+            let levr2 = T::lev_of_tree(st, &r2);
+            let lev = T::lev_max(&tree1lev, &levr2);
+            T::bin(st, lev, tree1, r2)
+          } else {
+            let lev  = T::lev_max(&lev1, &lev2);
+            let l    = T::leaf(st,leaf1);
+            let r    = T::bin(st, lev2, l2, r2);
+            T::bin(st, lev, l, r)
+          }
+        },
+        /* Leaf-Name */ |st, nm2, lev2, l2, r2, leaf1| {
+          let lev1 = T::lev(&leaf1);
+          let l1 = T::leaf(st,leaf1);
+          if T::lev_lte(&lev1, &lev2) {
+            let tree1 = tree_append::<A,X,T>(st, l1, l2);
+            let tree1lev = T::lev_of_tree(st, &tree1);
+            let levr2 = T::lev_of_tree(st, &r2);
+            let lev = T::lev_max(&tree1lev, &levr2);
+            T::name(st, nm2, lev, tree1, r2)
+          } else {
+            let lev  = T::lev_max(&lev1, &lev2);
+            let r    = T::name(st, nm2, lev2, l2, r2);
+            T::bin(st, lev, l1, r)
+          }
+        }
+      )
+    }, /* end Leaf */
+    /* Bin */ |st,lev1,l1,r1, tree2| {
+      let bin_data = (lev1,l1,r1) ;
+      T::elim_move(
+        st, tree2, bin_data,
+        /* Bin-Nil */  |st, (lev1,l1,r1)| T::bin(st,lev1,l1,r1),
+        /* Bin-Leaf */ |st, leaf2, (lev1,l1,r1)| {
+          let tree2 = T::leaf(st, leaf2);
+          let lev2  = T::lev_of_tree(st, &tree2);
+          if T::lev_lte(&lev2, &lev1) {
+            let tree2 = tree_append::<A,X,T>(st, r1, tree2);
+            T::bin(st, lev1, l1, tree2)
+          } else {
+            let lev   = T::lev_max(&lev1, &lev2);
+            let tree1 = T::bin(st, lev1, l1, r1);
+            T::bin(st, lev, tree1, tree2)
+          }
+        },
+        /* Bin-Bin */  |st, lev2, l2, r2, (lev1, l1, r1)| {
+          if T::lev_lte(&lev1, &lev2) {
+            let tree1 = T::bin(st, lev1, l1, r1);
+            let l = tree_append::<A,X,T>(st, tree1, l2);
+            T::bin(st, lev2, l, r2)
+          } else {
+            let tree2 = T::bin(st, lev2, l2, r2);
+            let r = tree_append::<A,X,T>(st, r1, tree2);
+            T::bin(st, lev1, l1, r)
+          }
+        },
+        /* Bin-Name */ |st, n2, lev2, l2, r2, (lev1, l1, r1) | {
+          if T::lev_lte(&lev1, &lev2) {
+            let tree1 = T::bin(st, lev1, l1, r1);
+            let l = tree_append::<A,X,T>(st, tree1, l2);
+            T::name(st, n2, lev2, l, r2)
+          } else {
+            let tree2 = T::name(st, n2, lev2, l2, r2);
+            let r = tree_append::<A,X,T>(st, r1, tree2);
+            T::bin(st, lev1, l1, r)
+          }
+        }
+      )
+    }, /* end Bin */
+    /* Name */ |st, n1, lev1, l1, r1, tree2| {
+      let name_data = (n1,lev1,l1,r1) ;
+      T::elim_move(
+        st, tree2, name_data,
+        /* Name-Nil */  |st, (n1,lev1,l1,r1)| T::name(st,n1,lev1,l1,r1),
+        /* Name-Leaf */ |st, leaf2, (n1,lev1,l1,r1)| {
+          let tree2 = T::leaf(st, leaf2);
+          let lev2  = T::lev_of_tree(st, &tree2);
+          if T::lev_lte(&lev2, &lev1) {
+            let tree2 = tree_append::<A,X,T>(st, r1, tree2);
+            T::name(st, n1, lev1, l1, tree2)
+          } else {
+            let lev   = T::lev_max(&lev1, &lev2);
+            let tree1 = T::name(st, n1, lev1, l1, r1);
+            T::bin(st, lev, tree1, tree2)
+          }
+        },
+        /* Name-Bin */  |st, lev2, l2, r2, (n1, lev1, l1, r1)| {
+          if T::lev_lte(&lev1, &lev2) {
+            let tree1 = T::name(st, n1, lev1, l1, r1);
+            let l = tree_append::<A,X,T>(st, tree1, l2);
+            T::bin(st, lev2, l, r2)
+          } else {
+            let tree2 = T::bin(st, lev2, l2, r2);
+            let r = tree_append::<A,X,T>(st, r1, tree2);
+            T::name(st, n1, lev1, l1, r)
+          }
+        },
+        /* Name-Name */ |st, n2, lev2, l2, r2, (n1, lev1, l1, r1) | {
+          if T::lev_lte(&lev1, &lev2) {
+            let tree1 = T::name(st, n1, lev1, l1, r1);
+            let l = tree_append::<A,X,T>(st, tree1, l2);
+            T::name(st, n2, lev2, l, r2)
+          } else {
+            let tree2 = T::name(st, n2, lev2, l2, r2);
+            let r = tree_append::<A,X,T>(st, r1, tree2);
+            T::name(st, n1, lev1, l1, r)
+          }
+        }
+      )
+    } /* end Name */
   )
 }
