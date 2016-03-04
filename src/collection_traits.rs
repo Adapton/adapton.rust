@@ -51,9 +51,9 @@ pub trait ListT<A:Adapton,Elm> : Debug+Clone+Hash+PartialEq+Eq {
 pub trait TreeListT<A:Adapton,Elm,T:TreeT<A,Elm>> : ListT<A,Elm> {    
   fn tree (&mut A, T::Tree, Dir2, Self::List) -> Self::List ;
 
-  fn next_leaf (&mut A, T::Tree, Dir2) -> Option<(Elm,Self::List)> ;
+  fn next_leaf (&mut A, T::Tree, Dir2) -> (Option<Elm>,Self::List) ;
 
-  fn next_leaf_rec (&mut A, T::Tree, Dir2, Self::List) -> Option<(Elm, Self::List)> ;
+  fn next_leaf_rec (&mut A, T::Tree, Dir2, Self::List) -> (Option<Elm>, Self::List) ;
 
   fn tree_elim_move<Arg,Res,Tree,Nil,Cons,Name>
     (&mut A, Self::List, Arg, Tree, Nil, Cons, Name) -> Res
