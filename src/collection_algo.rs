@@ -583,7 +583,7 @@ pub fn tree_append<
             let lev  = T::lev_max(&lev1, &lev2);
             let l    = T::leaf(st,leaf1);
             let r    = T::bin(st, lev2, l2, r2);
-            T::bin(st, lev, l, r)
+            T::bin(st, lev, l, r) // xxx count me
           }
         },
         /* Leaf-Name */ |st, n2, lev2, l2, r2, leaf1| {
@@ -600,7 +600,7 @@ pub fn tree_append<
           } else {
             let lev  = T::lev_max(&lev1, &lev2);
             let r    = T::name(st, n2, lev2, l2, r2);
-            T::bin(st, lev, l1, r)
+            T::bin(st, lev, l1, r) // xxx panic
           }
         }
       )
@@ -619,7 +619,7 @@ pub fn tree_append<
           } else {
             let lev   = T::lev_max(&lev1, &lev2);
             let tree1 = T::bin(st, lev1, l1, r1);
-            T::bin(st, lev, tree1, tree2)
+            T::bin(st, lev, tree1, tree2) // xxx count me
           }
         },
         /* Bin-Bin */  |st, lev2, l2, r2, (lev1, l1, r1)| {
@@ -664,14 +664,14 @@ pub fn tree_append<
           } else {
             let lev   = T::lev_max(&lev1, &lev2);
             let tree1 = T::name(st, n1, lev1, l1, r1);
-            T::bin(st, lev, tree1, tree2)
+            T::bin(st, lev, tree1, tree2) // panic
           }
         },
         /* Name-Bin */  |st, lev2, l2, r2, (n1, lev1, l1, r1)| {
           if T::lev_lte(&lev1, &lev2) {
             let tree1 = T::name(st, n1, lev1, l1, r1);
             let l = tree_append::<A,X,T>(st, tree1, l2);
-            T::bin(st, lev2, l, r2)
+            T::bin(st, lev2, l, r2) // panic
           } else {
             let tree2 = T::bin(st, lev2, l2, r2);
             let (nm1, nm2) = st.name_fork(n1.clone());
