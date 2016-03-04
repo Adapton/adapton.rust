@@ -586,19 +586,20 @@ pub fn tree_append<
             T::bin(st, lev, l, r)
           }
         },
-        /* Leaf-Name */ |st, nm2, lev2, l2, r2, leaf1| {
+        /* Leaf-Name */ |st, n2, lev2, l2, r2, leaf1| {
           let lev1 = T::lev(&leaf1);
           let l1 = T::leaf(st,leaf1);
           if T::lev_lte(&lev1, &lev2) {
-            let (nm1,nm2) = st.name_fork(nm2.clone());
-            let (_,tree1) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:l1, tree2:l2);
+            let (nm1,nm2) = st.name_fork(n2.clone());
+            let (tree1,_) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:l1, tree2:l2);
+            let tree1 = T::art(st, tree1);
             let tree1lev = T::lev_of_tree(st, &tree1);
             let levr2 = T::lev_of_tree(st, &r2);
             let lev = T::lev_max(&tree1lev, &levr2);
             T::name(st, nm2, lev, tree1, r2)
           } else {
             let lev  = T::lev_max(&lev1, &lev2);
-            let r    = T::name(st, nm2, lev2, l2, r2);
+            let r    = T::name(st, n2, lev2, l2, r2);
             T::bin(st, lev, l1, r)
           }
         }
@@ -636,7 +637,8 @@ pub fn tree_append<
           if T::lev_lte(&lev1, &lev2) {
             let tree1 = T::bin(st, lev1, l1, r1);
             let (nm1, nm2) = st.name_fork(n2.clone());
-            let (_,l) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:tree1, tree2:l2);
+            let (l,_) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:tree1, tree2:l2);
+            let l = T::art(st, l);
             T::name(st, nm2, lev2, l, r2)
           } else {
             let tree2 = T::name(st, n2, lev2, l2, r2);
@@ -656,7 +658,8 @@ pub fn tree_append<
           let lev2  = T::lev_of_tree(st, &tree2);
           if T::lev_lte(&lev2, &lev1) {
             let (nm1, nm2) = st.name_fork(n1.clone());
-            let (_,tree2) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
+            let (tree2,_) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
+            let tree2 = T::art(st, tree2);
             T::name(st, nm2, lev1, l1, tree2)
           } else {
             let lev   = T::lev_max(&lev1, &lev2);
@@ -672,7 +675,8 @@ pub fn tree_append<
           } else {
             let tree2 = T::bin(st, lev2, l2, r2);
             let (nm1, nm2) = st.name_fork(n1.clone());
-            let (_,r) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
+            let (r,_) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
+            let r = T::art(st, r);
             T::name(st, nm2, lev1, l1, r)
           }
         },
@@ -680,12 +684,14 @@ pub fn tree_append<
           if T::lev_lte(&lev1, &lev2) {
             let tree1 = T::name(st, n1, lev1, l1, r1);
             let (nm1, nm2) = st.name_fork(n2.clone());
-            let (_,l) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:tree1, tree2:l2);
+            let (l,_) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:tree1, tree2:l2);
+            let l = T::art(st, l);
             T::name(st, nm2, lev2, l, r2)
           } else {
             let tree2 = T::name(st, n2, lev2, l2, r2);
             let (nm1, nm2) = st.name_fork(n1.clone());
-            let (_,r) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
+            let (r,_) = eager!(st, nm1 =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
+            let r = T::art(st, r);
             T::name(st, nm2, lev1, l1, r)
           }
         }

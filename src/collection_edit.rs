@@ -166,6 +166,7 @@ pub trait ListEdit<A:Adapton,X,T:TreeT<A,X>> {
     fn remove   (&mut A, Self::State, Dir2)    -> (Self::State, Option<X>);
     fn replace  (&mut A, Self::State, Dir2, X) -> (Self::State, X, bool);
     fn goto     (&mut A, Self::State, Dir2)    -> (Self::State, bool);
+    fn shift    (&mut A, Self::State, Dir2)    -> (Self::State, bool);
     fn observe  (&mut A, Self::State, Dir2)    -> (Self::State, Option<X>);
 
     // Insert/remove names from the list content:
@@ -379,15 +380,34 @@ impl<A:Adapton
           (st, zip.left, zip.right,
            /* Nil */  |st,right|          (zipper!{L::nil(st), right}          , false ),
            /* Cons */ |st,elm,left,right| (zipper!{left, L::cons(st,elm,right)}, true  ),
-           /* Name */ |st,nm,left,right| {let zip = zipper!{left, right};
+           /* Name */ |st,_,left,right| {let zip = zipper!{left, right};
                                           Self::goto (st, zip, Dir2::Left)}
            ),
         Dir2::Right => L::elim_move
           (st, zip.right, zip.left,
            /* Nil */ |st,left|           (zipper!{left,              L::nil(st)}, false ),
            /* Cons */ |st,x,right,left|  (zipper!{L::cons(st,x,left),right}     , true  ),
-           /* Name */ |st,nm,right,left| {let zip = zipper!{left, right};
+           /* Name */ |st,_,right,left| {let zip = zipper!{left, right};
                                           Self::goto (st, zip, Dir2::Right)}
+           ),
+      }
+    }
+
+    fn shift (st:&mut A, zip:Self::State, dir:Dir2) -> (Self::State, bool) {
+      match dir {
+        Dir2::Left => L::elim_move
+          (st, zip.left, zip.right,
+           /* Nil */  |st,right|          (zipper!{L::nil(st), right}          , false ),
+           /* Cons */ |st,elm,left,right| (zipper!{left, L::cons(st,elm,right)}, true  ),
+           /* Name */ |st,nm,left,right| {let zip = zipper!{left, L::name(st,nm,right)};
+                                          Self::shift (st, zip, Dir2::Left)}
+           ),
+        Dir2::Right => L::elim_move
+          (st, zip.right, zip.left,
+           /* Nil */ |st,left|           (zipper!{left,              L::nil(st)}, false ),
+           /* Cons */ |st,x,right,left|  (zipper!{L::cons(st,x,left),right}     , true  ),
+           /* Name */ |st,nm,right,left| {let zip = zipper!{L::name(st,nm,left), right};
+                                          Self::shift (st, zip, Dir2::Right)}
            ),
       }
     }
