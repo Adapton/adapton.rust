@@ -203,8 +203,10 @@ pub fn tree_of_treelist
         let tnil = T::nil(st);
         let lnil = L::nil(st);
         let (tree, list) = tree_of_treelist_rec::<A,X,T,L>(st, dir_list, list, tnil, T::lev_zero(), T::lev_max_val());
-        assert_eq!(list, lnil);
-        tree
+      if list == lnil { tree }
+      else {
+        panic!("Left over list: {:?}", list);
+      }
     }
 
 pub fn tree_of_treelist_rec
@@ -223,19 +225,24 @@ pub fn tree_of_treelist_rec
 
     /* Tree */
     |st, tree2, dir_tree2, rest,
-    /* Accums: */ (dir_tree1, tree1, tree_lev, parent_lev)| {
-      assert!( dir_tree1 == dir_tree2 );      
-      let tree =
-        match dir_tree1 {
-          Dir2::Left  => tree_append::<A,X,T>(st, tree1, tree2),
-          Dir2::Right => tree_append::<A,X,T>(st, tree2, tree1),
-        } ;
-      // using this tree level may end up failing the invariant that rest == Nil at completion
-      // let tree_lev = T::lev_of_tree(st, &tree);
-
-      // XXX Using this tree_lev is not quite right for maintaining balance;
-      // XXX The level may be affected by the append on the prior line.
-      tree_of_treelist_rec::<A,X,T,L>(st, dir_tree1, rest, tree, tree_lev, parent_lev)
+    /* Accums: */ (dir_tree1, tree1, tree1_lev, parent_lev)| {
+      assert!( dir_tree1 == dir_tree2 );
+      let tree2_lev = T::lev_of_tree(st, &tree2);
+      if T::lev_lte ( &tree2_lev , &parent_lev ) {
+        let tree3 =
+          match dir_tree1 {
+            Dir2::Left  => tree_append::<A,X,T>(st, tree1, tree2),
+            Dir2::Right => tree_append::<A,X,T>(st, tree2, tree1),
+          } ;
+        // !!! using this tree level may end up failing the invariant that rest == Nil at completion
+        let tree3_lev = T::lev_of_tree(st, &tree3);
+        // !!! XXX Using this tree_lev is not quite right for maintaining balance;
+        // !!! XXX The level may be affected by the append on the prior line.
+        tree_of_treelist_rec::<A,X,T,L>(st, dir_tree1, rest, tree3, tree3_lev, parent_lev)
+      }
+      else {
+        (tree1, L::tree(st,tree2,dir_tree2,rest))
+      }
     },
     
     /* Nil */
