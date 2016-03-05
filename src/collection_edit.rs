@@ -181,7 +181,7 @@ pub trait ListEdit<A:Adapton,X,T:TreeT<A,X>> {
 
     fn get_list<L:ListT<A,X>> (&mut A, Self::State, Dir2) -> L::List;
     fn get_tree               (&mut A, Self::State, Dir2) -> T::Tree;
-
+    fn print_all (&mut A, Self::State);
 
   fn insert_optnm (st:&mut A, z:Self::State, dir:Dir2, nm:Option<A::Name>, elm:X) -> Self::State {
     match nm {
@@ -282,6 +282,19 @@ impl<A:Adapton
         // }
     }
 
+  fn print_all (st:&mut A, zip:Self::State) {
+    fn format_list<A:Adapton,X:Debug,T:TreeT<A,X>,L:TreeListT<A,X,T>>(st:&mut A, l:L::List) -> String {
+      L::tree_elim_move(st, l, (),
+                        |st,tree,dir,rest,_| format!("Tree(_,{:?},{})", dir, format_list::<A,X,T,L>(st, rest)),
+                        |st,_| format!("Nil"),
+                        |st,x,tl,_| format!("Cons({:?},{})",x,format_list::<A,X,T,L>(st, tl)),
+                        |st,nm,tl,_| format!("Name({:?},{})",nm,format_list::<A,X,T,L>(st, tl))
+                        )}
+    ;
+    println!("zip-left:  {}", format_list::<A,X,T,L>(st, zip.left));
+    println!("zip-right: {}", format_list::<A,X,T,L>(st, zip.right));
+  }
+  
     fn ins_tree (st:&mut A, zip:Self::State, ins_dir:Dir2, tree:T::Tree, tree_dir:Dir2) -> Self::State {
         match ins_dir {
             Dir2::Left =>
