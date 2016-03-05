@@ -213,7 +213,7 @@ impl
 
     //  See Pugh+Teiltelbaum in POPL 1989 for an explanation of this notion of "level":
     fn lev<X:Hash>(x:&X) -> Self::Lev  {
-        my_hash(&x).trailing_zeros() as Self::Lev
+      my_hash_n(&x,1).trailing_zeros() as Self::Lev
     }
     fn lev_of_tree (st:&mut A, tree:&Self::Tree) -> Self::Lev {
         Tree::elim_ref(st, tree,
