@@ -105,6 +105,16 @@ pub fn list_of_vec<A:Adapton,X:Clone,L:ListT<A,X>> (st:&mut A, v:Vec<X>) -> L::L
     return l
 }
 
+pub fn list_of_vec_w_names<A:Adapton,X:Clone,L:ListT<A,X>> (st:&mut A, v:Vec<NameOrElem<A::Name,X>>) -> L::List {
+  let mut l = L::nil(st);
+  for x in v.iter().rev() {
+    l = match *x {
+      NameOrElem::Name(ref nm) => L::name(st,nm.clone(),l),
+      NameOrElem::Elem(ref el) => L::cons(st,el.clone(),l),
+    }}
+  return l
+}
+
 pub fn rev_list_of_vec<A:Adapton,X:Clone,L:ListT<A,X>> (st:&mut A, v:Vec<X>) -> L::List {
     let mut l = L::nil(st);
     for x in v.iter() { l = L::cons(st,x.clone(), l) }
@@ -200,14 +210,43 @@ pub fn tree_of_treelist
     , L:TreeListT<A,X,T>
     >
     (st:&mut A, dir_list:Dir2, list:L::List) -> T::Tree {
-        let tnil = T::nil(st);
-        let lnil = L::nil(st);
-        let (tree, list) = tree_of_treelist_rec::<A,X,T,L>(st, dir_list, list, tnil, T::lev_zero(), T::lev_max_val());
+      let tnil = T::nil(st);
+      let lnil = L::nil(st);
+      let (tree, list) = tree_of_treelist_rec2::<A,X,T,L>(st, dir_list, list, tnil);
       if list == lnil { tree }
       else {
         panic!("Left over list: {:?}", list);
       }
     }
+
+pub fn tree_of_treelist_rec2 
+    < A:Adapton
+    , X:Hash+Clone+Eq+Debug
+    , T:TreeT<A,X>
+    , L:TreeListT<A,X,T>
+    >
+    (st:&mut A, dir_list:Dir2, list:L::List, tree0:T::Tree)
+     -> (T::Tree, L::List) {
+       let tnil = T::nil(st);
+       let lnil = L::nil(st);
+       let (tree1, list1) = tree_of_treelist_rec::<A,X,T,L>(st, dir_list.clone(), list, tnil.clone(), T::lev_zero(), T::lev_max_val());
+       if list1 == lnil {
+         let tree01 = match dir_list {
+           Dir2::Left  => tree_append::<A,X,T>(st, tree0, tree1),
+           Dir2::Right => tree_append::<A,X,T>(st, tree1, tree0),
+         } ;
+         (tree01, list1)
+       }
+       else {
+         let (tree2, list2) = tree_of_treelist_rec::<A,X,T,L>(st, dir_list.clone(), list1, tnil, T::lev_zero(), T::lev_max_val());
+         let tree3 =
+           match dir_list {
+             Dir2::Left  => tree_append::<A,X,T>(st, tree1, tree2),
+             Dir2::Right => tree_append::<A,X,T>(st, tree2, tree1),
+           } ;
+         tree_of_treelist_rec2::<A,X,T,L>(st, dir_list, list2, tree3)
+       }
+     }
 
 pub fn tree_of_treelist_rec
     < A:Adapton
@@ -238,9 +277,14 @@ pub fn tree_of_treelist_rec
         let tree3_lev = T::lev_of_tree(st, &tree3);
         // !!! XXX Using this tree_lev is not quite right for maintaining balance;
         // !!! XXX The level may be affected by the append on the prior line.
-        tree_of_treelist_rec::<A,X,T,L>(st, dir_tree1, rest, tree3, tree3_lev, parent_lev)
+        let (tree4, rest2) =
+          tree_of_treelist_rec::<A,X,T,L>(st, dir_tree1.clone(), rest, tree3, tree3_lev, parent_lev.clone()) ;
+
+        let tree4_lev = T::lev_of_tree(st, &tree4);
+        tree_of_treelist_rec::<A,X,T,L>(st, dir_tree1, rest2, tree4, tree4_lev, parent_lev)
       }
       else {
+        // If: tree2_lev > parent_lev
         (tree1, L::tree(st,tree2,dir_tree2,rest))
       }
     },
@@ -263,6 +307,7 @@ pub fn tree_of_treelist_rec
         tree_of_treelist_rec::<A,X,T,L> ( st, dir_list, rest2, tree3, lev_hd, parent_lev )
       }
       else {
+        // If: lev_hd > parent_lev \/ tree > lev_hd
         (tree, L::cons(st,hd,rest))
       }},
 
@@ -294,6 +339,7 @@ pub fn tree_of_treelist_rec
         (tree, rest)
       }
       else {
+        // If: lev_nm > parent_lev \/ tree_lev > lev_nm
         (tree, L::name(st,nm,rest))
       }},
     )
@@ -606,7 +652,16 @@ pub fn tree_append<
             let tree1lev = T::lev_of_tree(st, &tree1);
             let levr2 = T::lev_of_tree(st, &r2);
             let lev = T::lev_max(&tree1lev, &levr2);
+<<<<<<< HEAD
             T::name(st, n2, lev, tree1, r2)
+=======
+            T::name(st, nm2, lev, tree1, r2)
+          } else {
+            let lev  = T::lev_max(&lev1, &lev2);
+            let r    = T::name(st, n2, lev2, l2, r2);
+            panic!("Leaf-Name");
+            T::bin(st, lev, l1, r) // xxx panic
+>>>>>>> f30bac5b0f3d009eeb609f364e6fe139521aefd2
           }
         }
       )
@@ -668,6 +723,7 @@ pub fn tree_append<
           } else {
             let lev   = T::lev_max(&lev1, &lev2);
             let tree1 = T::name(st, n1, lev1, l1, r1);
+            panic!("Name-Leaf");
             T::bin(st, lev, tree1, tree2) // panic
           }
         },
@@ -680,6 +736,7 @@ pub fn tree_append<
           } else {
             let tree1 = T::name(st, n1, lev1, l1, r1);
             let l = tree_append::<A,X,T>(st, tree1, l2);
+            panic!("Name-Bin");
             T::bin(st, lev2, l, r2) // panic
           }
         },
@@ -699,4 +756,61 @@ pub fn tree_append<
       )
     } /* end Name */
   )
+}
+
+
+#[cfg(test)]
+mod test {
+  use super::*;
+  use adapton::adapton_sigs::* ;
+  use adapton::collection_traits::*;
+  use adapton::collection_edit::*;
+  use adapton::collection::*;
+  use adapton::engine;
+  use adapton::naive;
+  use std::fmt::Debug;
+  use std::hash::Hash;
+
+  fn doit<A:Adapton>(st:&mut A) {
+    let mut v1 : Vec<NameOrElem<A::Name,usize>> = vec![];
+    let mut v2 : Vec<NameOrElem<A::Name,usize>> = vec![];
+    for i in 0..8 {
+      let n = st.name_of_usize(i);
+      v1.push(NameOrElem::Name(n));
+      v1.push(NameOrElem::Elem(i));      
+    }
+    for i in 8..16 {
+      let n = st.name_of_usize(i);
+      v2.push(NameOrElem::Name(n));
+      v2.push(NameOrElem::Elem(i));
+    }
+    println!("v1: {:?}", v1);
+    println!("v2: {:?}", v2);
+    let l1 = list_of_vec_w_names::<A,usize,List<A,usize>>(st, v1.clone());
+    let l2 = list_of_vec_w_names::<A,usize,List<A,usize>>(st, v2.clone());
+
+    println!("l1: {}", List::get_string(st, l1.clone()));
+    println!("l2: {}", List::get_string(st, l2.clone()));
+
+    let t1 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Right, l1);
+    let t2 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Right, l2);
+
+    println!("t1: {}", Tree::get_string(st, t1.clone()));
+    println!("t2: {}", Tree::get_string(st, t2.clone()));
+
+    v1.append(&mut v2);
+    let l3 = list_of_vec_w_names::<A,usize,List<A,usize>>(st, v1);
+    let t3 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Right, l3);
+    
+    let t4 = st.structural(|st|tree_append::<A,usize,Tree<A,usize,u32>>(st, t1, t2));
+    
+    println!("t3: {}", Tree::get_string(st, t3.clone()));
+    println!("t4: {}", Tree::get_string(st, t4.clone()));
+  }
+
+  #[test]
+  fn doit2() {
+    let mut st = engine::Engine::new();
+    doit(&mut st)
+  }
 }

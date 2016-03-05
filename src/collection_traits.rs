@@ -11,6 +11,12 @@ use std::num::Zero;
 use rand::{Rng,Rand};
 use gm::GMLog;
 
+#[derive(Debug,Clone)]
+pub enum NameOrElem<Name,X> {
+  Name(Name),
+  Elem(X),
+}
+
 pub trait ListT<A:Adapton,Elm> : Debug+Clone+Hash+PartialEq+Eq {
     type List : Debug+Hash+PartialEq+Eq+Clone+GMLog<A> ;
 
@@ -62,6 +68,16 @@ pub trait TreeListT<A:Adapton,Elm,T:TreeT<A,Elm>> : ListT<A,Elm> {
     ,     Cons:FnOnce(&mut A, Elm, Self::List, Arg) -> Res
     ,     Name:FnOnce(&mut A, A::Name, Self::List, Arg) -> Res
     ;
+
+  fn full_elim_move<Arg,Res,Treef,Nilf,Consf,Namef,Artf>
+    (&mut A, Self::List, Arg, Treef, Nilf, Consf, Namef, Artf) -> Res
+    where Treef:FnOnce(&mut A, T::Tree, Dir2, Self::List, Arg) -> Res
+    ,      Nilf:FnOnce(&mut A, Arg) -> Res
+    ,     Consf:FnOnce(&mut A, Elm, Self::List, Arg) -> Res
+    ,     Namef:FnOnce(&mut A, A::Name, Self::List, Arg) -> Res
+    ,      Artf:FnOnce(&mut A, &Art<Self::List,A::Loc>, Arg) -> Res
+    ;
+  fn get_string(st:&mut A, l:Self::List) -> String ;
 }
 
 
@@ -115,6 +131,17 @@ pub trait TreeT<A:Adapton,Leaf> : Debug+Hash+PartialEq+Eq+Clone {
         ,     NameC : FnOnce(&mut A, A::Name, Self::Lev, Self::Tree, Self::Tree, Arg) -> Res
         ;
 
+  fn full_move<Arg,Res,NilC,LeafC,BinC,NameC,ArtC>
+        (&mut A, Self::Tree, Arg, NilC, LeafC, BinC, NameC, ArtC) -> Res
+        where NilC  : FnOnce(&mut A, Arg) -> Res
+        ,     LeafC : FnOnce(&mut A, Leaf, Arg) -> Res
+        ,     BinC  : FnOnce(&mut A, Self::Lev,  Self::Tree, Self::Tree, Arg) -> Res
+        ,     NameC : FnOnce(&mut A, A::Name, Self::Lev, Self::Tree, Self::Tree, Arg) -> Res
+        ,     ArtC  : FnOnce(&mut A, &Art<Self::Tree, A::Loc>, Arg) -> Res
+        ;
+
+  fn get_string(st:&mut A, l:Self::Tree) -> String ;
+  
   // Derived from `elim` above:
   fn is_empty (st:&mut A, tree:Self::Tree) -> bool {
     Self::elim(st, tree,

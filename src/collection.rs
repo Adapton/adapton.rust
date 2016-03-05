@@ -168,6 +168,34 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
       List::Tree(tree, dir, tl) => treef(st, *tree, dir, *tl, arg),
     }
   }
+
+  fn full_elim_move<Arg,Res,Treef,Nilf,Consf,Namef,Artf>
+    (st:&mut A, list:Self::List, arg:Arg, treef:Treef, nilf:Nilf, consf:Consf, namef:Namef, artf:Artf) -> Res
+    where Treef:FnOnce(&mut A, Tree<A,Elm,u32>, Dir2, Self::List, Arg) -> Res
+    ,      Nilf:FnOnce(&mut A, Arg) -> Res
+    ,     Consf:FnOnce(&mut A, Elm, Self::List, Arg) -> Res
+    ,     Namef:FnOnce(&mut A, A::Name, Self::List, Arg) -> Res
+    ,      Artf:FnOnce(&mut A, &Art<Self::List,A::Loc>, Arg) -> Res
+  {
+    match list {
+      List::Nil => nilf(st, arg),
+      List::Cons(hd, tl) => consf(st, hd, *tl, arg),
+      List::Name(nm, tl) => namef(st, nm, *tl, arg),
+      List::Rc(rc) => Self::elim_move(st, (*rc).clone(), arg, nilf, consf, namef),
+      List::Art(ref art) => { artf(st, art, arg) },
+      List::Tree(tree, dir, tl) => treef(st, *tree, dir, *tl, arg),
+    }
+  }
+
+  fn get_string(st:&mut A, l:Self::List) -> String {
+    Self::full_elim_move(st, l, (),
+                         |st,tree,dir,rest,_| { let ts = Tree::get_string(st,tree); format!("Tree({},{:?},{})", ts, dir, Self::get_string(st, rest)) },
+                         |st,_| format!("Nil"),
+                         |st,x,tl,_| format!("Cons({:?},{})",x,Self::get_string(st, tl)),
+                         |st,nm,tl,_| format!("Name({:?},{})",nm,Self::get_string(st, tl)),                         
+                         |st,art,_| format!("Art({})", {let l = st.force(art); Self::get_string(st, l)}),
+                         )}
+
 }
 
 // TODO: Why Does Adapton have to implement all of these?
@@ -229,6 +257,24 @@ impl
         }
     }
 
+  fn full_move<Arg,Res,NilC,LeafC,BinC,NameC,ArtC>
+    (st:&mut A, tree:Self::Tree, arg:Arg, nil:NilC, leaf:LeafC, bin:BinC, name:NameC, artf:ArtC) -> Res
+        where NilC  : FnOnce(&mut A, Arg) -> Res
+        ,     LeafC : FnOnce(&mut A, Leaf, Arg) -> Res
+        ,     BinC  : FnOnce(&mut A, Self::Lev,  Self::Tree, Self::Tree, Arg) -> Res
+        ,     NameC : FnOnce(&mut A, A::Name, Self::Lev,  Self::Tree, Self::Tree, Arg) -> Res
+        ,     ArtC  : FnOnce(&mut A, &Art<Self::Tree, A::Loc>, Arg) -> Res
+    {
+        match tree {
+            Tree::Nil => nil(st,arg),
+            Tree::Leaf(x) => leaf(st, x, arg),
+            Tree::Bin(b, l, r) => bin(st, b, *l, *r, arg),
+            Tree::Name(nm, b, l, r) => name(st, nm, b, *l, *r, arg),
+            Tree::Rc(rc) => Self::elim_move(st, (*rc).clone(), arg, nil, leaf, bin, name),
+            Tree::Art(art) => { artf(st, &art, arg) }
+        }
+    }
+
     fn elim<Res,NilC,LeafC,BinC,NameC>
         (st:&mut A, tree:Self::Tree, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
         where NilC  : FnOnce(&mut A) -> Res
@@ -268,4 +314,20 @@ impl
             }
         }
     }
+  
+  fn get_string(st:&mut A, l:Self::Tree) -> String {
+    Self::full_move(st, l, (),
+                    |st, _| format!("Nil"),
+                    |st, elm, _| format!("Leaf({:?})",elm),
+                    |st, lev, l, r, _| {
+                      let ls = Self::get_string(st, l);
+                      let rs = Self::get_string(st, r);
+                      format!("Bin({:?},{},{})",lev,ls,rs)},
+                    |st, lev, nm, l, r, _| {
+                      let ls = Self::get_string(st, l);
+                      let rs = Self::get_string(st, r);
+                      format!("Name({:?},{:?},{},{})",lev,nm,ls,rs)},
+                    |st,art,_| format!("Art({})", {let l = st.force(art); Self::get_string(st, l)}),
+                    )}
+
 }

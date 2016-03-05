@@ -283,16 +283,8 @@ impl<A:Adapton
     }
 
   fn print_all (st:&mut A, zip:Self::State) {
-    fn format_list<A:Adapton,X:Debug,T:TreeT<A,X>,L:TreeListT<A,X,T>>(st:&mut A, l:L::List) -> String {
-      L::tree_elim_move(st, l, (),
-                        |st,tree,dir,rest,_| format!("Tree(_,{:?},{})", dir, format_list::<A,X,T,L>(st, rest)),
-                        |st,_| format!("Nil"),
-                        |st,x,tl,_| format!("Cons({:?},{})",x,format_list::<A,X,T,L>(st, tl)),
-                        |st,nm,tl,_| format!("Name({:?},{})",nm,format_list::<A,X,T,L>(st, tl))
-                        )}
-    ;
-    println!("zip-left:  {}", format_list::<A,X,T,L>(st, zip.left));
-    println!("zip-right: {}", format_list::<A,X,T,L>(st, zip.right));
+    println!("zip-left:  {}", L::get_string(st, zip.left));
+    println!("zip-right: {}", L::get_string(st, zip.right));
   }
   
     fn ins_tree (st:&mut A, zip:Self::State, ins_dir:Dir2, tree:T::Tree, tree_dir:Dir2) -> Self::State {
