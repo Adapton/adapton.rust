@@ -768,17 +768,25 @@ mod test {
   use adapton::naive;
   use std::fmt::Debug;
   use std::hash::Hash;
+  use gm::GMLog;
 
+  fn lev_name<A:Adapton,T:TreeT<A,usize>>(nm:&A::Name) -> T::Lev {
+    T::lev_inc( &T::lev_add( &T::lev_bits() , &T::lev(nm) ) )
+  }
+  
   fn doit<A:Adapton>(st:&mut A) {
+    let size = 256;
     let mut v1 : Vec<NameOrElem<A::Name,usize>> = vec![];
     let mut v2 : Vec<NameOrElem<A::Name,usize>> = vec![];
-    for i in 0..8 {
+    for i in 0..(size/2) {
       let n = st.name_of_usize(i);
+      println!("lev({:?})={:?}", &n, lev_name::<A,Tree<A,usize,u32>>(&n));
       v1.push(NameOrElem::Name(n));
       v1.push(NameOrElem::Elem(i));      
     }
-    for i in 8..16 {
+    for i in (size/2)..size {
       let n = st.name_of_usize(i);
+      println!("lev({:?})={:?}", &n, lev_name::<A,Tree<A,usize,u32>>(&n));
       v2.push(NameOrElem::Name(n));
       v2.push(NameOrElem::Elem(i));
     }
@@ -790,20 +798,23 @@ mod test {
     println!("l1: {}", List::get_string(st, l1.clone()));
     println!("l2: {}", List::get_string(st, l2.clone()));
 
-    let t1 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Right, l1);
-    let t2 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Right, l2);
+    let t1 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l1);
+    let t2 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l2);
 
     println!("t1: {}", Tree::get_string(st, t1.clone()));
     println!("t2: {}", Tree::get_string(st, t2.clone()));
 
     v1.append(&mut v2);
     let l3 = list_of_vec_w_names::<A,usize,List<A,usize>>(st, v1);
-    let t3 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Right, l3);
+    let t3 = st.structural(|st|tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l3));
     
     let t4 = st.structural(|st|tree_append::<A,usize,Tree<A,usize,u32>>(st, t1, t2));
     
     println!("t3: {}", Tree::get_string(st, t3.clone()));
     println!("t4: {}", Tree::get_string(st, t4.clone()));
+
+    t3.log_snapshot(st, "t3", None);
+    t4.log_snapshot(st, "t4", None);
   }
 
   #[test]

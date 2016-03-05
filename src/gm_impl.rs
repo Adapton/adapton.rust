@@ -12,7 +12,7 @@ use adapton::adapton_sigs::Adapton;
 impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,T:TreeT<A,E>,L:TreeListT<A,E,T,List=List<A,E>>>
 gm::GMLog<A> for ListZipper<A,E,T,L> {
   fn log_snapshot(self: &Self, st: &mut A, root:&str, msg: Option<&str>) {
-    gm::startdframe(st, &format!("Zipper logged at {}", time::now().asctime()), msg);
+    gm::startframe(st, &format!("Zipper logged at {}", time::now().asctime()), msg);
     zipper_out(st, self, root);
   }
 }
@@ -20,7 +20,7 @@ gm::GMLog<A> for ListZipper<A,E,T,L> {
 impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
 gm::GMLog<A> for List<A,E> {
   fn log_snapshot(self: &Self, st: &mut A, root:&str, msg: Option<&str>) {
-    gm::startdframe(st, &format!("List logged at {}", time::now().asctime()), msg);
+    gm::startframe(st, &format!("List logged at {}", time::now().asctime()), msg);
     list_out(st, self, root);
   }
 }
@@ -28,7 +28,7 @@ gm::GMLog<A> for List<A,E> {
 impl<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
 gm::GMLog<A> for Tree<A,E,L> {
   fn log_snapshot(self: &Self, st: &mut A, root:&str, msg: Option<&str>) {
-    gm::startdframe(st, &format!("Tree logged at {}", time::now().asctime()), msg);
+    gm::startframe(st, &format!("Tree logged at {}", time::now().asctime()), msg);
     tree_out(st, self, root, "");
   }
 }
@@ -105,8 +105,8 @@ fn tree_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
       let node = format!("{:?}<-{}-",a,side);
       gm::addnode(st, &node, art, "", None);
       edge(st, up, &node);
-      //let t = st.force(a);
-      //tree_out(st, &t, &node, "c");
+      let t = st.force(a);
+      tree_out(st, &t, &node, "c");
     }
   }
 }
@@ -166,8 +166,8 @@ fn list_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
       let node = format!("{:?}::", a);
       gm::addnode(st, &node, art, "", None);
       edge(st, up, &node);
-      //let t = st.force(a);
-      //list_out(st, &t, &node);
+      let t = st.force(a);
+      list_out(st, &t, &node);
     }
   }
 }
