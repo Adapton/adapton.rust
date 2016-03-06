@@ -647,7 +647,7 @@ pub fn tree_append<
             let r    = T::name(st, n2, lev2, l2, r2);
             T::bin(st, lev, l1, r) // xxx panic
           } else {
-            let (tree1,_) = cell_call!(st, n2.clone() =>> tree_append::<A,X,T>, tree1:l1, tree2:l2);
+            let tree1 = cell_call!(st, n2.clone() =>> tree_append::<A,X,T>, tree1:l1, tree2:l2);
             let tree1 = T::art(st, tree1);
             let tree1lev = T::lev_of_tree(st, &tree1);
             let levr2 = T::lev_of_tree(st, &r2);
@@ -692,7 +692,7 @@ pub fn tree_append<
             T::bin(st, lev1, l1, r)
           } else {
             let tree1 = T::bin(st, lev1, l1, r1);
-            let (l,_) = cell_call!(st, n2.clone() =>> tree_append::<A,X,T>, tree1:tree1, tree2:l2);
+            let l = cell_call!(st, n2.clone() =>> tree_append::<A,X,T>, tree1:tree1, tree2:l2);
             let l = T::art(st, l);
             T::name(st, n2, lev2, l, r2)
           }
@@ -708,7 +708,7 @@ pub fn tree_append<
           let tree2 = T::leaf(st, leaf2);
           let lev2  = T::lev_of_tree(st, &tree2);
           if T::lev_lte(&lev2, &lev1) {
-            let (tree2,_) = cell_call!(st, n1.clone() =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
+            let tree2 = cell_call!(st, n1.clone() =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
             let tree2 = T::art(st, tree2);
             T::name(st, n1, lev1, l1, tree2)
           } else {
@@ -721,7 +721,7 @@ pub fn tree_append<
         /* Name-Bin */  |st, lev2, l2, r2, (n1, lev1, l1, r1)| {
           if T::lev_lte(&lev2, &lev1) {
             let tree2 = T::bin(st, lev2, l2, r2);
-            let (r,_) = cell_call!(st, n1.clone() =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
+            let r = cell_call!(st, n1.clone() =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
             let r = T::art(st, r);
             T::name(st, n1, lev1, l1, r)
           } else {
@@ -734,12 +734,12 @@ pub fn tree_append<
         /* Name-Name */ |st, n2, lev2, l2, r2, (n1, lev1, l1, r1) | {
           if T::lev_lte(&lev2, &lev1) {
             let tree2 = T::name(st, n2, lev2, l2, r2);
-            let (r,_) = cell_call!(st, n1.clone() =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
+            let r = cell_call!(st, n1.clone() =>> tree_append::<A,X,T>, tree1:r1, tree2:tree2);
             let r = T::art(st, r);
             T::name(st, n1, lev1, l1, r)
            } else {
             let tree1 = T::name(st, n1, lev1, l1, r1);
-            let (l,_) = cell_call!(st, n2.clone() =>> tree_append::<A,X,T>, tree1:tree1, tree2:l2);
+            let l = cell_call!(st, n2.clone() =>> tree_append::<A,X,T>, tree1:tree1, tree2:l2);
             let l = T::art(st, l);
             T::name(st, n2, lev2, l, r2) 
           }
