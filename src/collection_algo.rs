@@ -652,16 +652,7 @@ pub fn tree_append<
             let tree1lev = T::lev_of_tree(st, &tree1);
             let levr2 = T::lev_of_tree(st, &r2);
             let lev = T::lev_max(&tree1lev, &levr2);
-<<<<<<< HEAD
             T::name(st, n2, lev, tree1, r2)
-=======
-            T::name(st, nm2, lev, tree1, r2)
-          } else {
-            let lev  = T::lev_max(&lev1, &lev2);
-            let r    = T::name(st, n2, lev2, l2, r2);
-            panic!("Leaf-Name");
-            T::bin(st, lev, l1, r) // xxx panic
->>>>>>> f30bac5b0f3d009eeb609f364e6fe139521aefd2
           }
         }
       )
@@ -777,7 +768,7 @@ mod test {
   }
   
   fn doit<A:Adapton>(st:&mut A) {
-    let size = 256;
+    let size = 32;
     let mut v1 : Vec<NameOrElem<A::Name,usize>> = vec![];
     let mut v2 : Vec<NameOrElem<A::Name,usize>> = vec![];
     for i in 0..(size/2) {
@@ -800,8 +791,8 @@ mod test {
     println!("l1: {}", List::get_string(st, l1.clone()));
     println!("l2: {}", List::get_string(st, l2.clone()));
 
-    let t1 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l1);
-    let t2 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l2);
+    let t1 = st.structural(|st|tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l1));
+    let t2 = st.structural(|st|tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l2));
 
     println!("t1: {}", Tree::get_string(st, t1.clone()));
     println!("t2: {}", Tree::get_string(st, t2.clone()));

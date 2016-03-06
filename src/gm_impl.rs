@@ -66,6 +66,7 @@ gm::GMLog<A> for (X,Y) {
  
 fn tree_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
 (st: &mut A, t: &Tree<A,E,L>, up: &str, side: &str) {
+  let nil = "red";
   let leaf = "green";
   let bin = "yellow";
   let name = "orange";
@@ -75,7 +76,11 @@ fn tree_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
     gm::addedge(st, from, to, "", "black", "", None, false)
   }
   match *t {
-    Tree::Nil => {}
+    Tree::Nil => {
+      let node = format!("Nil<-{}-{}",side,up);
+      gm::addnode(st, &node, nil, "", None);
+      edge(st, up, &node);
+    }
     Tree::Leaf(ref d) => {
       let node = format!("{:?}<-{}-{}",d,side,up);
       gm::addnode(st, &node, leaf, "", None);
@@ -123,6 +128,7 @@ fn tree_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone,L:Hash+Debug+Eq+Clone>
 
 fn list_out<A:Adapton,E:Debug+Hash+PartialEq+Eq+Clone>
 (st: &mut A, t: &List<A,E>, up: &str) {
+  let cons = "red";
   let cons = "green";
   let tree = "green";
   let name = "orange";

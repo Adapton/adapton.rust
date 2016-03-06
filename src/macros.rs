@@ -286,6 +286,17 @@ macro_rules! eager {
     ;
 }
 
+#[macro_export]
+macro_rules! cell_call {
+    ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+      let res = {
+        $f :: < $( $ty ),* >( $st, $( $arg ),*, )
+      } ;
+      let cell = ($st).cell($st, $nm, res) ;
+      (cell, res)
+    }}
+}
+
 
 // https://doc.rust-lang.org/book/macros.html
 //
