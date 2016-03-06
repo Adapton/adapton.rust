@@ -292,8 +292,9 @@ macro_rules! cell_call {
       let res = {
         $f :: < $( $ty ),* >( $st, $( $arg ),*, )
       } ;
-      let cell = ($st).cell($st, $nm, res) ;
-      (cell, res)
+      let cell = ($st).cell($nm, res) ;
+      let cell = ($st).read_only(cell);
+      cell
     }}
 }
 
