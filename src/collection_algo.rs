@@ -768,7 +768,7 @@ mod test {
   }
   
   fn doit<A:Adapton>(st:&mut A) {
-    let size = 256;
+    let size = 32;
     let mut v1 : Vec<NameOrElem<A::Name,usize>> = vec![];
     let mut v2 : Vec<NameOrElem<A::Name,usize>> = vec![];
     for i in 0..(size/2) {
@@ -791,8 +791,8 @@ mod test {
     println!("l1: {}", List::get_string(st, l1.clone()));
     println!("l2: {}", List::get_string(st, l2.clone()));
 
-    let t1 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l1);
-    let t2 = tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l2);
+    let t1 = st.structural(|st|tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l1));
+    let t2 = st.structural(|st|tree_of_list::<A,usize,Tree<A,usize,u32>,List<A,usize>>(st, Dir2::Left, l2));
 
     println!("t1: {}", Tree::get_string(st, t1.clone()));
     println!("t2: {}", Tree::get_string(st, t2.clone()));
