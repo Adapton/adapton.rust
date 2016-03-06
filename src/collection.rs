@@ -71,8 +71,10 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
                 let list = st.force(art);
                 Self::elim(st, list, nilf, consf, namef)
             },
-            List::Tree(tree, dir, tl) => {
-              let (res, rest) = List::next_leaf_rec(st, *tree, dir, *tl) ;
+          List::Tree(tree, dir, tl) => {
+            let tree = *tree;
+            let tl = *tl;
+              let (res, rest) = st.structural(|st| List::next_leaf_rec(st, tree, dir, tl)) ;
               match res {
                 None => Self::elim(st, rest, nilf, consf, namef),
                 Some(elm) => consf(st, elm, rest),
@@ -96,8 +98,10 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
                 let list = st.force(art);
                 Self::elim_move(st, list, arg, nilf, consf, namef)
             },
-            List::Tree(tree, dir, tl) => {
-              let (res, rest) = List::next_leaf_rec(st, *tree, dir, *tl) ;
+          List::Tree(tree, dir, tl) => {
+            let tree = *tree;
+            let tl = *tl;
+              let (res, rest) = st.structural(|st| List::next_leaf_rec(st, tree, dir, tl)) ;
               match res {
                 None => Self::elim_move(st, rest, arg, nilf, consf, namef),
                 Some(elm) => consf(st, elm, rest, arg),
@@ -137,16 +141,50 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
         }
       },
       Tree::Name(nm,_,l,r) => {
-        match dir {
-          Dir2::Left  => Self::next_leaf_rec(st, *l, Dir2::Left,  List::Name(nm, Box::new(List::Tree(r, Dir2::Left,  Box::new(rest))))),
-          Dir2::Right => Self::next_leaf_rec(st, *r, Dir2::Right, List::Name(nm, Box::new(List::Tree(l, Dir2::Right, Box::new(rest))))),
+        if false {
+          match dir {
+            Dir2::Left  => {
+              let art = st.cell(nm.clone(), List::Tree(r, Dir2::Left,  Box::new(rest)));
+              let art = st.read_only(art);
+              Self::next_leaf_rec(st, *l, Dir2::Left, List::Name(nm, Box::new(List::Art(art))))
+            },
+            Dir2::Right => {
+              let art = st.cell(nm.clone(), List::Tree(l, Dir2::Right, Box::new(rest)));
+              let art = st.read_only(art);
+              Self::next_leaf_rec(st, *r, Dir2::Right, List::Name(nm, Box::new(List::Art(art))))
+            }
+          }
+        }
+        else if true {
+          match dir {
+            Dir2::Left  => {
+              let b = Box::new(List::Tree(r, Dir2::Left,  Box::new(rest)));
+              Self::next_leaf_rec(st, *l, Dir2::Left, List::Name(nm, b))
+            },
+            Dir2::Right => {
+              let b = Box::new(List::Tree(l, Dir2::Right, Box::new(rest)));
+              Self::next_leaf_rec(st, *r, Dir2::Right, List::Name(nm, b))
+            }
+          }
+        }
+        else false {
+          match dir {
+            Dir2::Left  => {
+              let b = Box::new(List::Tree(r, Dir2::Left,  Box::new(List::Rc(Rc::new(rest)))));
+              Self::next_leaf_rec(st, *l, Dir2::Left, List::Name(nm, b))
+            },
+            Dir2::Right => {
+              let b = Box::new(List::Tree(l, Dir2::Right, Box::new(List::Rc(Rc::new(rest)))));
+              Self::next_leaf_rec(st, *r, Dir2::Right, List::Name(nm, b))
+            }
+          }
         }
       }
     }
   }
 
   fn next_leaf (st:&mut A, tree:Tree<A,Elm,u32>, dir:Dir2) -> (Option<Elm>,Self::List) {
-    Self::next_leaf_rec(st, tree, dir, List::Nil)
+    st.structural(|st| Self::next_leaf_rec(st, tree, dir, List::Nil))
   }
 
   fn tree_elim_move<Arg,Res,Treef,Nil,Cons,Name>
