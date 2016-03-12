@@ -1011,12 +1011,12 @@ impl Adapton for Engine {
         (self:&mut Engine, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
             wf::check_dcg(self);
             let path = current_path(self) ;
-            let id   = {
+            let (id, is_pure) = {
               if ! self.flags.ignore_nominal_use_structural {
-                Rc::new(ArtId::Nominal(nm)) // Ordinary case: Use provided name.
+                (Rc::new(ArtId::Nominal(nm)), false) // Ordinary case: Use provided name.
               } else {
                 let hash = my_hash (&val) ;           
-                Rc::new(ArtId::Structural(hash)) // Ignore the name; do hash-consing instead.
+                (Rc::new(ArtId::Structural(hash)), true) // Ignore the name; do hash-consing instead.
               }
             };            
             let hash = my_hash(&(&path,&id));
@@ -1026,10 +1026,11 @@ impl Adapton for Engine {
                 if self.table.contains_key(&loc) {
                     let node : &Box<Node<T>> = res_node_of_loc(self, &loc) ;
                     match **node {
-                        Node::Mut(ref nd) => { (false, true,  None, false) }
-                        Node::Comp(ref nd)=> { (true,  false, Some(nd.succs.clone()),  true ) }
-                        _                 => { (true,  false, None, true ) }
-                    }} else                  { (false, false, None, true ) } ;
+                      Node::Mut(ref nd)  => { (false, true,  None, false) }
+                      Node::Comp(ref nd) => { (true,  false, Some(nd.succs.clone()),  true ) }
+                      Node::Pure(ref nd) => { (false, false, None, false) }
+                      Node::Unused       => unreachable!()
+                    }} else                 { (false, false, None, true ) } ;
           if do_set || do_insert {
             if self.flags.gmlog_dcg {
               gm::startdframe(self, &format!("cell {:?}", loc), None);
@@ -1041,16 +1042,17 @@ impl Adapton for Engine {
             if do_set   { set_(self, MutArt{loc:loc.clone(), phantom:PhantomData}, val.clone()) } ;
             match succs { Some(succs) => revoke_succs(self, &loc, &succs), None => () } ;
             if do_insert {
-                let node = Node::Mut(MutNode{
-                    preds:Vec::new(),
-                    val:val.clone(),
-                }) ;
+              let node = if is_pure { Node::Pure(PureNode{val:val.clone()}) } else {
+                Node::Mut(MutNode{
+                  preds:Vec::new(),
+                  val:val.clone(),
+                })} ;
               self.cnt.create += 1;
               //println!("create: {:?}", &loc);
               self.table.insert(loc.clone(), Box::new(node));
             } ;
             let stackLen = self.stack.len() ;
-            match self.stack.last_mut() { None => (), Some(frame) => {
+            if ! is_pure { match self.stack.last_mut() { None => (), Some(frame) => {
                 let succ =
                     Succ{loc:loc.clone(),
                          dep:Rc::new(Box::new(AllocDependency{val:val})),
@@ -1058,7 +1060,7 @@ impl Adapton for Engine {
                          dirty:false};
                 debug!("{} alloc cell: edge: {:?} --> {:?}", engineMsg(Some(stackLen)), &frame.loc, &loc);
                 frame.succs.push(succ)
-            }} ;
+            }}} ;
             wf::check_dcg(self);
             MutArt{loc:loc,phantom:PhantomData}
         }
@@ -1257,12 +1259,13 @@ impl Adapton for Engine {
         match *art {
             Art::Rc(ref v) => (**v).clone(),
             Art::Loc(ref loc) => {
-                let (is_comp, cached_result) : (bool, Option<T>) = {
+                let (is_comp, is_pure, cached_result) : (bool, bool, Option<T>) = {
                     let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
                     match *node {
-                        Node::Pure(ref mut nd) => (false, Some(nd.val.clone())),
-                        Node::Mut(ref mut nd)  => (false, Some(nd.val.clone())),
-                        Node::Comp(ref mut nd) => (true,  nd.res.clone()),
+                        Node::Pure(ref mut nd) => (false, true, Some(nd.val.clone())),
+                        Node::Mut(ref mut nd)  => (false, false, Some(nd.val.clone())),
+                        //Node::Comp(ref mut nd) => (true, nd.succs.len() == 0, nd.res.clone()), 
+                        Node::Comp(ref mut nd) => (true, false, nd.res.clone()), 
                         _ => panic!("undefined")
                     }
                 } ;
@@ -1295,14 +1298,14 @@ impl Adapton for Engine {
                         }
                     }
                 } ;
-                match self.stack.last_mut() { None => (), Some(frame) => {
+                if !is_pure { match self.stack.last_mut() { None => (), Some(frame) => {
                     let succ =
                         Succ{loc:loc.clone(),
                              dep:Rc::new(Box::new(ProducerDep{res:result.clone()})),
                              effect:Effect::Observe,
                              dirty:false};
                      frame.succs.push(succ);                  
-                }} ;
+                }}} ;
               wf::check_dcg(self);
               // if self.flags.gmlog_dcg {
               //gm::startdframe(self, &format!("force {:?}", loc), None);
