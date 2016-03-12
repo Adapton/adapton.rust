@@ -167,7 +167,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
             }
           }
         }
-        else false {
+        else if false {
           match dir {
             Dir2::Left  => {
               let b = Box::new(List::Tree(r, Dir2::Left,  Box::new(List::Rc(Rc::new(rest)))));
@@ -179,6 +179,7 @@ impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
             }
           }
         }
+        else { unreachable!() }
       }
     }
   }
