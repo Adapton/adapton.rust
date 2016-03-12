@@ -1262,11 +1262,14 @@ impl Adapton for Engine {
                 let (is_comp, is_pure, cached_result) : (bool, bool, Option<T>) = {
                     let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
                     match *node {
-                        Node::Pure(ref mut nd) => (false, true, Some(nd.val.clone())),
-                        Node::Mut(ref mut nd)  => (false, false, Some(nd.val.clone())),
-                        //Node::Comp(ref mut nd) => (true, nd.succs.len() == 0, nd.res.clone()), 
-                        Node::Comp(ref mut nd) => (true, false, nd.res.clone()), 
-                        _ => panic!("undefined")
+                      Node::Pure(ref mut nd) => (false, true, Some(nd.val.clone())),
+                      Node::Mut(ref mut nd)  => (false, false, Some(nd.val.clone())),
+                      Node::Comp(ref mut nd) => {
+                        let is_pure = match *loc.id {
+                          ArtId::Structural(_) => nd.succs.len() == 0,
+                          ArtId::Nominal(_)    => false } ;
+                        (true, is_pure, nd.res.clone()) },
+                      _ => panic!("undefined")
                     }
                 } ;
                 let result = match cached_result {
