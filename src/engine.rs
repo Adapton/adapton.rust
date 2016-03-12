@@ -74,7 +74,8 @@ impl Debug for ArtId {
 
 #[derive(Debug)]
 pub struct Flags {
-    pub ignore_nominal_use_structural : bool, // Ignore the Nominal ArtIdChoice, and use Structural behavior instead
+  pub use_purity_optimization : bool,
+  pub ignore_nominal_use_structural : bool, // Ignore the Nominal ArtIdChoice, and use Structural behavior instead
   pub check_dcg_is_wf : bool, // After each Adapton operation, check that the DCG is well-formed
   pub write_dcg : bool, // Within each well-formedness check, write the DCG to the local filesystem
   pub gmlog_dcg : bool, // At certain points in the Engine's code, write state changes as graph-movie output
@@ -919,10 +920,11 @@ impl Adapton for Engine {
         } ;
       Engine {
         flags : Flags {
-          ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true, _ => false } },
-          check_dcg_is_wf               : { match env::var("ADAPTON_CHECK_DCG")  { Ok(val) => true, _ => false } },
-          write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(val) => true, _ => false } },
-          gmlog_dcg                     : { match env::var("ADAPTON_GMLOG_DCG")  { Ok(val) => true, _ => false } },
+          use_purity_optimization       : { match env::var("ADAPTON_NO_PURITY")  { Ok(val) => false, _ => true } },
+          ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true,  _ => false } },
+          check_dcg_is_wf               : { match env::var("ADAPTON_CHECK_DCG")  { Ok(val) => true,  _ => false } },
+          write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(val) => true,  _ => false } },
+          gmlog_dcg                     : { match env::var("ADAPTON_GMLOG_DCG")  { Ok(val) => true,  _ => false } },
         },
         root  : root, // Todo-Question: Don't need this?
         table : table,
@@ -1016,7 +1018,7 @@ impl Adapton for Engine {
                 (Rc::new(ArtId::Nominal(nm)), false) // Ordinary case: Use provided name.
               } else {
                 let hash = my_hash (&val) ;           
-                (Rc::new(ArtId::Structural(hash)), true) // Ignore the name; do hash-consing instead.
+                (Rc::new(ArtId::Structural(hash)), self.flags.use_purity_optimization) // Ignore the name; do hash-consing instead.
               }
             };            
             let hash = my_hash(&(&path,&id));
@@ -1260,13 +1262,14 @@ impl Adapton for Engine {
             Art::Rc(ref v) => (**v).clone(),
             Art::Loc(ref loc) => {
                 let (is_comp, is_pure, cached_result) : (bool, bool, Option<T>) = {
+                    let is_pure_opt : bool = self.flags.use_purity_optimization ;
                     let node : &mut Node<T> = res_node_of_loc(self, &loc) ;
                     match *node {
                       Node::Pure(ref mut nd) => (false, true, Some(nd.val.clone())),
                       Node::Mut(ref mut nd)  => (false, false, Some(nd.val.clone())),
                       Node::Comp(ref mut nd) => {
                         let is_pure = match *loc.id {
-                          ArtId::Structural(_) => nd.succs.len() == 0,
+                          ArtId::Structural(_) => nd.succs.len() == 0 && is_pure_opt,
                           ArtId::Nominal(_)    => false } ;
                         (true, is_pure, nd.res.clone()) },
                       _ => panic!("undefined")
