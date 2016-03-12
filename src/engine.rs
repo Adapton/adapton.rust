@@ -72,11 +72,11 @@ impl Debug for ArtId {
     }
 }
 
-enum MemoRegime {
-  UserDefined,
-  IgnoreNominal,
-  IgnoreThunks,  
-}
+// enum MemoRegime {
+//   UserDefined,
+//   IgnoreNominal,
+//   IgnoreThunks,  
+// }
 
 #[derive(Debug)]
 pub struct Flags {

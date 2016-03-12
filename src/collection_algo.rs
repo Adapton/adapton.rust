@@ -244,7 +244,7 @@ pub fn tree_of_treelist_rec2
              Dir2::Left  => tree_append::<A,X,T>(st, tree1, tree2),
              Dir2::Right => tree_append::<A,X,T>(st, tree2, tree1),
            } ;
-         tree_of_treelist_rec2::<A,X,T,L>(st, dir_list, list2, tree3)
+         return tree_of_treelist_rec2::<A,X,T,L>(st, dir_list, list2, tree3)
        }
      }
 
@@ -281,7 +281,7 @@ pub fn tree_of_treelist_rec
           tree_of_treelist_rec::<A,X,T,L>(st, dir_tree1.clone(), rest, tree3, tree3_lev, parent_lev.clone()) ;
 
         let tree4_lev = T::lev_of_tree(st, &tree4);
-        tree_of_treelist_rec::<A,X,T,L>(st, dir_tree1, rest2, tree4, tree4_lev, parent_lev)
+        return tree_of_treelist_rec::<A,X,T,L>(st, dir_tree1, rest2, tree4, tree4_lev, parent_lev)
       }
       else {
         // If: tree2_lev > parent_lev
@@ -304,7 +304,7 @@ pub fn tree_of_treelist_rec
           Dir2::Left  => T::bin ( st, lev_hd.clone(), tree,  tree2 ),
           Dir2::Right => T::bin ( st, lev_hd.clone(), tree2, tree  ),
         } ;
-        tree_of_treelist_rec::<A,X,T,L> ( st, dir_list, rest2, tree3, lev_hd, parent_lev )
+        return tree_of_treelist_rec::<A,X,T,L> ( st, dir_list, rest2, tree3, lev_hd, parent_lev )
       }
       else {
         // If: lev_hd > parent_lev \/ tree > lev_hd
@@ -317,10 +317,8 @@ pub fn tree_of_treelist_rec
       if T::lev_lte ( &tree_lev , &lev_nm ) && T::lev_lte ( &lev_nm ,  &parent_lev ) {
         let nil = T::nil(st) ;
         let (nm1, nm2, nm3, nm4) = st.name_fork4(nm.clone());
-        let (_, (tree2, rest)) =
-          eager!(st, nm1 =>> tree_of_treelist_rec::<A,X,T,L>,
-                 dir_list:dir_list.clone(), list:rest,
-                 tree:nil, tree_lev:T::lev_zero(), parent_lev:lev_nm.clone() ) ;
+        let (tree2, rest) =
+          tree_of_treelist_rec::<A,X,T,L>(st, dir_list.clone(), rest, nil, T::lev_zero(), lev_nm.clone());
         let tree3 = match dir_list.clone() {
           Dir2::Left  => T::name ( st, nm.clone(), lev_nm.clone(), tree,  tree2 ),
           Dir2::Right => T::name ( st, nm.clone(), lev_nm.clone(), tree2, tree  ),
@@ -328,15 +326,7 @@ pub fn tree_of_treelist_rec
         let art = st.cell(nm3, tree3) ;
         let art = st.read_only( art ) ;
         let tree3 = T::art( st, art ) ;
-        let (_, (tree, rest)) =
-          eager!(st, nm2 =>> tree_of_treelist_rec::<A,X,T,L>,
-                 dir_list:dir_list.clone(), list:rest,
-                 tree:tree3, tree_lev:lev_nm, parent_lev:parent_lev ) ;
-        // this creates unnecessary arts at the head of a tree
-        //let art = st.cell(nm4, tree) ;
-        //let art = st.read_only( art ) ;
-        //let tree = T::art( st, art ) ;
-        (tree, rest)
+        return tree_of_treelist_rec::<A,X,T,L>(st, dir_list.clone(), rest, tree3, lev_nm, parent_lev)
       }
       else {
         // If: lev_nm > parent_lev \/ tree_lev > lev_nm
