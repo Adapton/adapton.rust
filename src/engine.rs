@@ -72,6 +72,12 @@ impl Debug for ArtId {
     }
 }
 
+enum MemoRegime {
+  UserDefined,
+  IgnoreNominal,
+  IgnoreThunks,  
+}
+
 #[derive(Debug)]
 pub struct Flags {
   pub use_purity_optimization : bool,
