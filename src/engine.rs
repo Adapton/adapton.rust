@@ -10,10 +10,14 @@ use std::hash::{Hash,Hasher,SipHasher};
 use std::num::Zero;
 use std::env;
 use std::fs::{OpenOptions,File};
+use std::cell::RefCell;
+use std::thread;
 
 use macros::*;
 use adapton_sigs::*;
 use gm;
+
+thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 
 const engineMsgStr : &'static str = "adapton::engine:";
 
@@ -87,8 +91,18 @@ pub struct Flags {
   pub gmlog_dcg : bool, // At certain points in the Engine's code, write state changes as graph-movie output
 }
 
+pub struct Globals {
+  engine: Engine,
+}
+
 #[derive(Debug)]
-pub struct Engine {
+pub enum Engine {
+  DCG(DCG),
+  Naive
+}
+
+#[derive(Debug)]
+pub struct DCG {
     pub flags : Flags, // public because I dont want to write / design abstract accessors
     root  : Rc<Loc>,
     table : HashMap<Rc<Loc>, Box<GraphNode>>,
@@ -100,11 +114,10 @@ pub struct Engine {
   gmfile : Option<File>,
 }
 
-impl Hash  for     Engine { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
-//impl Debug for     Engine { fn fmt(&self, _f:&mut Formatter) -> Result { unimplemented!() } }
-impl Eq    for     Engine { }
-impl PartialEq for Engine { fn eq(&self, _other:&Self) -> bool { unimplemented!() } }
-impl Clone for     Engine { fn clone(&self) -> Self { unimplemented!() } }
+impl Hash  for     DCG { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
+impl Eq    for     DCG { }
+impl PartialEq for DCG { fn eq(&self, _other:&Self) -> bool { unimplemented!() } }
+impl Clone for     DCG { fn clone(&self) -> Self { unimplemented!() } }
 
 // NameSyms: For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
 // http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf
@@ -174,7 +187,7 @@ struct Succ {
     dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change
     loc    : Rc<Loc>, // Target of the effect, aka, the successor, by this edge
     effect : Effect,
-    dep    : Rc<Box<EngineDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
+    dep    : Rc<Box<DCGDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
 }
 
 #[derive(PartialEq,Eq,Debug,Clone,Hash)]
@@ -182,14 +195,14 @@ enum Effect {
     Observe,
     Allocate,
 }
-struct EngineRes {
+struct DCGRes {
     changed : bool,
 }
-// EngineDep abstracts over the value produced by a dependency, as
+// DCGDep abstracts over the value produced by a dependency, as
 // well as mechanisms to update and/or re-produce it.
-trait EngineDep : Debug {
+trait DCGDep : Debug {
   // Todo-later(?): Rename `change_prop` to `clean`?
-  fn change_prop (self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes ;
+  fn change_prop (self:&Self, st:&mut DCG, loc:&Rc<Loc>) -> DCGRes ;
 }
 
 impl Hash for Succ {
@@ -204,14 +217,14 @@ impl Hash for Succ {
 
 #[derive(Debug)]
 struct NoDependency;
-impl EngineDep for NoDependency {
-    fn change_prop (self:&Self, _st:&mut Engine, _loc:&Rc<Loc>) -> EngineRes { EngineRes{changed:false} }
+impl DCGDep for NoDependency {
+    fn change_prop (self:&Self, _st:&mut DCG, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:false} }
 }
 
 #[derive(Debug)]
 struct AllocDependency<T> { val:T }
-impl<T:Debug> EngineDep for AllocDependency<T> {
-    fn change_prop (self:&Self, _st:&mut Engine, _loc:&Rc<Loc>) -> EngineRes { EngineRes{changed:true} } // TODO-Later: Make this a little better.
+impl<T:Debug> DCGDep for AllocDependency<T> {
+    fn change_prop (self:&Self, _st:&mut DCG, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
 }
 
 
@@ -265,7 +278,7 @@ struct CompNode<Res> {
 }
 // Produce a value of type Res.
 trait Producer<Res> : Debug {
-    fn produce(self:&Self, st:&mut Engine) -> Res;
+    fn produce(self:&Self, st:&mut DCG) -> Res;
     fn copy(self:&Self) -> Box<Producer<Res>>;
     fn eq(self:&Self, other:&Producer<Res>) -> bool;
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
@@ -279,7 +292,7 @@ trait Consumer<Arg> : Debug {
 #[derive(Clone)]
 struct App<Arg:Debug,Spurious,Res> {
     prog_pt: ProgPt,
-    fn_box:   Rc<Box<Fn(&mut Engine, Arg, Spurious) -> Res>>,
+    fn_box:   Rc<Box<Fn(&mut DCG, Arg, Spurious) -> Res>>,
     arg:      Arg,
     spurious: Spurious,
 }
@@ -299,7 +312,7 @@ impl<Arg:Hash+Debug,Spurious,Res> Hash for App<Arg,Spurious,Res> {
 impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Debug+Hash> Producer<Res>
     for App<Arg,Spurious,Res>
 {
-    fn produce(self:&Self, st:&mut Engine) -> Res {
+    fn produce(self:&Self, st:&mut DCG) -> Res {
         let f = self.fn_box.clone() ;
         st.cnt.eval += 1 ;
         debug!("{} producer begin: ({:?} {:?})", engineMsg!(st), &self.prog_pt, &self.arg);
@@ -336,7 +349,7 @@ impl<Arg:Clone+PartialEq+Eq+Debug,Spurious,Res> Consumer<Arg> for App<Arg,Spurio
 
 // ----------- Location resolution:
 
-fn lookup_abs<'r>(st:&'r mut Engine, loc:&Rc<Loc>) -> &'r mut Box<GraphNode> {
+fn lookup_abs<'r>(st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<GraphNode> {
     match st.table.get_mut( loc ) {
         None => panic!("dangling pointer: {:?}", loc),
         Some(node) => node.be_node() // This is a weird workaround; TODO-Later: Investigate.
@@ -345,7 +358,7 @@ fn lookup_abs<'r>(st:&'r mut Engine, loc:&Rc<Loc>) -> &'r mut Box<GraphNode> {
 
 // This only is safe in contexts where the type of loc is known.
 // Unintended double-uses of names and hashes will generally cause uncaught type errors.
-fn res_node_of_loc<'r,Res> (st:&'r mut Engine, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
+fn res_node_of_loc<'r,Res> (st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
     let abs_node = lookup_abs(st, loc) ;
     unsafe { transmute::<_,_>(abs_node) }
 }
@@ -388,7 +401,7 @@ mod wf {
     }
 
     // Constrains loc and all predecessors (transitive) to be dirty
-    fn dirty (st:&Engine, cs:&mut Cs, loc:&Rc<Loc>) {
+    fn dirty (st:&DCG, cs:&mut Cs, loc:&Rc<Loc>) {
         add_constraint(cs, loc, NodeStatus::Dirty) ;
         let node = match st.table.get(loc) { Some(x) => x, None => panic!("") } ;
         for pred in node.preds_obs () {
@@ -404,7 +417,7 @@ mod wf {
     }
 
     // Constrains loc and all successors (transitive) to be clean
-    fn clean (st:&Engine, cs:&mut Cs, loc:&Rc<Loc>) {
+    fn clean (st:&DCG, cs:&mut Cs, loc:&Rc<Loc>) {
         add_constraint(cs, loc, NodeStatus::Clean) ;
         let node = match st.table.get(loc) {
             Some(x) => x,
@@ -420,7 +433,7 @@ mod wf {
         }
     }
 
-  pub fn check_dcg (st:&mut Engine) {
+  pub fn check_dcg (st:&mut DCG) {
     if st.flags.write_dcg {
       let dcg_hash = my_hash(format!("{:?}",st.table)); // XXX: This assumes that the table's debugging string identifies it uniquely
       if dcg_hash != st.dcg_hash {
@@ -446,7 +459,7 @@ mod wf {
         }        
     }}
 
-  pub fn write_next_dcg (st:&Engine, num:Option<usize>) {
+  pub fn write_next_dcg (st:&DCG, num:Option<usize>) {
     let name = match num {
       None => format!("adapton-dcg.dot"),
       Some(n) => format!("adapton-dcg-{:08}.dot", n),
@@ -455,7 +468,7 @@ mod wf {
     write_dcg_file(st, &mut file);
   }
   
-  pub fn write_dcg_file (st:&Engine, file:&mut File) {
+  pub fn write_dcg_file (st:&DCG, file:&mut File) {
     let mut writer = BufWriter::new(file);
     writeln!(&mut writer, "digraph {{\n").unwrap();
     writeln!(&mut writer, "ordering=out;").unwrap();
@@ -488,7 +501,7 @@ mod wf {
     writeln!(&mut writer, "}}\n").unwrap();
   }
   
-  pub fn debug_dcg (st:&Engine) {
+  pub fn debug_dcg (st:&DCG) {
     let prefix = "debug_dcg::stack: " ;
     let mut frame_num = 0;
     for frame in st.stack.iter() {
@@ -510,7 +523,7 @@ mod wf {
 
   // XXX Does not catch errors in IC_Edit that I expected it would
   // XXX Not sure if it works as I expected
-  pub fn check_stack_is_clean (st:&Engine) {
+  pub fn check_stack_is_clean (st:&DCG) {
     let stack = st.stack.clone() ;
     for frame in stack.iter() {
       let node = match st.table.get(&frame.loc) {
@@ -611,7 +624,7 @@ impl<Res:Hash> Hash for CompNode<Res> {
 
 // Performs the computation at loc, produces a result of type Res.
 // Error if loc is not a Node::Comp.
-fn produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(st:&mut Engine, loc:&Rc<Loc>) -> Res
+fn produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(st:&mut DCG, loc:&Rc<Loc>) -> Res
 {
     debug!("{} produce begin: {:?}", engineMsg!(st), &loc);
     let succs : Vec<Succ> = {
@@ -679,13 +692,13 @@ fn produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(st:&mut Engine, loc:&Rc<Lo
 
 
 
-// ---------- EngineDep implementation:
+// ---------- DCGDep implementation:
 
 #[derive(Debug)]
 struct ProducerDep<T> { res:T }
 
 fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
-    (st:&mut Engine, this_dep:&ProducerDep<Res>, loc:&Rc<Loc>, cache:Res, succs:Vec<Succ>) -> EngineRes
+    (st:&mut DCG, this_dep:&ProducerDep<Res>, loc:&Rc<Loc>, cache:Res, succs:Vec<Succ>) -> DCGRes
 {
     for succ in succs.iter() {
         let dirty = { get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty } ;
@@ -697,7 +710,7 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
                 let result : Res = produce( st, loc ) ;
                 let changed = result != this_dep.res ;
                 debug!("{} change_prop end (2/2): {:?} has a changed succ dependency: {:?}. End re-production.", engineMsg!(st), loc, &succ.loc);
-                return EngineRes{changed:changed}
+                return DCGRes{changed:changed}
             }
             else {
               // BUGFIX: Set this flag back to false after change
@@ -713,13 +726,13 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
     // BUGFIX: Do this comparison here; do not return 'false' unconditionally, as before!
     let changed = this_dep.res != cache ;
     debug!("{} change_prop end: {:?} is clean.. Dependency changed?:{}", engineMsg!(st), &loc, changed);
-    EngineRes{changed:changed}
+    DCGRes{changed:changed}
 }
 
 impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
-    EngineDep for ProducerDep<Res>
+    DCGDep for ProducerDep<Res>
 {
-    fn change_prop(self:&Self, st:&mut Engine, loc:&Rc<Loc>) -> EngineRes {
+    fn change_prop(self:&Self, st:&mut DCG, loc:&Rc<Loc>) -> DCGRes {
         let stackLen = st.stack.len() ;
         debug!("{} change_prop begin: {:?}", engineMsg!(st), loc);
         let res_succs = { // Handle cases where there is no internal computation to re-compute:
@@ -732,11 +745,11 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
                     }},
                 Node::Pure(_) => {
                     debug!("{} change_prop early end: {:?} is Pure(_)", engineMsg(Some(stackLen)), loc);
-                    return EngineRes{changed:false}
+                    return DCGRes{changed:false}
                 },
                 Node::Mut(ref nd) => {
                     debug!("{} change_prop early end: {:?} is Mut(_)", engineMsg(Some(stackLen)), loc);
-                    return EngineRes{changed:nd.val != self.res}
+                    return DCGRes{changed:nd.val != self.res}
                 },
                 _ => panic!("undefined")
             }
@@ -746,7 +759,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
             None => {
                 let res = produce( st, loc );
                 let changed = self.res != res ;
-                EngineRes{changed:changed}
+                DCGRes{changed:changed}
             }
         }
     }
@@ -754,7 +767,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
 
 // ---------- Node implementation:
 
-fn revoke_succs<'x> (st:&mut Engine, src:&Rc<Loc>, succs:&Vec<Succ>) {
+fn revoke_succs<'x> (st:&mut DCG, src:&Rc<Loc>, succs:&Vec<Succ>) {
   let mut succ_idx = 0;
   for succ in succs.iter() {
     if st.flags.gmlog_dcg {
@@ -773,7 +786,7 @@ fn loc_of_id(path:Rc<Path>,id:Rc<ArtId>) -> Rc<Loc> {
     Rc::new(Loc{path:path,id:id,hash:hash})
 }
 
-fn get_succ<'r>(st:&'r Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r Succ {
+fn get_succ<'r>(st:&'r DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r Succ {
     let stackLen = st.stack.len() ;
     let nd = st.table.get(src_loc);
     let nd = match nd {
@@ -793,7 +806,7 @@ fn get_succ<'r>(st:&'r Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -
 // Implement "sharing" of the dirty bit.
 // The succ edge is returned as a mutable borrow, to permit checking
 // and mutating the dirty bit.
-fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
+fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
     let stackLen = st.stack.len() ;
     let nd = lookup_abs( st, src_loc );
     debug!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
@@ -806,7 +819,7 @@ fn get_succ_mut<'r>(st:&'r mut Engine, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc
     panic!("tgt_loc is dangling in src_node.dem_succs")
 }
 
-fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
+fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
     debug!("{} dirty_pred_observers: {:?}", engineMsg!(st), loc);
     let stackLen = st.stack.len() ;
     let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs() ;
@@ -832,7 +845,7 @@ fn dirty_pred_observers(st:&mut Engine, loc:&Rc<Loc>) {
     st.cnt.dirty += dirty_edge_count ;
 }
 
-fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
+fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
     debug!("{} dirty_alloc: {:?}", engineMsg!(st), loc);
     dirty_pred_observers(st, loc);
     let stackLen = st.stack.len() ;
@@ -859,7 +872,7 @@ fn dirty_alloc(st:&mut Engine, loc:&Rc<Loc>) {
   }
 }
 
-fn set_<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
+fn set_<T:Eq+Debug> (st:&mut DCG, cell:MutArt<T,Loc>, val:T) {
     let changed : bool = {
         let node = res_node_of_loc( st, &cell.loc ) ;
         match **node {
@@ -879,7 +892,7 @@ fn set_<T:Eq+Debug> (st:&mut Engine, cell:MutArt<T,Loc>, val:T) {
 }
 
 
-fn current_path (st:&Engine) -> Rc<Path> {
+fn current_path (st:&DCG) -> Rc<Path> {
   // if false { // Todo-Minor: Kill this dead code, once we are happy.
   //   match st.stack.last() {
   //       None => panic!(""),
@@ -890,11 +903,11 @@ fn current_path (st:&Engine) -> Rc<Path> {
   //}  
 }
 
-impl Adapton for Engine {
+impl Adapton for DCG {
     type Name = Name;
     type Loc  = Loc;
 
-    fn new () -> Engine {
+    fn new () -> DCG {
         let path = Rc::new(Path::Empty);
         let root = {
             let path   = path.clone();
@@ -924,7 +937,7 @@ impl Adapton for Engine {
                  .unwrap()),
           _ => None
         } ;
-      Engine {
+      DCG {
         flags : Flags {
           use_purity_optimization       : { match env::var("ADAPTON_NO_PURITY")  { Ok(val) => false, _ => true } },
           ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true,  _ => false } },
@@ -943,29 +956,29 @@ impl Adapton for Engine {
       }
     }
 
-  fn gmlog (self:& mut Engine) -> Option<& mut File> {
+  fn gmlog (self:& mut DCG) -> Option<& mut File> {
     self.gmfile.as_mut()
   }
   
-    fn name_of_string (self:&mut Engine, sym:String) -> Name {
+    fn name_of_string (self:&mut DCG, sym:String) -> Name {
         let h = my_hash(&sym);
         let s = NameSym::String(sym) ;
         Name{ hash:h, symbol:Rc::new(s) }
     }
 
-    fn name_of_usize (self:&mut Engine, sym:usize) -> Name {
+    fn name_of_usize (self:&mut DCG, sym:usize) -> Name {
         let h = my_hash(&sym) ;
         let s = NameSym::Usize(sym) ;
         Name{ hash:h, symbol:Rc::new(s) }
     }
 
-    fn name_pair (self: &mut Engine, fst: Name, snd: Name) -> Name {
+    fn name_pair (self: &mut DCG, fst: Name, snd: Name) -> Name {
         let h = my_hash( &(fst.hash,snd.hash) ) ;
         let p = NameSym::Pair(fst.symbol, snd.symbol) ;
         Name{ hash:h, symbol:Rc::new(p) }
     }
 
-    fn name_fork (self:&mut Engine, nm:Name) -> (Name, Name) {
+    fn name_fork (self:&mut DCG, nm:Name) -> (Name, Name) {
         let h1 = my_hash( &(&nm, 11111111) ) ; // TODO-Later: make this hashing better.
         let h2 = my_hash( &(&nm, 22222222) ) ;
         ( Name{ hash:h1,
@@ -1011,12 +1024,12 @@ impl Adapton for Engine {
     (x, d)
   }
 
-    fn put<T:Eq> (self:&mut Engine, x:T) -> Art<T,Self::Loc> { Art::Rc(Rc::new(x)) }
+    fn put<T:Eq> (self:&mut DCG, x:T) -> Art<T,Self::Loc> { Art::Rc(Rc::new(x)) }
 
     fn cell<T:Eq+Debug+Clone+Hash+gm::GMLog<Self>
         +'static // TODO-Later: Needed on T because of lifetime issues.
         >
-        (self:&mut Engine, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
+        (self:&mut DCG, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
             wf::check_dcg(self);
             let path = current_path(self) ;
             let (id, is_pure) = {
@@ -1081,10 +1094,10 @@ impl Adapton for Engine {
     }
 
     fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+Hash+'static>
-        (self:&mut Engine,
+        (self:&mut DCG,
          id:ArtIdChoice<Self::Name>,
          prog_pt:ProgPt,
-         fn_box:Rc<Box<Fn(&mut Engine, Arg, Spurious) -> Res>>,
+         fn_box:Rc<Box<Fn(&mut DCG, Arg, Spurious) -> Res>>,
          arg:Arg, spurious:Spurious)
          -> Art<Res,Self::Loc>
     {
@@ -1260,7 +1273,7 @@ impl Adapton for Engine {
         }
     }
 
-    fn force<T:'static+Eq+Debug+Clone+Hash> (self:&mut Engine,
+    fn force<T:'static+Eq+Debug+Clone+Hash> (self:&mut DCG,
                                         art:&Art<T,Self::Loc>) -> T
     {
         wf::check_dcg(self);
@@ -1327,3 +1340,17 @@ impl Adapton for Engine {
             }
         }}
 }
+
+pub fn init_dcg   () -> Engine { init_engine(Engine::DCG(DCG::new())) }
+pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
+
+/// Initializes global state with a fresh DCG-based engine; returns the old engine
+pub fn init_engine (engine: Engine) -> Engine {
+  use std::mem;
+  let mut engine = engine;
+  GLOBALS.with(|g| {
+    mem::swap(&mut g.borrow_mut().engine, &mut engine);
+  });
+  return engine
+}
+
