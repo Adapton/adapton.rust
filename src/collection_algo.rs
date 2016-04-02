@@ -806,9 +806,9 @@ mod test {
     t4.log_snapshot(st, "t4", None);
   }
 
-  #[test]
-  fn doit2() {
-    let mut st = engine::Engine::new();
-    doit(&mut st)
-  }
+  // #[test]
+  // fn doit2() {
+  //   let mut st = engine::Engine::new();
+  //   doit(&mut st)
+  // }
 }
