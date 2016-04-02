@@ -1363,6 +1363,7 @@ pub fn init_engine (engine: Engine) -> Engine {
 
 pub fn name_of_usize  (u:usize)  -> Name { panic!("") }
 pub fn name_of_string (s:String) -> Name { panic!("") }
+pub fn name_of_str    (s:&'static str) -> Name { panic!("") }
 pub fn name_pair      (n1:Name, n2:Name) -> Name { panic!("") }
 pub fn name_fork      (n:Name) -> (Name, Name) { panic!("") }
 
@@ -1394,12 +1395,12 @@ pub fn cell<T:Eq+Debug+Clone+Hash> (n:Name, val:T) -> Artic<T> {
 }
 
 /// Mutates a mutable articulation.
-fn set<T:Eq+Debug+Clone> (a:Artic<T>, val:T) {
+pub fn set<T:Eq+Debug+Clone> (a:Artic<T>, val:T) {
   panic!("")
 }
 
 /// Creates an articulated computation.
-fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone+Hash>
+pub fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone+Hash>
   (id:ArtIdChoice<Name>,
    prog_pt:ProgPt,
    fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
@@ -1409,6 +1410,6 @@ fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone+Hash>
    }
 
 /// Demand & observe arts (all kinds): force
-fn force<T:Eq+Debug+Clone+Hash> (a:&Artic<T>) -> T {
+pub fn force<T:Eq+Debug+Clone+Hash> (a:&Artic<T>) -> T {
   panic!("")
 }

@@ -36,6 +36,8 @@ use gm::GMLog;
 /// dependence-graph-building operations based on the core calculus
 /// described in ["Incremental Computation with Names", 2015](http://arxiv.org/abs/1503.07792)
 
+trait Adaptonic : Debug+PartialEq+Eq+Hash+Clone {}
+
 pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     // TODO-later: Report ICE: If I replace the trait combinations below with `AdaptonData`:
     type Name : Debug+PartialEq+Eq+Hash+Clone; // Always be mindful of clones.
