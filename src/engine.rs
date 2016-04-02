@@ -1341,6 +1341,12 @@ impl Adapton for DCG {
         }}
 }
 
+#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+pub enum Artic<T> {
+    Rc(Rc<T>),    // No entry in table. No dependency tracking.
+    Loc(Rc<Loc>), // Location in table.
+}
+
 pub fn init_dcg   () -> Engine { init_engine(Engine::DCG(DCG::new())) }
 pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
 
@@ -1354,3 +1360,55 @@ pub fn init_engine (engine: Engine) -> Engine {
   return engine
 }
 
+
+pub fn name_of_usize  (u:usize)  -> Name { panic!("") }
+pub fn name_of_string (s:String) -> Name { panic!("") }
+pub fn name_pair      (n1:Name, n2:Name) -> Name { panic!("") }
+pub fn name_fork      (n:Name) -> (Name, Name) { panic!("") }
+
+/// Creates or re-enters a given namespace; performs the given computation there.
+pub fn ns<T,F> (n:Name, body:F) -> T
+  where F:FnOnce() -> T {
+    panic!("")
+  }
+
+/// Enters a special "namespace" where all name uses are ignored; instead, Adapton uses structural identity.
+pub fn structural<T,F> (body:F) -> T
+  where F:FnOnce() -> T {
+    panic!("")
+  }
+
+pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
+  where F:FnOnce() -> Res {
+    panic!("")
+  }
+
+/// Creates immutable, eager articulation.
+pub fn put<T:Eq+Debug+Clone> (val:T) -> Artic<T> {
+  panic!("")
+}
+
+/// Creates a mutable articulation.
+pub fn cell<T:Eq+Debug+Clone+Hash> (n:Name, val:T) -> Artic<T> {
+  panic!("")
+}
+
+/// Mutates a mutable articulation.
+fn set<T:Eq+Debug+Clone> (a:Artic<T>, val:T) {
+  panic!("")
+}
+
+/// Creates an articulated computation.
+fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone+Hash>
+  (id:ArtIdChoice<Name>,
+   prog_pt:ProgPt,
+   fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
+   arg:Arg, spurious:Spurious)
+   -> Artic<Res> {
+     panic!("")
+   }
+
+/// Demand & observe arts (all kinds): force
+fn force<T:Eq+Debug+Clone+Hash> (a:&Artic<T>) -> T {
+  panic!("")
+}
