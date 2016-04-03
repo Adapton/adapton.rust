@@ -42,8 +42,8 @@ pub fn count_visit_cases (g:BiDiGraph) -> usize {
       }
     }
   };
-  let t = cothunk(prog_pt!(stringify!(visit)),
-                  Rc::new(Box::new(visit)), g);
+  let t = thunk_codata(prog_pt!(stringify!(visit)),
+                       Rc::new(Box::new(visit)), g);
   force(&t)
 }
 
@@ -57,8 +57,8 @@ pub fn count_visit (g:BiDiGraph) -> usize {
       1 + rec(gl) + rec(gr)
     }
   };
-  let t = cothunk(prog_pt!(stringify!(visit)),
-                  Rc::new(Box::new(visit)), g);
+  let t = thunk_codata(prog_pt!(stringify!(visit)),
+                       Rc::new(Box::new(visit)), g);
   force(&t)
 }
 
@@ -76,8 +76,8 @@ pub fn count_visit_trip (g:BiDiGraph) -> usize {
       (1 + cr + cl, st)
     }
   };
-  let t = cothunk2(prog_pt!(stringify!(visit)),
-                   Rc::new(Box::new(visit)), g);
+  let t = thunk_codata2(prog_pt!(stringify!(visit)),
+                        Rc::new(Box::new(visit)), g);
   force(&t)
 }
 

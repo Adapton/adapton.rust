@@ -1411,7 +1411,7 @@ pub fn thunk<Arg:Hash+Eq+Debug+Clone,Spurious:Clone,Res:Hash+Eq+Debug+Clone>
   panic!("")
 }
 
-pub fn cothunk<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
+pub fn thunk_codata<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
   (prog_pt:ProgPt,
    fn_box:Rc<Box< Fn(Arg, bool, &(Fn(Arg) -> Res)) -> Res >>,
    arg:Arg)
@@ -1424,13 +1424,13 @@ pub struct Trip {
   Todo:(),
 }
 
-pub fn cothunk2<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
+pub fn thunk_codata2<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
   (prog_pt:ProgPt,
    fn_box:Rc<Box< Fn(Arg, bool, Trip, &(Fn(Arg,Trip) -> (Res,Trip))) -> (Res,Trip) >>,
    arg:Arg)
    -> Artic<Res>
 {
-  panic!("")
+  panic!("")  
 }
 
 /// Demand & observe arts (all kinds): force
