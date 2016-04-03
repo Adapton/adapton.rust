@@ -1360,7 +1360,7 @@ pub fn init_engine (engine: Engine) -> Engine {
   return engine
 }
 
-pub trait Adaptonic : Hash + Eq + Debug + Clone {}
+//pub trait Adaptonic : Hash + Eq + Debug + Clone {}
 
 pub fn name_of_usize  (u:usize)  -> Name { panic!("") }
 pub fn name_of_string (s:String) -> Name { panic!("") }
@@ -1391,7 +1391,7 @@ pub fn put<T:Eq+Debug+Clone> (val:T) -> Artic<T> {
 }
 
 /// Creates a mutable articulation.
-pub fn cell<T:Adaptonic> (n:Name, val:T) -> Artic<T> {
+pub fn cell<T:Hash+Eq+Debug+Clone> (n:Name, val:T) -> Artic<T> {
   panic!("")
 }
 
@@ -1401,18 +1401,26 @@ pub fn set<T:Eq+Debug+Clone> (a:Artic<T>, val:T) {
 }
 
 /// Creates an articulated computation.
-pub fn thunk<Arg:Adaptonic,Spurious:Clone,Res:Adaptonic>
+pub fn thunk<Arg:Hash+Eq+Debug+Clone,Spurious:Clone,Res:Hash+Eq+Debug+Clone>
   (id:ArtIdChoice<Name>,
    prog_pt:ProgPt,
    fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
    arg:Arg, spurious:Spurious)
-   -> Artic<Res> {
-     panic!("")
-   }
+   -> Artic<Res>
+{
+  panic!("")
+}
 
-//pub fn cothunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone+Hash> 
+pub fn cothunk<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
+  (prog_pt:ProgPt,
+   fn_box:Rc<Box< Fn(Arg, bool, &(Fn(Arg) -> Res)) -> Res >>,
+   arg:Arg)
+   -> Artic<Res>
+{
+  panic!("")
+}
 
 /// Demand & observe arts (all kinds): force
-pub fn force<T:Adaptonic> (a:&Artic<T>) -> T {
+pub fn force<T:Hash+Eq+Debug+Clone> (a:&Artic<T>) -> T {
   panic!("")
 }

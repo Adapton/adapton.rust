@@ -23,6 +23,45 @@ pub fn count_forever (g:BiDiGraph) -> usize {
   1 + cl.1 + cr.1
 }
 
+pub fn count_visit_cases (g:BiDiGraph) -> usize {
+  fn visit (g:BiDiGraph,
+            visit_flag:bool,
+            rec:&(Fn(BiDiGraph)-> usize)) -> usize {
+    if visit_flag { 0 } else {
+      let gl = force(&g.lsucc);
+      let gr = force(&g.rsucc);
+      match (g.id == gl.id, g.id == gr.id, gl.id == gr.id) {
+        (false, false, false) => 1 + rec(gl) + rec(gr),
+        (true,  false, false) => 1 + 0       + rec(gr),
+        (false, true,  false) => 1 + rec(gl) + 0,
+        (false, false, true)  => 1 + rec(gl) + 0,
+        (true,  true,  true)  => 1 + 0       + 0,
+        (true,  true,  false) => unreachable!(),
+        (true,  false, true)  => unreachable!(),
+        (false, true,  true)  => unreachable!(),
+      }
+    }
+  };
+  let t = cothunk(prog_pt!(stringify!(visit)),
+                  Rc::new(Box::new(visit)), g);
+  force(&t)
+}
+
+pub fn count_visit (g:BiDiGraph) -> usize {
+  fn visit (g:BiDiGraph,
+            visit_flag:bool,
+            rec:&(Fn(BiDiGraph)-> usize)) -> usize {
+    if visit_flag { 0 } else {
+      let gl = force(&g.lsucc);
+      let gr = force(&g.rsucc);
+      1 + rec(gl) + rec(gr)
+    }
+  };
+  let t = cothunk(prog_pt!(stringify!(visit)),
+                  Rc::new(Box::new(visit)), g);
+  force(&t)
+}
+
 pub fn bomb (_x:usize) -> BiDiGraph { panic!("BOMB!") }
 
 // graph_RGB:
