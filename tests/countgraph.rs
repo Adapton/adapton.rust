@@ -62,6 +62,23 @@ pub fn count_visit (g:BiDiGraph) -> usize {
   force(&t)
 }
 
+pub fn count_visit_trip (g:BiDiGraph) -> usize {
+  fn visit (g:BiDiGraph,
+            visit_flag:bool, st:Trip,
+            rec:&(Fn(BiDiGraph,Trip)-> (usize,Trip))) -> (usize,Trip) {
+    if visit_flag { (0,st) } else {
+      let gl      = force(&g.lsucc);
+      let gr      = force(&g.rsucc);
+      let (cl,st) = rec(gl,st);
+      let (cr,st) = rec(gr,st);
+      (1 + cr + cl, st)
+    }
+  };
+  let t = cothunk2(prog_pt!(stringify!(visit)),
+                   Rc::new(Box::new(visit)), g);
+  force(&t)
+}
+
 pub fn bomb (_x:usize) -> BiDiGraph { panic!("BOMB!") }
 
 // graph_RGB:

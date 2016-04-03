@@ -1420,6 +1420,19 @@ pub fn cothunk<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
   panic!("")
 }
 
+pub struct Trip {
+  Todo:(),
+}
+
+pub fn cothunk2<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
+  (prog_pt:ProgPt,
+   fn_box:Rc<Box< Fn(Arg, bool, Trip, &(Fn(Arg,Trip) -> (Res,Trip))) -> (Res,Trip) >>,
+   arg:Arg)
+   -> Artic<Res>
+{
+  panic!("")
+}
+
 /// Demand & observe arts (all kinds): force
 pub fn force<T:Hash+Eq+Debug+Clone> (a:&Artic<T>) -> T {
   panic!("")
