@@ -66,7 +66,9 @@ pub fn count_visit_trip (g:BiDiGraph) -> usize {
   fn visit (g:BiDiGraph,
             visit_flag:bool, st:Trip,
             rec:&(Fn(BiDiGraph,Trip)-> (usize,Trip))) -> (usize,Trip) {
-    if visit_flag { (0,st) } else {
+    if visit_flag {
+      (0, st)
+    } else {
       let gl      = force(&g.lsucc);
       let gr      = force(&g.rsucc);
       let (cl,st) = rec(gl,st);
@@ -95,20 +97,14 @@ pub fn graph_rgb () -> BiDiGraph {
   let nr = name_of_str("r");
   let ng = name_of_str("g");
   let ny = name_of_str("y");
-
   let ag : Artic<BiDiGraph> = thunkic!(ng.clone() =>> bomb, _x:0);
-  let ay : Artic<BiDiGraph> = thunkic!(ny.clone() =>> bomb, _x:0);
-  
+  let ay : Artic<BiDiGraph> = thunkic!(ny.clone() =>> bomb, _x:0);  
   let r  = BiDiGraph{id:0, lsucc:ay.clone(), rsucc:ag.clone()};
-  let ar = cell(nr, r.clone());
-  
+  let ar = cell(nr, r.clone());  
   let g  = BiDiGraph{id:1, lsucc:ar.clone(), rsucc:ay};
-  let ag = cell(ng, g);
-    
+  let ag = cell(ng, g);    
   let y  = BiDiGraph{id:2, lsucc:ag, rsucc:ar};
-  let _  = cell(ny, y);
-  
-
+  let _  = cell(ny, y); 
   return r
 }
 
