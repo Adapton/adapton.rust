@@ -91,8 +91,7 @@ pub fn bomb (_x:usize) -> BiDiGraph { panic!("BOMB!") }
 // Each node has two successors: The other two nodes in the set.
 // We show undirected edges above, due to limitations of ASCII.
 //
-pub fn graph_RGB () -> BiDiGraph {
-  use std::mem;
+pub fn graph_rgb () -> BiDiGraph {
   let nr = name_of_str("r");
   let ng = name_of_str("g");
   let ny = name_of_str("y");
@@ -107,7 +106,8 @@ pub fn graph_RGB () -> BiDiGraph {
   let ag = cell(ng, g);
     
   let y  = BiDiGraph{id:2, lsucc:ag, rsucc:ar};
-  let ay = cell(ny, y);
+  let _  = cell(ny, y);
+  
 
   return r
 }
