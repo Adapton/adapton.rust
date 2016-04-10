@@ -66,7 +66,7 @@ pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> Art<T,Self::Loc> ;
 
     /// Creates a mutable articulation.
-    fn cell<T:Eq+Debug+Clone+Hash+GMLog<Self>> (self:&mut Self, Self::Name, T) -> MutArt<T,Self::Loc> ;
+    fn cell<T:Eq+Debug+Clone+Hash> (self:&mut Self, Self::Name, T) -> MutArt<T,Self::Loc> ;
 
     /// Mutates a mutable articulation.
     fn set<T:Eq+Debug+Clone> (self:&mut Self, MutArt<T,Self::Loc>, T) ;

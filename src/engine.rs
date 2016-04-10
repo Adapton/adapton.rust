@@ -1026,7 +1026,7 @@ impl Adapton for DCG {
 
     fn put<T:Eq> (self:&mut DCG, x:T) -> Art<T,Self::Loc> { Art::Rc(Rc::new(x)) }
 
-    fn cell<T:Eq+Debug+Clone+Hash+gm::GMLog<Self>
+    fn cell<T:Eq+Debug+Clone+Hash //+gm::GMLog<Self>
         +'static // TODO-Later: Needed on T because of lifetime issues.
         >
         (self:&mut DCG, nm:Self::Name, val:T) -> MutArt<T,Self::Loc> {
@@ -1056,7 +1056,7 @@ impl Adapton for DCG {
             if self.flags.gmlog_dcg {
               gm::startdframe(self, &format!("cell {:?}", loc), None);
               gm::addnode(self, &format!("{:?}",loc), "cell", "", Some(&format!("cell {:?}", loc)));
-              val.log_snapshot(self, &format!("{:?}",loc), None);
+              //val.log_snapshot(self, &format!("{:?}",loc), None);
             }
             }
             if do_dirty { dirty_alloc(self, &loc) } ;
@@ -1341,10 +1341,49 @@ impl Adapton for DCG {
         }}
 }
 
-#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+//#[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum Artic<T> {
-    Rc(Rc<T>),    // No entry in table. No dependency tracking.
-    Loc(Rc<Loc>), // Location in table.
+  Rc(Rc<T>),    // No entry in table. No dependency tracking.
+  Loc(Rc<Loc>), // Location in table.
+  Force(Rc<Force<T>>),
+}
+
+pub trait Force<T> {
+  fn force(&self) -> T;
+}
+
+//#[derive(Eq,Clone)]
+struct NaiveThunk<Arg, Spurious, Res> {
+  id:ArtIdChoice<Name>,
+  prog_pt:ProgPt,
+  fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
+  arg:Arg,
+  spurious:Spurious
+}
+
+impl<A:Clone,S:Clone,T> Force<T> for NaiveThunk<A,S,T> {
+  fn force(&self) -> T {
+    (*self.fn_box)(self.arg.clone(), self.spurious.clone())
+  }
+}
+
+impl<A:Hash,S,T> Hash for NaiveThunk<A,S,T> {
+  fn hash<H:Hasher>(&self, hasher: &mut H) {
+    self.prog_pt.hash( hasher );
+    self.arg.hash( hasher );
+  }
+}
+impl<A:Debug,S,T> Debug for NaiveThunk<A,S,T> {
+  fn fmt(&self, f:&mut Formatter) -> fmt::Result {
+    // TODO: Make this formatting better
+    write!(f, "NaiveThunk({:?},{:?})", self.prog_pt, self.arg)
+  }
+}
+impl<A:PartialEq,S,T> PartialEq for NaiveThunk<A,S,T> {
+  fn eq(&self, other:&Self) -> bool {
+    self.prog_pt == other.prog_pt &&
+      self.arg == other.arg      
+  }
 }
 
 pub fn init_dcg   () -> Engine { init_engine(Engine::DCG(DCG::new())) }
@@ -1371,69 +1410,146 @@ pub fn name_fork      (n:Name) -> (Name, Name) { panic!("") }
 /// Creates or re-enters a given namespace; performs the given computation there.
 pub fn ns<T,F> (n:Name, body:F) -> T
   where F:FnOnce() -> T {
-    panic!("")
+  GLOBALS.with(|g| {
+    match g.borrow_mut().engine {
+      Engine::DCG(ref mut dcg) => dcg.ns(n, |_|{body()}),
+      Engine::Naive => (body)()
+    }
+  })   
   }
 
 /// Enters a special "namespace" where all name uses are ignored; instead, Adapton uses structural identity.
 pub fn structural<T,F> (body:F) -> T
   where F:FnOnce() -> T {
-    panic!("")
+  GLOBALS.with(|g| {
+    match g.borrow_mut().engine {
+      Engine::DCG(ref mut dcg) => dcg.structural(|_|{body()}),
+      Engine::Naive => (body)()
+    }
+  })    
   }
 
 pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
   where F:FnOnce() -> Res {
-    panic!("")
+  GLOBALS.with(|g| {
+    match g.borrow_mut().engine {
+      Engine::DCG(ref mut dcg) => dcg.cnt(|_|{body()}),
+      Engine::Naive => ((body)(), Cnt::zero())
+    }
+  })
   }
 
 /// Creates immutable, eager articulation.
 pub fn put<T:Eq+Debug+Clone> (val:T) -> Artic<T> {
-  panic!("")
+  Artic::Rc(Rc::new(val))
 }
 
 /// Creates a mutable articulation.
 pub fn cell<T:Hash+Eq+Debug+Clone> (n:Name, val:T) -> Artic<T> {
-  panic!("")
+  GLOBALS.with(|g| {
+    match g.borrow_mut().engine {
+      Engine::DCG(ref mut dcg) => Artic::Loc(dcg.cell(n,val).loc),
+      Engine::Naive => Artic::Rc(Rc::new(val))
+    }
+  })
 }
 
 /// Mutates a mutable articulation.
 pub fn set<T:Eq+Debug+Clone> (a:Artic<T>, val:T) {
-  panic!("")
+  match a {
+    Artic::Rc(_)    => { panic!("set: Cannot mutate immutable Rc articulation; use an DCG cell instead") },
+    Artic::Force(_) => { panic!("set: Cannot mutate immutable Force articulation; use an DCG cell instead") },
+    Artic::Loc(l)   => {
+      GLOBALS.with(|g| {
+        match g.borrow_mut().engine {
+          Engine::Naive => unimplemented!(), // TODO: Think more about this case.
+          Engine::DCG(ref mut dcg) => {
+            dcg.set(MutArt{loc:l.clone(),phantom:PhantomData}, val)
+          }
+        }
+      })
+    }
+  }
 }
 
 /// Creates an articulated computation.
-pub fn thunk<Arg:Hash+Eq+Debug+Clone,Spurious:Clone,Res:Hash+Eq+Debug+Clone>
+pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+Debug+Clone+'static>
   (id:ArtIdChoice<Name>,
    prog_pt:ProgPt,
    fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
    arg:Arg, spurious:Spurious)
    -> Artic<Res>
 {
-  panic!("")
-}
-
-pub fn thunk_codata<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
-  (prog_pt:ProgPt,
-   fn_box:Rc<Box< Fn(Arg, bool, &(Fn(Arg) -> Res)) -> Res >>,
-   arg:Arg)
-   -> Artic<Res>
-{
-  panic!("")
-}
-
-pub struct Trip {
-  Todo:(),
-}
-
-pub fn thunk_codata2<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
-  (prog_pt:ProgPt,
-   fn_box:Rc<Box< Fn(Arg, bool, Trip, &(Fn(Arg,Trip) -> (Res,Trip))) -> (Res,Trip) >>,
-   arg:Arg)
-   -> Artic<Res>
-{
-  panic!("")  
+  GLOBALS.with(|g| {
+    match g.borrow_mut().engine {
+      Engine::DCG(ref mut dcg) => {
+        Artic::Loc({if let Art::Loc(loc) = 
+                    dcg.thunk(id, prog_pt,
+                              // TODO: For efficiency, eliminate this extra closure in the future:
+                              Rc::new(Box::new(move |_,a,s|{ (*fn_box)(a,s) })),
+                              arg, spurious)
+                    { loc } else { unreachable!() }})
+                                       
+      },
+      Engine::Naive => {
+        Artic::Force(Rc::new(NaiveThunk{id:id,prog_pt:prog_pt,fn_box:fn_box,arg:arg,spurious:spurious}))
+      }
+    }
+  })
 }
 
 /// Demand & observe arts (all kinds): force
 pub fn force<T:Hash+Eq+Debug+Clone> (a:&Artic<T>) -> T {
-  panic!("")
+  match *a {
+    Artic::Force(ref f) => f.force(),
+    Artic::Rc(ref rc) => (&**rc).clone(),
+    Artic::Loc(ref loc) => {
+      GLOBALS.with(|g| {
+        match g.borrow_mut().engine {
+          Engine::DCG(ref mut dcg) => {
+            dcg.force(&Art::Loc(loc.clone()))
+          },
+          Engine::Naive => {
+            panic!("Naive engine: Cannot force non-Naive location: {:?}", loc)
+          }
+        }
+      })
+    }
+  }
 }
+
+
+// pub fn thunk_codata<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
+//   (prog_pt:ProgPt,
+//    fn_box:Rc<Box< Fn(Arg, bool, &(Fn(Arg) -> Res)) -> Res >>,
+//    arg:Arg)
+//    -> Artic<Res>
+// {
+//   panic!("")
+// }
+
+// pub struct Trip {
+//   Todo:(),
+// }
+
+// pub struct Set<T> {
+//   phantom:Phantom<T>,
+// }
+
+// pub fn thunk_codata2<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
+//   (prog_pt:ProgPt,
+//    fn_box:Rc<Box< Fn(Arg, bool, Trip, &(Fn(Arg,Trip) -> (Res,Trip))) -> (Res,Trip) >>,
+//    arg:Arg)
+//    -> Artic<Res>
+// {
+//   fn rec(arg:Arg,trip:Trip) -> (Res,Trip) {
+//     // extend trip with arg (for later), return extended trip;
+//     // call fn_box with visited=false; return the result
+//     panic!("")
+//   };
+//   fn visit(visited:Set<Arg>,frontier:Set<Arg>) -> (Set<Arg>,Set<Arg>) {
+//     //let (node:Arg, frontier:Set<Arg>) = frontier.choose();
+//     panic!("");
+//   }
+//   panic!("")
+// }
