@@ -20,96 +20,96 @@ pub enum Dir2 { Left, Right }
 
 pub trait ListT<X> : Debug+Clone+Hash+PartialEq+Eq {
 
-    fn nil  () -> Self ;
-    fn cons (X, Self) -> Self ;
-    
-    // requisite "adaptonic" constructors: `name` and `art`:
-    fn name (Name, Self) -> Self ;
-    fn art  (Art<Self>) -> Self ;
-    fn rc   (Rc<Self>) -> Self ;
+  fn nil  () -> Self ;
+  fn cons (X, Self) -> Self ;
+  
+  // requisite "adaptonic" constructors: `name` and `art`:
+  fn name (Name, Self) -> Self ;
+  fn art  (Art<Self>) -> Self ;
+  fn rc   (Rc<Self>) -> Self ;
 
-    fn elim<Res,Nil,Cons,Name> (&Self, Nil, Cons, Name) -> Res
-        where Nil:FnOnce() -> Res
-        ,    Cons:FnOnce(X, Self) -> Res
-        ,    Name:FnOnce(Name, Self) -> Res ;
+  fn elim<Res,NilF,ConsF,NameF> (Self, NilF, ConsF, NameF) -> Res
+    where NilF:FnOnce(          ) -> Res
+    ,    ConsF:FnOnce(X,    Self) -> Res
+    ,    NameF:FnOnce(Name, Self) -> Res ;
 
-    fn elim_move<Arg,Res,Nil,Cons,Name> (Self, Arg, Nil, Cons, Name) -> Res
-        where Nil:FnOnce(Arg) -> Res
-        ,    Cons:FnOnce(X, Self, Arg) -> Res
-        ,    Name:FnOnce(Name, Self, Arg) -> Res ;
+  fn elim_move<Arg,Res,NilF,ConsF,NameF> (Self, Arg, NilF, ConsF, NameF) -> Res
+    where NilF:FnOnce(            Arg) -> Res
+    ,    ConsF:FnOnce(X,    Self, Arg) -> Res
+    ,    NameF:FnOnce(Name, Self, Arg) -> Res ;
 
-    // Derived from `cons` and `nil` above:
-    fn singleton (hd:X) -> Self {
-        let nil = Self::nil();
-        Self::cons(hd, nil)
-    }
+  // Derived from `cons` and `nil` above:
+  fn singleton (hd:X) -> Self {
+    let nil = Self::nil();
+    Self::cons(hd, nil)
+  }
 
-    // Derived from `elim` above:
-    fn is_empty (list:Self) -> bool {
-        Self::elim(list,
-                   ||       true,
-                   |_,_|   false,
-                   |_,tl| Self::is_empty(tl))
-    }
+  // Derived from `elim` above:
+  fn is_empty (list:Self) -> bool {
+    Self::elim(list,
+               ||       true,
+               |_,_|   false,
+               |_,tl| Self::is_empty(tl))
+  }
 }
 
 pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone {
-    type Lev  : Debug+Hash+PartialEq+Eq+Clone ;
+  type Lev  : Debug+Hash+PartialEq+Eq+Clone+'static ;
 
-    fn lev<X:Hash>(&X) -> Self::Lev ;
-    fn lev_of_tree (&Self) -> Self::Lev ;
-    fn lev_bits () -> Self::Lev ;
-    fn lev_zero () -> Self::Lev ;
-    fn lev_inc (&Self::Lev) -> Self::Lev ;
-    fn lev_add (&Self::Lev, &Self::Lev) -> Self::Lev ;
-    fn lev_lte (&Self::Lev, &Self::Lev) -> bool ;
-    fn lev_max_val () -> Self::Lev ;
+  fn lev<X:Hash>(&X) -> Self::Lev ;
+  fn lev_of_tree (&Self) -> Self::Lev ;
+  fn lev_bits () -> Self::Lev ;
+  fn lev_zero () -> Self::Lev ;
+  fn lev_inc (&Self::Lev) -> Self::Lev ;
+  fn lev_add (&Self::Lev, &Self::Lev) -> Self::Lev ;
+  fn lev_lte (&Self::Lev, &Self::Lev) -> bool ;
+  fn lev_max_val () -> Self::Lev ;
 
-    fn lev_max (a:&Self::Lev, b:&Self::Lev) -> Self::Lev {
-        if Self::lev_lte(a, b) { b.clone() } else { a.clone() }
-    }
-    
-    fn nil  () -> Self ;
-    fn leaf (Leaf) -> Self ;
-    fn bin  (Self::Lev, Self, Self) -> Self ;
-
-    // requisite "adaptonic" constructors: `name` and `art`:
-    fn name (Name, Self::Lev, Self, Self) -> Self ;
-    fn art  (Art<Self>) -> Self ;
-    fn rc   (Rc<Self>) -> Self ;
+  fn lev_max (a:&Self::Lev, b:&Self::Lev) -> Self::Lev {
+    if Self::lev_lte(a, b) { b.clone() } else { a.clone() }
+  }
   
-    fn elim<Res,NilC,LeafC,BinC,NameC>
-        (Self, NilC, LeafC, BinC, NameC) -> Res        
-        where NilC  : FnOnce() -> Res
-        ,     LeafC : FnOnce(Leaf) -> Res
-        ,     BinC  : FnOnce(Self::Lev,  Self, Self) -> Res
-        ,     NameC : FnOnce(Name, Self::Lev, Self, Self) -> Res
-        ;
+  fn nil  () -> Self ;
+  fn leaf (Leaf) -> Self ;
+  fn bin  (Self::Lev, Self, Self) -> Self ;
 
-    fn elim_ref<Res,NilC,LeafC,BinC,NameC>
-        (&Self, NilC, LeafC, BinC, NameC) -> Res
-        where NilC  : FnOnce() -> Res
-        ,     LeafC : FnOnce(&Leaf) -> Res
-        ,     BinC  : FnOnce(&Self::Lev,  &Self, &Self) -> Res
-        ,     NameC : FnOnce(&Name, &Self::Lev, &Self, &Self) -> Res
-        ;
+  // requisite "adaptonic" constructors: `name` and `art`:
+  fn name (Name, Self::Lev, Self, Self) -> Self ;
+  fn art  (Art<Self>) -> Self ;
+  fn rc   (Rc<Self>) -> Self ;
+  
+  fn elim<Res,NilC,LeafC,BinC,NameC>
+    (Self, NilC, LeafC, BinC, NameC) -> Res        
+    where NilC  : FnOnce() -> Res
+    ,     LeafC : FnOnce(Leaf) -> Res
+    ,     BinC  : FnOnce(Self::Lev,  Self, Self) -> Res
+    ,     NameC : FnOnce(Name, Self::Lev, Self, Self) -> Res
+    ;
 
-    fn elim_move<Arg,Res,NilC,LeafC,BinC,NameC>
-        (Self, Arg, NilC, LeafC, BinC, NameC) -> Res
-        where NilC  : FnOnce(Arg) -> Res
-        ,     LeafC : FnOnce(Leaf, Arg) -> Res
-        ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
-        ,     NameC : FnOnce(Name, Self::Lev, Self, Self, Arg) -> Res
-        ;
+  fn elim_ref<Res,NilC,LeafC,BinC,NameC>
+    (&Self, NilC, LeafC, BinC, NameC) -> Res
+    where NilC  : FnOnce() -> Res
+    ,     LeafC : FnOnce(&Leaf) -> Res
+    ,     BinC  : FnOnce(&Self::Lev,  &Self, &Self) -> Res
+    ,     NameC : FnOnce(&Name, &Self::Lev, &Self, &Self) -> Res
+    ;
+
+  fn elim_move<Arg,Res,NilC,LeafC,BinC,NameC>
+    (Self, Arg, NilC, LeafC, BinC, NameC) -> Res
+    where NilC  : FnOnce(Arg) -> Res
+    ,     LeafC : FnOnce(Leaf, Arg) -> Res
+    ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
+    ,     NameC : FnOnce(Name, Self::Lev, Self, Self, Arg) -> Res
+    ;
 
   fn full_move<Arg,Res,NilC,LeafC,BinC,NameC,ArtC>
-        (Self, Arg, NilC, LeafC, BinC, NameC, ArtC) -> Res
-        where NilC  : FnOnce(Arg) -> Res
-        ,     LeafC : FnOnce(Leaf, Arg) -> Res
-        ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
-        ,     NameC : FnOnce(Name, Self::Lev, Self, Self, Arg) -> Res
-        ,     ArtC  : FnOnce(&Art<Self>, Arg) -> Res
-        ;
+    (Self, Arg, NilC, LeafC, BinC, NameC, ArtC) -> Res
+    where NilC  : FnOnce(Arg) -> Res
+    ,     LeafC : FnOnce(Leaf, Arg) -> Res
+    ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
+    ,     NameC : FnOnce(Name, Self::Lev, Self, Self, Arg) -> Res
+    ,     ArtC  : FnOnce(&Art<Self>, Arg) -> Res
+    ;
 
   fn get_string(l:Self) -> String ;
   
@@ -123,92 +123,92 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone {
                )
   }
   
-    fn fold_lr<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
-        (tree:Self, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
-        where LeafC:Fn(Leaf,    Res ) -> Res
-        ,      BinC:Fn(Self::Lev,     Res ) -> Res 
-        ,     NameC:Fn(Name, Self::Lev, Res ) -> Res 
-    {
-        Self::elim_move
-            (tree, res,
-             |res| res,
-             |x,res| leaf(x, res),
-             |x,l,r,res| {
-               let res = Self::fold_lr(l, res, leaf, bin, name);
-               let res = bin(x, res);
-               let res = Self::fold_lr(r, res, leaf, bin, name);
-               res
-             },
-             |n,x,l,r,res| {
-               let (n1,n2) = name_fork(n.clone());
-               let res = memo!(n1 =>> Self::fold_lr, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
-               let res = name(n, x, res);
-               let res = memo!(n2 =>> Self::fold_lr, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
-               res
-             }
-             )
-    }
+  // fn fold_lr<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
+  //   (tree:Self, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+  //   where LeafC:Fn(Leaf,    Res ) -> Res
+  //   ,      BinC:Fn(Self::Lev,     Res ) -> Res 
+  //   ,     NameC:Fn(Name, Self::Lev, Res ) -> Res 
+  // {
+  //   Self::elim_move
+  //     (tree, res,
+  //      |res| res,
+  //      |x,res| leaf(x, res),
+  //      |x,l,r,res| {
+  //        let res = Self::fold_lr(l, res, leaf, bin, name);
+  //        let res = bin(x, res);
+  //        let res = Self::fold_lr(r, res, leaf, bin, name);
+  //        res
+  //      },
+  //      |n,x,l,r,res| {
+  //        let (n1,n2) = name_fork(n.clone());
+  //        let res = memo!(n1 =>> Self::fold_lr, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
+  //        let res = name(n, x, res);
+  //        let res = memo!(n2 =>> Self::fold_lr, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
+  //        res
+  //      }
+  //      )
+  // }
   
-  fn fold_rl<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
-    (tree:Self, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
-    where LeafC:Fn(Leaf,    Res ) -> Res
-    ,      BinC:Fn(Self::Lev,     Res ) -> Res
-    ,     NameC:Fn(Name, Self::Lev, Res ) -> Res
-  {
-    Self::elim_move
-      (tree, res,
-       |res| res,
-       |x,res| leaf(x, res),
-       |x,l,r,res| {
-         let res = Self::fold_rl(r, res, leaf, bin, name);
-         let res = bin(x, res);
-         let res = Self::fold_rl(l, res, leaf, bin, name);
-         res
-       },
-       |n,x,l,r,res| {
-         let (n1,n2) = name_fork(n.clone());
-         let res = memo!(n1 =>> Self::fold_rl, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
-         let res = name(n, x, res);
-         let res = memo!(n2 =>> Self::fold_rl, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
-         res
-       }
-       )
-  }
+  // fn fold_rl<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
+  //   (tree:Self, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+  //   where LeafC:Fn(Leaf,    Res ) -> Res
+  //   ,      BinC:Fn(Self::Lev,     Res ) -> Res
+  //   ,     NameC:Fn(Name, Self::Lev, Res ) -> Res
+  // {
+  //   Self::elim_move
+  //     (tree, res,
+  //      |res| res,
+  //      |x,res| leaf(x, res),
+  //      |x,l,r,res| {
+  //        let res = Self::fold_rl(r, res, leaf, bin, name);
+  //        let res = bin(x, res);
+  //        let res = Self::fold_rl(l, res, leaf, bin, name);
+  //        res
+  //      },
+  //      |n,x,l,r,res| {
+  //        let (n1,n2) = name_fork(n.clone());
+  //        let res = memo!(n1 =>> Self::fold_rl, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
+  //        let res = name(n, x, res);
+  //        let res = memo!(n2 =>> Self::fold_rl, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
+  //        res
+  //      }
+  //      )
+  // }
   
-  fn fold_up<Res:Hash+Debug+Eq+Clone,NilC,LeafC,BinC,NameC>
-    (tree:Self, nil:&NilC, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
-    where  NilC:Fn() -> Res
-    ,     LeafC:Fn(Leaf              ) -> Res
-    ,      BinC:Fn(Self::Lev,     Res, Res ) -> Res
-    ,     NameC:Fn(Name, Self::Lev, Res, Res ) -> Res
-  {
-    Self::elim
-      (tree,
-       || nil(),
-       |x| leaf(x),
-       |x,l,r| {
-         let resl = Self::fold_up(l, nil, leaf, bin, name);
-         let resr = Self::fold_up(r, nil, leaf, bin, name);
-         let res = bin(x, resl, resr);
-         res
-       },
-       |n,x,l,r| {
-         let (n1,n2) = name_fork(n.clone());
-         let resl = memo!(n1 =>> Self::fold_up, tree:l ;; nil:nil, leaf:leaf, bin:bin, name:name);
-         let resr = memo!(n2 =>> Self::fold_up, tree:r ;; nil:nil, leaf:leaf, bin:bin, name:name);
-         let res = name(n, x, resl, resr);
-         res
-       }
-       )
-  }
+  // fn fold_up<Res:Hash+Debug+Eq+Clone,NilC,LeafC,BinC,NameC>
+  //   (tree:Self, nil:&NilC, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
+  //   where  NilC:Fn() -> Res
+  //   ,     LeafC:Fn(Leaf              ) -> Res
+  //   ,      BinC:Fn(Self::Lev,     Res, Res ) -> Res
+  //   ,     NameC:Fn(Name, Self::Lev, Res, Res ) -> Res
+  // {
+  //   Self::elim
+  //     (tree,
+  //      || nil(),
+  //      |x| leaf(x),
+  //      |x,l,r| {
+  //        let resl = Self::fold_up(l, nil, leaf, bin, name);
+  //        let resr = Self::fold_up(r, nil, leaf, bin, name);
+  //        let res = bin(x, resl, resr);
+  //        res
+  //      },
+  //      |n,x,l,r| {
+  //        let (n1,n2) = name_fork(n.clone());
+  //        let resl = memo!(n1 =>> Self::fold_up, tree:l ;; nil:nil, leaf:leaf, bin:bin, name:name);
+  //        let resr = memo!(n2 =>> Self::fold_up, tree:r ;; nil:nil, leaf:leaf, bin:bin, name:name);
+  //        let res = name(n, x, resl, resr);
+  //        res
+  //      }
+  //      )
+  // }
 }
 
 
 pub fn tree_of_list
   < A:Adapton
   , X:Hash+Clone+Debug
-  , T:TreeT<X>
-  , L:ListT<X>
+  , T:TreeT<X>+'static
+  , L:ListT<X>+'static
   >
   (dir_list:Dir2, list:L) -> T {
     let tnil = T::nil();
@@ -219,10 +219,9 @@ pub fn tree_of_list
   }
 
 pub fn tree_of_list_rec
-  < A:Adapton
-  , X:Hash+Clone+Debug
-  , T:TreeT<X>
-  , L:ListT<X>
+  < X:Hash+Clone+Debug
+  , T:TreeT<X>+'static
+  , L:ListT<X>+'static
   >
   (dir_list:Dir2, list:L, tree:T, tree_lev:T::Lev, parent_lev:T::Lev) -> (T, L)
 {
@@ -230,11 +229,10 @@ pub fn tree_of_list_rec
     list, (dir_list, tree, tree_lev, parent_lev),
     
     /* Nil */
-    |st, (_dir_list, tree, _, _)| (tree, L::nil()),
+    |(_dir_list, tree, _, _)| (tree, L::nil()),
     
     /* Cons */
-    |st, hd, rest, (dir_list, tree, tree_lev, parent_lev)| {
-      
+    |hd, rest, (dir_list, tree, tree_lev, parent_lev)| {      
       let lev_hd = T::lev_inc ( &T::lev(&hd) ) ;
       if T::lev_lte ( &tree_lev , &lev_hd ) && T::lev_lte ( &lev_hd , &parent_lev ) {
         let leaf = T::leaf(hd) ;
@@ -252,7 +250,7 @@ pub fn tree_of_list_rec
       }},
     
     /* Name */
-    |st, nm, rest, (dir_list, tree, tree_lev, parent_lev)|{
+    |nm:Name, rest, (dir_list, tree, tree_lev, parent_lev)|{
       let lev_nm = T::lev_inc( &T::lev_add( &T::lev_bits() , &T::lev(&nm) ) ) ;
       if T::lev_lte ( &tree_lev , &lev_nm ) && T::lev_lte ( &lev_nm ,  &parent_lev ) {
         let nil = T::nil() ;
@@ -278,7 +276,6 @@ pub fn tree_of_list_rec
       }},
     )
 }
-
 
 
 
