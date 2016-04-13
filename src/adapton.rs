@@ -20,23 +20,8 @@ extern crate log;
 
 #[macro_use]
 pub mod macros ;
-pub mod adapton_sigs ;
-
-pub mod gm ;
-pub mod gm_impl ;
-
 pub mod engine ;
-pub mod naive ;
-  
-pub mod simple ;
-pub mod collection_traits ;
-pub mod collection_algo ;
-pub mod collection ;
-pub mod collection_edit ;
-
-
-
-// pub mod fact ;
+pub mod collections ;
 
 mod adapton {
     pub use super::*;
