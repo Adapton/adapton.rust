@@ -861,9 +861,9 @@ pub enum Tree<X> {
 }
 
 #[derive(Debug,Clone)]
-pub enum NameOrElem<X> {
+pub enum NameElse<X> {
   Name(Name),
-  Elem(X),
+  Else(X),
 }
 
 impl<X:Debug+Hash+PartialEq+Eq+Clone> ListT<X> for List<X>
