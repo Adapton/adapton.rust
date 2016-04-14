@@ -26,14 +26,13 @@ pub trait ListT<X> : Debug+Clone+Hash+PartialEq+Eq {
   // requisite "adaptonic" constructors: `name` and `art`:
   fn name (Name, Self) -> Self ;
   fn art  (Art<Self>) -> Self ;
-  fn rc   (Rc<Self>) -> Self ;
 
   fn elim<Res,NilF,ConsF,NameF> (Self, NilF, ConsF, NameF) -> Res
     where NilF:FnOnce(          ) -> Res
     ,    ConsF:FnOnce(X,    Self) -> Res
     ,    NameF:FnOnce(Name, Self) -> Res ;
 
-  fn elim_move<Arg,Res,NilF,ConsF,NameF> (Self, Arg, NilF, ConsF, NameF) -> Res
+  fn elim_arg<Arg,Res,NilF,ConsF,NameF> (Self, Arg, NilF, ConsF, NameF) -> Res
     where NilF:FnOnce(            Arg) -> Res
     ,    ConsF:FnOnce(X,    Self, Arg) -> Res
     ,    NameF:FnOnce(Name, Self, Arg) -> Res ;
@@ -94,7 +93,7 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
     ,     NameC : FnOnce(&Name, &Self::Lev, &Self, &Self) -> Res
     ;
 
-  fn elim_move<Arg,Res,NilC,LeafC,BinC,NameC>
+  fn elim_arg<Arg,Res,NilC,LeafC,BinC,NameC>
     (Self, Arg, NilC, LeafC, BinC, NameC) -> Res
     where NilC  : FnOnce(Arg) -> Res
     ,     LeafC : FnOnce(Leaf, Arg) -> Res
@@ -132,7 +131,7 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
     ,      BinC:Fn(Self::Lev,       Res ) -> Res 
     ,     NameC:Fn(Name, Self::Lev, Res ) -> Res 
   {
-    Self::elim_move
+    Self::elim_arg
       (tree, (res,(leaf,bin,name)),
        |      (res,_)              | res,
        |x,    (res,(leaf,_,_))     | leaf(x, res),
@@ -160,7 +159,7 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   //   ,      BinC:Fn(Self::Lev,     Res ) -> Res
   //   ,     NameC:Fn(Name, Self::Lev, Res ) -> Res
   // {
-  //   Self::elim_move
+  //   Self::elim_arg
   //     (tree, res,
   //      |res| res,
   //      |x,res| leaf(x, res),
@@ -229,7 +228,7 @@ pub fn tree_of_list_rec
   >
   (dir_list:Dir2, list:L, tree:T, tree_lev:T::Lev, parent_lev:T::Lev) -> (T, L)
 {
-  L::elim_move (
+  L::elim_arg (
     list, (dir_list, tree, tree_lev, parent_lev),
     
     /* Nil */
@@ -299,7 +298,7 @@ pub fn tree_of_list_rec
 
 //   fn next_leaf_rec (T::Tree, Dir2, Self) -> (Option<X>, Self) ;
 
-//   fn tree_elim_move<Arg,Res,Tree,Nil,Cons,Name>
+//   fn tree_elim_arg<Arg,Res,Tree,Nil,Cons,Name>
 //     (Self, Arg, Tree, Nil, Cons, Name) -> Res
 //     where Tree:FnOnce(T::Tree, Dir2, Self, Arg) -> Res
 //     ,      Nil:FnOnce(Arg) -> Res
@@ -307,7 +306,7 @@ pub fn tree_of_list_rec
 //     ,     Name:FnOnce(Name, Self, Arg) -> Res
 //     ;
 
-//   fn full_elim_move<Arg,Res,Treef,Nilf,Consf,Namef,Artf>
+//   fn full_elim_arg<Arg,Res,Treef,Nilf,Consf,Namef,Artf>
 //     (Self, Arg, Treef, Nilf, Consf, Namef, Artf) -> Res
 //     where Treef:FnOnce(T::Tree, Dir2, Self, Arg) -> Res
 //     ,      Nilf:FnOnce(Arg) -> Res
@@ -468,7 +467,7 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //      tree:T::Tree, tree_lev:T::Lev, parent_lev:T::Lev)
 //      -> (T::Tree, L::List)
 // {
-//   L::tree_elim_move (
+//   L::tree_elim_arg (
 //     st, list, (dir_list, tree, tree_lev, parent_lev),
 
 //     /* Tree */
@@ -554,11 +553,11 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //     (n1:Option<Name>, l1:L::List,
 //      n2:Option<Name>, l2:L::List  ) -> L::List
 // {
-//     L::elim_move
+//     L::elim_arg
 //         (st, l1, (n1,n2,l2),
 //          /* Nil */  |_, (_, _, l2)| l2,
 //          /* Cons */ |st,h1,t1,(n1,n2,l2)|
-//          L::elim_move
+//          L::elim_arg
 //          (st, l2, (h1,t1,n1,n2),
 //           /* Nil */  |st, (h1, t1, _, _ )| L::cons(st, h1,t1),
 //           /* Cons */ |st, h2, t2, (h1, t1, n1, n2)| {
@@ -634,11 +633,11 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //   , T:TreeT<X> >
 //   (tree1:T::Tree, tree2:T::Tree) -> T::Tree
 // {
-//   T::elim_move(
+//   T::elim_arg(
 //     st, tree1, tree2,
 //     /* Nil */  |_, tree2| tree2,
 //     /* Leaf */ |st,leaf,  tree2| {
-//       T::elim_move(
+//       T::elim_arg(
 //         st, tree2, leaf,
 //         /* Leaf-Nil */  |st, leaf1| T::leaf(st,leaf1),
 //         /* Leaf-Leaf */ |st, leaf2, leaf1| {
@@ -685,7 +684,7 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //     }, /* end Leaf */
 //     /* Bin */ |st,lev1,l1,r1, tree2| {
 //       let bin_data = (lev1,l1,r1) ;
-//       T::elim_move(
+//       T::elim_arg(
 //         st, tree2, bin_data,
 //         /* Bin-Nil */  |st, (lev1,l1,r1)| T::bin(st,lev1,l1,r1),
 //         /* Bin-Leaf */ |st, leaf2, (lev1,l1,r1)| {
@@ -727,7 +726,7 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //     }, /* end Bin */
 //     /* Name */ |st, n1, lev1, l1, r1, tree2| {
 //       let name_data = (n1,lev1,l1,r1) ;
-//       T::elim_move(
+//       T::elim_arg(
 //         st, tree2, name_data,
 //         /* Name-Nil */  |st, (n1,lev1,l1,r1)| T::name(st,n1,lev1,l1,r1),
 //         /* Name-Leaf */ |st, leaf2, (n1,lev1,l1,r1)| {
@@ -844,91 +843,88 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 // }
 
 
-// #[derive(Debug,PartialEq,Eq,Hash,Clone)]
-// pub enum List<X> {
-//   Nil,
-//   Cons(X, Box<List<X>>),
-//   Tree(Box<Tree<X>>, Dir2, Box<List<X>>),
-//   Name(Name, Box<List<X>>),
-//   Art(Artic<List<X>>),
-// }
+#[derive(Debug,PartialEq,Eq,Hash,Clone)]
+pub enum List<X> {
+  Nil,
+  Cons(X, Box<List<X>>),
+  Tree(Box<Tree<X>>, Dir2, Box<List<X>>),
+  Name(Name, Box<List<X>>),
+  Art(Art<List<X>>),
+}
 
-// #[derive(Debug,PartialEq,Eq,Hash,Clone)]
-// pub enum Tree<X> {
-//   Nil,
-//   Leaf(X),
-//   Bin(Option<Name>, usize, Box<Tree<X>>, Box<Tree<X>> ),
-//   Art(Art<Tree<X>>),
-// }
+#[derive(Debug,PartialEq,Eq,Hash,Clone)]
+pub enum Tree<X> {
+  Nil,
+  Leaf(X),
+  Bin(Option<Name>, usize, Box<Tree<X>>, Box<Tree<X>> ),
+  Art(Art<Tree<X>>),
+}
 
-// #[derive(Debug,Clone)]
-// pub enum NameOrElem<Name,X> {
-//   Name(Name),
-//   Elem(X),
-// }
+#[derive(Debug,Clone)]
+pub enum NameOrElem<X> {
+  Name(Name),
+  Elem(X),
+}
 
-// impl<X:Debug+Hash+PartialEq+Eq+Clone> ListT<X> for List<X>
-// {
-//     fn nil  ()                              -> Self { List::Nil }
-//     fn cons (hd:X, tl:Self)       -> Self { List::Cons(hd,Box::new(tl)) }
-//     fn name (nm:Name, tl:Self)   -> Self { List::Name(nm, Box::new(tl)) }
-//     fn rc   (rc:Rc<List<X>>)          -> Self { List::Rc(rc) }
-//     fn art  (art:Art<List<X>,A::Loc>) -> Self { List::Art(art) }
-
-//     fn elim<Res,Nil,Cons,Name>
-//         (list:Self, nilf:Nil, consf:Cons, namef:Name) -> Res
-//         where Nil:FnOnce() -> Res
-//         ,    Cons:FnOnce(X, Self) -> Res
-//         ,    Name:FnOnce(Name, Self) -> Res
-//     {
-//         match list {
-//             List::Nil => nilf(st),
-//             List::Cons(hd, tl) => consf(st, hd, *tl),
-//             List::Name(nm, tl) => namef(st, nm, *tl),
-//             List::Rc(rc) => Self::elim(st, (*rc).clone(), nilf, consf, namef),
-//             List::Art(ref art) => {
-//                 let list = st.force(art);
-//                 Self::elim(st, list, nilf, consf, namef)
-//             },
-//           List::Tree(tree, dir, tl) => {
-//             let tree = *tree;
-//             let tl = *tl;
-//               let (res, rest) = st.structural(|st| List::next_leaf_rec(st, tree, dir, tl)) ;
-//               match res {
-//                 None => Self::elim(st, rest, nilf, consf, namef),
-//                 Some(elm) => consf(st, elm, rest),
-//               }
-//             }
-//         }
-//     }
-    
-//     fn elim_move<Arg,Res,Nil,Cons,Name>
-//         (list:Self, arg:Arg, nilf:Nil, consf:Cons, namef:Name) -> Res
-//         where Nil:FnOnce(Arg) -> Res
-//         ,    Cons:FnOnce(X, Self, Arg) -> Res
-//         ,    Name:FnOnce(Name, Self, Arg) -> Res
-//     {
-//         match list {
-//             List::Nil => nilf(st, arg),
-//             List::Cons(hd, tl) => consf(st, hd, *tl, arg),
-//             List::Name(nm, tl) => namef(st, nm, *tl, arg),
-//             List::Rc(rc) => Self::elim_move(st, (*rc).clone(), arg, nilf, consf, namef),
-//             List::Art(ref art) => {
-//                 let list = st.force(art);
-//                 Self::elim_move(st, list, arg, nilf, consf, namef)
-//             },
-//           List::Tree(tree, dir, tl) => {
-//             let tree = *tree;
-//             let tl = *tl;
-//               let (res, rest) = st.structural(|st| List::next_leaf_rec(st, tree, dir, tl)) ;
-//               match res {
-//                 None => Self::elim_move(st, rest, arg, nilf, consf, namef),
-//                 Some(elm) => consf(st, elm, rest, arg),
-//               }
-//             }
-//         }
-//     }
-// }
+impl<X:Debug+Hash+PartialEq+Eq+Clone> ListT<X> for List<X>
+{
+  fn nil  ()                 -> Self { List::Nil }
+  fn cons (hd:X, tl:Self)    -> Self { List::Cons(hd,Box::new(tl)) }
+  fn name (nm:Name, tl:Self) -> Self { List::Name(nm, Box::new(tl)) }
+  fn art  (art:Art<List<X>>) -> Self { List::Art(art) }
+  
+  fn elim<Res,NilF,ConsF,NameF>
+    (list:Self, nilf:NilF, consf:ConsF, namef:NameF) -> Res
+    where NilF:FnOnce() -> Res
+    ,    ConsF:FnOnce(X, Self) -> Res
+    ,    NameF:FnOnce(Name, Self) -> Res
+  {
+    match list {
+      List::Nil => nilf(),
+      List::Cons(hd, tl) => consf(hd, *tl),
+      List::Name(nm, tl) => namef(nm, *tl),
+      List::Art(ref art) => {
+        let list = force(art);
+        Self::elim(list, nilf, consf, namef)
+      },
+      List::Tree(tree, dir, tl) => {
+        let tree = *tree;
+        let tl = *tl;
+        let (res, rest) = structural(|| panic!("List::next_leaf_rec(tree, dir, tl)")) ;
+        match res {
+          None => Self::elim(rest, nilf, consf, namef),
+          Some(elm) => consf(elm, rest),
+        }
+      }
+    }
+  }
+  
+  fn elim_arg<Arg,Res,NilF,ConsF,NameF>
+    (list:Self, arg:Arg, nilf:NilF, consf:ConsF, namef:NameF) -> Res
+    where NilF:FnOnce(Arg) -> Res
+    ,    ConsF:FnOnce(X, Self, Arg) -> Res
+    ,    NameF:FnOnce(Name, Self, Arg) -> Res
+  {
+    match list {
+      List::Nil => nilf(arg),
+      List::Cons(hd, tl) => consf(hd, *tl, arg),
+      List::Name(nm, tl) => namef(nm, *tl, arg),
+      List::Art(ref art) => {
+        let list = force(art);
+        Self::elim_arg(list, arg, nilf, consf, namef)
+      },
+      List::Tree(tree, dir, tl) => {
+        let tree = *tree;
+        let tl = *tl;
+        let (res, rest) = structural(|| panic!("List::next_leaf_rec(tree, dir, tl)")) ;
+        match res {
+          None => Self::elim_arg(rest, arg, nilf, consf, namef),
+          Some(elm) => consf(elm, rest, arg),
+        }
+      }
+    }
+  }
+}
 
 // impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
 //     , X:Debug+Hash+PartialEq+Eq+Clone
@@ -1007,7 +1003,7 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //     st.structural(|st| Self::next_leaf_rec(st, tree, dir, List::Nil))
 //   }
 
-//   fn tree_elim_move<Arg,Res,Treef,Nil,Cons,Name>
+//   fn tree_elim_arg<Arg,Res,Treef,Nil,Cons,Name>
 //     (list:Self, arg:Arg, treef:Treef, nilf:Nil, consf:Cons, namef:Name) -> Res
 //     where Treef:FnOnce(Tree<X,u32>, Dir2, Self, Arg) -> Res
 //     ,       Nil:FnOnce(Arg) -> Res
@@ -1018,16 +1014,16 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //       List::Nil => nilf(st, arg),
 //       List::Cons(hd, tl) => consf(st, hd, *tl, arg),
 //       List::Name(nm, tl) => namef(st, nm, *tl, arg),
-//       List::Rc(rc) => Self::elim_move(st, (*rc).clone(), arg, nilf, consf, namef),
+//       List::Rc(rc) => Self::elim_arg(st, (*rc).clone(), arg, nilf, consf, namef),
 //       List::Art(ref art) => {
 //         let list = st.force(art);
-//         Self::elim_move(st, list, arg, nilf, consf, namef)
+//         Self::elim_arg(st, list, arg, nilf, consf, namef)
 //       },
 //       List::Tree(tree, dir, tl) => treef(st, *tree, dir, *tl, arg),
 //     }
 //   }
 
-//   fn full_elim_move<Arg,Res,Treef,Nilf,Consf,Namef,Artf>
+//   fn full_elim_arg<Arg,Res,Treef,Nilf,Consf,Namef,Artf>
 //     (list:Self, arg:Arg, treef:Treef, nilf:Nilf, consf:Consf, namef:Namef, artf:Artf) -> Res
 //     where Treef:FnOnce(Tree<X,u32>, Dir2, Self, Arg) -> Res
 //     ,      Nilf:FnOnce(Arg) -> Res
@@ -1039,14 +1035,14 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //       List::Nil => nilf(st, arg),
 //       List::Cons(hd, tl) => consf(st, hd, *tl, arg),
 //       List::Name(nm, tl) => namef(st, nm, *tl, arg),
-//       List::Rc(rc) => Self::elim_move(st, (*rc).clone(), arg, nilf, consf, namef),
+//       List::Rc(rc) => Self::elim_arg(st, (*rc).clone(), arg, nilf, consf, namef),
 //       List::Art(ref art) => { artf(st, art, arg) },
 //       List::Tree(tree, dir, tl) => treef(st, *tree, dir, *tl, arg),
 //     }
 //   }
 
 //   fn get_string(l:Self) -> String {
-//     Self::full_elim_move(st, l, (),
+//     Self::full_elim_arg(st, l, (),
 //                          |st,tree,dir,rest,_| { let ts = Tree::get_string(st,tree); format!("Tree({},{:?},{})", ts, dir, Self::get_string(st, rest)) },
 //                          |st,_| format!("Nil"),
 //                          |st,x,tl,_| format!("Cons({:?},{})",x,Self::get_string(st, tl)),
@@ -1095,7 +1091,7 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //     fn rc   (rc:Rc<Self>)                                  -> Self { Tree::Rc(rc) }
 //     fn art  (art:Art<Self,A::Loc>)                         -> Self { Tree::Art(art) }
 
-//     fn elim_move<Arg,Res,NilC,LeafC,BinC,NameC>
+//     fn elim_arg<Arg,Res,NilC,LeafC,BinC,NameC>
 //         (tree:Self, arg:Arg, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
 //         where NilC  : FnOnce(Arg) -> Res
 //         ,     LeafC : FnOnce(Leaf, Arg) -> Res
@@ -1107,10 +1103,10 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //             Tree::Leaf(x) => leaf(st, x, arg),
 //             Tree::Bin(b, l, r) => bin(st, b, *l, *r, arg),
 //             Tree::Name(nm, b, l, r) => name(st, nm, b, *l, *r, arg),
-//             Tree::Rc(rc) => Self::elim_move(st, (*rc).clone(), arg, nil, leaf, bin, name),
+//             Tree::Rc(rc) => Self::elim_arg(st, (*rc).clone(), arg, nil, leaf, bin, name),
 //             Tree::Art(art) => {
 //                 let list = st.force(&art);
-//                 Self::elim_move(st, list, arg, nil, leaf, bin, name)
+//                 Self::elim_arg(st, list, arg, nil, leaf, bin, name)
 //             }
 //         }
 //     }
@@ -1128,7 +1124,7 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //             Tree::Leaf(x) => leaf(st, x, arg),
 //             Tree::Bin(b, l, r) => bin(st, b, *l, *r, arg),
 //             Tree::Name(nm, b, l, r) => name(st, nm, b, *l, *r, arg),
-//             Tree::Rc(rc) => Self::elim_move(st, (*rc).clone(), arg, nil, leaf, bin, name),
+//             Tree::Rc(rc) => Self::elim_arg(st, (*rc).clone(), arg, nil, leaf, bin, name),
 //             Tree::Art(art) => { artf(st, &art, arg) }
 //         }
 //     }
@@ -1439,7 +1435,7 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //   fn clr_names (zip:Self::State, dir:Dir2) -> Self::State {
 //     panic!("clr_names generally re-associates names");
 //         // match dir {
-//         //     Dir2::Left => L::elim_move
+//         //     Dir2::Left => L::elim_arg
 //         //         (st, zip.left, zip.right,
 //         //          |st,right| zipper!{L::nil(st), right},
 //         //          |st,x,left,right| zipper!{L::cons(st,x,left), right},
@@ -1447,7 +1443,7 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //         //              let right = L::name(st,nm,right);
 //         //              Self::clr_names(st, zipper!{left, right}, dir)}
 //         //          ),
-//         //     Dir2::Right => L::elim_move
+//         //     Dir2::Right => L::elim_arg
 //         //         (st, zip.right, zip.left,
 //         //          |st,left| zipper!{left, L::nil(st)},
 //         //          |st,x,right,left| zipper!{left, L::cons(st,x,right)},
@@ -1502,13 +1498,13 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 
 //     fn rem_name  (zip:Self::State, dir:Dir2) -> (Self::State, Option<Name>) {
 //         match dir {
-//             Dir2::Left => L::elim_move
+//             Dir2::Left => L::elim_arg
 //                 (st, zip.left, zip.right,
 //                  |st,right|         (zipper!{L::nil(st), right}, None ),
 //                  |_,x,left,right|   (zipper!{left,       right}, None ),
 //                  |st,nm,left,right| (zipper!{left, right},       Some(nm))
 //                  ),
-//             Dir2::Right => L::elim_move
+//             Dir2::Right => L::elim_arg
 //                 (st, zip.right, zip.left,
 //                  |st,left|          (zipper!{left, L::nil(st)}, None ),
 //                  |_,x,right,left|   (zipper!{left, right},      None ),
@@ -1536,14 +1532,14 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 
 //     fn remove  (zip:Self::State, dir:Dir2) -> (Self::State, Option<X>) {
 //         match dir {
-//             Dir2::Left => L::elim_move
+//             Dir2::Left => L::elim_arg
 //                 (st, zip.left, zip.right,
 //                  |st,right|         (zipper!{L::nil(st), right}, None   ),
 //                  |_,x,left,right|   (zipper!{left,       right}, Some(x)),
 //                  |st,nm,left,right| {let zip = zipper!{left, right};
 //                                      Self::remove (st, zip, Dir2::Left)}
 //                  ),
-//             Dir2::Right => L::elim_move
+//             Dir2::Right => L::elim_arg
 //                 (st, zip.right, zip.left,
 //                  |st,left|          (zipper!{left, L::nil(st)}, None   ),
 //                  |_,x,right,left|   (zipper!{left, right},      Some(x)),
@@ -1557,14 +1553,14 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //   // XXX rename 'move'
 //     fn goto (zip:Self::State, dir:Dir2) -> (Self::State, bool) {
 //       match dir {
-//         Dir2::Left => L::elim_move
+//         Dir2::Left => L::elim_arg
 //           (st, zip.left, zip.right,
 //            /* Nil */  |st,right|          (zipper!{L::nil(st), right}          , false ),
 //            /* Cons */ |st,elm,left,right| (zipper!{left, L::cons(st,elm,right)}, true  ),
 //            /* Name */ |st,_,left,right| {let zip = zipper!{left, right};
 //                                           Self::goto (st, zip, Dir2::Left)}
 //            ),
-//         Dir2::Right => L::elim_move
+//         Dir2::Right => L::elim_arg
 //           (st, zip.right, zip.left,
 //            /* Nil */ |st,left|           (zipper!{left,              L::nil(st)}, false ),
 //            /* Cons */ |st,x,right,left|  (zipper!{L::cons(st,x,left),right}     , true  ),
@@ -1576,14 +1572,14 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 
 //     fn shift (zip:Self::State, dir:Dir2) -> (Self::State, bool) {
 //       match dir {
-//         Dir2::Left => L::elim_move
+//         Dir2::Left => L::elim_arg
 //           (st, zip.left, zip.right,
 //            /* Nil */  |st,right|          (zipper!{L::nil(st), right}          , false ),
 //            /* Cons */ |st,elm,left,right| (zipper!{left, L::cons(st,elm,right)}, true  ),
 //            /* Name */ |st,nm,left,right| {let zip = zipper!{left, L::name(st,nm,right)};
 //                                           Self::shift (st, zip, Dir2::Left)}
 //            ),
-//         Dir2::Right => L::elim_move
+//         Dir2::Right => L::elim_arg
 //           (st, zip.right, zip.left,
 //            /* Nil */ |st,left|           (zipper!{left,              L::nil(st)}, false ),
 //            /* Cons */ |st,x,right,left|  (zipper!{L::cons(st,x,left),right}     , true  ),
@@ -1595,7 +1591,7 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 
 //     fn observe (zip:Self::State, dir:Dir2) -> (Self::State,Option<X>) {
 //         match dir {
-//             Dir2::Left => L::elim_move
+//             Dir2::Left => L::elim_arg
 //                 (st, zip.left, zip.right,
 //                  |st,right|         (zipper!{L::nil(st), right}, None),
 //                  |st,x,left,right| {let x2 = x.clone();
@@ -1603,7 +1599,7 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 //                  |st,nm,left,right|{let zip = zipper!{left,right};
 //                                     Self::observe (st, zip, Dir2::Left)}
 //                  ),
-//             Dir2::Right => L::elim_move
+//             Dir2::Right => L::elim_arg
 //                 (st, zip.right, zip.left,
 //                  |st,left|         (zipper!{left, L::nil(st)}, None),
 //                  |st,x,right,left| {let x2 = x.clone();
@@ -1616,14 +1612,14 @@ pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
 
 //     fn replace (zip:Self::State, dir:Dir2, y:X) -> (Self::State, X, bool) {
 //         match dir {
-//             Dir2::Left => L::elim_move
+//             Dir2::Left => L::elim_arg
 //                 (st, zip.left, (zip.right, y),
 //                  |st,(right,y)|        (zipper!{L::nil(st),         right}, y, false),
 //                  |st,x,left,(right,y)| (zipper!{L::cons(st,y,left), right}, x, true ),
 //                  |st,nm,left,(right,y)|{let zip = zipper!{left,right};
 //                                         Self::replace (st, zip, Dir2::Left, y)}
 //                  ),
-//             Dir2::Right => L::elim_move
+//             Dir2::Right => L::elim_arg
 //                 (st, zip.right, (zip.left,y),
 //                  |st,(left,y)|         (zipper!{left, L::nil(st)},          y, false),
 //                  |st,x,right,(left,y)| (zipper!{left, L::cons(st,y,right)}, x, true ),
