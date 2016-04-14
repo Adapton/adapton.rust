@@ -89,7 +89,6 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   // requisite "adaptonic" constructors: `name` and `art`:
   fn name (Name, Self::Lev, Self, Self) -> Self ;
   fn art  (Art<Self>) -> Self ;
-  fn rc   (Rc<Self>) -> Self ;
   
   fn elim<Res,NilC,LeafC,BinC,NameC>
     (Self, NilC, LeafC, BinC, NameC) -> Res        
@@ -124,7 +123,7 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
     ,     ArtC  : FnOnce(&Art<Self>, Arg) -> Res
     ;
 
-  fn get_string(l:Self) -> String ;
+  //fn get_string(l:Self) -> String ;
   
   // Derived from `elim` above:
   fn is_empty (tree:Self) -> bool {
@@ -870,7 +869,8 @@ pub enum List<X> {
 pub enum Tree<X> {
   Nil,
   Leaf(X),
-  Bin(Option<Name>, usize, Box<Tree<X>>, Box<Tree<X>> ),
+  Bin(usize, Box<Tree<X>>, Box<Tree<X>> ),
+  Name(Name, usize, Box<Tree<X>>, Box<Tree<X>> ),
   Art(Art<Tree<X>>),
 }
 
@@ -1066,139 +1066,128 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListT<X> for List<X>
 
 // }
 
-// // TODO: Why Does Adapton have to implement all of these?
-// //       It's not actually *contained* within the List structure; it cannot be ecountered there.
-// //       It's only ever present in a negative position (as a function parameter).
-// impl
-//     <A:Adapton+Debug+Hash+PartialEq+Eq+Clone
-//     ,Leaf:     Debug+Hash+PartialEq+Eq+Clone
-//     >
-//     TreeT<Leaf>
-//     for Tree<Leaf,u32>
-// {
-//     type Tree = Tree<Leaf,Self::Lev>;
-//     type Lev  = u32 ;
-
-//     //  See Pugh+Teiltelbaum in POPL 1989 for an explanation of this notion of "level":
-//     fn lev<X:Hash>(x:&X) -> Self::Lev  {
-//       my_hash_n(&x,1).trailing_zeros() as Self::Lev
-//     }
-//     fn lev_of_tree (tree:&Self) -> Self::Lev {
-//         Tree::elim_ref(st, tree,
-//                        |_| 0,
-//                        |_,leaf| Self::lev(leaf),
-//                        |_,lev,_,_| lev.clone(),
-//                        |_,_,lev,_,_| lev.clone(),
-//                        )
-//     }
-//     fn lev_bits () -> Self::Lev { 32 }
-//     fn lev_zero () -> Self::Lev { 0 }
-//     fn lev_max_val () -> Self::Lev { u32::max_value() }
-//     fn lev_add (x:&Self::Lev,y:&Self::Lev) -> Self::Lev { x + y }
-//     fn lev_inc (x:&Self::Lev) -> Self::Lev { x + 1 }
-//     fn lev_lte (x:&Self::Lev,y:&Self::Lev) -> bool { x <= y }
-    
-//     fn nil  ()                                                     -> Self { Tree::Nil }
-//     fn leaf (x:Leaf)                                             -> Self { Tree::Leaf(x) }
-//     fn bin  (lev:Self::Lev, l:Self, r:Self)            -> Self { Tree::Bin(lev,Box::new(l),Box::new(r)) }
-//     fn name (nm:Name, lev:Self::Lev, l:Self,r:Self) -> Self { Tree::Name(nm, lev, Box::new(l),Box::new(r)) }
-//     fn rc   (rc:Rc<Self>)                                  -> Self { Tree::Rc(rc) }
-//     fn art  (art:Art<Self,A::Loc>)                         -> Self { Tree::Art(art) }
-
-//     fn elim_arg<Arg,Res,NilC,LeafC,BinC,NameC>
-//         (tree:Self, arg:Arg, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
-//         where NilC  : FnOnce(Arg) -> Res
-//         ,     LeafC : FnOnce(Leaf, Arg) -> Res
-//         ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
-//         ,     NameC : FnOnce(Name, Self::Lev,  Self, Self, Arg) -> Res
-//     {
-//         match tree {
-//             Tree::Nil => nil(st,arg),
-//             Tree::Leaf(x) => leaf(st, x, arg),
-//             Tree::Bin(b, l, r) => bin(st, b, *l, *r, arg),
-//             Tree::Name(nm, b, l, r) => name(st, nm, b, *l, *r, arg),
-//             Tree::Rc(rc) => Self::elim_arg(st, (*rc).clone(), arg, nil, leaf, bin, name),
-//             Tree::Art(art) => {
-//                 let list = st.force(&art);
-//                 Self::elim_arg(st, list, arg, nil, leaf, bin, name)
-//             }
-//         }
-//     }
-
-//   fn full_move<Arg,Res,NilC,LeafC,BinC,NameC,ArtC>
-//     (tree:Self, arg:Arg, nil:NilC, leaf:LeafC, bin:BinC, name:NameC, artf:ArtC) -> Res
-//         where NilC  : FnOnce(Arg) -> Res
-//         ,     LeafC : FnOnce(Leaf, Arg) -> Res
-//         ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
-//         ,     NameC : FnOnce(Name, Self::Lev,  Self, Self, Arg) -> Res
-//         ,     ArtC  : FnOnce(&Art<Self, A::Loc>, Arg) -> Res
-//     {
-//         match tree {
-//             Tree::Nil => nil(st,arg),
-//             Tree::Leaf(x) => leaf(st, x, arg),
-//             Tree::Bin(b, l, r) => bin(st, b, *l, *r, arg),
-//             Tree::Name(nm, b, l, r) => name(st, nm, b, *l, *r, arg),
-//             Tree::Rc(rc) => Self::elim_arg(st, (*rc).clone(), arg, nil, leaf, bin, name),
-//             Tree::Art(art) => { artf(st, &art, arg) }
-//         }
-//     }
-
-//     fn elim<Res,NilC,LeafC,BinC,NameC>
-//         (tree:Self, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
-//         where NilC  : FnOnce() -> Res
-//         ,     LeafC : FnOnce(Leaf) -> Res
-//         ,     BinC  : FnOnce(Self::Lev,  Self, Self) -> Res
-//         ,     NameC : FnOnce(Name, Self::Lev, Self, Self) -> Res
-//     {
-//         match tree {
-//             Tree::Nil => nil(st),
-//             Tree::Leaf(x) => leaf(st, x),
-//             Tree::Bin(b, l, r) => bin(st, b, *l, *r),
-//             Tree::Name(nm, b, l, r) => name(st, nm, b, *l, *r),
-//             Tree::Rc(rc) => Self::elim(st, (*rc).clone(), nil, leaf, bin, name),
-//             Tree::Art(art) => {
-//                 let list = st.force(&art);
-//                 Self::elim(st, list, nil, leaf, bin, name)
-//             }
-//         }
-//     }
-
-//     fn elim_ref<Res,NilC,LeafC,BinC,NameC>
-//         (tree:&Self, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
-//         where NilC  : FnOnce() -> Res
-//         ,     LeafC : FnOnce(&Leaf) -> Res
-//         ,     BinC  : FnOnce(&Self::Lev, &Self, &Self) -> Res
-//         ,     NameC : FnOnce(&Name, &Self::Lev, &Self, &Self) -> Res
-//     {
-//         match *tree {
-//             Tree::Nil => nil(st),
-//             Tree::Leaf(ref x) => leaf(st, x),
-//             Tree::Bin(ref b, ref l, ref r) => bin(st, b, &*l, &*r),
-//             Tree::Name(ref nm, ref b, ref l, ref r) => name(st, nm, b, &*l, &*r),
-//             Tree::Rc(ref rc) => Self::elim_ref(st, &*rc, nil, leaf, bin, name),
-//             Tree::Art(ref art) => {
-//                 let list = st.force(art);
-//                 Self::elim_ref(st, &list, nil, leaf, bin, name)
-//             }
-//         }
-//     }
+impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
+  TreeT<Leaf>
+  for Tree<Leaf>
+{
+  type Lev = usize ;
   
-//   fn get_string(l:Self) -> String {
-//     Self::full_move(st, l, (),
-//                     |st, _| format!("Nil"),
-//                     |st, elm, _| format!("Leaf({:?})",elm),
-//                     |st, lev, l, r, _| {
-//                       let ls = Self::get_string(st, l);
-//                       let rs = Self::get_string(st, r);
-//                       format!("Bin({:?},{},{})",lev,ls,rs)},
-//                     |st, lev, nm, l, r, _| {
-//                       let ls = Self::get_string(st, l);
-//                       let rs = Self::get_string(st, r);
-//                       format!("Name({:?},{:?},{},{})",lev,nm,ls,rs)},
-//                     |st,art,_| format!("Art({})", {let l = st.force(art); Self::get_string(st, l)}),
-//                     )}
-
-// }
+  //  See Pugh+Teiltelbaum in POPL 1989 for an explanation of this notion of "level":
+  fn lev<X:Hash>(x:&X) -> Self::Lev  {
+    my_hash_n(&x,1).trailing_zeros() as Self::Lev
+  }
+  fn lev_of_tree (tree:&Self) -> Self::Lev {
+    Tree::elim_ref
+      (tree,
+       || 0,
+       |leaf|      Self::lev(leaf),
+       |lev,_,_|   lev.clone(),
+       |_,lev,_,_| lev.clone(),
+       )
+  }
+  fn lev_bits () -> Self::Lev { 32 }
+  fn lev_zero () -> Self::Lev { 0 }
+  fn lev_max_val () -> Self::Lev { usize::max_value() }
+  fn lev_add (x:&Self::Lev,y:&Self::Lev) -> Self::Lev { x + y }
+  fn lev_inc (x:&Self::Lev) -> Self::Lev { x + 1 }
+  fn lev_lte (x:&Self::Lev,y:&Self::Lev) -> bool { x <= y }
+  
+  fn nil  ()                                      -> Self { Tree::Nil }
+  fn leaf (x:Leaf)                                -> Self { Tree::Leaf(x) }
+  fn bin  (lev:Self::Lev, l:Self, r:Self)         -> Self { Tree::Bin(lev,Box::new(l),Box::new(r)) }
+  fn name (nm:Name, lev:Self::Lev, l:Self,r:Self) -> Self { Tree::Name(nm, lev, Box::new(l),Box::new(r)) }
+  fn art  (art:Art<Self>)                         -> Self { Tree::Art(art) }
+  
+  fn elim_arg<Arg,Res,NilC,LeafC,BinC,NameC>
+    (tree:Self, arg:Arg, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
+    where NilC  : FnOnce(Arg) -> Res
+    ,     LeafC : FnOnce(Leaf, Arg) -> Res
+    ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
+    ,     NameC : FnOnce(Name, Self::Lev,  Self, Self, Arg) -> Res
+  {
+    match tree {
+      Tree::Nil => nil(arg),
+      Tree::Leaf(x) => leaf(x, arg),
+      Tree::Bin(b, l, r) => bin(b, *l, *r, arg),
+      Tree::Name(nm, b, l, r) => name(nm, b, *l, *r, arg),
+      Tree::Art(art) => {
+        let list = force(&art);
+        Self::elim_arg(list, arg, nil, leaf, bin, name)
+      }
+    }
+  }
+  
+  fn full_move<Arg,Res,NilC,LeafC,BinC,NameC,ArtC>
+    (tree:Self, arg:Arg, nil:NilC, leaf:LeafC, bin:BinC, name:NameC, artf:ArtC) -> Res
+    where NilC  : FnOnce(Arg) -> Res
+    ,     LeafC : FnOnce(Leaf, Arg) -> Res
+    ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
+    ,     NameC : FnOnce(Name, Self::Lev,  Self, Self, Arg) -> Res
+    ,     ArtC  : FnOnce(&Art<Self>, Arg) -> Res
+  {
+    match tree {
+      Tree::Nil => nil(arg),
+      Tree::Leaf(x) => leaf(x, arg),
+      Tree::Bin(b, l, r) => bin(b, *l, *r, arg),
+      Tree::Name(nm, b, l, r) => name(nm, b, *l, *r, arg),
+      Tree::Art(art) => { artf(&art, arg) }
+    }
+  }
+  
+  fn elim<Res,NilC,LeafC,BinC,NameC>
+    (tree:Self, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
+    where NilC  : FnOnce() -> Res
+    ,     LeafC : FnOnce(Leaf) -> Res
+    ,     BinC  : FnOnce(Self::Lev,  Self, Self) -> Res
+    ,     NameC : FnOnce(Name, Self::Lev, Self, Self) -> Res
+  {
+    match tree {
+      Tree::Nil => nil(),
+      Tree::Leaf(x) => leaf(x),
+      Tree::Bin(b, l, r) => bin(b, *l, *r),
+      Tree::Name(nm, b, l, r) => name(nm, b, *l, *r),
+      Tree::Art(art) => {
+        let list = force(&art);
+        Self::elim(list, nil, leaf, bin, name)
+      }
+    }
+  }
+  
+  fn elim_ref<Res,NilC,LeafC,BinC,NameC>
+    (tree:&Self, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
+    where NilC  : FnOnce() -> Res
+    ,     LeafC : FnOnce(&Leaf) -> Res
+    ,     BinC  : FnOnce(&Self::Lev, &Self, &Self) -> Res
+    ,     NameC : FnOnce(&Name, &Self::Lev, &Self, &Self) -> Res
+  {
+    match *tree {
+      Tree::Nil => nil(),
+      Tree::Leaf(ref x) => leaf(x),
+      Tree::Bin(ref b, ref l, ref r) => bin(b, &*l, &*r),
+      Tree::Name(ref nm, ref b, ref l, ref r) => name(nm, b, &*l, &*r),
+      Tree::Art(ref art) => {
+        let list = force(art);
+        Self::elim_ref(&list, nil, leaf, bin, name)
+      }
+    }
+  }
+  
+  // fn get_string(l:Self) -> String {
+  //   Self::full_move
+  //     (l, (),
+  //      |st, _| format!("Nil"),
+  //      |st, elm, _| format!("Leaf({:?})",elm),
+  //      |st, lev, l, r, _| {
+  //        let ls = Self::get_string(st, l);
+  //        let rs = Self::get_string(st, r);
+  //        format!("Bin({:?},{},{})",lev,ls,rs)},
+  //      |st, lev, nm, l, r, _| {
+  //        let ls = Self::get_string(st, l);
+  //        let rs = Self::get_string(st, r);
+  //        format!("Name({:?},{:?},{},{})",lev,nm,ls,rs)},
+  //      |st,art,_| format!("Art({})", {let l = st.force(art); Self::get_string(st, l)}),
+  //      )}  
+}
 
 
 // #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
