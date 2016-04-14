@@ -53,7 +53,7 @@ pub trait ListT<X> : Debug+Clone+Hash+PartialEq+Eq {
   }
 }
 
-pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone {
+pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   type Lev  : Debug+Hash+PartialEq+Eq+Clone+'static ;
 
   fn lev<X:Hash>(&X) -> Self::Lev ;
@@ -123,31 +123,36 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone {
                )
   }
   
-  // fn fold_lr<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
-  //   (tree:Self, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
-  //   where LeafC:Fn(Leaf,    Res ) -> Res
-  //   ,      BinC:Fn(Self::Lev,     Res ) -> Res 
-  //   ,     NameC:Fn(Name, Self::Lev, Res ) -> Res 
-  // {
-  //   Self::elim_move
-  //     (tree, res,
-  //      |res| res,
-  //      |x,res| leaf(x, res),
-  //      |x,l,r,res| {
-  //        let res = Self::fold_lr(l, res, leaf, bin, name);
-  //        let res = bin(x, res);
-  //        let res = Self::fold_lr(r, res, leaf, bin, name);
-  //        res
-  //      },
-  //      |n,x,l,r,res| {
-  //        let (n1,n2) = name_fork(n.clone());
-  //        let res = memo!(n1 =>> Self::fold_lr, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
-  //        let res = name(n, x, res);
-  //        let res = memo!(n2 =>> Self::fold_lr, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
-  //        res
-  //      }
-  //      )
-  // }
+  fn fold_lr<Res:Hash+Debug+Eq+Clone+'static,LeafC:'static,BinC:'static,NameC:'static>
+    (tree:Self, res:Res,
+     leaf:Rc<LeafC>,
+     bin: Rc<BinC>,
+     name:Rc<NameC>) -> Res
+    where LeafC:Fn(Leaf,            Res ) -> Res
+    ,      BinC:Fn(Self::Lev,       Res ) -> Res 
+    ,     NameC:Fn(Name, Self::Lev, Res ) -> Res 
+  {
+    Self::elim_move
+      (tree, (res,(leaf,bin,name)),
+       |      (res,_)              | res,
+       |x,    (res,(leaf,_,_))     | leaf(x, res),
+       |x,l,r,(res,(leaf,bin,name))| {
+         let res = Self::fold_lr(l, res, leaf.clone(), bin.clone(), name.clone());
+         let res = (&bin)(x, res);
+         let res = Self::fold_lr(r, res, leaf, bin, name);
+         res
+       },
+       |n,x,l,r,(res,(leaf,bin,name))| {
+         let (n1,n2) = name_fork(n.clone());
+         let res = memo!(n1 =>> Self::fold_lr, tree:l, res:res ;;
+                         leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
+         let res = name(n, x, res);
+         let res = memo!(n2 =>> Self::fold_lr, tree:r, res:res ;;
+                         leaf:leaf, bin:bin, name:name);
+         res
+       }
+       )
+  }
   
   // fn fold_rl<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
   //   (tree:Self, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
@@ -359,16 +364,16 @@ pub fn tree_of_list_rec
 //                )
 // }
 
-// pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>,T:TreeT<X>>
-//     (tree:T::Tree) -> L::List
-// {
-//     let nil = L::nil(st);
-//     T::fold_lr(st, tree, nil,
-//                &|st,x,xs| L::cons(st,x,xs),
-//                &|_ ,_,xs| xs,
-//                &|st,n,_,xs| L::name(st,n,xs)
-//                )
-// }
+pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
+  (tree:T) -> L
+{
+  let nil = L::nil();
+  T::fold_lr(tree, nil,
+             Rc::new(|x,xs| L::cons(x,xs)),
+             Rc::new(|_,xs| xs),
+             Rc::new(|n,_,xs| L::name(n,xs))
+             )
+}
 
 // pub fn vec_of_list<X:Clone,L:ListT<X>> (list:L::List, limit:Option<usize>) -> Vec<X> {
 //     let mut out = vec![];
