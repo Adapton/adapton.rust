@@ -205,8 +205,7 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone {
 
 
 pub fn tree_of_list
-  < A:Adapton
-  , X:Hash+Clone+Debug
+  < X:Hash+Clone+Debug
   , T:TreeT<X>+'static
   , L:ListT<X>+'static
   >

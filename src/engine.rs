@@ -988,7 +988,7 @@ fn current_path (st:&DCG) -> Rc<Path> {
 /// for traits that are parameterized by other types (viz., by type
 /// `T`).
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
-pub enum AbsArt<T,Loc> {
+enum AbsArt<T,Loc> {
   Rc(Rc<T>),    // No entry in table. No dependency tracking.
   Loc(Rc<Loc>), // Location in table.
 }
@@ -1020,7 +1020,7 @@ pub enum AbsArt<T,Loc> {
 /// The `Adapton` trait provides a language of
 /// dependence-graph-building operations based on the core calculus
 /// described in ["Incremental Computation with Names", 2015](http://arxiv.org/abs/1503.07792)
-pub trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
+trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   type Name : Debug+PartialEq+Eq+Hash+Clone;
   type Loc  : Debug+PartialEq+Eq+Hash+Clone;
   
@@ -1516,22 +1516,68 @@ impl Adapton for DCG {
     }}
 }
 
-//#[derive(Hash,Debug,PartialEq,Eq,Clone)]
+/// The term "Art" stands for two things here: "Adapton return type",
+/// and "Articulation point, for 'articulating' incremental change".
+/// The concept of an "Art" also abstracts over whether the producer
+/// is eager (like a ref cell) or lazy (like a thunk).
+#[derive(Clone,PartialEq,Eq,Hash,Debug)]
 pub struct Art<T> {
   art:EnumArt<T>,
 }
 
+#[derive(Clone)]
 enum EnumArt<T> {
   Rc(Rc<T>),    // No entry in table. No dependency tracking.
   Loc(Rc<Loc>), // Location in table.
   Force(Rc<Force<T>>),
 }
 
-trait Force<T> {
-  fn force(&self) -> T;
+impl<T:Hash> Hash for EnumArt<T> {
+  fn hash<H>(&self, hasher:&mut H) where H:Hasher {
+    match *self {
+      EnumArt::Rc(ref rc)   => rc.hash( hasher ),
+      EnumArt::Loc(ref loc) => loc.hash( hasher ),
+      EnumArt::Force(ref f) => f.hash_u64().hash( hasher ),
+    }
+  }
 }
 
-//#[derive(Eq,Clone)]
+impl<T:PartialEq> PartialEq for EnumArt<T> {
+  fn eq(&self, other:&Self) -> bool {
+    match *self {
+      EnumArt::Rc(ref rc) =>
+        if let EnumArt::Rc(ref rc2) = *other { rc == rc2 } else { false },
+      EnumArt::Loc(ref loc) =>
+        if let EnumArt::Loc(ref loc2) = *other { loc == loc2 } else { false },
+      EnumArt::Force(ref f) =>
+        if let EnumArt::Force(ref f2) = *other { f.eq(&**f2) } else { false },
+    }
+  }
+}
+
+impl<T:Debug> Debug for EnumArt<T> {
+  fn fmt(&self, f:&mut Formatter) -> Result {
+    match *self {
+      EnumArt::Rc(ref rc)     => rc.fmt(f),
+      EnumArt::Loc(ref loc)   => loc.fmt(f),
+      EnumArt::Force(ref frc) => frc.fmt(f),
+    }
+  }
+}
+
+impl<T:Eq> Eq for EnumArt<T> { }
+
+trait Force<T> {
+  fn force(&self) -> T;
+  fn copy(self:&Self) -> Box<Force<T>>;
+  fn eq(self:&Self, other:&Force<T>) -> bool;
+  fn id<'r>(self:&'r Self) -> &'r ArtIdChoice<Name>;
+  fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
+  fn hash_u64(self:&Self) -> u64;
+  fn fmt(&self, f:&mut Formatter) -> fmt::Result;
+}
+
+#[derive(Clone)]
 struct NaiveThunk<Arg, Spurious, Res> {
   id:ArtIdChoice<Name>,
   prog_pt:ProgPt,
@@ -1540,9 +1586,48 @@ struct NaiveThunk<Arg, Spurious, Res> {
   spurious:Spurious
 }
 
-impl<A:Clone,S:Clone,T> Force<T> for NaiveThunk<A,S,T> {
+impl<A:Hash+Clone+Eq+Debug+'static,S:Clone+'static,T:'static>
+  Force<T>
+  for NaiveThunk<A,S,T>
+{
   fn force(&self) -> T {
     (*self.fn_box)(self.arg.clone(), self.spurious.clone())
+  }
+  fn copy(self:&Self) -> Box<Force<T>> {
+    Box::new(NaiveThunk{id:self.id.clone(),
+                        prog_pt:self.prog_pt.clone(),
+                        fn_box:self.fn_box.clone(),
+                        arg:self.arg.clone(),
+                        spurious:self.spurious.clone()})
+  }
+  fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt {
+    & self.prog_pt
+  }
+  fn id<'r>(self:&'r Self) -> &'r ArtIdChoice<Name> {
+    & self.id
+  }
+  fn hash_u64(&self) -> u64 {
+    let mut hasher = SipHasher::new();
+    self.id.hash( &mut hasher );
+    self.prog_pt.hash( &mut hasher );
+    self.arg.hash( &mut hasher );
+    hasher.finish()
+  }
+  fn eq (&self, other:&Force<T>) -> bool {    
+    if   &self.id      == other.id()
+      && &self.prog_pt == other.prog_pt()
+    {
+      let other = Box::new(other) ;
+      // This is safe if the prog_pt implies unique Arg and Res types.
+      let other : &Box<NaiveThunk<A,S,T>> = unsafe { transmute::<_,_>( other ) } ;
+      self.arg == other.arg
+    } else {
+      false
+    }
+  }
+  fn fmt(&self, f:&mut Formatter) -> Result {
+    write!(f,"NaiveThunk{{id:{:?},prog_pt:{:?},arg:{:?}}}",
+           self.id, self.prog_pt, self.arg)
   }
 }
 
@@ -1747,37 +1832,41 @@ pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
 }
 
 
-// pub fn thunk_codata<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
-//   (prog_pt:ProgPt,
-//    fn_box:Rc<Box< Fn(Arg, bool, &(Fn(Arg) -> Res)) -> Res >>,
-//    arg:Arg)
-//    -> Artic<Res>
-// {
-//   panic!("")
-// }
 
-// pub struct Trip {
-//   Todo:(),
-// }
+// -------------------------------------------------------------------------
+// Experimental API stuff below:
 
-// pub struct Set<T> {
-//   phantom:Phantom<T>,
-// }
+pub fn thunk_codata<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
+  (prog_pt:ProgPt,
+   fn_box:Rc<Box< Fn(Arg, bool, &(Fn(Arg) -> Res)) -> Res >>,
+   arg:Arg)
+   -> Art<Res>
+{
+  panic!("")
+}
 
-// pub fn thunk_codata2<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
-//   (prog_pt:ProgPt,
-//    fn_box:Rc<Box< Fn(Arg, bool, Trip, &(Fn(Arg,Trip) -> (Res,Trip))) -> (Res,Trip) >>,
-//    arg:Arg)
-//    -> Artic<Res>
-// {
-//   fn rec(arg:Arg,trip:Trip) -> (Res,Trip) {
-//     // extend trip with arg (for later), return extended trip;
-//     // call fn_box with visited=false; return the result
-//     panic!("")
-//   };
-//   fn visit(visited:Set<Arg>,frontier:Set<Arg>) -> (Set<Arg>,Set<Arg>) {
-//     //let (node:Arg, frontier:Set<Arg>) = frontier.choose();
-//     panic!("");
-//   }
-//   panic!("")
-// }
+pub struct Trip {
+  Todo:(),
+}
+
+pub struct Set<T> {
+  phantom:PhantomData<T>,
+}
+
+pub fn thunk_codata2<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
+  (prog_pt:ProgPt,
+   fn_box:Rc<Box< Fn(Arg, bool, Trip, &(Fn(Arg,Trip) -> (Res,Trip))) -> (Res,Trip) >>,
+   arg:Arg)
+   -> Art<Res>
+{
+  fn rec<Arg,Trip,Res>(arg:Arg,trip:Trip) -> (Res,Trip) {
+    // extend trip with arg (for later), return extended trip;
+    // call fn_box with visited=false; return the result
+    panic!("")
+  };
+  fn visit<Arg>(visited:Set<Arg>,frontier:Set<Arg>) -> (Set<Arg>,Set<Arg>) {
+    //let (node:Arg, frontier:Set<Arg>) = frontier.choose();
+    panic!("");
+  }
+  panic!("")
+}

@@ -4,22 +4,20 @@
 extern crate test ;
 
 use std::rc::Rc;
-use adapton::adapton_sigs::* ;
 use adapton::engine::* ;
 use adapton::macros::* ;
-
 
 /// Direction Graph where each node has exactly two outgoing edges
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
 pub struct BiDiGraph {
   id:usize,
-  lsucc:Artic<BiDiGraph>,
-  rsucc:Artic<BiDiGraph>,
+  lsucc:Art<BiDiGraph>,
+  rsucc:Art<BiDiGraph>,
 }
 
 pub fn count_forever (g:BiDiGraph) -> usize {
-  let cl = eageric!(count_forever, g:force(&g.lsucc));
-  let cr = eageric!(count_forever, g:force(&g.rsucc));
+  let cl = eager!(count_forever, g:force(&g.lsucc));
+  let cr = eager!(count_forever, g:force(&g.rsucc));
   1 + cl.1 + cr.1
 }
 
@@ -97,8 +95,8 @@ pub fn graph_rgb () -> BiDiGraph {
   let nr = name_of_str("r");
   let ng = name_of_str("g");
   let ny = name_of_str("y");
-  let ag : Artic<BiDiGraph> = thunkic!(ng.clone() =>> bomb, _x:0);
-  let ay : Artic<BiDiGraph> = thunkic!(ny.clone() =>> bomb, _x:0);  
+  let ag : Art<BiDiGraph> = thunk!(ng.clone() =>> bomb, _x:0);
+  let ay : Art<BiDiGraph> = thunk!(ny.clone() =>> bomb, _x:0);  
   let r  = BiDiGraph{id:0, lsucc:ay.clone(), rsucc:ag.clone()};
   let ar = cell(nr, r.clone());  
   let g  = BiDiGraph{id:1, lsucc:ar.clone(), rsucc:ay};
