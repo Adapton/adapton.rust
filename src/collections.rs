@@ -20,30 +20,44 @@ pub enum Dir2 { Left, Right }
 
 pub trait ListT<X> : Debug+Clone+Hash+PartialEq+Eq {
 
+  /// Introduce an empty list
   fn nil  () -> Self ;
+
+  /// Introduce a Cons cell
   fn cons (X, Self) -> Self ;
   
-  // requisite "adaptonic" constructors: `name` and `art`:
+  /// Introduce a Name "cons" cell
   fn name (Name, Self) -> Self ;
+
+  /// Introduce a list with an articulation that holds a list
   fn art  (Art<Self>) -> Self ;
 
+  /// Eliminate a list with the given functions (for the pattern match
+  /// arms) that handle the `nil`, `cons` and `name` cases.
+  /// Eliminates the `art` case internally, by forcing the art and
+  /// eliminating the resulting list with the given handler functions;
+  /// forces multiple `art` cases, if need be.
   fn elim<Res,NilF,ConsF,NameF> (Self, NilF, ConsF, NameF) -> Res
     where NilF:FnOnce(          ) -> Res
     ,    ConsF:FnOnce(X,    Self) -> Res
     ,    NameF:FnOnce(Name, Self) -> Res ;
 
+  /// Like `elim`, except that the functions are given an additional
+  /// argument.  This variant is needed due to the move semantics of
+  /// Rust. The argument is moved into the body of the activated
+  /// handler function when it is applied.
   fn elim_arg<Arg,Res,NilF,ConsF,NameF> (Self, Arg, NilF, ConsF, NameF) -> Res
     where NilF:FnOnce(            Arg) -> Res
     ,    ConsF:FnOnce(X,    Self, Arg) -> Res
     ,    NameF:FnOnce(Name, Self, Arg) -> Res ;
 
-  // Derived from `cons` and `nil` above:
+  /// Creates a singleton list. Derived from `cons` and `nil` introduction forms.
   fn singleton (hd:X) -> Self {
     let nil = Self::nil();
     Self::cons(hd, nil)
   }
 
-  // Derived from `elim` above:
+  /// Tests if the list contains any `cons` cells. Derived from `elim`.
   fn is_empty (list:Self) -> bool {
     Self::elim(list,
                ||       true,
