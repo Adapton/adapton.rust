@@ -15,8 +15,16 @@ use std::marker::PhantomData;
 
 use rand::{Rng,Rand};
 
-#[derive(Clone,Hash,Eq,PartialEq,Debug)]
+#[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
 pub enum Dir2 { Left, Right }
+
+trait Invert { fn invert(&self) -> Self; }
+impl Invert for Dir2 {
+  fn invert(&self) -> Self {
+    match *self { Dir2::Left => Dir2::Right,
+                  Dir2::Right => Dir2::Left }
+  }
+}
 
 pub trait ListT<X> : Debug+Clone+Hash+PartialEq+Eq {
 
@@ -37,10 +45,10 @@ pub trait ListT<X> : Debug+Clone+Hash+PartialEq+Eq {
   /// Eliminates the `art` case internally, by forcing the art and
   /// eliminating the resulting list with the given handler functions;
   /// forces multiple `art` cases, if need be.
-  fn elim<Res,NilF,ConsF,NameF> (Self, NilF, ConsF, NameF) -> Res
-    where NilF:FnOnce(          ) -> Res
-    ,    ConsF:FnOnce(X,    Self) -> Res
-    ,    NameF:FnOnce(Name, Self) -> Res ;
+  fn elim<Res,NilF,ConsF,NameF> (&Self, NilF, ConsF, NameF) -> Res
+    where NilF:FnOnce(            ) -> Res
+    ,    ConsF:FnOnce(&X,    &Self) -> Res
+    ,    NameF:FnOnce(&Name, &Self) -> Res ;
 
   /// Like `elim`, except that the functions are given an additional
   /// argument.  This variant is needed due to the move semantics of
@@ -58,11 +66,19 @@ pub trait ListT<X> : Debug+Clone+Hash+PartialEq+Eq {
   }
 
   /// Tests if the list contains any `cons` cells. Derived from `elim`.
-  fn is_empty (list:Self) -> bool {
+  fn is_empty (list:&Self) -> bool {
     Self::elim(list,
                ||       true,
                |_,_|   false,
                |_,tl| Self::is_empty(tl))
+  }
+
+  /// Tests if the head of the list consists of a `name` constructor. Derived from `elim`.
+  fn is_name (list:&Self) -> bool {
+    Self::elim(list,
+               ||      false,
+               |_,_|   true,
+               |_,tl|  false)
   }
 }
 
@@ -135,13 +151,13 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
                )
   }
   
-  fn fold_lr
+  fn fold_seq
     < Res:Hash+Debug+Eq+Clone+'static
     , LeafC:'static
     , BinC:'static
     , NameC:'static
     >
-    (tree:Self, res:Res,
+    (tree:Self, dir:Dir2, res:Res,
      leaf:Rc<LeafC>,
      bin: Rc<BinC>,
      name:Rc<NameC>) -> Res
@@ -154,17 +170,19 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
        |      (res,_)              | res,
        |x,    (res,(leaf,_,_))     | leaf(x, res),
        |x,l,r,(res,(leaf,bin,name))| {
-         let res = Self::fold_lr(l, res, leaf.clone(), bin.clone(), name.clone());
+         let (l,r) = match dir { Dir2::Left => (l,r), Dir2::Right => (r, l) } ;
+         let res = Self::fold_seq(l, dir, res, leaf.clone(), bin.clone(), name.clone());
          let res = (&bin)(x, res);
-         let res = Self::fold_lr(r, res, leaf, bin, name);
+         let res = Self::fold_seq(r, dir, res, leaf, bin, name);
          res
        },
        |n,x,l,r,(res,(leaf,bin,name))| {
+         let (l,r) = match dir { Dir2::Left => (l,r), Dir2::Right => (r, l) } ;
          let (n1,n2) = name_fork(n.clone());
-         let res = memo!(n1 =>> Self::fold_lr, tree:l, res:res ;;
+         let res = memo!(n1 =>> Self::fold_seq, tree:l, dir:dir, res:res ;;
                          leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
          let res = name(n, x, res);
-         let res = memo!(n2 =>> Self::fold_lr, tree:r, res:res ;;
+         let res = memo!(n2 =>> Self::fold_seq, tree:r, dir:dir, res:res ;;
                          leaf:leaf, bin:bin, name:name);
          res
        }
@@ -381,15 +399,37 @@ pub fn tree_of_list_rec
 //                )
 // }
 
-pub fn rev_list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
-  (tree:T) -> L
+/// List the leaf elements and names of a tree, in the given order, via a sequential, in-order traversal.
+/// Direction `Dir2::Left` lists elements from left to right. (Leftmost elements are in the head of the list).
+/// Direction `Dir2::Right` lists elements from right to left. (Rightmost elements are in the head of the list).
+/// Preserves the order of elements, up to `dir`, and the names in the tree.
+pub fn list_of_tree<X:Hash+Clone,L:ListT<X>+'static,T:TreeT<X>+'static>
+  (tree:T, dir:Dir2) -> L
 {
   let nil = L::nil();
-  T::fold_lr(tree, nil,
-             Rc::new(|x,xs| L::cons(x,xs)),
-             Rc::new(|_,xs| xs),
-             Rc::new(|n,_,xs| L::name(n,xs))
-             )
+  T::fold_seq(tree, dir.invert(), nil,
+              Rc::new(|x,xs| L::cons(x,xs)),
+              Rc::new(|_,xs| xs),
+              Rc::new(|n,_,xs| L::name(n,xs))
+              )
+}
+
+/// Filter the leaf elements of a tree using a user-provided predicate, `pred`.
+/// Returns a list of the elements for which the predicate returns `true`.
+/// Retains exactly one name between any two elements that, in the original sequence, were separated by a name.
+/// Does not insert names that were not present in the original sequence.
+pub fn filter_list_of_tree
+  < X:Hash+Clone+'static
+  , L:ListT<X>+'static
+  , T:TreeT<X>+'static
+  >
+  (tree:T, pred:Rc<Fn(&X) -> bool>) -> L  
+{
+  let nil = L::nil();
+  T::fold_seq(tree, Dir2::Right, nil,
+              Rc::new(move |x,xs| if pred(&x) { L::cons(x,xs) } else { xs }),
+              Rc::new(|_,xs| xs),
+              Rc::new(|n,_,xs| if L::is_name(&xs) {xs} else { L::name(n,xs) }))
 }
 
 // pub fn vec_of_list<X:Clone,L:ListT<X>> (list:L::List, limit:Option<usize>) -> Vec<X> {
@@ -893,22 +933,20 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListT<X> for List<X>
   fn art  (art:Art<List<X>>) -> Self { List::Art(art) }
   
   fn elim<Res,NilF,ConsF,NameF>
-    (list:Self, nilf:NilF, consf:ConsF, namef:NameF) -> Res
+    (list:&Self, nilf:NilF, consf:ConsF, namef:NameF) -> Res
     where NilF:FnOnce() -> Res
-    ,    ConsF:FnOnce(X, Self) -> Res
-    ,    NameF:FnOnce(Name, Self) -> Res
+    ,    ConsF:FnOnce(&X, &Self) -> Res
+    ,    NameF:FnOnce(&Name, &Self) -> Res
   {
-    match list {
+    match *list {
       List::Nil => nilf(),
-      List::Cons(hd, tl) => consf(hd, *tl),
-      List::Name(nm, tl) => namef(nm, *tl),
+      List::Cons(ref hd, ref tl) => consf(hd, tl),
+      List::Name(ref nm, ref tl) => namef(nm, tl),
       List::Art(ref art) => {
         let list = force(art);
-        Self::elim(list, nilf, consf, namef)
+        Self::elim(&list, nilf, consf, namef)
       },
-      List::Tree(tree, dir, tl) => {
-        let tree = *tree;
-        let tl = *tl;
+      List::Tree(ref tree, ref dir, ref tl) => {
         let (res, rest) = structural(|| panic!("List::next_leaf_rec(tree, dir, tl)")) ;
         match res {
           None => Self::elim(rest, nilf, consf, namef),
@@ -963,7 +1001,7 @@ fn test_tree_of_list () {
   let l = List::name(n, l);
   println!("{:?}", l);
 
-  let t = tree_of_list::<usize,Tree<usize>,_>(Dir2::Left, l);
+  let t = tree_of_list::<_,Tree<_>,_>(Dir2::Left, l);
   println!("{:?}", t);
 }
 
