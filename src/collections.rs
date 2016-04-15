@@ -423,7 +423,7 @@ pub fn filter_list_of_tree
   , L:ListT<X>+'static
   , T:TreeT<X>+'static
   >
-  (tree:T, pred:Rc<Fn(&X) -> bool>) -> L  
+  (tree:T, pred:Box<Fn(&X) -> bool>) -> L
 {
   let nil = L::nil();
   T::fold_seq(tree, Dir2::Right, nil,
