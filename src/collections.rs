@@ -135,7 +135,12 @@ pub trait TreeT<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
                )
   }
   
-  fn fold_lr<Res:Hash+Debug+Eq+Clone+'static,LeafC:'static,BinC:'static,NameC:'static>
+  fn fold_lr
+    < Res:Hash+Debug+Eq+Clone+'static
+    , LeafC:'static
+    , BinC:'static
+    , NameC:'static
+    >
     (tree:Self, res:Res,
      leaf:Rc<LeafC>,
      bin: Rc<BinC>,
@@ -938,6 +943,28 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListT<X> for List<X>
       }
     }
   }
+}
+
+#[test]
+fn test_tree_of_list () {
+  init_dcg();
+  let l : List<usize> = List::nil();
+  let l = List::cons(3,l);
+  let n = name_of_usize(3);
+  let l = List::art(cell(n.clone(), l));
+  let l = List::name(n, l);
+  let l = List::cons(2,l);
+  let n = name_of_usize(2);
+  let l = List::art(cell(n.clone(), l));
+  let l = List::name(n, l);
+  let l = List::cons(1,l);
+  let n = name_of_usize(1);
+  let l = List::art(cell(n.clone(), l));
+  let l = List::name(n, l);
+  println!("{:?}", l);
+
+  let t = tree_of_list::<usize,Tree<usize>,_>(Dir2::Left, l);
+  println!("{:?}", t);
 }
 
 // impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
