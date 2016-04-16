@@ -222,7 +222,7 @@ pub trait TreeElim<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
 }
 
   
-fn tree_fold_seq
+pub fn tree_fold_seq
   < Leaf, T:TreeElim<Leaf>
   , Res:Hash+Debug+Eq+Clone+'static
   , LeafC:'static
@@ -260,6 +260,45 @@ fn tree_fold_seq
      }
      )
 }
+
+fn tree_fold_up
+  < Leaf, T:TreeElim<Leaf>
+  , Res:Hash+Debug+Eq+Clone+'static
+  , NilF:'static
+  , LeafF:'static
+  , BinF:'static
+  , NameF:'static
+  >
+  (tree:T,
+   nil:Rc<NilF>,
+   leaf:Rc<LeafF>,
+   bin:Rc<BinF>,
+   name:Rc<NameF>) -> Res
+  where  NilF:Fn() -> Res
+  ,     LeafF:Fn(Leaf                   ) -> Res
+  ,      BinF:Fn(T::Lev,       Res, Res ) -> Res
+  ,     NameF:Fn(Name, T::Lev, Res, Res ) -> Res
+{
+  T::elim_arg
+    (tree, (nil,leaf,bin,name),
+     |(nil,_,_,_)| nil(),
+     |x,(_,leaf,_,_)| leaf(x),
+     |x,l,r,(nil,leaf,bin,name)| {
+       let resl = tree_fold_up(l, nil.clone(), leaf.clone(), bin.clone(), name.clone());
+       let resr = tree_fold_up(r, nil, leaf, bin.clone(), name);
+       let res = bin(x, resl, resr);
+       res
+     },
+     |n,x,l,r,(nil,leaf,bin,name)| {
+       let (n1,n2) = name_fork(n.clone());
+       let resl = memo!(n1 =>> tree_fold_up, tree:l ;; nil:nil.clone(), leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
+       let resr = memo!(n2 =>> tree_fold_up, tree:r ;; nil:nil, leaf:leaf, bin:bin, name:name.clone());
+       let res = name(n, x, resl, resr);
+       res
+     }
+     )
+}
+
 
 pub fn tree_of_list
   < X:Hash+Clone+Debug
@@ -450,7 +489,7 @@ pub fn filter_list_of_tree
      Rc::new(|n,_,xs| if L::is_name(&xs) {xs} else { L::name(n,xs) }))
 }
 
-pub fn filter_tree
+pub fn filter_tree_of_tree
   < X:Hash+Clone+'static
   , Te:TreeElim<X>+'static
   , Ti:TreeIntro<X>+'static
