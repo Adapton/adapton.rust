@@ -26,6 +26,7 @@ impl Invert for Dir2 {
   }
 }
 
+/// Types that can be created like a list of `X` are `ListIntro<X>`
 pub trait ListIntro<X> : Debug+Clone+Hash+PartialEq+Eq {
   /// Introduce an empty list
   fn nil  () -> Self ;
@@ -42,7 +43,11 @@ pub trait ListIntro<X> : Debug+Clone+Hash+PartialEq+Eq {
     Self::cons(hd, nil)
   }
 }
-  
+
+/// Types that can be pattern-matched like a list of `X` are `ListElim<X>`.
+/// We consider iterators to be a similar (nearly analogous) trait.
+/// The key distinction here are that list elimination is a pattern-match, not a loop;
+/// and, lists in Adapton contain data (of type `X`) and names (of type `Name`).
 pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
   /// Eliminate a list with the given functions (for the pattern match
   /// arms) that handle the `nil`, `cons` and `name` cases.
@@ -80,6 +85,9 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
   }
 }
 
+/// Levels for a probabilistically-balanced trees. For more details see
+/// Pugh and Teiltelbaum's POPL 1989 paper, and its "Chunky List"
+/// representation (*Incremental Computation via Function Caching*).
 pub trait Lev : Debug+Hash+PartialEq+Eq+Clone+'static {
   fn new<X:Hash>(&X) -> Self ;
   fn bits () -> Self ;
@@ -93,6 +101,10 @@ pub trait Lev : Debug+Hash+PartialEq+Eq+Clone+'static {
   }
 }
 
+/// Types that can be created like a (binary) tree with leaves of type `Leaf` are `TreeIntro<Leaf>`.
+/// We recognize that monoids are a nearly-analogous case;
+/// the key differences with monoids are that trees contain names (see `name` fn) and articulations (see `art` fn);
+/// further, the binary cases `name` and `bin` carry levels of type `Self::Lev`, which helps establish and maintain balance.
 pub trait TreeIntro<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   type Lev : Lev ;  
 
@@ -155,44 +167,6 @@ pub trait TreeElim<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
                )
   }
   
-  fn fold_seq
-    < Res:Hash+Debug+Eq+Clone+'static
-    , LeafC:'static
-    , BinC:'static
-    , NameC:'static
-    >
-    (tree:Self, dir:Dir2, res:Res,
-     leaf:Rc<LeafC>,
-     bin: Rc<BinC>,
-     name:Rc<NameC>) -> Res
-    where LeafC:Fn(Leaf,            Res ) -> Res
-    ,      BinC:Fn(Self::Lev,       Res ) -> Res 
-    ,     NameC:Fn(Name, Self::Lev, Res ) -> Res 
-  {
-    Self::elim_arg
-      (tree, (res,(leaf,bin,name)),
-       |      (res,_)              | res,
-       |x,    (res,(leaf,_,_))     | leaf(x, res),
-       |x,l,r,(res,(leaf,bin,name))| {
-         let (l,r) = match dir { Dir2::Left => (l,r), Dir2::Right => (r, l) } ;
-         let res = Self::fold_seq(l, dir, res, leaf.clone(), bin.clone(), name.clone());
-         let res = (&bin)(x, res);
-         let res = Self::fold_seq(r, dir, res, leaf, bin, name);
-         res
-       },
-       |n,x,l,r,(res,(leaf,bin,name))| {
-         let (l,r) = match dir { Dir2::Left => (l,r), Dir2::Right => (r, l) } ;
-         let (n1,n2) = name_fork(n.clone());
-         let res = memo!(n1 =>> Self::fold_seq, tree:l, dir:dir, res:res ;;
-                         leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
-         let res = name(n, x, res);
-         let res = memo!(n2 =>> Self::fold_seq, tree:r, dir:dir, res:res ;;
-                         leaf:leaf, bin:bin, name:name);
-         res
-       }
-       )
-  }
-  
   // fn fold_rl<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
   //   (tree:Self, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
   //   where LeafC:Fn(Leaf,    Res ) -> Res
@@ -247,6 +221,45 @@ pub trait TreeElim<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   // }
 }
 
+  
+fn tree_fold_seq
+  < Leaf, T:TreeElim<Leaf>
+  , Res:Hash+Debug+Eq+Clone+'static
+  , LeafC:'static
+  , BinC:'static
+  , NameC:'static
+  >
+  (tree:T, dir:Dir2, res:Res,
+   leaf:Rc<LeafC>,
+   bin: Rc<BinC>,
+   name:Rc<NameC>) -> Res
+  where LeafC:Fn(Leaf,         Res ) -> Res
+  ,      BinC:Fn(T::Lev,       Res ) -> Res 
+  ,     NameC:Fn(Name, T::Lev, Res ) -> Res 
+{
+  T::elim_arg
+    (tree, (res,(leaf,bin,name)),
+     |      (res,_)              | res,
+     |x,    (res,(leaf,_,_))     | leaf(x, res),
+     |x,l,r,(res,(leaf,bin,name))| {
+       let (l,r) = match dir { Dir2::Left => (l,r), Dir2::Right => (r, l) } ;
+       let res = tree_fold_seq(l, dir, res, leaf.clone(), bin.clone(), name.clone());
+       let res = (&bin)(x, res);
+       let res = tree_fold_seq(r, dir, res, leaf, bin, name);
+       res
+     },
+     |n,x,l,r,(res,(leaf,bin,name))| {
+       let (l,r) = match dir { Dir2::Left => (l,r), Dir2::Right => (r, l) } ;
+       let (n1,n2) = name_fork(n.clone());
+       let res = memo!(n1 =>> tree_fold_seq, tree:l, dir:dir, res:res ;;
+                       leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
+       let res = name(n, x, res);
+       let res = memo!(n2 =>> tree_fold_seq, tree:r, dir:dir, res:res ;;
+                       leaf:leaf, bin:bin, name:name);
+       res
+     }
+     )
+}
 
 pub fn tree_of_list
   < X:Hash+Clone+Debug
@@ -410,11 +423,12 @@ pub fn list_of_tree<X:Hash+Clone,L:ListIntro<X>+'static,T:TreeElim<X>+'static>
   (tree:T, dir:Dir2) -> L
 {
   let nil = L::nil();
-  T::fold_seq(tree, dir.invert(), nil,
-              Rc::new(|x,xs| L::cons(x,xs)),
-              Rc::new(|_,xs| xs),
-              Rc::new(|n,_,xs| L::name(n,xs))
-              )
+  tree_fold_seq
+    (tree, dir.invert(), nil,
+     Rc::new(|x,xs| L::cons(x,xs)),
+     Rc::new(|_,xs| xs),
+     Rc::new(|n,_,xs| L::name(n,xs))
+     )
 }
 
 /// Filter the leaf elements of a tree using a user-provided predicate, `pred`.
@@ -429,12 +443,23 @@ pub fn filter_list_of_tree
   (tree:T, pred:Box<Fn(&X) -> bool>) -> L
 {
   let nil = L::nil();
-  T::fold_seq(tree, Dir2::Right, nil,
-              Rc::new(move |x,xs| if pred(&x) { L::cons(x,xs) } else { xs }),
-              Rc::new(|_,xs| xs),
-              Rc::new(|n,_,xs| if L::is_name(&xs) {xs} else { L::name(n,xs) }))
+  tree_fold_seq
+    (tree, Dir2::Right, nil,
+     Rc::new(move |x,xs| if pred(&x) { L::cons(x,xs) } else { xs }),
+     Rc::new(|_,xs| xs),
+     Rc::new(|n,_,xs| if L::is_name(&xs) {xs} else { L::name(n,xs) }))
 }
 
+pub fn filter_tree
+  < X:Hash+Clone+'static
+  , Te:TreeElim<X>+'static
+  , Ti:TreeIntro<X>+'static
+  >
+  (tree:Te, pred:Box<Fn(&X) -> bool>) -> Ti
+{
+  panic!("")
+}
+  
 // pub fn vec_of_list<X:Clone,L:ListT<X>> (list:L::List, limit:Option<usize>) -> Vec<X> {
 //     let mut out = vec![];
 //     let mut list = list ;
