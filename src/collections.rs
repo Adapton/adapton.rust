@@ -81,15 +81,15 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
 }
 
 pub trait Lev : Debug+Hash+PartialEq+Eq+Clone+'static {
-  fn lev<X:Hash>(&X) -> Self ;
-  fn lev_bits () -> Self ;
-  fn lev_zero () -> Self ;
-  fn lev_inc (&Self) -> Self ;
-  fn lev_add (&Self, &Self) -> Self ;
-  fn lev_lte (&Self, &Self) -> bool ;
-  fn lev_max_val () -> Self ;
-  fn lev_max (a:&Self, b:&Self) -> Self {
-    if Self::lev_lte(a, b) { b.clone() } else { a.clone() }
+  fn new<X:Hash>(&X) -> Self ;
+  fn bits () -> Self ;
+  fn zero () -> Self ;
+  fn inc (&Self) -> Self ;
+  fn add (&Self, &Self) -> Self ;
+  fn lte (&Self, &Self) -> bool ;
+  fn max_val () -> Self ;
+  fn max (a:&Self, b:&Self) -> Self {
+    if Self::lte(a, b) { b.clone() } else { a.clone() }
   }
 }
 
@@ -255,7 +255,7 @@ pub fn tree_of_list
   >
   (dir_list:Dir2, list:L) -> T {
     let tnil = T::nil();
-    let (tree, list) = tree_of_list_rec::<X,T,L>(dir_list, list, tnil, T::Lev::lev_zero(), T::Lev::lev_max_val());
+    let (tree, list) = tree_of_list_rec::<X,T,L>(dir_list, list, tnil, T::Lev::zero(), T::Lev::max_val());
     assert!(L::is_empty(&list));
     tree
   }
@@ -275,11 +275,11 @@ pub fn tree_of_list_rec
     
     /* Cons */
     |hd, rest, (dir_list, tree, tree_lev, parent_lev)| {      
-      let lev_hd = T::Lev::lev_inc ( &T::Lev::lev(&hd) ) ;
-      if T::Lev::lev_lte ( &tree_lev , &lev_hd ) && T::Lev::lev_lte ( &lev_hd , &parent_lev ) {
+      let lev_hd = T::Lev::inc ( &T::Lev::new(&hd) ) ;
+      if T::Lev::lte ( &tree_lev , &lev_hd ) && T::Lev::lte ( &lev_hd , &parent_lev ) {
         let leaf = T::leaf(hd) ;
         let (tree2, rest2) = {
-          tree_of_list_rec::<X,T,L> ( dir_list.clone(), rest, leaf, T::Lev::lev_zero(), lev_hd.clone() )
+          tree_of_list_rec::<X,T,L> ( dir_list.clone(), rest, leaf, T::Lev::zero(), lev_hd.clone() )
         };
         let tree3 = match dir_list.clone() {
           Dir2::Left  => T::bin ( lev_hd.clone(), tree,  tree2 ),
@@ -293,14 +293,14 @@ pub fn tree_of_list_rec
     
     /* Name */
     |nm:Name, rest, (dir_list, tree, tree_lev, parent_lev)|{
-      let lev_nm = T::Lev::lev_inc( &T::Lev::lev_add( &T::Lev::lev_bits() , &T::Lev::lev(&nm) ) ) ;
-      if T::Lev::lev_lte ( &tree_lev , &lev_nm ) && T::Lev::lev_lte ( &lev_nm ,  &parent_lev ) {
+      let lev_nm = T::Lev::inc( &T::Lev::add( &T::Lev::bits() , &T::Lev::new(&nm) ) ) ;
+      if T::Lev::lte ( &tree_lev , &lev_nm ) && T::Lev::lte ( &lev_nm ,  &parent_lev ) {
         let nil = T::nil() ;
         let (nm1, nm2, nm3, nm4) = name_fork4(nm.clone());
         let (_, (tree2, rest)) =
           eager!(nm1 =>> tree_of_list_rec::<X,T,L>,
                  dir_list:dir_list.clone(), list:rest,
-                 tree:nil, tree_lev:T::Lev::lev_zero(), parent_lev:lev_nm.clone() ) ;
+                 tree:nil, tree_lev:T::Lev::zero(), parent_lev:lev_nm.clone() ) ;
         let tree3 = match dir_list.clone() {
           Dir2::Left  => T::name ( nm.clone(), lev_nm.clone(), tree,  tree2 ),
           Dir2::Right => T::name ( nm.clone(), lev_nm.clone(), tree2, tree  ),
@@ -1139,15 +1139,15 @@ fn test_tree_of_list () {
 
 impl Lev for usize {
   //  See Pugh+Teiltelbaum in POPL 1989 for an explanation of this notion of "level":
-  fn lev<X:Hash>(x:&X) -> Self  {
+  fn new<X:Hash>(x:&X) -> Self  {
     my_hash_n(&x,1).trailing_zeros() as Self
   }
-  fn lev_bits () -> Self { 32 }
-  fn lev_zero () -> Self { 0 }
-  fn lev_max_val () -> Self { usize::max_value() }
-  fn lev_add (x:&Self,y:&Self) -> Self { x + y }
-  fn lev_inc (x:&Self) -> Self { x + 1 }
-  fn lev_lte (x:&Self,y:&Self) -> bool { x <= y }
+  fn bits () -> Self { 32 }
+  fn zero () -> Self { 0 }
+  fn max_val () -> Self { usize::max_value() }
+  fn add (x:&Self,y:&Self) -> Self { x + y }
+  fn inc (x:&Self) -> Self { x + 1 }
+  fn lte (x:&Self,y:&Self) -> bool { x <= y }
 }
 
 impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
@@ -1247,7 +1247,7 @@ impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
     Self::elim_ref
       (tree,
        || 0,
-       |leaf|      Self::Lev::lev(leaf),
+       |leaf|      Self::Lev::new(leaf),
        |lev,_,_|   lev.clone(),
        |_,lev,_,_| lev.clone(),
        )
