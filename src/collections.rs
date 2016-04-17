@@ -1,19 +1,14 @@
 #![feature(associated_type_defaults)]
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::marker::PhantomData;
+use std::num::Zero;
 use std::rc::Rc;
 
-use macros::* ;
-//use adapton_sigs::* ;
-//use collection_traits::*;
-//use collection_traits::*;
-// use quickcheck::Arbitrary;
-// use quickcheck::Gen;
-use adapton::engine::* ;
-use std::num::Zero;
-use std::marker::PhantomData;
-
 use rand::{Rng,Rand};
+
+use macros::* ;
+use adapton::engine::* ;
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
 pub enum Dir2 { Left, Right }
@@ -88,7 +83,7 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
 /// Levels for a probabilistically-balanced trees. For more details see
 /// Pugh and Teiltelbaum's POPL 1989 paper, and its "Chunky List"
 /// representation (*Incremental Computation via Function Caching*).
-pub trait Lev : Debug+Hash+PartialEq+Eq+Clone+'static {
+pub trait Level : Debug+Hash+PartialEq+Eq+Clone+'static {
   fn new<X:Hash>(&X) -> Self ;
   fn bits () -> Self ;
   fn zero () -> Self ;
@@ -105,53 +100,49 @@ pub trait Lev : Debug+Hash+PartialEq+Eq+Clone+'static {
 /// We recognize that monoids are a nearly-analogous case;
 /// the key differences with monoids are that trees contain names (see `name` fn) and articulations (see `art` fn);
 /// further, the binary cases `name` and `bin` carry levels of type `Self::Lev`, which helps establish and maintain balance.
-pub trait TreeIntro<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
-  type Lev : Lev ;  
-
+pub trait TreeIntro<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   fn nil  () -> Self ;
   fn leaf (Leaf) -> Self ;
-  fn bin  (Self::Lev, Self, Self) -> Self ;
+  fn bin  (Lev, Self, Self) -> Self ;
 
   // requisite "adaptonic" constructors: `name` and `art`:
-  fn name (Name, Self::Lev, Self, Self) -> Self ;
+  fn name (Name, Lev, Self, Self) -> Self ;
   fn art  (Art<Self>) -> Self ;
 }
   
-pub trait TreeElim<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
-  type Lev : Lev ;
-
-  fn lev_of_tree(&Self) -> Self::Lev ;
+pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
+  fn lev_of_tree(&Self) -> Lev ;
   
   fn elim<Res,NilC,LeafC,BinC,NameC>
     (Self, NilC, LeafC, BinC, NameC) -> Res        
     where NilC  : FnOnce() -> Res
     ,     LeafC : FnOnce(Leaf) -> Res
-    ,     BinC  : FnOnce(Self::Lev,  Self, Self) -> Res
-    ,     NameC : FnOnce(Name, Self::Lev, Self, Self) -> Res
+    ,     BinC  : FnOnce(Lev,       Self, Self) -> Res
+    ,     NameC : FnOnce(Name, Lev, Self, Self) -> Res
     ;
 
   fn elim_ref<Res,NilC,LeafC,BinC,NameC>
     (&Self, NilC, LeafC, BinC, NameC) -> Res
     where NilC  : FnOnce() -> Res
     ,     LeafC : FnOnce(&Leaf) -> Res
-    ,     BinC  : FnOnce(&Self::Lev,  &Self, &Self) -> Res
-    ,     NameC : FnOnce(&Name, &Self::Lev, &Self, &Self) -> Res
+    ,     BinC  : FnOnce(&Lev,        &Self, &Self) -> Res
+    ,     NameC : FnOnce(&Name, &Lev, &Self, &Self) -> Res
     ;
 
   fn elim_arg<Arg,Res,NilC,LeafC,BinC,NameC>
     (Self, Arg, NilC, LeafC, BinC, NameC) -> Res
     where NilC  : FnOnce(Arg) -> Res
     ,     LeafC : FnOnce(Leaf, Arg) -> Res
-    ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
-    ,     NameC : FnOnce(Name, Self::Lev, Self, Self, Arg) -> Res
+    ,     BinC  : FnOnce(Lev,       Self, Self, Arg) -> Res
+    ,     NameC : FnOnce(Name, Lev, Self, Self, Arg) -> Res
     ;
 
   fn full_move<Arg,Res,NilC,LeafC,BinC,NameC,ArtC>
     (Self, Arg, NilC, LeafC, BinC, NameC, ArtC) -> Res
     where NilC  : FnOnce(Arg) -> Res
     ,     LeafC : FnOnce(Leaf, Arg) -> Res
-    ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
-    ,     NameC : FnOnce(Name, Self::Lev, Self, Self, Arg) -> Res
+    ,     BinC  : FnOnce(Lev,       Self, Self, Arg) -> Res
+    ,     NameC : FnOnce(Name, Lev, Self, Self, Arg) -> Res
     ,     ArtC  : FnOnce(&Art<Self>, Arg) -> Res
     ;
 
@@ -166,64 +157,11 @@ pub trait TreeElim<Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
                |_,_,l,r| Self::is_empty(l) && Self::is_empty(r)
                )
   }
-  
-  // fn fold_rl<Res:Hash+Debug+Eq+Clone,LeafC,BinC,NameC>
-  //   (tree:Self, res:Res, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
-  //   where LeafC:Fn(Leaf,    Res ) -> Res
-  //   ,      BinC:Fn(Self::Lev,     Res ) -> Res
-  //   ,     NameC:Fn(Name, Self::Lev, Res ) -> Res
-  // {
-  //   Self::elim_arg
-  //     (tree, res,
-  //      |res| res,
-  //      |x,res| leaf(x, res),
-  //      |x,l,r,res| {
-  //        let res = Self::fold_rl(r, res, leaf, bin, name);
-  //        let res = bin(x, res);
-  //        let res = Self::fold_rl(l, res, leaf, bin, name);
-  //        res
-  //      },
-  //      |n,x,l,r,res| {
-  //        let (n1,n2) = name_fork(n.clone());
-  //        let res = memo!(n1 =>> Self::fold_rl, tree:r, res:res ;; leaf:leaf, bin:bin, name:name);
-  //        let res = name(n, x, res);
-  //        let res = memo!(n2 =>> Self::fold_rl, tree:l, res:res ;; leaf:leaf, bin:bin, name:name);
-  //        res
-  //      }
-  //      )
-  // }
-  
-  // fn fold_up<Res:Hash+Debug+Eq+Clone,NilC,LeafC,BinC,NameC>
-  //   (tree:Self, nil:&NilC, leaf:&LeafC, bin:&BinC, name:&NameC) -> Res
-  //   where  NilC:Fn() -> Res
-  //   ,     LeafC:Fn(Leaf              ) -> Res
-  //   ,      BinC:Fn(Self::Lev,     Res, Res ) -> Res
-  //   ,     NameC:Fn(Name, Self::Lev, Res, Res ) -> Res
-  // {
-  //   Self::elim
-  //     (tree,
-  //      || nil(),
-  //      |x| leaf(x),
-  //      |x,l,r| {
-  //        let resl = Self::fold_up(l, nil, leaf, bin, name);
-  //        let resr = Self::fold_up(r, nil, leaf, bin, name);
-  //        let res = bin(x, resl, resr);
-  //        res
-  //      },
-  //      |n,x,l,r| {
-  //        let (n1,n2) = name_fork(n.clone());
-  //        let resl = memo!(n1 =>> Self::fold_up, tree:l ;; nil:nil, leaf:leaf, bin:bin, name:name);
-  //        let resr = memo!(n2 =>> Self::fold_up, tree:r ;; nil:nil, leaf:leaf, bin:bin, name:name);
-  //        let res = name(n, x, resl, resr);
-  //        res
-  //      }
-  //      )
-  // }
 }
 
   
 pub fn tree_fold_seq
-  < Leaf, T:TreeElim<Leaf>
+  < Lev:Level, Leaf, T:TreeElim<Lev, Leaf>
   , Res:Hash+Debug+Eq+Clone+'static
   , LeafC:'static
   , BinC:'static
@@ -233,9 +171,9 @@ pub fn tree_fold_seq
    leaf:Rc<LeafC>,
    bin: Rc<BinC>,
    name:Rc<NameC>) -> Res
-  where LeafC:Fn(Leaf,         Res ) -> Res
-  ,      BinC:Fn(T::Lev,       Res ) -> Res 
-  ,     NameC:Fn(Name, T::Lev, Res ) -> Res 
+  where LeafC:Fn(Leaf,      Res ) -> Res
+  ,      BinC:Fn(Lev,       Res ) -> Res 
+  ,     NameC:Fn(Name, Lev, Res ) -> Res 
 {
   T::elim_arg
     (tree, (res,(leaf,bin,name)),
@@ -262,7 +200,7 @@ pub fn tree_fold_seq
 }
 
 fn tree_fold_up
-  < Leaf, T:TreeElim<Leaf>
+  < Lev:Level, Leaf, T:TreeElim<Lev,Leaf>
   , Res:Hash+Debug+Eq+Clone+'static
   , NilF:'static
   , LeafF:'static
@@ -276,8 +214,8 @@ fn tree_fold_up
    name:Rc<NameF>) -> Res
   where  NilF:Fn() -> Res
   ,     LeafF:Fn(Leaf                   ) -> Res
-  ,      BinF:Fn(T::Lev,       Res, Res ) -> Res
-  ,     NameF:Fn(Name, T::Lev, Res, Res ) -> Res
+  ,      BinF:Fn(Lev,       Res, Res ) -> Res
+  ,     NameF:Fn(Name, Lev, Res, Res ) -> Res
 {
   T::elim_arg
     (tree, (nil,leaf,bin,name),
@@ -301,23 +239,23 @@ fn tree_fold_up
 
 
 pub fn tree_of_list
-  < X:Hash+Clone+Debug
-  , T:TreeIntro<X>+'static
+  < Lev:Level, X:Hash+Clone+Debug
+  , T:TreeIntro<Lev,X>+'static
   , L:ListElim<X>+ListIntro<X>+'static
   >
   (dir_list:Dir2, list:L) -> T {
     let tnil = T::nil();
-    let (tree, list) = tree_of_list_rec::<X,T,L>(dir_list, list, tnil, T::Lev::zero(), T::Lev::max_val());
+    let (tree, list) = tree_of_list_rec::<Lev,X,T,L>(dir_list, list, tnil, Lev::zero(), Lev::max_val());
     assert!(L::is_empty(&list));
     tree
   }
 
 pub fn tree_of_list_rec
-  < X:Hash+Clone+Debug
-  , T:TreeIntro<X>+'static
+  < Lev:Level, X:Hash+Clone+Debug
+  , T:TreeIntro<Lev,X>+'static
   , L:ListElim<X>+ListIntro<X>+'static
   >
-  (dir_list:Dir2, list:L, tree:T, tree_lev:T::Lev, parent_lev:T::Lev) -> (T, L)
+  (dir_list:Dir2, list:L, tree:T, tree_lev:Lev, parent_lev:Lev) -> (T, L)
 {
   L::elim_arg (
     list, (dir_list, tree, tree_lev, parent_lev),
@@ -327,17 +265,17 @@ pub fn tree_of_list_rec
     
     /* Cons */
     |hd, rest, (dir_list, tree, tree_lev, parent_lev)| {      
-      let lev_hd = T::Lev::inc ( &T::Lev::new(&hd) ) ;
-      if T::Lev::lte ( &tree_lev , &lev_hd ) && T::Lev::lte ( &lev_hd , &parent_lev ) {
+      let lev_hd = Lev::inc ( &Lev::new(&hd) ) ;
+      if Lev::lte ( &tree_lev , &lev_hd ) && Lev::lte ( &lev_hd , &parent_lev ) {
         let leaf = T::leaf(hd) ;
         let (tree2, rest2) = {
-          tree_of_list_rec::<X,T,L> ( dir_list.clone(), rest, leaf, T::Lev::zero(), lev_hd.clone() )
+          tree_of_list_rec( dir_list.clone(), rest, leaf, Lev::zero(), lev_hd.clone() )
         };
         let tree3 = match dir_list.clone() {
           Dir2::Left  => T::bin ( lev_hd.clone(), tree,  tree2 ),
           Dir2::Right => T::bin ( lev_hd.clone(), tree2, tree  ),
         } ;
-        tree_of_list_rec::<X,T,L> ( dir_list, rest2, tree3, lev_hd, parent_lev )
+        tree_of_list_rec( dir_list, rest2, tree3, lev_hd, parent_lev )
       }
       else {
         (tree, L::cons(hd,rest))
@@ -345,14 +283,14 @@ pub fn tree_of_list_rec
     
     /* Name */
     |nm:Name, rest, (dir_list, tree, tree_lev, parent_lev)|{
-      let lev_nm = T::Lev::inc( &T::Lev::add( &T::Lev::bits() , &T::Lev::new(&nm) ) ) ;
-      if T::Lev::lte ( &tree_lev , &lev_nm ) && T::Lev::lte ( &lev_nm ,  &parent_lev ) {
+      let lev_nm = Lev::inc( &Lev::add( &Lev::bits() , &Lev::new(&nm) ) ) ;
+      if Lev::lte ( &tree_lev , &lev_nm ) && Lev::lte ( &lev_nm ,  &parent_lev ) {
         let nil = T::nil() ;
         let (nm1, nm2, nm3, nm4) = name_fork4(nm.clone());
         let (_, (tree2, rest)) =
-          eager!(nm1 =>> tree_of_list_rec::<X,T,L>,
+          eager!(nm1 =>> tree_of_list_rec,
                  dir_list:dir_list.clone(), list:rest,
-                 tree:nil, tree_lev:T::Lev::zero(), parent_lev:lev_nm.clone() ) ;
+                 tree:nil, tree_lev:Lev::zero(), parent_lev:lev_nm.clone() ) ;
         let tree3 = match dir_list.clone() {
           Dir2::Left  => T::name ( nm.clone(), lev_nm.clone(), tree,  tree2 ),
           Dir2::Right => T::name ( nm.clone(), lev_nm.clone(), tree2, tree  ),
@@ -360,7 +298,7 @@ pub fn tree_of_list_rec
         let art = cell(nm3, tree3) ;
         let tree3 = T::art( art ) ;
         let (_, (tree, rest)) =
-          eager!(nm2 =>> tree_of_list_rec::<X,T,L>,
+          eager!(nm2 =>> tree_of_list_rec,
                  dir_list:dir_list.clone(), list:rest,
                  tree:tree3, tree_lev:lev_nm, parent_lev:parent_lev ) ;
         (tree, rest)
@@ -370,15 +308,6 @@ pub fn tree_of_list_rec
       }},
     )
 }
-
-
-
-
-
-
-
-
-
 
 
 // /// Just like ListT, except with an additional constructor: `tree`
@@ -429,36 +358,14 @@ pub fn tree_of_list_rec
 //     tree_reduce_monoid::<Elm,T,BinOp>(st, tree, zero, binop)
 // }
 
-// pub fn tree_filter<X:Hash+Clone,T:TreeT<X>,F>
-//     (tree:T::Tree, f:&F) -> T::Tree
-//     where F:Fn(&X) -> bool
-// {
-//     T::fold_up(st, tree,
-//                &|st| T::nil(st),
-//                &|st,x| { let fx = f(st,&x);
-//                          if fx { T::leaf(st, x) }
-//                          else  { T::nil(st) } },
-//                &|st,lev,l,r| T::bin(st, lev, l, r),
-//                &|st,n,lev,l,r| T::name(st, n, lev, l, r)
-//                )
-// }
-
-// pub fn list_of_tree<X:Hash+Clone,L:ListT<X>,T:TreeT<X>>
-//     (tree:T::Tree) -> L::List
-// {
-//     let nil = L::nil(st);
-//     T::fold_rl(st, tree, nil,
-//                &|st,x,xs| L::cons(st,x,xs),
-//                &|_,_,xs| xs,
-//                &|st,n,_,xs| L::name(st,n,xs)
-//                )
-// }
-
 /// List the leaf elements and names of a tree, in the given order, via a sequential, in-order traversal.
 /// Direction `Dir2::Left` lists elements from left to right. (Leftmost elements are in the head of the list).
 /// Direction `Dir2::Right` lists elements from right to left. (Rightmost elements are in the head of the list).
 /// Preserves the order of elements, up to `dir`, and the names in the tree.
-pub fn list_of_tree<X:Hash+Clone,L:ListIntro<X>+'static,T:TreeElim<X>+'static>
+pub fn list_of_tree
+  < Lev:Level,X:Hash+Clone
+  , L:ListIntro<X>+'static
+  , T:TreeElim<Lev,X>+'static>
   (tree:T, dir:Dir2) -> L
 {
   let nil = L::nil();
@@ -475,9 +382,9 @@ pub fn list_of_tree<X:Hash+Clone,L:ListIntro<X>+'static,T:TreeElim<X>+'static>
 /// Retains exactly one name between any two elements that, in the original sequence, were separated by a name.
 /// Does not insert names that were not present in the original sequence.
 pub fn filter_list_of_tree
-  < X:Hash+Clone+'static
+  < Lev:Level, X:Hash+Clone+'static
   , L:ListIntro<X>+ListElim<X>+'static
-  , T:TreeElim<X>+'static
+  , T:TreeElim<Lev,X>+'static
   >
   (tree:T, pred:Box<Fn(&X) -> bool>) -> L
 {
@@ -489,14 +396,37 @@ pub fn filter_list_of_tree
      Rc::new(|n,_,xs| if L::is_name(&xs) {xs} else { L::name(n,xs) }))
 }
 
+// pub fn tree_filter<X:Hash+Clone,T:TreeT<X>,F>
+//     (tree:T::Tree, f:&F) -> T::Tree
+//     where F:Fn(&X) -> bool
+// {
+//     T::fold_up(st, tree,
+//                &|st| T::nil(st),
+//                &|st,x| { let fx = f(st,&x);
+//                          if fx { T::leaf(st, x) }
+//                          else  { T::nil(st) } },
+//                &|st,lev,l,r| T::bin(st, lev, l, r),
+//                &|st,n,lev,l,r| T::name(st, n, lev, l, r)
+//                )
+// }
+
 pub fn filter_tree_of_tree
-  < X:Hash+Clone+'static
-  , Te:TreeElim<X>+'static
-  , Ti:TreeIntro<X>+'static
+  < Lev:Level, X:Hash+Clone+'static
+  , Te:TreeElim<Lev,X>+'static
+  , Ti:TreeIntro<Lev,X>+'static
   >
   (tree:Te, pred:Box<Fn(&X) -> bool>) -> Ti
 {
-  panic!("")
+  tree_fold_up
+    (tree,
+     Rc::new(|| Ti::nil()),
+     Rc::new(move |x|
+             {  let fx = pred(&x);
+                if !fx { Ti::nil()   }
+                else   { Ti::leaf(x) } }),
+     Rc::new(|lev,l,r|   Ti::bin(lev, l, r)),
+     Rc::new(|n,lev,l,r| Ti::name(n, lev, l, r))
+     )
 }
   
 // pub fn vec_of_list<X:Clone,L:ListT<X>> (list:L::List, limit:Option<usize>) -> Vec<X> {
@@ -589,7 +519,7 @@ pub fn filter_tree_of_tree
 //     , L:TreeListT<X,T>
 //     >
 //     (dir_list:Dir2, list:L::List,
-//      tree:T::Tree, tree_lev:T::Lev, parent_lev:T::Lev)
+//      tree:T::Tree, tree_lev:Lev, parent_lev:T::Lev)
 //      -> (T::Tree, L::List)
 // {
 //   L::tree_elim_arg (
@@ -1201,7 +1131,7 @@ fn test_tree_of_list () {
 
 // }
 
-impl Lev for usize {
+impl Level for usize {
   //  See Pugh+Teiltelbaum in POPL 1989 for an explanation of this notion of "level":
   fn new<X:Hash>(x:&X) -> Self  {
     my_hash_n(&x,1).trailing_zeros() as Self
@@ -1215,30 +1145,26 @@ impl Lev for usize {
 }
 
 impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
-  TreeIntro<Leaf>
+  TreeIntro<usize,Leaf>
   for Tree<Leaf>
-{
-  type Lev = usize ;
-  
-  fn nil  ()                                      -> Self { Tree::Nil }
-  fn leaf (x:Leaf)                                -> Self { Tree::Leaf(x) }
-  fn bin  (lev:Self::Lev, l:Self, r:Self)         -> Self { Tree::Bin(lev,Box::new(l),Box::new(r)) }
-  fn name (nm:Name, lev:Self::Lev, l:Self,r:Self) -> Self { Tree::Name(nm, lev, Box::new(l),Box::new(r)) }
-  fn art  (art:Art<Self>)                         -> Self { Tree::Art(art) }
+{ 
+  fn nil  ()                                  -> Self { Tree::Nil }
+  fn leaf (x:Leaf)                            -> Self { Tree::Leaf(x) }
+  fn bin  (lev:usize, l:Self, r:Self)         -> Self { Tree::Bin(lev,Box::new(l),Box::new(r)) }
+  fn name (nm:Name, lev:usize, l:Self,r:Self) -> Self { Tree::Name(nm, lev, Box::new(l),Box::new(r)) }
+  fn art  (art:Art<Self>)                     -> Self { Tree::Art(art) }
 }
 
 impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
-  TreeElim<Leaf>
+  TreeElim<usize,Leaf>
   for Tree<Leaf>
-{
-  type Lev = usize ;
-  
+{  
   fn elim_arg<Arg,Res,NilC,LeafC,BinC,NameC>
     (tree:Self, arg:Arg, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
     where NilC  : FnOnce(Arg) -> Res
     ,     LeafC : FnOnce(Leaf, Arg) -> Res
-    ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
-    ,     NameC : FnOnce(Name, Self::Lev,  Self, Self, Arg) -> Res
+    ,     BinC  : FnOnce(usize,  Self, Self, Arg) -> Res
+    ,     NameC : FnOnce(Name, usize,  Self, Self, Arg) -> Res
   {
     match tree {
       Tree::Nil => nil(arg),
@@ -1256,8 +1182,8 @@ impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
     (tree:Self, arg:Arg, nil:NilC, leaf:LeafC, bin:BinC, name:NameC, artf:ArtC) -> Res
     where NilC  : FnOnce(Arg) -> Res
     ,     LeafC : FnOnce(Leaf, Arg) -> Res
-    ,     BinC  : FnOnce(Self::Lev,  Self, Self, Arg) -> Res
-    ,     NameC : FnOnce(Name, Self::Lev,  Self, Self, Arg) -> Res
+    ,     BinC  : FnOnce(usize,  Self, Self, Arg) -> Res
+    ,     NameC : FnOnce(Name, usize,  Self, Self, Arg) -> Res
     ,     ArtC  : FnOnce(&Art<Self>, Arg) -> Res
   {
     match tree {
@@ -1273,8 +1199,8 @@ impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
     (tree:Self, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
     where NilC  : FnOnce() -> Res
     ,     LeafC : FnOnce(Leaf) -> Res
-    ,     BinC  : FnOnce(Self::Lev,  Self, Self) -> Res
-    ,     NameC : FnOnce(Name, Self::Lev, Self, Self) -> Res
+    ,     BinC  : FnOnce(usize,  Self, Self) -> Res
+    ,     NameC : FnOnce(Name, usize, Self, Self) -> Res
   {
     match tree {
       Tree::Nil => nil(),
@@ -1292,8 +1218,8 @@ impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
     (tree:&Self, nil:NilC, leaf:LeafC, bin:BinC, name:NameC) -> Res
     where NilC  : FnOnce() -> Res
     ,     LeafC : FnOnce(&Leaf) -> Res
-    ,     BinC  : FnOnce(&Self::Lev, &Self, &Self) -> Res
-    ,     NameC : FnOnce(&Name, &Self::Lev, &Self, &Self) -> Res
+    ,     BinC  : FnOnce(&usize, &Self, &Self) -> Res
+    ,     NameC : FnOnce(&Name, &usize, &Self, &Self) -> Res
   {
     match *tree {
       Tree::Nil => nil(),
@@ -1307,11 +1233,11 @@ impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
     }
   }
 
-  fn lev_of_tree (tree:&Self) -> Self::Lev {
+  fn lev_of_tree (tree:&Self) -> usize {
     Self::elim_ref
       (tree,
        || 0,
-       |leaf|      Self::Lev::new(leaf),
+       |leaf|      <usize as Level>::new(leaf),
        |lev,_,_|   lev.clone(),
        |_,lev,_,_| lev.clone(),
        )
