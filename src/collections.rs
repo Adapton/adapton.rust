@@ -1000,7 +1000,7 @@ fn test_tree_of_list () {
   let l = List::name(n, l);
   println!("{:?}", l);
 
-  let t = tree_of_list::<_,Tree<_>,_>(Dir2::Left, l);
+  let t = tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l);
   println!("{:?}", t);
 }
 
