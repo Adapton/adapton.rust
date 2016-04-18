@@ -277,7 +277,8 @@ struct CompNode<Res> {
 }
 // Produce a value of type Res.
 trait Producer<Res> : Debug {
-  fn produce(self:&Self, st:&mut DCG) -> Res;
+//  fn produce(self:&Self, st:&mut DCG) -> Res;
+  fn produce(self:&Self) -> Res;
   fn copy(self:&Self) -> Box<Producer<Res>>;
   fn eq(self:&Self, other:&Producer<Res>) -> bool;
   fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
@@ -291,7 +292,7 @@ trait Consumer<Arg> : Debug {
 #[derive(Clone)]
 struct App<Arg:Debug,Spurious,Res> {
   prog_pt: ProgPt,
-  fn_box:   Rc<Box<Fn(&mut DCG, Arg, Spurious) -> Res>>,
+  fn_box:   Rc<Box<Fn(Arg, Spurious) -> Res>>,
   arg:      Arg,
   spurious: Spurious,
 }
@@ -311,12 +312,11 @@ impl<Arg:Hash+Debug,Spurious,Res> Hash for App<Arg,Spurious,Res> {
 impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Debug+Hash> Producer<Res>
   for App<Arg,Spurious,Res>
 {
-  fn produce(self:&Self, st:&mut DCG) -> Res {
+  fn produce(self:&Self) -> Res {
     let f = self.fn_box.clone() ;
-    st.cnt.eval += 1 ;
-    debug!("{} producer begin: ({:?} {:?})", engineMsg!(st), &self.prog_pt, &self.arg);
-    let res = f (st,self.arg.clone(),self.spurious.clone()) ;
-    debug!("{} producer end: ({:?} {:?}) produces {:?}", engineMsg!(st), &self.prog_pt, &self.arg, &res);
+    //debug!("{} producer begin: ({:?} {:?})", engineMsg!(st), &self.prog_pt, &self.arg);
+    let res = f (self.arg.clone(),self.spurious.clone()) ;
+    //debug!("{} producer end: ({:?} {:?}) produces {:?}", engineMsg!(st), &self.prog_pt, &self.arg, &res);
     res
   }
   fn copy(self:&Self) -> Box<Producer<Res>> {
@@ -724,7 +724,8 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(st:&mut DCG, loc:&Rc<L
       _ => panic!("internal error"),
     }
   } ;
-  let res = producer.produce( st ) ;
+  st.cnt.eval += 1 ;
+  let res = producer.produce() ;
   st.path = prev_path ;
   let frame = match st.stack.pop() {
     None => panic!("expected Some _: stack invariants are broken"),
@@ -1057,7 +1058,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     (self:&mut Self,
      id:ArtIdChoice<Self::Name>,
      prog_pt:ProgPt,
-     fn_box:Rc<Box< Fn(&mut Self, Arg, Spurious) -> Res >>,
+     fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
      arg:Arg, spurious:Spurious)
      -> AbsArt<Res,Self::Loc> ;
   
@@ -1272,7 +1273,7 @@ impl Adapton for DCG {
     (self:&mut DCG,
      id:ArtIdChoice<Self::Name>,
      prog_pt:ProgPt,
-     fn_box:Rc<Box<Fn(&mut DCG, Arg, Spurious) -> Res>>,
+     fn_box:Rc<Box<Fn(Arg, Spurious) -> Res>>,
      arg:Arg, spurious:Spurious)
      -> AbsArt<Res,Self::Loc>
   {
@@ -1285,7 +1286,7 @@ impl Adapton for DCG {
                  id => id } ;
     match id {
       ArtIdChoice::Eager => {
-        AbsArt::Rc(Rc::new(fn_box(self,arg,spurious)))
+        AbsArt::Rc(Rc::new(fn_box(arg,spurious)))
       },
 
       ArtIdChoice::Structural => {
@@ -1798,7 +1799,8 @@ pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+
           if let AbsArt::Loc(loc) = 
             dcg.thunk(id, prog_pt,
                       // TODO: For efficiency, eliminate this extra closure in the future:
-                      Rc::new(Box::new(move |_,a,s|{ (*fn_box)(a,s) })),
+                      //Rc::new(Box::new(move |a,s|{ (*fn_box)(a,s) })),
+                      fn_box,
                       arg, spurious)
           { loc } else { unreachable!() }})}              
       },
