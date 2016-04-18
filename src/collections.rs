@@ -1,4 +1,3 @@
-#![feature(associated_type_defaults)]
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -99,7 +98,7 @@ pub trait Level : Debug+Hash+PartialEq+Eq+Clone+'static {
 /// Types that can be created like a (binary) tree with leaves of type `Leaf` are `TreeIntro<Leaf>`.
 /// We recognize that monoids are a nearly-analogous case;
 /// the key differences with monoids are that trees contain names (see `name` fn) and articulations (see `art` fn);
-/// further, the binary cases `name` and `bin` carry levels of type `Self::Lev`, which helps establish and maintain balance.
+/// further, the binary cases `name` and `bin` carry levels of type `Lev`, which helps establish and maintain balance.
 pub trait TreeIntro<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   fn nil  () -> Self ;
   fn leaf (Leaf) -> Self ;
@@ -971,8 +970,8 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
         Self::elim_arg(list, arg, nilf, consf, namef)
       },
       List::Tree(tree, dir, tl) => {
-        let tree = *tree;
-        let tl = *tl;
+        //let tree = *tree;
+        //let tl = *tl;
         let (res, rest) = structural(|| panic!("List::next_leaf_rec(tree, dir, tl)")) ;
         match res {
           None => Self::elim_arg(rest, arg, nilf, consf, namef),

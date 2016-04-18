@@ -702,7 +702,7 @@ impl<Res:Hash> Hash for CompNode<Res> {
 
 // Performs the computation at loc, produces a result of type Res.
 // Error if loc is not a Node::Comp.
-fn produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(st:&mut DCG, loc:&Rc<Loc>) -> Res
+fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(st:&mut DCG, loc:&Rc<Loc>) -> Res
 {
   debug!("{} produce begin: {:?}", engineMsg!(st), &loc);
   let succs : Vec<Succ> = {
@@ -785,7 +785,7 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
       let res = succ_dep.change_prop(st, &succ.loc) ;
       if res.changed {
         debug!("{} change_prop end (1/2): {:?} has a changed succ dependency: {:?}. Begin re-production:", engineMsg!(st), loc, &succ.loc);
-        let result : Res = produce( st, loc ) ;
+        let result : Res = loc_produce( st, loc ) ;
         let changed = result != this_dep.res ;
         debug!("{} change_prop end (2/2): {:?} has a changed succ dependency: {:?}. End re-production.", engineMsg!(st), loc, &succ.loc);
         return DCGRes{changed:changed}
@@ -835,7 +835,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
     match res_succs {
       Some((res,succs)) => change_prop_comp(st, self, loc, res, succs),
       None => {
-        let res = produce( st, loc );
+        let res = loc_produce( st, loc );
         let changed = self.res != res ;
         DCGRes{changed:changed}
       }
@@ -1473,7 +1473,7 @@ impl Adapton for DCG {
           None => {
             debug!("{} force {:?}: cache empty", engineMsg!(self), &loc);
             assert!(is_comp);
-            produce(self, &loc)
+            loc_produce(self, &loc)
           },
           Some(ref res) => {
             if is_comp {
