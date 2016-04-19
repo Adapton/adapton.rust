@@ -41,7 +41,7 @@ pub trait ListIntro<X> : Debug+Clone+Hash+PartialEq+Eq {
 /// Types that can be pattern-matched like a list of `X` are `ListElim<X>`.
 /// We consider iterators to be a similar (nearly analogous) trait.
 /// The key distinction here are that list elimination is a pattern-match used with (pure) recursion,
-//  as opposed to an imperative for-loop, as is typical of iteration;
+/// as opposed to an imperative for-loop, as is typical of iteration;
 /// further, lists in Adapton contain data (of type `X`) and names (of type `Name`).
 pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
   /// Eliminate a list with the given functions (for the pattern match
