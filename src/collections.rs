@@ -1093,8 +1093,9 @@ fn test_tree_of_list () {
     
     let s2 = eager_tree_of_tree::<_,_,_,Tree<_>>(t1.clone());
 
-    let max = monoid_of_tree(t1, usize::max_value(),
-                             Rc::new(|x,y| if x > y { x } else { y })) ;
+    let max = ns(name_of_str("max"),
+                 ||monoid_of_tree(t1, usize::max_value(),
+                                  Rc::new(|x,y| if x > y { x } else { y }))) ;
     (s1,s2,max)
   };
 
