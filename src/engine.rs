@@ -700,13 +700,6 @@ impl<Res:Hash> Hash for CompNode<Res> {
   }
 }
 
-macro_rules! mut_dcg_of_globals {
-  ( $globals:expr ) =>
-  {
-    panic!("")
-  }
-}
-
 // Performs the computation at loc, produces a result of type Res.
 // Error if loc is not a Node::Comp.
 fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&Rc<Loc>) -> Res
@@ -798,7 +791,7 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
 {
   for succ in succs.iter() {
     let dirty = {
-      let mut st = mut_dcg_of_globals!(g);
+      let mut st = &mut *g.borrow_mut();
       get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty
     } ;
     if dirty {
@@ -810,7 +803,7 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
         return DCGRes{changed:changed}
       }
       else {
-        let mut st : &mut DCG = mut_dcg_of_globals!(g);        
+        let mut st : &mut DCG = &mut *g.borrow_mut();
         st.cnt.clean += 1 ;
         get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty = false ;
       }
@@ -827,7 +820,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
     //let stackLen = mut_dcg_of_globals.stack.len() ;
     //debug!("{} change_prop begin: {:?}", engineMsg!(st), loc);
     let res_succs = { // Handle cases where there is no internal computation to re-compute:
-      let st = mut_dcg_of_globals!(g);
+      let st = &mut *g.borrow_mut();
       let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
       match *node {
         Node::Comp(ref nd) => {
@@ -1499,7 +1492,7 @@ impl Adapton for DCG {
               drop(st);
               let res = ProducerDep{res:res.clone()}.change_prop(g, &loc) ;
               //debug!("{} force {:?}: result changed?: {}", engineMsg!(self), &loc, res.changed) ;
-              let st : &mut DCG = mut_dcg_of_globals!(g);
+              let st : &mut DCG = &mut *g.borrow_mut();
               let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
               match *node {
                 Node::Comp(ref nd) => match nd.res {
@@ -1516,7 +1509,7 @@ impl Adapton for DCG {
             }
           }
         } ;
-        let st : &mut DCG = mut_dcg_of_globals!(g);
+        let st : &mut DCG = &mut *g.borrow_mut() ;
         if !is_pure { match st.stack.last_mut() { None => (), Some(frame) => {
           let succ =
             Succ{loc:loc.clone(),
