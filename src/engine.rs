@@ -1458,12 +1458,16 @@ impl Adapton for DCG {
   fn force<T:'static+Eq+Debug+Clone+Hash> (g:&RefCell<DCG>,
                                            art:&AbsArt<T,Self::Loc>) -> T
   {
-    let st : &mut DCG = &mut *g.borrow_mut();
-    wf::check_dcg(st);
+    {
+      let st : &mut DCG = &mut *g.borrow_mut();
+      wf::check_dcg(st);
+      drop(st)
+    }
     match *art {
       AbsArt::Rc(ref v) => (**v).clone(),
       AbsArt::Loc(ref loc) => {
         let (is_comp, is_pure, cached_result) : (bool, bool, Option<T>) = {
+          let st : &mut DCG = &mut *g.borrow_mut();
           let is_pure_opt : bool = st.flags.use_purity_optimization ;
           let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
           match *node {
@@ -1479,9 +1483,9 @@ impl Adapton for DCG {
         } ;
         let result = match cached_result {
           None => {
-            debug!("{} force {:?}: cache empty", engineMsg!(st), &loc);
+            //debug!("{} force {:?}: cache empty", engineMsg!(st), &loc);
             assert!(is_comp);
-            drop(st);            
+            //drop(st);            
             loc_produce(g, &loc)
           },
           Some(ref res) => {
@@ -1489,7 +1493,7 @@ impl Adapton for DCG {
               //debug!("{} force {:?}: cache holds {:?}.  Using change propagation.", engineMsg!(st), &loc, &res);
               // ProducerDep change-propagation precondition:
               // loc is a computational node:
-              drop(st);
+              //drop(st);
               let res = ProducerDep{res:res.clone()}.change_prop(g, &loc) ;
               //debug!("{} force {:?}: result changed?: {}", engineMsg!(self), &loc, res.changed) ;
               let st : &mut DCG = &mut *g.borrow_mut();
@@ -1731,8 +1735,8 @@ pub fn name_fork4 (n:Name)
 pub fn ns<T,F> (n:Name, body:F) -> T
   where F:FnOnce() -> T {
     GLOBALS.with(|g| {
-      match g.borrow_mut().engine {
-        Engine::DCG(ref mut dcg) => (dcg.borrow_mut()).ns(n, |_|{body()}), // XXX borrow is too long
+      match g.borrow().engine {
+        Engine::DCG(ref dcg) => (dcg.borrow_mut()).ns(n, |_|{body()}), // XXX borrow is too long
         Engine::Naive => (body)()
       }
     })   
@@ -1742,8 +1746,8 @@ pub fn ns<T,F> (n:Name, body:F) -> T
 pub fn structural<T,F> (body:F) -> T
   where F:FnOnce() -> T {
     GLOBALS.with(|g| {
-      match g.borrow_mut().engine {
-        Engine::DCG(ref mut dcg) => (dcg.borrow_mut()).structural(|_|{body()}), // XXX borrow is too long
+      match g.borrow().engine {
+        Engine::DCG(ref dcg) => (dcg.borrow_mut()).structural(|_|{body()}), // XXX borrow is too long
         Engine::Naive => (body)()
       }
     })    
@@ -1752,8 +1756,8 @@ pub fn structural<T,F> (body:F) -> T
 pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
   where F:FnOnce() -> Res {
     GLOBALS.with(|g| {
-      match g.borrow_mut().engine {
-        Engine::DCG(ref mut dcg) => (dcg.borrow_mut()).cnt(|_|{body()}), // XXX borrow is too long
+      match g.borrow().engine {
+        Engine::DCG(ref dcg) => (dcg.borrow_mut()).cnt(|_|{body()}), // XXX borrow is too long
         Engine::Naive => ((body)(), Cnt::zero())
       }
     })
@@ -1767,8 +1771,8 @@ pub fn put<T:Eq+Debug+Clone> (val:T) -> Art<T> {
 /// Creates a mutable articulation.
 pub fn cell<T:Hash+Eq+Debug+Clone> (n:Name, val:T) -> Art<T> {
   GLOBALS.with(|g| {
-    match g.borrow_mut().engine {
-      Engine::DCG(ref mut dcg) => {
+    match g.borrow().engine {
+      Engine::DCG(ref dcg) => {
         if
           let AbsArt::Loc(loc) = (dcg.borrow_mut()).cell(n,val) {
             Art{art:EnumArt::Loc(loc)} }
@@ -1785,9 +1789,9 @@ pub fn set<T:Eq+Debug+Clone> (a:Art<T>, val:T) {
     EnumArt::Force(_) => { panic!("set: Cannot mutate immutable Force articulation; use an DCG cell instead") },
     EnumArt::Loc(l)   => {
       GLOBALS.with(|g| {
-        match g.borrow_mut().engine {
+        match g.borrow().engine {
           Engine::Naive => unimplemented!(), // TODO: Think more about this case.
-          Engine::DCG(ref mut dcg) => {
+          Engine::DCG(ref dcg) => {
             (dcg.borrow_mut()).set(AbsArt::Loc(l), val)
           }
         }
@@ -1805,8 +1809,8 @@ pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+
    -> Art<Res>
 {
   GLOBALS.with(|g| {
-    match g.borrow_mut().engine {
-      Engine::DCG(ref mut dcg) => {
+    match g.borrow().engine {
+      Engine::DCG(ref dcg) => {
         Art{art:EnumArt::Loc({
           if let AbsArt::Loc(loc) = 
             (dcg.borrow_mut()).thunk(id, prog_pt, fn_box, arg, spurious)
@@ -1828,7 +1832,7 @@ pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
     EnumArt::Rc(ref rc) => (&**rc).clone(),
     EnumArt::Loc(ref loc) => {
       GLOBALS.with(|g| {
-        match g.borrow_mut().engine {
+        match g.borrow().engine {
           Engine::DCG(ref dcg_refcell) => 
             <DCG as Adapton>::force(dcg_refcell, &AbsArt::Loc(loc.clone())),
           Engine::Naive => panic!("cannot force a non-naive location with the naive engine")
