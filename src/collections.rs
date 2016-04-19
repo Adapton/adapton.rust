@@ -199,7 +199,7 @@ pub fn tree_fold_seq
      )
 }
 
-fn tree_fold_up
+pub fn tree_fold_up
   < Lev:Level, Leaf, T:TreeElim<Lev,Leaf>
   , Res:Hash+Debug+Eq+Clone+'static
   , NilF:'static
