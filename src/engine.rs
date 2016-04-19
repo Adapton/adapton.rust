@@ -1686,7 +1686,14 @@ impl<A:PartialEq,S,T> PartialEq for NaiveThunk<A,S,T> {
   }
 }
 
-pub fn init_dcg   () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
+/// Initializes global state with a fresh DCG-based engine; returns the old engine.
+/// The DCG is the central implementation structure behind Adapton.
+/// At a high level, it consists of a data dependence graph (the "demanded computation graph"), and an associated memoization table.
+pub fn init_dcg () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
+
+/// Initializes global state with a ("fresh") Naive engine; returns the old engine.
+/// The naive engine is stateless, and performs no memoization and builds no dependence graphs.
+/// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
 pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
 
 /// Initializes global state with a fresh DCG-based engine; returns the old engine

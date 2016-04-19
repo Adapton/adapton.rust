@@ -149,14 +149,40 @@ pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   //fn get_string(l:Self) -> String ;
   
   // Derived from `elim` above:
-  fn is_empty (tree:Self) -> bool {
-    Self::elim(tree,
-               ||        true,
-               |_|       false,
-               |_,l,r|   Self::is_empty(l) && Self::is_empty(r),
-               |_,_,l,r| Self::is_empty(l) && Self::is_empty(r)
-               )
+  fn is_empty (tree:&Self) -> bool {
+    Self::elim_ref
+      (tree,
+       ||        true,
+       |_|       false,
+       |_,l,r|   Self::is_empty(l) && Self::is_empty(r),
+       |_,_,l,r| Self::is_empty(l) && Self::is_empty(r)
+       )
   }
+
+  fn is_nil (tree:&Self) -> bool {
+    Self::elim_ref
+      (tree,
+       ||        true,
+       |_|       false,
+       |_,l,r|   false,
+       |_,_,l,r| false,
+       )
+  }
+}
+
+fn bin_niltest
+  < Lev:Level, Leaf
+  , T:TreeElim<Lev,Leaf>+TreeIntro<Lev,Leaf>+'static
+  >
+  (n:Option<Name>, lev:Lev, l:T, r:T) -> T
+{
+  if      T::is_nil(&l) { r }
+  else if T::is_nil(&r) { l }
+  else {
+    match n {
+      None    => T::bin(lev, l, r),
+      Some(n) => T::name(n, lev, l, r),
+    }}
 }
 
   
@@ -213,7 +239,7 @@ pub fn tree_fold_up
    bin:Rc<BinF>,
    name:Rc<NameF>) -> Res
   where  NilF:Fn() -> Res
-  ,     LeafF:Fn(Leaf                   ) -> Res
+  ,     LeafF:Fn(Leaf                ) -> Res
   ,      BinF:Fn(Lev,       Res, Res ) -> Res
   ,     NameF:Fn(Name, Lev, Res, Res ) -> Res
 {
@@ -286,7 +312,7 @@ pub fn tree_of_list_rec
       let lev_nm = Lev::inc( &Lev::add( &Lev::bits() , &Lev::new(&nm) ) ) ;
       if Lev::lte ( &tree_lev , &lev_nm ) && Lev::lte ( &lev_nm ,  &parent_lev ) {
         let nil = T::nil() ;
-        let (nm1, nm2, nm3, nm4) = name_fork4(nm.clone());
+        let (nm1, nm2) = name_fork(nm.clone());
         let (_, (tree2, rest)) =
           eager!(nm1 =>> tree_of_list_rec,
                  dir_list:dir_list.clone(), list:rest,
@@ -295,7 +321,7 @@ pub fn tree_of_list_rec
           Dir2::Left  => T::name ( nm.clone(), lev_nm.clone(), tree,  tree2 ),
           Dir2::Right => T::name ( nm.clone(), lev_nm.clone(), tree2, tree  ),
         } ;
-        let art = cell(nm3, tree3) ;
+        let art = cell(nm, tree3) ;
         let tree3 = T::art( art ) ;
         let (_, (tree, rest)) =
           eager!(nm2 =>> tree_of_list_rec,
@@ -417,7 +443,7 @@ pub fn filter_list_of_tree
 pub fn filter_tree_of_tree
   < Lev:Level, X:Hash+Clone+'static
   , Te:TreeElim<Lev,X>+'static
-  , Ti:TreeIntro<Lev,X>+'static
+  , Ti:TreeIntro<Lev,X>+TreeElim<Lev,X>+'static
   >
   (tree:Te, pred:Box<Fn(&X) -> bool>) -> Ti
 {
@@ -428,8 +454,28 @@ pub fn filter_tree_of_tree
              {  let fx = pred(&x);
                 if !fx { Ti::nil()   }
                 else   { Ti::leaf(x) } }),
-     Rc::new(|lev,l,r|   Ti::bin(lev, l, r)),
-     Rc::new(|n,lev,l,r| Ti::name(n, lev, l, r))
+     Rc::new(|lev,l,r|   bin_niltest(None, lev, l, r)),
+     Rc::new(|n,lev,l,r| bin_niltest(Some(n), lev, l, r))
+     )
+}
+
+/// Filter the leaf elements of a tree using a user-provided predicate, `pred`.
+/// Returns a tree of the elements for which the predicate returns `true`.
+/// Retains all names from the original tree, even if they merely name empty sub-trees.
+/// TODO: Do not retain `bin` or `name` nodes for when both sub-trees are empty.
+pub fn monoid_of_tree
+  < Lev:Level, X:Debug+Eq+Hash+Clone+'static
+  , Te:TreeElim<Lev,X>+'static
+  >
+  (tree:Te, id_elm:X, bin_op:Rc<Fn(X,X) -> X>) -> X
+{
+  let bin_op2 = bin_op.clone();
+  tree_fold_up
+    (tree,
+     Rc::new(move ||        id_elm.clone()),
+     Rc::new(     |x|       x),
+     Rc::new(move |_,l,r|   bin_op (l,r)),
+     Rc::new(move |_,_,l,r| bin_op2(l,r))
      )
 }
 
@@ -1009,8 +1055,16 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
 
 #[test]
 fn test_tree_of_list () {
-  fn test_code() -> (Tree<usize>, Tree<usize>) {
+  fn test_code() -> (Tree<usize>, Tree<usize>, usize) {
     let l : List<usize> = List::nil();
+    let l = List::cons(5,l);
+    let n = name_of_usize(5);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
+    let l = List::cons(4,l);
+    let n = name_of_usize(4);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
     let l = List::cons(3,l);
     let n = name_of_usize(3);
     let l = List::art(cell(n.clone(), l));
@@ -1023,7 +1077,7 @@ fn test_tree_of_list () {
     let n = name_of_usize(1);
     let l = List::art(cell(n.clone(), l));
     let l = List::name(n, l);
-    
+
     let t1 = ns(name_of_str("tree_of_list"),
                 ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
 
@@ -1038,28 +1092,42 @@ fn test_tree_of_list () {
                 ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l));
     
     let s2 = eager_tree_of_tree::<_,_,_,Tree<_>>(t1.clone());
-    (s1,s2)
+
+    let max = monoid_of_tree(t1, usize::max_value(),
+                             Rc::new(|x,y| if x > y { x } else { y })) ;
+    (s1,s2,max)
   };
 
   init_naive();
-  let (s1,s2) = test_code();
+  let (s1,s2,m) = test_code();
   println!("naive: s1={:?}", s1);
   println!("naive: s2={:?}", s2);
+  println!("naive: m ={:?}", m);
   
   init_dcg();
-  let (t1,t2) = test_code();
+  let (t1,t2,n) = test_code();
   println!("dcg:   t1={:?}", t1);
   println!("dcg:   t2={:?}", t2);
+  println!("dcg:   n ={:?}", n);
 
-  assert_eq!(s1, t1);
-  assert_eq!(s2, t2);  
+  assert_eq!(s1, t1); // first trees are equal
+  assert_eq!(s2, t2); // second trees are equal
+  assert_eq!(m,  n);  // max value in leaves of second trees are equal
 }
 
 
 #[test]
 fn test_tree_filter () {
-  fn test_code() -> (Tree<usize>, Tree<usize>) {
+  fn test_code() -> (Tree<usize>, Tree<usize>, usize) {
     let l : List<usize> = List::nil();
+    let l = List::cons(5,l);
+    let n = name_of_usize(5);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
+    let l = List::cons(4,l);
+    let n = name_of_usize(4);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
     let l = List::cons(3,l);
     let n = name_of_usize(3);
     let l = List::art(cell(n.clone(), l));
@@ -1077,9 +1145,10 @@ fn test_tree_filter () {
                 ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
     
     let t1 = ns(name_of_str("filter_tree"),
-                ||filter_tree_of_tree::<_,_,_,Tree<_>>(t1,Box::new(|n| n % 2 == 0)));
+                ||filter_tree_of_tree::<_,_,_,Tree<_>>(t1,Box::new(|n| *n != 2 )));
                                                        
-    let s1 = eager_tree_of_tree::<_,_,_,Tree<_>>(t1);
+    let s1 = ns(name_of_str("eager_tree"),
+                ||eager_tree_of_tree::<_,_,_,Tree<_>>(t1));
     
     let l = List::cons(0,l);
     let n = name_of_usize(0);
@@ -1090,24 +1159,33 @@ fn test_tree_filter () {
                 ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l));
 
     let t1 = ns(name_of_str("filter_tree"),
-                ||filter_tree_of_tree::<_,_,_,Tree<_>>(t1,Box::new(|n| n % 2 == 0)));
+                ||filter_tree_of_tree::<_,_,_,Tree<_>>(t1,Box::new(|n| *n != 2 )));
     
-    let s2 = eager_tree_of_tree::<_,_,_,Tree<_>>(t1);
-    (s1,s2)
+    let s2 = ns(name_of_str("eager_tree"),
+                ||eager_tree_of_tree::<_,_,_,Tree<_>>(t1.clone()));
+
+    let max = ns(name_of_str("max"),
+                 ||monoid_of_tree(t1, usize::max_value(),
+                                  Rc::new(|x,y| if x > y { x } else { y }))) ;
+    (s1,s2,max)
   };
 
   init_naive();
-  let (s1,s2) = test_code();
+  let (s1,s2,m) = test_code();
   println!("filter naive: s1={:?}", s1);
   println!("filter naive: s2={:?}", s2);
+  println!("max    naive: m ={:?}", m);
   
   init_dcg();
-  let (t1,t2) = test_code();
+  let (t1,t2,n) = test_code();
   println!("filter dcg:   t1={:?}", t1);
   println!("filter dcg:   t2={:?}", t2);
+  println!("max    dcg:   n ={:?}", n);
+
 
   assert_eq!(s1, t1);
   assert_eq!(s2, t2);  
+  assert_eq!(m,  n);
 }
 
 // impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
