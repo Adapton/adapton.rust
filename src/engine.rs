@@ -1465,7 +1465,7 @@ impl Adapton for DCG {
   fn force<T:'static+Eq+Debug+Clone+Hash> (g:&RefCell<DCG>,
                                            art:&AbsArt<T,Self::Loc>) -> T
   {
-    let st : &mut DCG = mut_dcg_of_globals!(g);
+    let st : &mut DCG = &mut *g.borrow_mut();
     wf::check_dcg(st);
     match *art {
       AbsArt::Rc(ref v) => (**v).clone(),
