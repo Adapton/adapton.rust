@@ -410,6 +410,10 @@ pub fn filter_list_of_tree
 //                )
 // }
 
+/// Filter the leaf elements of a tree using a user-provided predicate, `pred`.
+/// Returns a tree of the elements for which the predicate returns `true`.
+/// Retains all names from the original tree, even if they merely name empty sub-trees.
+/// TODO: Do not retain `bin` or `name` nodes for when both sub-trees are empty.
 pub fn filter_tree_of_tree
   < Lev:Level, X:Hash+Clone+'static
   , Te:TreeElim<Lev,X>+'static
@@ -428,7 +432,27 @@ pub fn filter_tree_of_tree
      Rc::new(|n,lev,l,r| Ti::name(n, lev, l, r))
      )
 }
-  
+
+/// Produces a tree with the same structure as its input, but without
+/// any articulations.  Useful for `println`-style debugging, and for
+/// equality comparisons across distinct engine implementations (e.g.,
+/// to verify the DCG-based engine).
+pub fn eager_tree_of_tree
+  < Lev:Level, X:Hash+Clone+'static
+  , Te:TreeElim<Lev,X>+'static
+  , Ti:TreeIntro<Lev,X>+'static
+  >
+  (tree:Te) -> Ti
+{
+  tree_fold_up
+    (tree,
+     Rc::new(||          Ti::nil()),
+     Rc::new(|x|         Ti::leaf(x)),
+     Rc::new(|lev,l,r|   Ti::bin(lev, l, r)),
+     Rc::new(|n,lev,l,r| Ti::name(n, lev, l, r))
+     )
+}
+
 // pub fn vec_of_list<X:Clone,L:ListT<X>> (list:L::List, limit:Option<usize>) -> Vec<X> {
 //     let mut out = vec![];
 //     let mut list = list ;
@@ -985,37 +1009,105 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
 
 #[test]
 fn test_tree_of_list () {
+  fn test_code() -> (Tree<usize>, Tree<usize>) {
+    let l : List<usize> = List::nil();
+    let l = List::cons(3,l);
+    let n = name_of_usize(3);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
+    let l = List::cons(2,l);
+    let n = name_of_usize(2);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
+    let l = List::cons(1,l);
+    let n = name_of_usize(1);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
+    
+    let t1 = ns(name_of_str("tree_of_list"),
+                ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
+
+    let s1 = eager_tree_of_tree::<_,_,_,Tree<_>>(t1);
+    
+    let l = List::cons(0,l);
+    let n = name_of_usize(0);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
+    
+    let t1 = ns(name_of_str("tree_of_list"),
+                ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l));
+    
+    let s2 = eager_tree_of_tree::<_,_,_,Tree<_>>(t1.clone());
+    (s1,s2)
+  };
+
+  init_naive();
+  let (s1,s2) = test_code();
+  println!("naive: s1={:?}", s1);
+  println!("naive: s2={:?}", s2);
+  
   init_dcg();
-  let l : List<usize> = List::nil();
-  let l = List::cons(3,l);
-  let n = name_of_usize(3);
-  let l = List::art(cell(n.clone(), l));
-  let l = List::name(n, l);
-  let l = List::cons(2,l);
-  let n = name_of_usize(2);
-  let l = List::art(cell(n.clone(), l));
-  let l = List::name(n, l);
-  let l = List::cons(1,l);
-  let n = name_of_usize(1);
-  let l = List::art(cell(n.clone(), l));
-  let l = List::name(n, l);
-  println!("{:?}", l);
+  let (t1,t2) = test_code();
+  println!("dcg:   t1={:?}", t1);
+  println!("dcg:   t2={:?}", t2);
 
-  let t1 = ns(name_of_str("tree_of_list"),
-              ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
+  assert_eq!(s1, t1);
+  assert_eq!(s2, t2);  
+}
+
+
+#[test]
+fn test_tree_filter () {
+  fn test_code() -> (Tree<usize>, Tree<usize>) {
+    let l : List<usize> = List::nil();
+    let l = List::cons(3,l);
+    let n = name_of_usize(3);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
+    let l = List::cons(2,l);
+    let n = name_of_usize(2);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
+    let l = List::cons(1,l);
+    let n = name_of_usize(1);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
+    
+    let t1 = ns(name_of_str("tree_of_list"),
+                ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
+    
+    let t1 = ns(name_of_str("filter_tree"),
+                ||filter_tree_of_tree::<_,_,_,Tree<_>>(t1,Box::new(|n| n % 2 == 0)));
+                                                       
+    let s1 = eager_tree_of_tree::<_,_,_,Tree<_>>(t1);
+    
+    let l = List::cons(0,l);
+    let n = name_of_usize(0);
+    let l = List::art(cell(n.clone(), l));
+    let l = List::name(n, l);
+    
+    let t1 = ns(name_of_str("tree_of_list"),
+                ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l));
+
+    let t1 = ns(name_of_str("filter_tree"),
+                ||filter_tree_of_tree::<_,_,_,Tree<_>>(t1,Box::new(|n| n % 2 == 0)));
+    
+    let s2 = eager_tree_of_tree::<_,_,_,Tree<_>>(t1);
+    (s1,s2)
+  };
+
+  init_naive();
+  let (s1,s2) = test_code();
+  println!("filter naive: s1={:?}", s1);
+  println!("filter naive: s2={:?}", s2);
   
-  println!("{:?}", t1);
+  init_dcg();
+  let (t1,t2) = test_code();
+  println!("filter dcg:   t1={:?}", t1);
+  println!("filter dcg:   t2={:?}", t2);
 
-  let l = List::cons(0,l);
-  let n = name_of_usize(0);
-  let l = List::art(cell(n.clone(), l));
-  let l = List::name(n, l);
-  println!("{:?}", l);
-
-  let t1 = ns(name_of_str("tree_of_list"),
-              ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
-  
-  println!("{:?}", t1);
+  assert_eq!(s1, t1);
+  assert_eq!(s2, t2);  
 }
 
 // impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
