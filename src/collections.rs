@@ -422,24 +422,9 @@ pub fn filter_list_of_tree
      Rc::new(|n,_,xs| if L::is_name(&xs) {xs} else { L::name(n,xs) }))
 }
 
-// pub fn tree_filter<X:Hash+Clone,T:TreeT<X>,F>
-//     (tree:T::Tree, f:&F) -> T::Tree
-//     where F:Fn(&X) -> bool
-// {
-//     T::fold_up(st, tree,
-//                &|st| T::nil(st),
-//                &|st,x| { let fx = f(st,&x);
-//                          if fx { T::leaf(st, x) }
-//                          else  { T::nil(st) } },
-//                &|st,lev,l,r| T::bin(st, lev, l, r),
-//                &|st,n,lev,l,r| T::name(st, n, lev, l, r)
-//                )
-// }
-
 /// Filter the leaf elements of a tree using a user-provided predicate, `pred`.
 /// Returns a tree of the elements for which the predicate returns `true`.
 /// Retains all names from the original tree, even if they merely name empty sub-trees.
-/// TODO: Do not retain `bin` or `name` nodes for when both sub-trees are empty.
 pub fn filter_tree_of_tree
   < Lev:Level, X:Hash+Clone+'static
   , Te:TreeElim<Lev,X>+'static
@@ -459,10 +444,10 @@ pub fn filter_tree_of_tree
      )
 }
 
-/// Filter the leaf elements of a tree using a user-provided predicate, `pred`.
-/// Returns a tree of the elements for which the predicate returns `true`.
-/// Retains all names from the original tree, even if they merely name empty sub-trees.
-/// TODO: Do not retain `bin` or `name` nodes for when both sub-trees are empty.
+/// Aggregates the leaf elements of a tree using a user-defined
+/// monoid.  The monoid consists of an identity element `id_elm` and
+/// binary operation over leaf values `bin_op`.
+/// Derived from `tree_fold_up`.
 pub fn monoid_of_tree
   < Lev:Level, X:Debug+Eq+Hash+Clone+'static
   , Te:TreeElim<Lev,X>+'static
