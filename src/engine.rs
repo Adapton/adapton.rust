@@ -1040,15 +1040,12 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   fn name_fork      (self:&mut Self, Self::Name)             -> (Self::Name, Self::Name) ;
   
   /// Creates or re-enters a given namespace; performs the given computation there.
-  fn ns<T,F> (self: &mut Self, Self::Name, body:F) -> T
-    where F:FnOnce(&mut Self) -> T ;
+  fn ns<T,F> (g: &RefCell<DCG>, Self::Name, body:F) -> T where F:FnOnce() -> T;
   
   /// Enters a special "namespace" where all name uses are ignored; instead, Adapton uses structural identity.
-  fn structural<T,F> (self: &mut Self, body:F) -> T
-    where F:FnOnce(&mut Self) -> T ;
+  fn structural<T,F> (g: &RefCell<DCG>, body:F) -> T where F:FnOnce() -> T;
   
-  fn cnt<Res,F> (self: &mut Self, body:F) -> (Res, Cnt)
-    where F:FnOnce(&mut Self) -> Res ;
+  fn cnt<Res,F> (g: &RefCell<DCG>, body:F) -> (Res, Cnt) where F:FnOnce() -> Res;
   
   /// Creates immutable, eager articulation.
   fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> AbsArt<T,Self::Loc> ;
@@ -1179,30 +1176,50 @@ impl Adapton for DCG {
             symbol:Rc::new(NameSym::ForkR(nm.symbol)) } )
   }
                      
-  fn structural<T,F> (self: &mut Self, body:F) -> T where F:FnOnce(&mut Self) -> T {
-    let saved = self.flags.ignore_nominal_use_structural ;
-    self.flags.ignore_nominal_use_structural = true ;
-    let x = body(self) ;
-    self.flags.ignore_nominal_use_structural = saved;
+  fn structural<T,F> (g: &RefCell<DCG>, body:F) -> T
+    where F:FnOnce() -> T
+  {
+    let saved = {
+      let st = &mut *g.borrow_mut();
+      let saved = st.flags.ignore_nominal_use_structural ;
+      st.flags.ignore_nominal_use_structural = true ;
+      saved
+    } ;
+    let x = body() ;
+    g.borrow_mut().flags.ignore_nominal_use_structural = saved;
     x
   }
   
-  fn ns<T,F> (self: &mut Self, nm:Name, body:F) -> T where F:FnOnce(&mut Self) -> T {
-    let base_path = self.path.clone();
-    self.path = Rc::new(Path::Child(self.path.clone(), nm)) ; // Todo-Minor: Avoid this clone.
-    let x = body(self) ;
-    self.path = base_path ;
+  fn ns<T,F> (g: &RefCell<DCG>, nm:Name, body:F) -> T
+    where F:FnOnce() -> T
+  {
+    let saved = {
+      let st = &mut *g.borrow_mut();
+      let saved = st.path.clone();
+      st.path = Rc::new(Path::Child(st.path.clone(), nm)) ; // Todo-Minor: Avoid this clone.
+      saved
+    };
+    let x = body() ;
+    g.borrow_mut().path = saved ;
     x
   }
 
-  fn cnt<Res,F> (self: &mut Self, body:F) -> (Res,Cnt)
-    where F:FnOnce(&mut Self) -> Res
+  fn cnt<Res,F> (g: &RefCell<DCG>, body:F) -> (Res,Cnt)
+    where F:FnOnce() -> Res
   {    
-    let c : Cnt = self.cnt.clone() ;
-    self.cnt = Zero::zero();
-    let x = body(self) ;
-    let d : Cnt = self.cnt.clone() ;
-    self.cnt = c + d.clone();
+    let c : Cnt = {
+      let st = &mut *g.borrow_mut();
+      let c = st.cnt.clone() ;
+      st.cnt = Zero::zero();
+      c
+    };
+    let x = body() ;
+    let d : Cnt = {
+      let st = &mut *g.borrow_mut();      
+      let d : Cnt = st.cnt.clone() ;
+      st.cnt = c + d.clone();
+      d
+    };
     (x, d)
   }
 
@@ -1736,7 +1753,7 @@ pub fn ns<T,F> (n:Name, body:F) -> T
   where F:FnOnce() -> T {
     GLOBALS.with(|g| {
       match g.borrow().engine {
-        Engine::DCG(ref dcg) => (dcg.borrow_mut()).ns(n, |_|{body()}), // XXX borrow is too long
+        Engine::DCG(ref dcg) => <DCG as Adapton>::ns(dcg, n, body),
         Engine::Naive => (body)()
       }
     })   
@@ -1747,7 +1764,7 @@ pub fn structural<T,F> (body:F) -> T
   where F:FnOnce() -> T {
     GLOBALS.with(|g| {
       match g.borrow().engine {
-        Engine::DCG(ref dcg) => (dcg.borrow_mut()).structural(|_|{body()}), // XXX borrow is too long
+        Engine::DCG(ref dcg) => <DCG as Adapton>::structural(dcg,body), // XXX borrow is too long
         Engine::Naive => (body)()
       }
     })    
@@ -1757,7 +1774,7 @@ pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
   where F:FnOnce() -> Res {
     GLOBALS.with(|g| {
       match g.borrow().engine {
-        Engine::DCG(ref dcg) => (dcg.borrow_mut()).cnt(|_|{body()}), // XXX borrow is too long
+        Engine::DCG(ref dcg) => <DCG as Adapton>::cnt(dcg,body),
         Engine::Naive => ((body)(), Cnt::zero())
       }
     })

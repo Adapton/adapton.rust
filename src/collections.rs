@@ -1001,8 +1001,21 @@ fn test_tree_of_list () {
   let l = List::name(n, l);
   println!("{:?}", l);
 
-  let t = tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l);
-  println!("{:?}", t);
+  let t1 = ns(name_of_str("tree_of_list"),
+              ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
+  
+  println!("{:?}", t1);
+
+  let l = List::cons(0,l);
+  let n = name_of_usize(0);
+  let l = List::art(cell(n.clone(), l));
+  let l = List::name(n, l);
+  println!("{:?}", l);
+
+  let t1 = ns(name_of_str("tree_of_list"),
+              ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
+  
+  println!("{:?}", t1);
 }
 
 // impl< A:Adapton+Debug+Hash+PartialEq+Eq+Clone
