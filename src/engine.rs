@@ -550,9 +550,12 @@ mod wf {
 /// value of the form Art::Rc(v), for some value v.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum ArtIdChoice<Name> {
-  Eager,         // Eagerly produce an Art::Rc, no additional indirection is needed/used.
-  Structural,    // Identifies an Art::Loc based on hashing content (prog_pt and arg).
-  Nominal(Name), // Identifies an Art::Loc based on a programmer-chosen name.
+  /// Eagerly produces an `Art` that merely consists of an `Rc`; no additional indirection is needed/used.
+  Eager,
+  /// Identifies an `Art` based on hashing content (e.g., `prog_pt` for code and argument(s)).
+  Structural,
+  /// Identifies an `Art` based on a programmer-chosen name.
+  Nominal(Name),
 }
 
 #[derive(Debug,Hash,PartialEq,Eq,Clone)]
