@@ -96,7 +96,7 @@ pub struct Globals {
 
 #[derive(Debug)]
 pub enum Engine {
-  DCG(DCG),
+  DCG(RefCell<DCG>),
   Naive
 }
 
@@ -201,7 +201,7 @@ struct DCGRes {
 // well as mechanisms to update and/or re-produce it.
 trait DCGDep : Debug {
   // Todo-later(?): Rename `change_prop` to `clean`?
-  fn change_prop (self:&Self, g:&RefCell<Globals>, loc:&Rc<Loc>) -> DCGRes ;
+  fn change_prop (self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes ;
 }
 
 impl Hash for Succ {
@@ -217,13 +217,13 @@ impl Hash for Succ {
 #[derive(Debug)]
 struct NoDependency;
 impl DCGDep for NoDependency {
-  fn change_prop (self:&Self, _g:&RefCell<Globals>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:false} }
+  fn change_prop (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:false} }
 }
 
 #[derive(Debug)]
 struct AllocDependency<T> { val:T }
 impl<T:Debug> DCGDep for AllocDependency<T> {
-  fn change_prop (self:&Self, _g:&RefCell<Globals>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
+  fn change_prop (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
 }
 
 
@@ -709,84 +709,79 @@ macro_rules! mut_dcg_of_globals {
 
 // Performs the computation at loc, produces a result of type Res.
 // Error if loc is not a Node::Comp.
-fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<Globals>, loc:&Rc<Loc>) -> Res
+fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&Rc<Loc>) -> Res
 {
   let (producer, prev_path) = {
-    if let Engine::DCG(ref mut st) = g.borrow_mut().engine {
-      debug!("{} produce begin: {:?}", engineMsg!(st), &loc);
-      let succs : Vec<Succ> = {
-        let succs : Vec<Succ> = Vec::new();
-        let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
-        replace(node.succs_mut(), succs)
-      } ;
-      revoke_succs( st, loc, &succs );
-      st.stack.push ( Frame{loc:loc.clone(),
-                            //path:loc.path.clone(),
-                            succs:Vec::new(), } );
-      st.cnt.stack = if st.cnt.stack > st.stack.len() { st.cnt.stack } else { st.stack.len() } ;
-      let prev_path = st.path.clone () ;
-      st.path = loc.path.clone() ;
-      let producer : Box<Producer<Res>> = {
-        let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
-        match *node {
-          Node::Comp(ref nd) => nd.producer.copy(),
-          _ => panic!("internal error"),
-        }
-      } ;
-      st.cnt.eval += 1 ; 
-      drop(st);  // End mutable borrow of global RefCell
-      (producer, prev_path)
-    }
-    else {
-      unreachable!()
-    }
-  };  
-
-  let res = producer.produce() ;
-
-  if let Engine::DCG(ref mut st) = g.borrow_mut().engine {
-    st.path = prev_path ;
-    let frame = match st.stack.pop() {
-      None => panic!("expected Some _: stack invariants are broken"),
-      Some(frame) => frame
+    let st : &mut DCG = &mut *g.borrow_mut() ;
+    debug!("{} produce begin: {:?}", engineMsg!(st), &loc);
+    let succs : Vec<Succ> = {
+      let succs : Vec<Succ> = Vec::new();
+      let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
+      replace(node.succs_mut(), succs)
     } ;
-    assert!( &frame.loc == loc );
-    let mut succ_idx = 0;
-    for succ in &frame.succs {
-      debug!("{} produce: edge: {:?} --{:?}--dirty?:{:?}--> {:?}", engineMsg!(st), &loc, &succ.effect, &succ.dirty, &succ.loc);
-      let (effect, is_weak) =
-        match succ.effect {
-          //Effect::Observe => ("observe", true),
-          Effect::Observe => ("observe", false), // XXX
-          Effect::Allocate => ("allocate", false)
-        } ;
-      if st.flags.gmlog_dcg {
-        // gm::startdframe(st, &format!("{:?}--{}->{:?}", loc, effect, succ.loc), None);
-        // gm::addedge(st, &format!("{:?}",loc), &format!("{:?}",succ.loc),
-        //             &format!("{}",succ_idx),
-        //             effect, "", None, is_weak);
-      }
-      succ_idx += 1;
-      if succ.dirty {
-        // This case witnesses an illegal use of nominal side effects
-        panic!("invariants broken: newly-built DCG edge should be clean, but is dirty.")
-      } ;
-      let succ_node = lookup_abs( st, &succ.loc );
-      succ_node.preds_insert( succ.effect.clone(), loc );
-    } ;
-    {
+    revoke_succs( st, loc, &succs );
+    st.stack.push ( Frame{loc:loc.clone(),
+                          //path:loc.path.clone(),
+                          succs:Vec::new(), } );
+    st.cnt.stack = if st.cnt.stack > st.stack.len() { st.cnt.stack } else { st.stack.len() } ;
+    let prev_path = st.path.clone () ;
+    st.path = loc.path.clone() ;
+    let producer : Box<Producer<Res>> = {
       let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
       match *node {
-        Node::Comp(ref mut node) => {
-          replace(&mut node.succs, frame.succs) ;
-          replace(&mut node.res, Some(res.clone()))
-        },
+        Node::Comp(ref nd) => nd.producer.copy(),
         _ => panic!("internal error"),
       }
     } ;
-    debug!("{} produce end: {:?} produces {:?}", engineMsg!(st), &loc, &res);
-    res
-  } else { unreachable!() }
+    st.cnt.eval += 1 ; 
+    drop(st);  // End mutable borrow of global RefCell
+    (producer, prev_path)
+  }; 
+
+  let res = producer.produce() ;
+
+  let st = &mut * g.borrow_mut() ;
+  st.path = prev_path ;
+  let frame = match st.stack.pop() {
+    None => panic!("expected Some _: stack invariants are broken"),
+    Some(frame) => frame
+  } ;
+  assert!( &frame.loc == loc );
+  let mut succ_idx = 0;
+  for succ in &frame.succs {
+    debug!("{} produce: edge: {:?} --{:?}--dirty?:{:?}--> {:?}", engineMsg!(st), &loc, &succ.effect, &succ.dirty, &succ.loc);
+    let (effect, is_weak) =
+      match succ.effect {
+        //Effect::Observe => ("observe", true),
+        Effect::Observe => ("observe", false), // XXX
+        Effect::Allocate => ("allocate", false)
+      } ;
+    if st.flags.gmlog_dcg {
+      // gm::startdframe(st, &format!("{:?}--{}->{:?}", loc, effect, succ.loc), None);
+      // gm::addedge(st, &format!("{:?}",loc), &format!("{:?}",succ.loc),
+      //             &format!("{}",succ_idx),
+      //             effect, "", None, is_weak);
+    }
+    succ_idx += 1;
+    if succ.dirty {
+      // This case witnesses an illegal use of nominal side effects
+      panic!("invariants broken: newly-built DCG edge should be clean, but is dirty.")
+    } ;
+    let succ_node = lookup_abs( st, &succ.loc );
+    succ_node.preds_insert( succ.effect.clone(), loc );
+  } ;
+  {
+    let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
+    match *node {
+      Node::Comp(ref mut node) => {
+        replace(&mut node.succs, frame.succs) ;
+        replace(&mut node.res, Some(res.clone()))
+      },
+      _ => panic!("internal error"),
+    }
+  } ;
+  debug!("{} produce end: {:?} produces {:?}", engineMsg!(st), &loc, &res);
+  res
 }
 
 
@@ -797,7 +792,7 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<Globals>, l
 struct ProducerDep<T> { res:T }
 
 fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
-  (g:&RefCell<Globals>,
+  (g:&RefCell<DCG>,
    this_dep:&ProducerDep<Res>,
    loc:&Rc<Loc>, cache:Res, succs:Vec<Succ>) -> DCGRes
 {
@@ -828,7 +823,7 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
 impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
   DCGDep for ProducerDep<Res>
 {
-  fn change_prop(self:&Self, g:&RefCell<Globals>, loc:&Rc<Loc>) -> DCGRes {
+  fn change_prop(self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes {
     //let stackLen = mut_dcg_of_globals.stack.len() ;
     //debug!("{} change_prop begin: {:?}", engineMsg!(st), loc);
     let res_succs = { // Handle cases where there is no internal computation to re-compute:
@@ -1082,7 +1077,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   
   /// Demand & observe arts (all kinds): force
   // fn force<T:Eq+Debug+Clone+Hash+GMLog<Self>> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
-  fn force<T:Eq+Debug+Clone+Hash> (g:&RefCell<Globals>, &AbsArt<T,Self::Loc>) -> T ;
+  fn force<T:Eq+Debug+Clone+Hash> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>) -> T ;
 
   // GraphMovie logging, using this web-based tool:
   // https://github.com/kyleheadley/graphmovie
@@ -1467,7 +1462,7 @@ impl Adapton for DCG {
     }
   }
 
-  fn force<T:'static+Eq+Debug+Clone+Hash> (g:&RefCell<Globals>,
+  fn force<T:'static+Eq+Debug+Clone+Hash> (g:&RefCell<DCG>,
                                            art:&AbsArt<T,Self::Loc>) -> T
   {
     let st : &mut DCG = mut_dcg_of_globals!(g);
@@ -1674,7 +1669,7 @@ impl<A:PartialEq,S,T> PartialEq for NaiveThunk<A,S,T> {
   }
 }
 
-pub fn init_dcg   () -> Engine { init_engine(Engine::DCG(DCG::new())) }
+pub fn init_dcg   () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
 pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
 
 /// Initializes global state with a fresh DCG-based engine; returns the old engine
@@ -1744,7 +1739,7 @@ pub fn ns<T,F> (n:Name, body:F) -> T
   where F:FnOnce() -> T {
     GLOBALS.with(|g| {
       match g.borrow_mut().engine {
-        Engine::DCG(ref mut dcg) => dcg.ns(n, |_|{body()}),
+        Engine::DCG(ref mut dcg) => (dcg.borrow_mut()).ns(n, |_|{body()}), // XXX borrow is too long
         Engine::Naive => (body)()
       }
     })   
@@ -1755,7 +1750,7 @@ pub fn structural<T,F> (body:F) -> T
   where F:FnOnce() -> T {
     GLOBALS.with(|g| {
       match g.borrow_mut().engine {
-        Engine::DCG(ref mut dcg) => dcg.structural(|_|{body()}),
+        Engine::DCG(ref mut dcg) => (dcg.borrow_mut()).structural(|_|{body()}), // XXX borrow is too long
         Engine::Naive => (body)()
       }
     })    
@@ -1765,7 +1760,7 @@ pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
   where F:FnOnce() -> Res {
     GLOBALS.with(|g| {
       match g.borrow_mut().engine {
-        Engine::DCG(ref mut dcg) => dcg.cnt(|_|{body()}),
+        Engine::DCG(ref mut dcg) => (dcg.borrow_mut()).cnt(|_|{body()}), // XXX borrow is too long
         Engine::Naive => ((body)(), Cnt::zero())
       }
     })
@@ -1780,11 +1775,12 @@ pub fn put<T:Eq+Debug+Clone> (val:T) -> Art<T> {
 pub fn cell<T:Hash+Eq+Debug+Clone> (n:Name, val:T) -> Art<T> {
   GLOBALS.with(|g| {
     match g.borrow_mut().engine {
-      Engine::DCG(ref mut dcg) => { if
-                                    let AbsArt::Loc(loc) = dcg.cell(n,val) {
-                                      Art{art:EnumArt::Loc(loc)} }
-                                    else { unreachable!() } }
-      Engine::Naive            => Art{art:EnumArt::Rc(Rc::new(val))}
+      Engine::DCG(ref mut dcg) => {
+        if
+          let AbsArt::Loc(loc) = (dcg.borrow_mut()).cell(n,val) {
+            Art{art:EnumArt::Loc(loc)} }
+        else { unreachable!() } }
+      Engine::Naive => Art{art:EnumArt::Rc(Rc::new(val))}
     }
   })
 }
@@ -1799,7 +1795,7 @@ pub fn set<T:Eq+Debug+Clone> (a:Art<T>, val:T) {
         match g.borrow_mut().engine {
           Engine::Naive => unimplemented!(), // TODO: Think more about this case.
           Engine::DCG(ref mut dcg) => {
-            dcg.set(AbsArt::Loc(l), val)
+            (dcg.borrow_mut()).set(AbsArt::Loc(l), val)
           }
         }
       })
@@ -1820,11 +1816,7 @@ pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+
       Engine::DCG(ref mut dcg) => {
         Art{art:EnumArt::Loc({
           if let AbsArt::Loc(loc) = 
-            dcg.thunk(id, prog_pt,
-                      // TODO: For efficiency, eliminate this extra closure in the future:
-                      //Rc::new(Box::new(move |a,s|{ (*fn_box)(a,s) })),
-                      fn_box,
-                      arg, spurious)
+            (dcg.borrow_mut()).thunk(id, prog_pt, fn_box, arg, spurious)
           { loc } else { unreachable!() }})}              
       },
       Engine::Naive => {
@@ -1843,9 +1835,12 @@ pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
     EnumArt::Rc(ref rc) => (&**rc).clone(),
     EnumArt::Loc(ref loc) => {
       GLOBALS.with(|g| {
-        <DCG as Adapton>::force(g, &AbsArt::Loc(loc.clone()))
-      })
-    }    
+        match g.borrow_mut().engine {
+          Engine::DCG(ref dcg_refcell) => 
+            <DCG as Adapton>::force(dcg_refcell, &AbsArt::Loc(loc.clone())),
+          Engine::Naive => panic!("cannot force a non-naive location with the naive engine")
+      }})
+    }
   }
 }
 
