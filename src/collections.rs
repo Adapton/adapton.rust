@@ -659,65 +659,65 @@ pub fn eager_tree_of_tree
 //     )
 // }
 
-// pub fn list_merge<X:Ord+Clone+Debug,L:ListT<X>>
-//     (n1:Option<Name>, l1:L::List,
-//      n2:Option<Name>, l2:L::List  ) -> L::List
-// {
-//     L::elim_arg
-//         (st, l1, (n1,n2,l2),
-//          /* Nil */  |_, (_, _, l2)| l2,
-//          /* Cons */ |st,h1,t1,(n1,n2,l2)|
-//          L::elim_arg
-//          (st, l2, (h1,t1,n1,n2),
-//           /* Nil */  |st, (h1, t1, _, _ )| L::cons(st, h1,t1),
-//           /* Cons */ |st, h2, t2, (h1, t1, n1, n2)| {
-//           if &h1 <= &h2 {
-//               let l2 = L::cons(st,h2,t2);
-//               match n1 {
-//                   None => {
-//                       let rest = list_merge::<X,L>(st, None, t1, n2, l2);
-//                       L::cons(st, h1, rest)
-//                   }
-//                   Some(n1) => {
-//                       let (n1a, n1b) = st.name_fork(n1);
-//                       let rest = thunk!(st, n1a =>>
-//                                         list_merge::<X,L>,
-//                                         n1:None, l1:t1, n2:n2, l2:l2);
-//                       let rest = L::art(st, rest);
-//                       let rest = L::cons(st, h1, rest);
-//                       L::name(st, n1b, rest)
-//                   }
-//               }
-//           }
-//           else {
-//               let l1 = L::cons(st,h1,t1);
-//               match n2 {
-//                   None => {
-//                       let rest = list_merge::<X,L>(st, n1, l1, None, t2);
-//                       let l = L::cons(st, h2, rest);
-//                       l
-//                   }
-//                   Some(n2) => {
-//                       let (n2a, n2b) = st.name_fork(n2);
-//                       let rest = thunk!(st, n2a =>>
-//                                         list_merge::<X,L>,
-//                                         n1:n1, l1:l1, n2:None, l2:t2);
-//                       let rest = L::art(st, rest);
-//                       let rest = L::cons(st, h2, rest);
-//                       L::name(st, n2b, rest)
-//                   }
-//               }
-//           }},
-//           |st,m2,t2,(h1,t1,n1,_n2)| {
-//               let l1 = L::cons(st,h1,t1);
-//               list_merge::<X,L>(st, n1, l1, Some(m2), t2)
-//           }
-//           ),
-//          |st,m1,t1,(_n1,n2,l2)| {
-//              list_merge::<X,L>(st, Some(m1), t1, n2, l2)
-//          }
-//          )
-// }
+pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
+  (n1:Option<Name>, l1:L,
+   n2:Option<Name>, l2:L ) -> L
+{
+  L::elim_arg
+    (l1, (n1,n2,l2),
+     /* Nil */  |_,(_, _, l2)| l2,
+     /* Cons */ |h1,t1,(n1,n2,l2)|
+     L::elim_arg
+     (l2, (h1,t1,n1,n2),
+      /* Nil */  |_,(h1, t1, _, _ )| L::cons(h1,t1),
+      /* Cons */ |h2, t2, (h1, t1, n1, n2)| {
+        if &h1 <= &h2 {
+          let l2 = L::cons(h2,t2);
+          match n1 {
+            None => {
+              let rest = list_merge::<X,L>(None, t1, n2, l2);
+              L::cons(h1, rest)
+            }
+            Some(n1) => {
+              let (n1a, n1b) = name_fork(n1);
+              let rest = thunk!(n1a =>>
+                                list_merge::<X,L>,
+                                n1:None, l1:t1, n2:n2, l2:l2);
+              let rest = L::art(rest);
+              let rest = L::cons(h1, rest);
+              L::name(n1b, rest)
+            }
+          }
+        }
+        else {
+          let l1 = L::cons(h1,t1);
+          match n2 {
+            None => {
+              let rest = list_merge::<X,L>(n1, l1, None, t2);
+              let l = L::cons(h2, rest);
+              l
+            }
+            Some(n2) => {
+              let (n2a, n2b) = name_fork(n2);
+              let rest = thunk!(n2a =>>
+                                list_merge::<X,L>,
+                                n1:n1, l1:l1, n2:None, l2:t2);
+              let rest = L::art(rest);
+              let rest = L::cons(h2, rest);
+              L::name(n2b, rest)
+            }
+          }
+        }},
+      |m2,t2,(h1,t1,n1,_n2)| {
+        let l1 = L::cons(h1,t1);
+        list_merge::<X,L>(n1, l1, Some(m2), t2)
+      }
+      ),
+     |m1,t1,(_n1,n2,l2)| {
+       list_merge::<X,L>(Some(m1), t1, n2, l2)
+     }
+     )
+}
 
 // pub fn list_merge_sort<X:Ord+Hash+Debug+Clone,L:ListT<X>,T:TreeT<X>>
 //     (list:L::List) -> L::List
