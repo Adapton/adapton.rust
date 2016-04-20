@@ -1066,7 +1066,8 @@ fn test_tree_of_list () {
     let t1 = ns(name_of_str("tree_of_list"),
                 ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
 
-    let s1 = eager_tree_of_tree::<_,_,_,Tree<_>>(t1);
+    let s1 = ns(name_of_str("eager_tree"),
+                ||eager_tree_of_tree::<_,_,_,Tree<_>>(t1));
     
     let l = List::cons(0,l);
     let n = name_of_usize(0);
@@ -1076,7 +1077,8 @@ fn test_tree_of_list () {
     let t1 = ns(name_of_str("tree_of_list"),
                 ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l));
     
-    let s2 = eager_tree_of_tree::<_,_,_,Tree<_>>(t1.clone());
+    let s2 = ns(name_of_str("eager_tree"),
+                ||eager_tree_of_tree::<_,_,_,Tree<_>>(t1.clone()));
 
     let max = ns(name_of_str("max"),
                  ||monoid_of_tree(t1, usize::max_value(),
