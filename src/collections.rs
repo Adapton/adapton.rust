@@ -726,17 +726,23 @@ pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
 //     tree_merge_sort::<X,L,T>(st, tree)
 // }
 
-// pub fn tree_merge_sort<X:Ord+Hash+Debug+Clone,L:ListT<X>,T:TreeT<X>>
-//     (tree:T::Tree) -> L::List
-// {
-//     T::fold_up (st, tree,
-//                 &|st|                 L::nil(st),
-//                 &|st, x|              L::singleton(st, x),
-//                 &|st, _, left, right| { list_merge::<X,L>(st, None, left, None, right) },
-//                 &|st, n, _, left, right| { let (n1,n2) = st.name_fork(n);
-//                                            list_merge::<X,L>(st, Some(n1), left, Some(n2), right) },
-//                 )
-// }
+pub fn mergesort_list_of_tree
+  < X:Ord+Hash+Debug+Clone
+  , Lev:Level
+  , T:TreeElim<Lev,X>
+  , L:ListIntro<X>+ListElim<X>+'static
+  >
+  (tree:T) -> L
+{
+  tree_fold_up
+    (tree,
+     Rc::new(||           L::nil()),
+     Rc::new(|x|          L::singleton(x)),
+     Rc::new(|_, l, r|    { list_merge(None, l, None, r) }),
+     Rc::new(|n, _, l, r| { let (n1,n2) = name_fork(n);
+                            list_merge(Some(n1), l, Some(n2), r) }),
+     )
+}
 
 // pub fn tree_append
 //   < X:Clone+Hash+Eq+Debug
