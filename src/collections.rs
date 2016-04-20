@@ -512,7 +512,7 @@ pub fn vec_of_list<X:Clone,L:ListElim<X>+'static>
 /// Constructs a linked list that consists of elements and names, as
 /// given by the input vector (in that order).
 /// Not incremental; used only for setting up inputs for tests.
-pub fn list_of_vec_w_names<X:Clone,L:ListIntro<X>>
+pub fn list_of_vec<X:Clone,L:ListIntro<X>>
   (v:&Vec<NameElse<X>>) -> L
 {   
   let mut l = L::nil();
@@ -764,7 +764,7 @@ pub fn mergesort_list_of_tree
 #[test]
 pub fn test_mergesort () {
   fn doit() -> Vec<NameElse<usize>> {
-    let l = list_of_vec_w_names::<usize,List<_>>(
+    let l = list_of_vec::<usize,List<_>>(
       &vec![
         NameElse::Name(name_of_usize(00)),
         NameElse::Else(0),
