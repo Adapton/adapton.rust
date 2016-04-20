@@ -484,21 +484,24 @@ pub fn eager_tree_of_tree
      )
 }
 
-// pub fn vec_of_list<X:Clone,L:ListT<X>> (list:L::List, limit:Option<usize>) -> Vec<X> {
-//     let mut out = vec![];
-//     let mut list = list ;
-//     loop {
-//         let (hd, rest) =
-//             L::elim( st, list,
-//                      |st| (None, None),
-//                      |st, x, rest| { (Some(x), Some(rest)) },
-//                      |st, _, rest| { (None,    Some(rest)) }
-//                      ) ;
-//         match hd { Some(x) => out.push(x), _ => () } ;
-//         match limit { Some(limit) if out.len() == limit => return out, _ => () } ;
-//         match rest { Some(rest) => { list = rest; continue }, None => return out }
-//     }
-// }
+pub fn vec_of_list<X:Clone,L:ListElim<X>+'static>
+  (list:L, limit:Option<usize>) -> Vec<NameElse<X>>
+{
+  let mut out = vec![];
+  let mut list = list ;
+  loop {
+    let (hd, rest) =
+      L::elim_arg(
+        list, (),
+        |_, _|         (None, None),
+        |x, rest, _| { (Some(NameElse::Else(x.clone())), Some(rest)) },
+        |n, rest, _| { (Some(NameElse::Name(n.clone())), Some(rest)) }
+        ) ;
+    match hd { Some(x) => out.push(x), _ => () } ;
+    match limit { Some(limit) if out.len() == limit => return out, _ => () } ;
+    match rest { Some(rest) => { list = rest; continue }, None => return out }
+  }
+}
 
 // pub fn list_of_vec<X:Clone,L:ListT<X>> (v:Vec<X>) -> L::List {
 //     let mut l = L::nil(st);
@@ -506,15 +509,20 @@ pub fn eager_tree_of_tree
 //     return l
 // }
 
-// pub fn list_of_vec_w_names<X:Clone,L:ListT<X>> (v:Vec<NameOrElem<Name,X>>) -> L::List {
-//   let mut l = L::nil(st);
-//   for x in v.iter().rev() {
-//     l = match *x {
-//       NameOrElem::Name(ref nm) => L::name(st,nm.clone(),l),
-//       NameOrElem::Elem(ref el) => L::cons(st,el.clone(),l),
-//     }}
-//   return l
-// }
+/// Constructs a linked list that consists of elements and names, as
+/// given by the input vector (in that order).
+/// Not incremental; used only for setting up inputs for tests.
+pub fn list_of_vec_w_names<X:Clone,L:ListIntro<X>>
+  (v:&Vec<NameElse<X>>) -> L
+{   
+  let mut l = L::nil();
+  for x in v.iter().rev() {
+    l = match *x {
+      NameElse::Name(ref nm) => L::name(nm.clone(),l),
+      NameElse::Else(ref el) => L::cons(el.clone(),l),
+    }}
+  return l
+}
 
 // pub fn rev_list_of_vec<X:Clone,L:ListT<X>> (v:Vec<X>) -> L::List {
 //     let mut l = L::nil(st);
@@ -659,6 +667,9 @@ pub fn eager_tree_of_tree
 //     )
 // }
 
+/// Produce a lazy list that consists of merging two input lists.
+/// The output is lazy to the extent that the input lists contain `name`s.
+/// When the input lists are each sorted according to `Ord`; the output is sorted.
 pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
   (n1:Option<Name>, l1:L,
    n2:Option<Name>, l2:L ) -> L
@@ -726,6 +737,12 @@ pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
 //     tree_merge_sort::<X,L,T>(st, tree)
 // }
 
+/// Demand-driven sort over a tree's leaves, whose elements are `Ord`.
+/// To the extent that the tree contains `name`s, the output is lazy, and thus sorts on-demand.
+/// Demanding the first element is `O(n)` for a tree with `n` leaves.
+/// Demanding the next element requires more comparisons, but fewer than the first element.
+/// Demanding the last element requires only `O(1)` comparisons.
+/// In total, the number of comparisons to demand the entire output is, as usual, `O(n ° log(n))`.
 pub fn mergesort_list_of_tree
   < X:Ord+Hash+Debug+Clone
   , Lev:Level
@@ -742,6 +759,45 @@ pub fn mergesort_list_of_tree
      Rc::new(|n, _, l, r| { let (n1,n2) = name_fork(n);
                             list_merge(Some(n1), l, Some(n2), r) }),
      )
+}
+
+#[test]
+pub fn test_mergesort () {
+  fn doit() -> Vec<NameElse<usize>> {
+    let l = list_of_vec_w_names::<usize,List<_>>(
+      &vec![
+        NameElse::Name(name_of_usize(00)),
+        NameElse::Else(0),
+        NameElse::Name(name_of_usize(10)),
+        NameElse::Else(1),
+        NameElse::Name(name_of_usize(30)),
+        NameElse::Else(3),
+        NameElse::Name(name_of_usize(40)),
+        NameElse::Else(2),
+        NameElse::Name(name_of_usize(50)),
+        NameElse::Else(0),
+        NameElse::Name(name_of_usize(60)),
+        NameElse::Else(1),
+        NameElse::Name(name_of_usize(70)),
+        NameElse::Else(3),
+        NameElse::Name(name_of_usize(80)),
+        NameElse::Else(2),
+        ]);
+    let i = vec_of_list(l.clone(), None);
+    println!("{:?}", i);
+    let t = ns(name_of_str("tree_of_list"),
+               ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Right, l));
+    let s = ns(name_of_str("mergesort"),
+               ||mergesort_list_of_tree::<_,_,_,List<_>>(t));
+    let o = vec_of_list(s, None);
+    println!("{:?}", o);
+    o
+  }
+  init_naive();
+  let o1 = doit();
+  init_dcg();
+  let o2 = doit();
+  assert_eq!(o1, o2);
 }
 
 // pub fn tree_append
@@ -977,7 +1033,7 @@ pub enum Tree<X> {
   Art(Art<Tree<X>>),
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,PartialEq,Eq)]
 pub enum NameElse<X> {
   Name(Name),
   Else(X),
