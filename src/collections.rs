@@ -170,7 +170,7 @@ pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   }
 }
 
-fn bin_niltest
+fn bin_arts_niltest
   < Lev:Level, Leaf
   , T:TreeElim<Lev,Leaf>+TreeIntro<Lev,Leaf>+'static
   >
@@ -181,8 +181,12 @@ fn bin_niltest
   else {
     match n {
       None    => T::bin(lev, l, r),
-      Some(n) => T::name(n, lev, l, r),
-    }}
+      Some(n) => {
+        let (nl,nr) = name_fork(n.clone());
+        let l = T::art(cell(nl, l));
+        let r = T::art(cell(nr, r));
+        T::name(n, lev, l, r)
+    }}}
 }
 
   
@@ -399,7 +403,8 @@ pub fn list_of_tree
     (tree, dir.invert(), nil,
      Rc::new(|x,xs| L::cons(x,xs)),
      Rc::new(|_,xs| xs),
-     Rc::new(|n,_,xs| L::name(n,xs))
+     // TODO: Is this Name case OK? (Name-Art-Cons vs Name-Cons-Art patterns?)
+     Rc::new(|n:Name,_,xs| L::name(n.clone(),L::art(cell(n,xs))))
      )
 }
 
@@ -419,7 +424,10 @@ pub fn filter_list_of_tree
     (tree, Dir2::Right, nil,
      Rc::new(move |x,xs| if pred(&x) { L::cons(x,xs) } else { xs }),
      Rc::new(|_,xs| xs),
-     Rc::new(|n,_,xs| if L::is_name(&xs) {xs} else { L::name(n,xs) }))
+     Rc::new(|n:Name,_,xs| if L::is_name(&xs) {xs} else {
+       // TODO: Is this Name case OK? (Name-Art-Cons vs Name-Cons-Art patterns?)
+       L::name(n.clone(),L::art(cell(n,xs)))
+     }))
 }
 
 /// Filter the leaf elements of a tree using a user-provided predicate, `pred`.
@@ -439,8 +447,8 @@ pub fn filter_tree_of_tree
              {  let fx = pred(&x);
                 if !fx { Ti::nil()   }
                 else   { Ti::leaf(x) } }),
-     Rc::new(|lev,l,r|   bin_niltest(None, lev, l, r)),
-     Rc::new(|n,lev,l,r| bin_niltest(Some(n), lev, l, r))
+     Rc::new(|lev,l,r|   bin_arts_niltest(None, lev, l, r)),
+     Rc::new(|n,lev,l,r| bin_arts_niltest(Some(n), lev, l, r))
      )
 }
 
@@ -518,7 +526,8 @@ pub fn list_of_vec<X:Clone,L:ListIntro<X>>
   let mut l = L::nil();
   for x in v.iter().rev() {
     l = match *x {
-      NameElse::Name(ref nm) => L::name(nm.clone(),l),
+      // TODO: Is this Name case OK? (Name-Art-Cons vs Name-Cons-Art patterns?)
+      NameElse::Name(ref nm) => L::name(nm.clone(),L::art(cell(nm.clone(),l))), 
       NameElse::Else(ref el) => L::cons(el.clone(),l),
     }}
   return l

@@ -160,7 +160,7 @@ impl Debug for Path {
   fn fmt(&self, f:&mut Formatter) -> Result {
     match *self {
       Path::Empty => write!(f, ""),
-      Path::Child(ref p, ref n) => write!(f, "{:?}.{:?}", p, n),
+      Path::Child(ref p, ref n) => write!(f, "{:?}::{:?}", p, n),
     }
   }
 }
