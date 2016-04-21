@@ -126,6 +126,7 @@ enum NameSym {
   Root, // Root identifies the outside environment of Rust code.
   String(String), // Strings encode globally-unique symbols.
   Usize(usize),   // USizes encode globally-unique symbols.
+  Isize(isize),   // USizes encode globally-unique symbols.
   Pair(Rc<NameSym>,Rc<NameSym>), // A pair of unique symbols, interpeted as a symbol, is unique
   ForkL(Rc<NameSym>), // Left projection of a unique symbol is unique
   ForkR(Rc<NameSym>), // Right projection of a unique symbol is unique
@@ -139,6 +140,7 @@ impl Debug for NameSym {
       NameSym::Root => write!(f, "/"),
       NameSym::String(ref s) => write!(f, "{}", s),
       NameSym::Usize(ref n) => write!(f, "{}", n),
+      NameSym::Isize(ref n) => write!(f, "{}", n),
       NameSym::Pair(ref l, ref r) => write!(f, "({:?},{:?})",l,r),
       NameSym::ForkL(ref s) => write!(f, "{:?}.l", s),
       NameSym::ForkR(ref s) => write!(f, "{:?}.R", s),
@@ -1713,7 +1715,13 @@ pub fn name_of_usize (u:usize) -> Name {
   let s = NameSym::Usize(u) ;
   Name{ hash:h, symbol:Rc::new(s) }
 }
-  
+
+fn name_of_isize (i:isize) -> Name {
+  let h = my_hash(&i) ;
+  let s = NameSym::Isize(i) ;
+  Name{ hash:h, symbol:Rc::new(s) }
+}
+
 pub fn name_of_string (s:String) -> Name {
   let h = my_hash(&s);
   let s = NameSym::String(s) ;

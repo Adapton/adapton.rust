@@ -260,7 +260,6 @@ macro_rules! memo {
   ;
 }
 
-
 #[macro_export]
 macro_rules! eager {
   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
@@ -440,6 +439,15 @@ macro_rules! cell_call {
     let cell = cell($nm, res) ;
     cell
   }}
+  ;
+  ( $nm:expr =>> $f:ident , $( $lab:ident : $arg:expr ),* ) => {{
+    let res = {
+      $f ( $( $arg ),*, )
+    } ;
+    let cell = cell($nm, res) ;
+    cell
+  }}
+
 }
 
 
