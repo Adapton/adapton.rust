@@ -1716,7 +1716,7 @@ pub fn name_of_usize (u:usize) -> Name {
   Name{ hash:h, symbol:Rc::new(s) }
 }
 
-fn name_of_isize (i:isize) -> Name {
+pub fn name_of_isize (i:isize) -> Name {
   let h = my_hash(&i) ;
   let s = NameSym::Isize(i) ;
   Name{ hash:h, symbol:Rc::new(s) }
