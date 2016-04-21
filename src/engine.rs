@@ -17,6 +17,7 @@ use std::thread;
 use macros::*;
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
+thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
 
 const engineMsgStr : &'static str = "adapton::engine:";
 
@@ -1709,6 +1710,10 @@ pub fn init_engine (engine: Engine) -> Engine {
 }
 
 //pub trait Adaptonic : Hash + Eq + Debug + Clone {}
+
+pub fn name_unit () -> Name {
+  ROOT_NAME.with(|r|r.clone())
+}
 
 pub fn name_of_usize (u:usize) -> Name {
   let h = my_hash(&u) ;
