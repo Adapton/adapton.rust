@@ -36,6 +36,14 @@ pub trait ListIntro<X> : Debug+Clone+Hash+PartialEq+Eq {
     let nil = Self::nil();
     Self::cons(hd, nil)
   }
+
+  /// For `Some(nm)`, wraps the given list in `name` and `art` constructors for given name `nm`.
+  /// For `None`, is the list identity function.
+  fn name_art(nm:Option<Name>, rest:Self) -> Self {
+    match nm {
+      None => rest,
+      Some(nm) => Self::name(nm.clone(), Self::art(cell(nm, rest)))
+    }}
 }
 
 /// Types that can be pattern-matched like a list of `X` are `ListElim<X>`.
@@ -229,6 +237,10 @@ pub fn tree_fold_seq
      )
 }
 
+/// Fold over the structure of the tree, with results flowing up, from `nil` and `leaf` cases to the binary cases of `bin` and `name`.
+/// This folding pattern is suitable for aggregating the leaf elements via an associative operation, such as a monoid (e.g., counting, addition, multiplication, maximum, minimum, etc.).
+/// See `monoid_of_tree` for a wrapper function that offers this usage.
+/// This folding pattern is also suitable for producing copies of the tree's structure.
 pub fn tree_fold_up
   < Lev:Level, Leaf, T:TreeElim<Lev,Leaf>
   , Res:Hash+Debug+Eq+Clone+'static
@@ -261,6 +273,54 @@ pub fn tree_fold_up
        let (n1,n2) = name_fork(n.clone());
        let resl = memo!(n1 =>> tree_fold_up, tree:l ;; nil:nil.clone(), leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
        let resr = memo!(n2 =>> tree_fold_up, tree:r ;; nil:nil, leaf:leaf, bin:bin, name:name.clone());
+       let res = name(n, x, resl, resr);
+       res
+     }
+     )
+}
+
+/// Like `tree_fold_up`, except that names from `name` nodes are passed down, to the next `nil` and `leaf` cases.
+/// The name from a `name` constructor associates to its right subtree, which is consistent with a left-to-right, in-order traversal of the tree.
+/// The recursive argument `nm` provides the name for the left subtree, if any.
+///
+/// **Regarding naming effects** for the RHS functions:
+/// The names consumed by the RHS functions for constructors `name`, `leaf` and `nil` overlap.
+/// It is thus critical that, e.g., the RHS functions for `name` and `leaf` have disjoint write effects.
+/// (Either the `name` RHS uses the given name, or the `leaf` RHS uses the name, but not both).
+/// Similarly, it is thus critical that the RHS functions for `name` and `nil` have disjoint write effects.
+pub fn tree_fold_up_nm_dn
+  < Lev:Level, Leaf, T:TreeElim<Lev,Leaf>
+  , Res:Hash+Debug+Eq+Clone+'static
+  , NilF:'static
+  , LeafF:'static
+  , BinF:'static
+  , NameF:'static
+  >
+  (tree:T, nm:Option<Name>,
+   nil:Rc<NilF>,
+   leaf:Rc<LeafF>,
+   bin:Rc<BinF>,
+   name:Rc<NameF>) -> Res
+  where  NilF:Fn(Option<Name>        ) -> Res
+  ,     LeafF:Fn(Option<Name>, Leaf  ) -> Res
+  ,      BinF:Fn(      Lev, Res, Res ) -> Res
+  ,     NameF:Fn(Name, Lev, Res, Res ) -> Res
+{
+  T::elim_arg
+    (tree, (nm,nil,leaf,bin,name),
+     |(nm,nil,_,_,_)|    nil(nm),
+     |x,(nm,_,leaf,_,_)| leaf(nm, x),
+     |x,l,r,(nm,nil,leaf,bin,name)| {
+       let resl = tree_fold_up_nm_dn(l, nm,   nil.clone(), leaf.clone(), bin.clone(), name.clone());
+       let resr = tree_fold_up_nm_dn(r, None, nil,         leaf,         bin.clone(), name);
+       let res = bin(x, resl, resr); // TODO: Should `bin` function accept a name?
+       res
+     },
+     |n,x,l,r,(nm,nil,leaf,bin,name)| {
+       let (n1,n2) = name_fork(n.clone());
+       let nm2 = Some(n.clone());
+       let resl = memo!(n1 =>> tree_fold_up_nm_dn, tree:l, nm:nm  ;; nil:nil.clone(), leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
+       let resr = memo!(n2 =>> tree_fold_up_nm_dn, tree:r, nm:nm2 ;; nil:nil,         leaf:leaf,         bin:bin,         name:name.clone());
        let res = name(n, x, resl, resr);
        res
      }
@@ -491,6 +551,26 @@ pub fn eager_tree_of_tree
      Rc::new(|n,lev,l,r| Ti::name(n, lev, l, r))
      )
 }
+
+/// Produces a tree with the same structure as its input, but without
+/// any empty subtrees, and with articulations placed around the
+/// subtrees of named binary nodes.
+pub fn prune_tree_of_tree
+  < Lev:Level, X:Hash+Clone+'static
+  , Te:TreeElim<Lev,X>+'static
+  , Ti:TreeElim<Lev,X>+TreeIntro<Lev,X>+'static
+  >
+  (tree:Te) -> Ti
+{
+  tree_fold_up
+    (tree,
+     Rc::new(||          Ti::nil()),
+     Rc::new(|x|         Ti::leaf(x)),
+     Rc::new(|lev,l,r|   bin_arts_niltest(None, lev, l, r)),
+     Rc::new(|n,lev,l,r| bin_arts_niltest(Some(n), lev, l, r))
+     )
+}
+
 
 pub fn vec_of_list<X:Clone,L:ListElim<X>+'static>
   (list:L, limit:Option<usize>) -> Vec<NameElse<X>>
@@ -770,6 +850,30 @@ pub fn mergesort_list_of_tree
      )
 }
 
+/// Demand-driven sort over a tree's leaves, whose elements are `Ord`.
+/// To the extent that the tree contains `name`s, the output is lazy, and thus sorts on-demand.
+/// Demanding the first element is `O(n)` for a tree with `n` leaves.
+/// Demanding the next element requires more comparisons, but fewer than the first element.
+/// Demanding the last element requires only `O(1)` comparisons.
+/// In total, the number of comparisons to demand the entire output is, as usual, `O(n ° log(n))`.
+pub fn mergesort_list_of_tree2
+  < X:Ord+Hash+Debug+Clone
+  , Lev:Level
+  , T:TreeElim<Lev,X>
+  , L:ListIntro<X>+ListElim<X>+'static
+  >
+  (tree:T, nm:Option<Name>) -> L
+{
+  tree_fold_up_nm_dn
+    (tree, nm,
+     Rc::new(|n,|         L::name_art(n, L::nil())),
+     Rc::new(|n,x|        L::name_art(n, L::singleton(x))),
+     Rc::new(|_, l, r|    { list_merge(None, l, None, r) }),
+     Rc::new(|n, _, l, r| { let (n1,n2) = name_fork(n);
+                            list_merge(Some(n1), l, Some(n2), r) }),
+     )
+}
+
 #[test]
 pub fn test_mergesort () {
   fn doit() -> Vec<NameElse<usize>> {
@@ -798,6 +902,47 @@ pub fn test_mergesort () {
                ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Right, l));
     let s = ns(name_of_str("mergesort"),
                ||mergesort_list_of_tree::<_,_,_,List<_>>(t));
+    let o = vec_of_list(s, None);
+    println!("{:?}", o);
+    o
+  }
+  init_naive();
+  let o1 = doit();
+  init_dcg();
+  let o2 = doit();
+  assert_eq!(o1, o2);
+}
+
+#[test]
+pub fn test_mergesort2 () {
+  fn doit() -> Vec<NameElse<usize>> {
+    let l = list_of_vec::<usize,List<_>>(
+      &vec![
+        NameElse::Name(name_of_usize(00)),
+        NameElse::Else(0),
+        NameElse::Name(name_of_usize(10)),
+        NameElse::Else(1),
+        NameElse::Name(name_of_usize(30)),
+        NameElse::Else(3),
+        NameElse::Name(name_of_usize(40)),
+        NameElse::Else(2),
+        NameElse::Name(name_of_usize(50)),
+        NameElse::Else(0),
+        NameElse::Name(name_of_usize(60)),
+        NameElse::Else(1),
+        NameElse::Name(name_of_usize(70)),
+        NameElse::Else(3),
+        NameElse::Name(name_of_usize(80)),
+        NameElse::Else(2),
+        ]);
+    let i = vec_of_list(l.clone(), None);
+    println!("{:?}", i);
+    let t = ns(name_of_str("tree_of_list"),
+               ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Right, l));
+    let t = ns(name_of_str("prune"),
+               ||prune_tree_of_tree::<_,_,_,Tree<_>>(t));
+    let s = ns(name_of_str("mergesort"),
+               ||mergesort_list_of_tree2::<_,_,_,List<_>>(t, None));
     let o = vec_of_list(s, None);
     println!("{:?}", o);
     o
