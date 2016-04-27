@@ -1276,10 +1276,13 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
   }
 }
 
+/// Demonstrates how to write performance and correctness tests that
+/// compare the measurements and outputs of running a common piece of
+/// code under a common sequence of input changes.
 #[test]
 fn test_engine_alternation () {
   
-  // The code that we want to measure under naive and DCG engines:
+  // The code that we want to compare/measure under naive versus DCG engines:
   fn doit(l:List<usize>) -> Tree<usize> {
     let t1 = ns(name_of_str("tree_of_list"),
                 ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l));
@@ -1288,31 +1291,34 @@ fn test_engine_alternation () {
     t2
   };
 
-  let mut input : List<usize> = List::nil(); // the input, which we will prepend in the loop below
+  // The common way to change the input over time: by prepending elements of type usize:
+  fn push_input(i:usize, l:List<usize>) -> List<usize> {
+    let l = List::art(cell(name_of_usize(i), l)); // Important in DCG version for hash-consing input list; O(1)-time equality checks
+    let l = List::name(name_of_usize(i), l);
+    let l = List::cons(i, l);
+    l
+  };
+  
+  let mut naive_input : List<usize> = List::nil(); // the naive input, which we will prepend in the loop below
+  let mut   dcg_input : List<usize> = List::nil(); // the DCG   input, which we will prepend in the loop below
   
   init_dcg(); // Initialize the current engine with an empty DCG instance
   let mut dcg = init_naive(); // Current engine is naive; save DCG for later
   
   for i in vec![1,2,3,4,5,6,7,8,9].iter()
   {
-    assert!(engine_is_naive());
-    input = List::art(cell(name_of_usize(*i),input));
-    input = List::name(name_of_usize(*i), input);
-    input = List::cons(*i, input);
-    println!("{}: input={:?}", i, input);
+    assert!(engine_is_naive()); // Sanity check
+    naive_input = push_input(*i, naive_input); // Prepend Naive input
+    let naive_out = doit(naive_input.clone()); // MEASURE ME!
 
-    let input_copy = input.clone();
-    let naive_out = doit(input_copy); // TIME ME!
-    println!("{}: naive_out={:?}", i, naive_out);
-
-    let input_copy = input.clone();
-    init_engine(dcg); // Switch to DCG engine
-    assert!(engine_is_dcg());
-    let dcg_out = doit(input_copy); // TIME ME!
+    init_engine(dcg); // Switch to DCG engine    
+    assert!(engine_is_dcg()); // Sanity check
+    dcg_input = push_input(*i, dcg_input); // Prepend DCG input
+    let dcg_out = doit(dcg_input.clone()); // MEASURE ME!
     dcg = init_naive(); // Switch back to naive; save DCG engine for later
-    println!("{}: ..dcg_out={:?}", i, dcg_out);
 
     assert_eq!(naive_out, dcg_out);
+    
   }
 }
 
