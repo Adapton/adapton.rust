@@ -784,8 +784,9 @@ pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
                                 list_merge::<X,L>,
                                 n1:None, l1:t1, n2:n2, l2:l2);
               let rest = L::art(rest);
+              let rest = L::name(n1b, rest);
               let rest = L::cons(h1, rest);
-              L::name(n1b, rest)
+              rest
             }
           }
         }
@@ -803,8 +804,9 @@ pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
                                 list_merge::<X,L>,
                                 n1:n1, l1:l1, n2:None, l2:t2);
               let rest = L::art(rest);
+              let rest = L::name(n2b, rest);
               let rest = L::cons(h2, rest);
-              L::name(n2b, rest)
+              rest
             }
           }
         }},
@@ -866,16 +868,35 @@ pub fn mergesort_list_of_tree2
 {
   tree_fold_up_nm_dn
     (tree, nm,
-     Rc::new(|n,|         L::name_art(n, L::nil())),
-     Rc::new(|n,x|        L::name_art(n, L::singleton(x))),
-     Rc::new(|_, l, r|    { list_merge(None, l, None, r) }),
+     Rc::new(|n,|         L::nil()),
+     Rc::new(|n,x|        L::singleton(x)),
+     Rc::new(|_, l, r|    { list_merge_wrapper(None, l, None, r) }),
      Rc::new(|n, _, l, r| { let (n1,n2) = name_fork(n);
-                            list_merge(Some(n1), l, Some(n2), r) }),
+                            list_merge_wrapper(Some(n1), l, Some(n2), r) }),
      )
 }
 
+pub fn list_merge_wrapper<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
+  (n1:Option<Name>, l1:L,
+   n2:Option<Name>, l2:L ) -> L
+{
+  ns(name_of_str("merge"), || list_merge(n1, l1, n2, l2))
+}
+
+// /// Returns the length of the longest run of non-name list elements.
+// /// Useful for tests that assert that lists have well-spaced names.
+// pub fn list_max_run<X,L:ListElim<X>+'static>
+//   (l:L) {
+//     L::elim_arg(l, 0,
+//                 |_, max_run| max_run,
+//                 |h, t| list_max_run + 1,
+                
+
+//   }
+
+
 #[test]
-pub fn test_mergesort () {
+pub fn test_mergesort1 () {
   fn doit() -> Vec<NameElse<usize>> {
     let l = list_of_vec::<usize,List<_>>(
       &vec![
@@ -897,13 +918,13 @@ pub fn test_mergesort () {
         NameElse::Else(2),
         ]);
     let i = vec_of_list(l.clone(), None);
-    println!("{:?}", i);
+    println!("input vec: {:?}", i);
     let t = ns(name_of_str("tree_of_list"),
                ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Right, l));
     let s = ns(name_of_str("mergesort"),
                ||mergesort_list_of_tree::<_,_,_,List<_>>(t));
     let o = vec_of_list(s, None);
-    println!("{:?}", o);
+    println!("output vec: {:?}", o);
     o
   }
   init_naive();
@@ -936,15 +957,16 @@ pub fn test_mergesort2 () {
         NameElse::Else(2),
         ]);
     let i = vec_of_list(l.clone(), None);
-    println!("{:?}", i);
+    println!("input vec: {:?}", i);
     let t = ns(name_of_str("tree_of_list"),
                ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Right, l));
     let t = ns(name_of_str("prune"),
                ||prune_tree_of_tree::<_,_,_,Tree<_>>(t));
+    println!("input tree: {:?}", eager_tree_of_tree::<_,_,_,Tree<_>>(t.clone()));
     let s = ns(name_of_str("mergesort"),
-               ||mergesort_list_of_tree2::<_,_,_,List<_>>(t, None));
+               ||mergesort_list_of_tree2::<_,_,_,List<_>>(t, (Some(name_of_usize(666)))));
     let o = vec_of_list(s, None);
-    println!("{:?}", o);
+    println!("output vec: {:?}", o);
     o
   }
   init_naive();
