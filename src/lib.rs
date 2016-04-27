@@ -1,11 +1,11 @@
 // Adapton for Rust
-#![feature(associated_type_defaults)]
-#![feature(custom_derive)]
+
 #![feature(zero_one)]
-#![feature(type_ascription)]
-    
-#![cfg_attr(test, feature(plugin))]
-// #![cfg_attr(test, plugin(quickcheck_macros))]
+//#![feature(associated_type_defaults)]
+//#![feature(custom_derive)]
+//#![feature(type_ascription)]
+//#![cfg_attr(test, feature(plugin))]
+//#![cfg_attr(test, plugin(quickcheck_macros))]
 
 #![crate_name = "adapton"]
 #![crate_type = "lib"]
