@@ -1277,6 +1277,46 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
 }
 
 #[test]
+fn test_engine_alternation () {
+  
+  // The code that we want to measure under naive and DCG engines:
+  fn doit(l:List<usize>) -> Tree<usize> {
+    let t1 = ns(name_of_str("tree_of_list"),
+                ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l));
+    let t2 = ns(name_of_str("eager_tree"),
+                ||eager_tree_of_tree::<_,_,_,Tree<_>>(t1));
+    t2
+  };
+
+  let mut input : List<usize> = List::nil(); // the input, which we will prepend in the loop below
+  
+  init_dcg(); // Initialize the current engine with an empty DCG instance
+  let mut dcg = init_naive(); // Current engine is naive; save DCG for later
+  
+  for i in vec![1,2,3,4,5,6,7,8,9].iter()
+  {
+    assert!(engine_is_naive());
+    input = List::art(cell(name_of_usize(*i),input));
+    input = List::name(name_of_usize(*i), input);
+    input = List::cons(*i, input);
+    println!("{}: input={:?}", i, input);
+
+    let input_copy = input.clone();
+    let naive_out = doit(input_copy); // TIME ME!
+    println!("{}: naive_out={:?}", i, naive_out);
+
+    let input_copy = input.clone();
+    init_engine(dcg); // Switch to DCG engine
+    assert!(engine_is_dcg());
+    let dcg_out = doit(input_copy); // TIME ME!
+    dcg = init_naive(); // Switch back to naive; save DCG engine for later
+    println!("{}: ..dcg_out={:?}", i, dcg_out);
+
+    assert_eq!(naive_out, dcg_out);
+  }
+}
+
+#[test]
 fn test_tree_of_list () {
   fn test_code() -> (Tree<usize>, Tree<usize>, usize) {
     let l : List<usize> = List::nil();

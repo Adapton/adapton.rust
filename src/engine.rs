@@ -1881,6 +1881,21 @@ pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
   }
 }
 
+pub fn engine_is_naive () -> bool {
+  GLOBALS.with(|g| {
+    match g.borrow().engine {
+      Engine::DCG(_) => false,
+      Engine::Naive  => true
+    }})    
+}
+
+pub fn engine_is_dcg () -> bool {
+  GLOBALS.with(|g| {
+    match g.borrow().engine {
+      Engine::DCG(_) => true,
+      Engine::Naive  => false
+    }})
+}
 
 
 // -------------------------------------------------------------------------
