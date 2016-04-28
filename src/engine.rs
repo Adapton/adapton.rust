@@ -118,15 +118,13 @@ impl Clone for     DCG { fn clone(&self) -> Self { unimplemented!() } }
 //
 #[derive(Hash,PartialEq,Eq,Clone)]
 enum NameSym {
-  Root, // Root identifies the outside environment of Rust code.
+  Root,           // Unit value for name symbols
   String(String), // Strings encode globally-unique symbols.
   Usize(usize),   // USizes encode globally-unique symbols.
   Isize(isize),   // USizes encode globally-unique symbols.
   Pair(Rc<NameSym>,Rc<NameSym>), // A pair of unique symbols, interpeted as a symbol, is unique
   ForkL(Rc<NameSym>), // Left projection of a unique symbol is unique
   ForkR(Rc<NameSym>), // Right projection of a unique symbol is unique
-  //Rc(Rc<NameSym>),
-  //Nil,  // Nil for non-symbolic, hash-based names.
 }
 
 impl Debug for NameSym {
@@ -227,12 +225,6 @@ impl<T:Debug> DCGDep for AllocDependency<T> {
 trait ShapeShifter {
   fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<GraphNode> ;
 }
-
-// impl fmt::Debug for GraphNode {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(f, "(GraphNode)")
-//     }
-// }
 
 // Structureful (Non-opaque) nodes:
 #[allow(dead_code)] // Pure case: not introduced currently.
@@ -537,8 +529,8 @@ mod wf {
   }
 }
 
-/// An `ArtId` is a symbolic identity for an articulation point made by
-/// Adapton::thunk.  An ArtId is chosen by the programmer to identify
+/// An `ArtIdChoice` is a symbolic identity for an articulation point made by
+/// Adapton::thunk.  An `ArtIdChoice` is chosen by the programmer to identify
 /// the point during evaluation (and simultaneously, to identify the
 /// point during re-evaluation).
 /// An `Eager` identity is special, and it means "do not introduce any
@@ -563,23 +555,6 @@ pub struct Cnt {
   pub clean  : usize, // Add trait performs sum
   pub stack  : usize, // Add trait performs max
 }
-
-// pub trait Sub<RHS = Self> {
-//     type Output;
-//     fn sub(self, rhs: RHS) -> Self::Output;
-// }
-
-// impl Sub for Cnt {
-//   type Output=Cnt;
-//   fn sub(self, rhs: Self) -> Self::Output {
-//     Cnt {
-//       create : self.create - rhs.create,
-//       eval   : self.eval - rhs.eval,
-//       dirty  : self.dirty - rhs.dirty,
-//       clean  : self.clean - rhs.clean,
-//     }
-//   }
-// }
 
 impl Add for Cnt {
   type Output=Cnt;
@@ -1032,13 +1007,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   type Loc  : Debug+PartialEq+Eq+Hash+Clone;
   
   fn new () -> Self ;
-  
-  // Names
-  // fn name_of_usize  (self:&mut Self, usize)  -> Self::Name ;
-  // fn name_of_string (self:&mut Self, String) -> Self::Name ;
-  // fn name_pair      (self:&mut Self, Self::Name, Self::Name) -> Self::Name               ;
-  // fn name_fork      (self:&mut Self, Self::Name)             -> (Self::Name, Self::Name) ;
-  
+    
   /// Creates or re-enters a given namespace; performs the given computation there.
   fn ns<T,F> (g: &RefCell<DCG>, Name, body:F) -> T where F:FnOnce() -> T;
   
@@ -1069,28 +1038,6 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   // fn force<T:Eq+Debug+Clone+Hash+GMLog<Self>> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
   fn force<T:Eq+Debug+Clone+Hash> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>) -> T ;
 }
-  // GraphMovie logging, using this web-based tool:
-  // https://github.com/kyleheadley/graphmovie
-  //fn gmlog(self:&mut Self) -> Option<&mut File>;
-
-  ///  # Derived fork functions:
-
-  // fn name_fork3 (self:&mut Self, n:Self::Name)
-  //                -> (Self::Name,Self::Name,Self::Name)
-  // {
-  //   let (n1,n)  = self.name_fork(n);
-  //   let (n2,n3) = self.name_fork(n);
-  //   (n1,n2,n3)
-  // }
-  
-  // fn name_fork4 (self:&mut Self, n:Self::Name)
-  //                -> (Self::Name,Self::Name,Self::Name,Self::Name)
-  // {
-  //   let (n1,n2,n) = self.name_fork3(n);
-  //   let (n3,n4)   = self.name_fork(n);
-  //   (n1,n2,n3,n4)
-  // }
-// }
 
 impl Adapton for DCG {
   //type Name = Name;
@@ -1144,37 +1091,6 @@ impl Adapton for DCG {
       //gmfile : outfile,
     }
   }
-
-  // fn gmlog (self:& mut DCG) -> Option<& mut File> {
-  //   self.gmfile.as_mut()
-  // }
-  
-  // fn name_of_string (self:&mut DCG, sym:String) -> Name {
-  //   let h = my_hash(&sym);
-  //   let s = NameSym::String(sym) ;
-  //   Name{ hash:h, symbol:Rc::new(s) }
-  // }
-
-  // fn name_of_usize (self:&mut DCG, sym:usize) -> Name {
-  //   let h = my_hash(&sym) ;
-  //   let s = NameSym::Usize(sym) ;
-  //   Name{ hash:h, symbol:Rc::new(s) }
-  // }
-
-  // fn name_pair (self: &mut DCG, fst: Name, snd: Name) -> Name {
-  //   let h = my_hash( &(fst.hash,snd.hash) ) ;
-  //   let p = NameSym::Pair(fst.symbol, snd.symbol) ;
-  //   Name{ hash:h, symbol:Rc::new(p) }
-  // }
-
-  // fn name_fork (self:&mut DCG, nm:Name) -> (Name, Name) {
-  //   let h1 = my_hash( &(&nm, 11111111) ) ; // TODO-Later: make this hashing better.
-  //   let h2 = my_hash( &(&nm, 22222222) ) ;
-  //   ( Name{ hash:h1,
-  //           symbol:Rc::new(NameSym::ForkL(nm.symbol.clone())) } ,
-  //     Name{ hash:h2,
-  //           symbol:Rc::new(NameSym::ForkR(nm.symbol)) } )
-  // }
                      
   fn structural<T,F> (g: &RefCell<DCG>, body:F) -> T
     where F:FnOnce() -> T
