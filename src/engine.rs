@@ -196,7 +196,7 @@ struct DCGRes {
 // well as mechanisms to update and/or re-produce it.
 trait DCGDep : Debug {
   // Todo-later(?): Rename `change_prop` to `clean`?
-  fn change_prop (self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes ;
+  fn clean (self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes ;
 }
 
 impl Hash for Succ {
@@ -212,13 +212,13 @@ impl Hash for Succ {
 #[derive(Debug)]
 struct NoDependency;
 impl DCGDep for NoDependency {
-  fn change_prop (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:false} }
+  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:false} }
 }
 
 #[derive(Debug)]
 struct AllocDependency<T> { val:T }
 impl<T:Debug> DCGDep for AllocDependency<T> {
-  fn change_prop (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
+  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
 }
 
 
@@ -759,7 +759,7 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
 #[derive(Debug)]
 struct ProducerDep<T> { res:T }
 
-fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
+fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
   (g:&RefCell<DCG>,
    this_dep:&ProducerDep<Res>,
    loc:&Rc<Loc>, cache:Res, succs:Vec<Succ>) -> DCGRes
@@ -771,7 +771,7 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
     } ;
     if dirty {
       let succ_dep = & succ.dep ;
-      let res = succ_dep.change_prop(g, &succ.loc) ;
+      let res = succ_dep.clean(g, &succ.loc) ;
       if res.changed {        
         let result : Res = loc_produce( g, loc ) ;
         let changed = result != this_dep.res ;
@@ -791,7 +791,7 @@ fn change_prop_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
 impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
   DCGDep for ProducerDep<Res>
 {
-  fn change_prop(self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes {
+  fn clean(self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes {
     //let stackLen = mut_dcg_of_globals.stack.len() ;
     //debug!("{} change_prop begin: {:?}", engineMsg!(st), loc);
     let res_succs = { // Handle cases where there is no internal computation to re-compute:
@@ -815,7 +815,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
       }
     } ;
     match res_succs {
-      Some((res,succs)) => change_prop_comp(g, self, loc, res, succs),
+      Some((res,succs)) => clean_comp(g, self, loc, res, succs),
       None => {
         let res = loc_produce( g, loc );
         let changed = self.res != res ;
@@ -1073,6 +1073,7 @@ impl Adapton for DCG {
                .unwrap()),
         _ => None
       } ;
+    drop(outfile) ; // Do something with this in the future
     DCG {
       flags : Flags {
         use_purity_optimization       : { match env::var("ADAPTON_NO_PURITY")  { Ok(val) => false, _ => true } },
@@ -1427,7 +1428,7 @@ impl Adapton for DCG {
               // ProducerDep change-propagation precondition:
               // loc is a computational node:
               //drop(st);
-              let res = ProducerDep{res:res.clone()}.change_prop(g, &loc) ;
+              let res = ProducerDep{res:res.clone()}.clean(g, &loc) ;
               //debug!("{} force {:?}: result changed?: {}", engineMsg!(self), &loc, res.changed) ;
               let st : &mut DCG = &mut *g.borrow_mut();
               let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
