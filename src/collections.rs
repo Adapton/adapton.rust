@@ -1311,7 +1311,7 @@ fn test_engine_alternation () {
     naive_input = push_input(*i, naive_input); // Prepend Naive input
     let naive_out = doit(naive_input.clone()); // MEASURE ME!
 
-    init_engine(dcg); // Switch to DCG engine    
+    use_engine(dcg); // Switch to DCG engine    
     assert!(engine_is_dcg()); // Sanity check
     dcg_input = push_input(*i, dcg_input); // Prepend DCG input
     let dcg_out = doit(dcg_input.clone()); // MEASURE ME!

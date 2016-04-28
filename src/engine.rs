@@ -111,7 +111,7 @@ pub struct DCG {
   cnt   : Cnt,
   dcg_count : usize,
   dcg_hash  : u64,  
-  gmfile : Option<File>,
+  //gmfile : Option<File>,
 }
 
 impl Hash  for     DCG { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
@@ -552,7 +552,7 @@ mod wf {
 /// is created; rather, the computation eagerly produces an articulated
 /// value of the form Art::Rc(v), for some value v.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
-pub enum ArtIdChoice<Name> {
+pub enum ArtIdChoice {
   /// Eagerly produces an `Art` that merely consists of an `Rc`; no additional indirection is needed/used.
   Eager,
   /// Identifies an `Art` based on hashing content (e.g., `prog_pt` for code and argument(s)).
@@ -1034,19 +1034,19 @@ enum AbsArt<T,Loc> {
 /// dependence-graph-building operations based on the core calculus
 /// described in ["Incremental Computation with Names", 2015](http://arxiv.org/abs/1503.07792)
 trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
-  type Name : Debug+PartialEq+Eq+Hash+Clone;
+  //type Name : Debug+PartialEq+Eq+Hash+Clone;
   type Loc  : Debug+PartialEq+Eq+Hash+Clone;
   
   fn new () -> Self ;
   
   // Names
-  fn name_of_usize  (self:&mut Self, usize)  -> Self::Name ;
-  fn name_of_string (self:&mut Self, String) -> Self::Name ;
-  fn name_pair      (self:&mut Self, Self::Name, Self::Name) -> Self::Name               ;
-  fn name_fork      (self:&mut Self, Self::Name)             -> (Self::Name, Self::Name) ;
+  // fn name_of_usize  (self:&mut Self, usize)  -> Self::Name ;
+  // fn name_of_string (self:&mut Self, String) -> Self::Name ;
+  // fn name_pair      (self:&mut Self, Self::Name, Self::Name) -> Self::Name               ;
+  // fn name_fork      (self:&mut Self, Self::Name)             -> (Self::Name, Self::Name) ;
   
   /// Creates or re-enters a given namespace; performs the given computation there.
-  fn ns<T,F> (g: &RefCell<DCG>, Self::Name, body:F) -> T where F:FnOnce() -> T;
+  fn ns<T,F> (g: &RefCell<DCG>, Name, body:F) -> T where F:FnOnce() -> T;
   
   /// Enters a special "namespace" where all name uses are ignored; instead, Adapton uses structural identity.
   fn structural<T,F> (g: &RefCell<DCG>, body:F) -> T where F:FnOnce() -> T;
@@ -1057,7 +1057,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> AbsArt<T,Self::Loc> ;
   
   /// Creates a mutable articulation.
-  fn cell<T:Eq+Debug+Clone+Hash> (self:&mut Self, Self::Name, T) -> AbsArt<T,Self::Loc> ;
+  fn cell<T:Eq+Debug+Clone+Hash> (self:&mut Self, Name, T) -> AbsArt<T,Self::Loc> ;
   
   /// Mutates a mutable articulation.
   fn set<T:Eq+Debug+Clone> (self:&mut Self, AbsArt<T,Self::Loc>, T) ;
@@ -1065,7 +1065,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   /// Creates an articulated computation.
   fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone+Hash>
     (self:&mut Self,
-     id:ArtIdChoice<Self::Name>,
+     id:ArtIdChoice,
      prog_pt:ProgPt,
      fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
      arg:Arg, spurious:Spurious)
@@ -1074,32 +1074,32 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   /// Demand & observe arts (all kinds): force
   // fn force<T:Eq+Debug+Clone+Hash+GMLog<Self>> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
   fn force<T:Eq+Debug+Clone+Hash> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>) -> T ;
-
+}
   // GraphMovie logging, using this web-based tool:
   // https://github.com/kyleheadley/graphmovie
-  fn gmlog(self:&mut Self) -> Option<&mut File>;
+  //fn gmlog(self:&mut Self) -> Option<&mut File>;
 
   ///  # Derived fork functions:
 
-  fn name_fork3 (self:&mut Self, n:Self::Name)
-                 -> (Self::Name,Self::Name,Self::Name)
-  {
-    let (n1,n)  = self.name_fork(n);
-    let (n2,n3) = self.name_fork(n);
-    (n1,n2,n3)
-  }
+  // fn name_fork3 (self:&mut Self, n:Self::Name)
+  //                -> (Self::Name,Self::Name,Self::Name)
+  // {
+  //   let (n1,n)  = self.name_fork(n);
+  //   let (n2,n3) = self.name_fork(n);
+  //   (n1,n2,n3)
+  // }
   
-  fn name_fork4 (self:&mut Self, n:Self::Name)
-                 -> (Self::Name,Self::Name,Self::Name,Self::Name)
-  {
-    let (n1,n2,n) = self.name_fork3(n);
-    let (n3,n4)   = self.name_fork(n);
-    (n1,n2,n3,n4)
-  }
-}
+  // fn name_fork4 (self:&mut Self, n:Self::Name)
+  //                -> (Self::Name,Self::Name,Self::Name,Self::Name)
+  // {
+  //   let (n1,n2,n) = self.name_fork3(n);
+  //   let (n3,n4)   = self.name_fork(n);
+  //   (n1,n2,n3,n4)
+  // }
+// }
 
 impl Adapton for DCG {
-  type Name = Name;
+  //type Name = Name;
   type Loc  = Loc;
 
   fn new () -> DCG {
@@ -1147,40 +1147,40 @@ impl Adapton for DCG {
       cnt   : Cnt::zero (),
       dcg_count : 0,
       dcg_hash : 0, // XXX This makes assumptions about hashing implementation
-      gmfile : outfile,
+      //gmfile : outfile,
     }
   }
 
-  fn gmlog (self:& mut DCG) -> Option<& mut File> {
-    self.gmfile.as_mut()
-  }
+  // fn gmlog (self:& mut DCG) -> Option<& mut File> {
+  //   self.gmfile.as_mut()
+  // }
   
-  fn name_of_string (self:&mut DCG, sym:String) -> Name {
-    let h = my_hash(&sym);
-    let s = NameSym::String(sym) ;
-    Name{ hash:h, symbol:Rc::new(s) }
-  }
+  // fn name_of_string (self:&mut DCG, sym:String) -> Name {
+  //   let h = my_hash(&sym);
+  //   let s = NameSym::String(sym) ;
+  //   Name{ hash:h, symbol:Rc::new(s) }
+  // }
 
-  fn name_of_usize (self:&mut DCG, sym:usize) -> Name {
-    let h = my_hash(&sym) ;
-    let s = NameSym::Usize(sym) ;
-    Name{ hash:h, symbol:Rc::new(s) }
-  }
+  // fn name_of_usize (self:&mut DCG, sym:usize) -> Name {
+  //   let h = my_hash(&sym) ;
+  //   let s = NameSym::Usize(sym) ;
+  //   Name{ hash:h, symbol:Rc::new(s) }
+  // }
 
-  fn name_pair (self: &mut DCG, fst: Name, snd: Name) -> Name {
-    let h = my_hash( &(fst.hash,snd.hash) ) ;
-    let p = NameSym::Pair(fst.symbol, snd.symbol) ;
-    Name{ hash:h, symbol:Rc::new(p) }
-  }
+  // fn name_pair (self: &mut DCG, fst: Name, snd: Name) -> Name {
+  //   let h = my_hash( &(fst.hash,snd.hash) ) ;
+  //   let p = NameSym::Pair(fst.symbol, snd.symbol) ;
+  //   Name{ hash:h, symbol:Rc::new(p) }
+  // }
 
-  fn name_fork (self:&mut DCG, nm:Name) -> (Name, Name) {
-    let h1 = my_hash( &(&nm, 11111111) ) ; // TODO-Later: make this hashing better.
-    let h2 = my_hash( &(&nm, 22222222) ) ;
-    ( Name{ hash:h1,
-            symbol:Rc::new(NameSym::ForkL(nm.symbol.clone())) } ,
-      Name{ hash:h2,
-            symbol:Rc::new(NameSym::ForkR(nm.symbol)) } )
-  }
+  // fn name_fork (self:&mut DCG, nm:Name) -> (Name, Name) {
+  //   let h1 = my_hash( &(&nm, 11111111) ) ; // TODO-Later: make this hashing better.
+  //   let h2 = my_hash( &(&nm, 22222222) ) ;
+  //   ( Name{ hash:h1,
+  //           symbol:Rc::new(NameSym::ForkL(nm.symbol.clone())) } ,
+  //     Name{ hash:h2,
+  //           symbol:Rc::new(NameSym::ForkR(nm.symbol)) } )
+  // }
                      
   fn structural<T,F> (g: &RefCell<DCG>, body:F) -> T
     where F:FnOnce() -> T
@@ -1234,7 +1234,7 @@ impl Adapton for DCG {
   fn cell<T:Eq+Debug+Clone+Hash //+gm::GMLog<Self>
     +'static // TODO-Later: Needed on T because of lifetime issues.
     >
-    (self:&mut DCG, nm:Self::Name, val:T) -> AbsArt<T,Self::Loc> {
+    (self:&mut DCG, nm:Name, val:T) -> AbsArt<T,Self::Loc> {
       wf::check_dcg(self);
       let path = current_path(self) ;
       let (id, is_pure) = {
@@ -1300,7 +1300,7 @@ impl Adapton for DCG {
 
   fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+Hash+'static>
     (self:&mut DCG,
-     id:ArtIdChoice<Self::Name>,
+     id:ArtIdChoice,
      prog_pt:ProgPt,
      fn_box:Rc<Box<Fn(Arg, Spurious) -> Res>>,
      arg:Arg, spurious:Spurious)
@@ -1610,7 +1610,7 @@ trait Force<T> {
   fn force(&self) -> T;
   fn copy(self:&Self) -> Box<Force<T>>;
   fn eq(self:&Self, other:&Force<T>) -> bool;
-  fn id<'r>(self:&'r Self) -> &'r ArtIdChoice<Name>;
+  fn id<'r>(self:&'r Self) -> &'r ArtIdChoice;
   fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
   fn hash_u64(self:&Self) -> u64;
   fn fmt(&self, f:&mut Formatter) -> fmt::Result;
@@ -1618,7 +1618,7 @@ trait Force<T> {
 
 #[derive(Clone)]
 struct NaiveThunk<Arg, Spurious, Res> {
-  id:ArtIdChoice<Name>,
+  id:ArtIdChoice,
   prog_pt:ProgPt,
   fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
   arg:Arg,
@@ -1642,7 +1642,7 @@ impl<A:Hash+Clone+Eq+Debug+'static,S:Clone+'static,T:'static>
   fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt {
     & self.prog_pt
   }
-  fn id<'r>(self:&'r Self) -> &'r ArtIdChoice<Name> {
+  fn id<'r>(self:&'r Self) -> &'r ArtIdChoice {
     & self.id
   }
   fn hash_u64(&self) -> u64 {
@@ -1700,7 +1700,7 @@ pub fn init_dcg () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))
 pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
 
 /// Initializes global state with a fresh DCG-based engine; returns the old engine
-pub fn init_engine (engine: Engine) -> Engine {
+pub fn use_engine (engine: Engine) -> Engine {
   use std::mem;
   let mut engine = engine;
   GLOBALS.with(|g| {
@@ -1709,7 +1709,9 @@ pub fn init_engine (engine: Engine) -> Engine {
   return engine
 }
 
-//pub trait Adaptonic : Hash + Eq + Debug + Clone {}
+pub fn init_engine (engine: Engine) -> Engine {
+  use_engine(engine)
+}
 
 pub fn name_unit () -> Name {
   ROOT_NAME.with(|r|r.clone())
@@ -1842,7 +1844,7 @@ pub fn set<T:Eq+Debug+Clone> (a:Art<T>, val:T) {
 
 /// Creates an articulated computation.
 pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+Debug+Clone+'static>
-  (id:ArtIdChoice<Name>,
+  (id:ArtIdChoice,
    prog_pt:ProgPt,
    fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
    arg:Arg, spurious:Spurious)
