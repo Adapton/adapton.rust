@@ -76,12 +76,6 @@ impl Debug for ArtId {
   }
 }
 
-// enum MemoRegime {
-//   UserDefined,
-//   IgnoreNominal,
-//   IgnoreThunks,  
-// }
-
 #[derive(Debug)]
 pub struct Flags {
   pub use_purity_optimization : bool,
@@ -120,7 +114,7 @@ impl PartialEq for DCG { fn eq(&self, _other:&Self) -> bool { unimplemented!() }
 impl Clone for     DCG { fn clone(&self) -> Self { unimplemented!() } }
 
 // NameSyms: For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
-// http://www.cs.cmu.edu/~rwh/plbook/2nded.pdf
+// http://www.cs.cmu.edu/~rwh/pfpl/2nded.pdf
 //
 #[derive(Hash,PartialEq,Eq,Clone)]
 enum NameSym {
