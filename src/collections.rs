@@ -270,10 +270,11 @@ pub fn tree_fold_up
        res
      },
      |n,x,l,r,(nil,leaf,bin,name)| {
-       let (n1,n2,n3) = name_fork3(n.clone()); // XXX/Todo: Do something better than fork3 up here
+       //let (n1,n2,n3) = name_fork3(n.clone()); // XXX/Todo: Do something better than fork3 up here
+       let (n1, n2) = name_fork(n.clone());
        let resl = memo!(n1 =>> tree_fold_up, tree:l ;; nil:nil.clone(), leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
        let resr = memo!(n2 =>> tree_fold_up, tree:r ;; nil:nil, leaf:leaf, bin:bin, name:name.clone());
-       let res = name(n3, x, resl, resr);
+       let res = name(n, x, resl, resr);
        res
      }
      )
@@ -507,8 +508,8 @@ pub fn filter_tree_of_tree
              {  let fx = pred(&x);
                 if !fx { Ti::nil()   }
                 else   { Ti::leaf(x) } }),
-     Rc::new(|lev,l,r|   bin_arts_niltest(None, lev, l, r)),
-     Rc::new(|n,lev,l,r| bin_arts_niltest(Some(n), lev, l, r))
+     Rc::new(|lev,l,r|   ns(name_unit(),|| bin_arts_niltest(None, lev, l, r))),
+     Rc::new(|n,lev,l,r| ns(name_unit(),|| bin_arts_niltest(Some(n), lev, l, r)))
      )
 }
 
