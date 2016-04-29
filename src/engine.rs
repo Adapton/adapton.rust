@@ -13,7 +13,7 @@ use std::num::Zero;
 use std::ops::Add;
 use std::rc::Rc;
 use std::thread;
-
+ 
 use macros::*;
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
@@ -195,7 +195,6 @@ struct DCGRes {
 // DCGDep abstracts over the value produced by a dependency, as
 // well as mechanisms to update and/or re-produce it.
 trait DCGDep : Debug {
-  // Todo-later(?): Rename `change_prop` to `clean`?
   fn clean (self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes ;
 }
 
@@ -963,41 +962,11 @@ fn current_path (st:&DCG) -> Rc<Path> {
 /// and "Articulation point, for 'articulating' incremental change".
 /// The concept of an "Art" also abstracts over whether the producer
 /// is eager (like a ref cell) or lazy (like a thunk).
-///
-/// TODO: I'd like the `Art<T,Loc>` definition to live within the `Adapton` trait.
-/// Then, it need not be parameterized by `Loc`. It can simply use `Adapton::Loc`, internally ("privately").
-/// However, I run into problems with rustc accepting associated types
-/// for traits that are parameterized by other types (viz., by type
-/// `T`).
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 enum AbsArt<T,Loc> {
   Rc(Rc<T>),    // No entry in table. No dependency tracking.
   Loc(Rc<Loc>), // Location in table.
 }
-
-
-// The `Adapton` trait provides a language of
-// dependence-graph-building operations based on the core calculus
-// described here:
-//
-//    http://arxiv.org/abs/1503.07792
-//    ("Incremental Computation with Names", 2015).
-//
-//  Types:
-//
-//   - Art<Loc,T> : An incremental "articulation", in a data structure
-//                  or computation, that when `force`d, produces a value of type T.
-//                  Each articulation is implemented as a node in the DCG.
-//
-//     Examples:
-//      * Pure values (see `Adapton::put`)
-//      * Mutable reference cells (see `Adapton::cell`),
-//      * Thunks (see `Adapton::thunk`),
-//
-//   - Adapton::Name : identify DCG nodes before they are made
-//   - Adapton::Loc  : identify DCG nodes after they are made
-//
-//
 
 /// The `Adapton` trait provides a language of
 /// dependence-graph-building operations based on the core calculus
@@ -1114,6 +1083,7 @@ impl Adapton for DCG {
       let st = &mut *g.borrow_mut();
       let saved = st.path.clone();
       st.path = Rc::new(Path::Child(st.path.clone(), nm)) ; // Todo-Minor: Avoid this clone.
+      //println!("{:?}", st.path);
       saved
     };
     let x = body() ;
