@@ -270,10 +270,10 @@ pub fn tree_fold_up
        res
      },
      |n,x,l,r,(nil,leaf,bin,name)| {
-       let (n1,n2) = name_fork(n.clone());
+       let (n1,n2,n3) = name_fork3(n.clone()); // XXX/Todo: Do something better than fork3 up here
        let resl = memo!(n1 =>> tree_fold_up, tree:l ;; nil:nil.clone(), leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
        let resr = memo!(n2 =>> tree_fold_up, tree:r ;; nil:nil, leaf:leaf, bin:bin, name:name.clone());
-       let res = name(n, x, resl, resr);
+       let res = name(n3, x, resl, resr);
        res
      }
      )
@@ -1209,7 +1209,7 @@ pub enum Tree<X> {
   Art(Art<Tree<X>>),
 }
 
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug,Clone,PartialEq,Eq,Hash)]
 pub enum NameElse<X> {
   Name(Name),
   Else(X),
