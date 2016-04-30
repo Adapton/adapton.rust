@@ -915,25 +915,7 @@ pub fn list_merge_wrapper<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
 #[test]
 pub fn test_mergesort1 () {
   fn doit() -> Vec<NameElse<usize>> {
-    let l = list_of_vec::<usize,List<_>>(
-      &vec![
-        NameElse::Name(name_of_usize(00)),
-        NameElse::Else(0),
-        NameElse::Name(name_of_usize(10)),
-        NameElse::Else(1),
-        NameElse::Name(name_of_usize(30)),
-        NameElse::Else(3),
-        NameElse::Name(name_of_usize(40)),
-        NameElse::Else(2),
-        NameElse::Name(name_of_usize(50)),
-        NameElse::Else(0),
-        NameElse::Name(name_of_usize(60)),
-        NameElse::Else(1),
-        NameElse::Name(name_of_usize(70)),
-        NameElse::Else(3),
-        NameElse::Name(name_of_usize(80)),
-        NameElse::Else(2),
-        ]);
+    let l : List<usize> = list_gen(1000, |x|x);
     let i = vec_of_list(l.clone(), None);
     println!("input vec: {:?}", i);
     let t = ns(name_of_str("tree_of_list"),
@@ -954,25 +936,7 @@ pub fn test_mergesort1 () {
 #[test]
 pub fn test_mergesort2 () {
   fn doit() -> Vec<NameElse<usize>> {
-    let l = list_of_vec::<usize,List<_>>(
-      &vec![
-        NameElse::Name(name_of_usize(00)),
-        NameElse::Else(0),
-        NameElse::Name(name_of_usize(10)),
-        NameElse::Else(1),
-        NameElse::Name(name_of_usize(30)),
-        NameElse::Else(3),
-        NameElse::Name(name_of_usize(40)),
-        NameElse::Else(2),
-        NameElse::Name(name_of_usize(50)),
-        NameElse::Else(0),
-        NameElse::Name(name_of_usize(60)),
-        NameElse::Else(1),
-        NameElse::Name(name_of_usize(70)),
-        NameElse::Else(3),
-        NameElse::Name(name_of_usize(80)),
-        NameElse::Else(2),
-        ]);
+    let l : List<usize> = list_gen(1000, |x|x);
     let i = vec_of_list(l.clone(), None);
     println!("input vec: {:?}", i);
     let t = ns(name_of_str("tree_of_list"),
@@ -1342,27 +1306,8 @@ fn test_engine_alternation () {
 #[test]
 fn test_tree_of_list () {
   fn test_code() -> (Tree<usize>, Tree<usize>, usize) {
-    let l : List<usize> = List::nil();
-    let l = List::cons(5,l);
-    let n = name_of_usize(5);
-    let l = List::art(cell(n.clone(), l));
-    let l = List::name(n, l);
-    let l = List::cons(4,l);
-    let n = name_of_usize(4);
-    let l = List::art(cell(n.clone(), l));
-    let l = List::name(n, l);
-    let l = List::cons(3,l);
-    let n = name_of_usize(3);
-    let l = List::art(cell(n.clone(), l));
-    let l = List::name(n, l);
-    let l = List::cons(2,l);
-    let n = name_of_usize(2);
-    let l = List::art(cell(n.clone(), l));
-    let l = List::name(n, l);
-    let l = List::cons(1,l);
-    let n = name_of_usize(1);
-    let l = List::art(cell(n.clone(), l));
-    let l = List::name(n, l);
+    let max = 1000;
+    let l : List<usize> = list_gen(max, |x|x);
 
     let t1 = ns(name_of_str("tree_of_list"),
                 ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
@@ -1370,8 +1315,8 @@ fn test_tree_of_list () {
     let s1 = ns(name_of_str("eager_tree"),
                 ||eager_tree_of_tree::<_,_,_,Tree<_>>(t1));
     
-    let l = List::cons(0,l);
-    let n = name_of_usize(0);
+    let l = List::cons(max + 1,l);
+    let n = name_of_usize(max + 1);
     let l = List::art(cell(n.clone(), l));
     let l = List::name(n, l);
     
@@ -1408,27 +1353,8 @@ fn test_tree_of_list () {
 #[test]
 fn test_tree_filter () {
   fn test_code() -> (Tree<usize>, Tree<usize>, usize) {
-    let l : List<usize> = List::nil();
-    let l = List::cons(5,l);
-    let n = name_of_usize(5);
-    let l = List::art(cell(n.clone(), l));
-    let l = List::name(n, l);
-    let l = List::cons(4,l);
-    let n = name_of_usize(4);
-    let l = List::art(cell(n.clone(), l));
-    let l = List::name(n, l);
-    let l = List::cons(3,l);
-    let n = name_of_usize(3);
-    let l = List::art(cell(n.clone(), l));
-    let l = List::name(n, l);
-    let l = List::cons(2,l);
-    let n = name_of_usize(2);
-    let l = List::art(cell(n.clone(), l));
-    let l = List::name(n, l);
-    let l = List::cons(1,l);
-    let n = name_of_usize(1);
-    let l = List::art(cell(n.clone(), l));
-    let l = List::name(n, l);
+    let max = 1000;
+    let l : List<usize> = list_gen(max, |x|x);
     
     let t1 = ns(name_of_str("tree_of_list"),
                 ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l.clone()));
@@ -1439,8 +1365,8 @@ fn test_tree_filter () {
     let s1 = ns(name_of_str("eager_tree"),
                 ||eager_tree_of_tree::<_,_,_,Tree<_>>(t1));
     
-    let l = List::cons(0,l);
-    let n = name_of_usize(0);
+    let l = List::cons(max + 1,l);
+    let n = name_of_usize(max + 1);
     let l = List::art(cell(n.clone(), l));
     let l = List::name(n, l);
     
