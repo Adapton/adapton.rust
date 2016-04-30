@@ -46,6 +46,22 @@ pub trait ListIntro<X> : Debug+Clone+Hash+PartialEq+Eq {
     }}
 }
 
+// Generate a list, given a generator function from naturals to list elements.
+// Useful for generating test inputs.
+fn list_gen<X,G,L:ListIntro<X>>
+  (len:usize, gen_elm:G) -> L
+  where G:Fn(usize) -> X {
+    let mut out : L = L::nil();
+    for i in len-1..0 {
+      let x = gen_elm(i);
+      let nm = name_of_usize(i);
+      out = L::art(cell(nm.clone(), out));
+      out = L::name(nm, out);
+      out = L::cons(x,  out);
+    }
+    return out
+}
+
 /// Types that can be pattern-matched like a list of `X` are `ListElim<X>`.
 /// We consider iterators to be a similar (nearly analogous) trait.
 /// The key distinction here are that list elimination is a pattern-match used with (pure) recursion,
