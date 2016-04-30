@@ -48,7 +48,7 @@ pub trait ListIntro<X> : Debug+Clone+Hash+PartialEq+Eq {
 
 // Generate a list, given a generator function from naturals to list elements.
 // Useful for generating test inputs.
-fn list_gen<X,G,L:ListIntro<X>>
+pub fn list_gen<X,G,L:ListIntro<X>>
   (len:usize, gen_elm:G) -> L
   where G:Fn(usize) -> X {
     let mut out : L = L::nil();
