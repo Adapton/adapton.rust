@@ -11,12 +11,12 @@
 #![crate_type = "lib"]
     
 // extern crate quickcheck;
-extern crate rand;
+// extern crate rand;
 
-extern crate time;
+// extern crate time;
 
-#[macro_use]
-extern crate log;
+// #[macro_use]
+// extern crate log;
 
 #[macro_use]
 pub mod macros ;

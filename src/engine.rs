@@ -302,9 +302,9 @@ impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Deb
 {
   fn produce(self:&Self) -> Res {
     let f = self.fn_box.clone() ;
-    //debug!("{} producer begin: ({:?} {:?})", engineMsg!(st), &self.prog_pt, &self.arg);
+    ////debug!("{} producer begin: ({:?} {:?})", engineMsg!(st), &self.prog_pt, &self.arg);
     let res = f (self.arg.clone(),self.spurious.clone()) ;
-    //debug!("{} producer end: ({:?} {:?}) produces {:?}", engineMsg!(st), &self.prog_pt, &self.arg, &res);
+    ////debug!("{} producer end: ({:?} {:?}) produces {:?}", engineMsg!(st), &self.prog_pt, &self.arg, &res);
     res
   }
   fn copy(self:&Self) -> Box<Producer<Res>> {
@@ -680,7 +680,7 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
 {
   let (producer, prev_path) = {
     let st : &mut DCG = &mut *g.borrow_mut() ;
-    debug!("{} produce begin: {:?}", engineMsg!(st), &loc);
+    //debug!("{} produce begin: {:?}", engineMsg!(st), &loc);
     let succs : Vec<Succ> = {
       let succs : Vec<Succ> = Vec::new();
       let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
@@ -716,7 +716,7 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
   assert!( &frame.loc == loc );
   let mut succ_idx = 0;
   for succ in &frame.succs {
-    debug!("{} produce: edge: {:?} --{:?}--dirty?:{:?}--> {:?}", engineMsg!(st), &loc, &succ.effect, &succ.dirty, &succ.loc);
+    //debug!("{} produce: edge: {:?} --{:?}--dirty?:{:?}--> {:?}", engineMsg!(st), &loc, &succ.effect, &succ.dirty, &succ.loc);
     let (effect, is_weak) =
       match succ.effect {
         //Effect::Observe => ("observe", true),
@@ -747,7 +747,7 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
       _ => panic!("internal error"),
     }
   } ;
-  debug!("{} produce end: {:?} produces {:?}", engineMsg!(st), &loc, &res);
+  //debug!("{} produce end: {:?} produces {:?}", engineMsg!(st), &loc, &res);
   res
 }
 
@@ -792,7 +792,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
 {
   fn clean(self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes {
     //let stackLen = mut_dcg_of_globals.stack.len() ;
-    //debug!("{} change_prop begin: {:?}", engineMsg!(st), loc);
+    ////debug!("{} change_prop begin: {:?}", engineMsg!(st), loc);
     let res_succs = { // Handle cases where there is no internal computation to re-compute:
       let st = &mut *g.borrow_mut();
       let node : &mut Node<Res> = res_node_of_loc(st, loc) ;
@@ -803,11 +803,11 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
             None => None
           }},
         Node::Pure(_) => {
-          //debug!("{} change_prop early end: {:?} is Pure(_)", engineMsg(Some(stackLen)), loc);
+          ////debug!("{} change_prop early end: {:?} is Pure(_)", engineMsg(Some(stackLen)), loc);
           return DCGRes{changed:false}
         },
         Node::Mut(ref nd) => {
-          //debug!("{} change_prop early end: {:?} is Mut(_)", engineMsg(Some(stackLen)), loc);
+          ////debug!("{} change_prop early end: {:?} is Mut(_)", engineMsg(Some(stackLen)), loc);
           return DCGRes{changed:nd.val != self.res}
         },
         _ => panic!("undefined")
@@ -852,10 +852,10 @@ fn get_succ<'r>(st:&'r DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &
     None => panic!(""),
     Some(nd) => nd
   } ;    
-  debug!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
+  //debug!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
   for succ in nd.succs() {
     if (succ.effect == eff) && (&succ.loc == tgt_loc) {
-      debug!("{} get_succ_mut:  resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
+      //debug!("{} get_succ_mut:  resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
       return succ
     } else {}
   } ;
@@ -868,10 +868,10 @@ fn get_succ<'r>(st:&'r DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &
 fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
   let stackLen = st.stack.len() ;
   let nd = lookup_abs( st, src_loc );
-  debug!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
+  //debug!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
   for succ in nd.succs_mut().iter_mut() {
     if (succ.effect == eff) && (&succ.loc == tgt_loc) {
-      debug!("{} get_succ_mut:  resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
+      //debug!("{} get_succ_mut:  resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
       return succ
     } else {}
   } ;
@@ -879,7 +879,7 @@ fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Lo
 }
 
 fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
-  debug!("{} dirty_pred_observers: {:?}", engineMsg!(st), loc);
+  //debug!("{} dirty_pred_observers: {:?}", engineMsg!(st), loc);
   let stackLen = st.stack.len() ;
   let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs() ;
   let mut dirty_edge_count = 0;
@@ -888,24 +888,26 @@ fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
     else {
       let stop : bool = {
         // The stop bit communicates information from st for use below.
-        debug!("{} dirty_pred_observers: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);
+        //debug!("{} dirty_pred_observers: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);
         let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
         if succ.dirty { true } else {
           dirty_edge_count += 1 ;
           replace(&mut succ.dirty, true);
-          debug!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
+          //debug!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
           false
         }} ;
       if !stop {
         dirty_pred_observers(st,&pred_loc);
-      } else { debug!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen))) }
+      } else {
+        //debug!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen)))
+      }
     }
   }
   st.cnt.dirty += dirty_edge_count ;
 }
 
 fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
-  debug!("{} dirty_alloc: {:?}", engineMsg!(st), loc);
+  //debug!("{} dirty_alloc: {:?}", engineMsg!(st), loc);
   dirty_pred_observers(st, loc);
   let stackLen = st.stack.len() ;
   let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc() ;
@@ -914,16 +916,18 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
     else {
       let stop : bool = {
         // The stop bit communicates information from st for use below.
-        debug!("{} dirty_alloc: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);
+        //debug!("{} dirty_alloc: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);
         let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
         if succ.dirty { true } else {
-          debug!("{} dirty_alloc: edge {:?} --> {:?} marked dirty", engineMsg(Some(stackLen)), &pred_loc, &loc);
+          //debug!("{} dirty_alloc: edge {:?} --> {:?} marked dirty", engineMsg(Some(stackLen)), &pred_loc, &loc);
           replace(&mut succ.dirty, true);
           false
         }} ;
       if !stop {
         dirty_pred_observers(st,&pred_loc);
-      } else { debug!("{} dirty_alloc: early stop", engineMsg(Some(stackLen))) }
+      } else {
+        //debug!("{} dirty_alloc: early stop", engineMsg(Some(stackLen)))
+      }
     }
   }
   if false /* XXX Check make this better, as a statically/dynamically-set flag? */ {
@@ -1128,7 +1132,7 @@ impl Adapton for DCG {
       };            
       let hash = my_hash(&(&path,&id));
       let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
-      debug!("{} alloc cell: {:?} <--- {:?}", engineMsg!(self), &loc, &val);
+      //debug!("{} alloc cell: {:?} <--- {:?}", engineMsg!(self), &loc, &val);
       let (do_dirty, do_set, succs, do_insert) =
         if self.table.contains_key(&loc) {
           let node : &Box<Node<T>> = res_node_of_loc(self, &loc) ;
@@ -1165,7 +1169,7 @@ impl Adapton for DCG {
                dep:Rc::new(Box::new(AllocDependency{val:val})),
                effect:Effect::Allocate,
                dirty:false};
-        debug!("{} alloc cell: edge: {:?} --> {:?}", engineMsg(Some(stackLen)), &frame.loc, &loc);
+        //debug!("{} alloc cell: edge: {:?} --> {:?}", engineMsg(Some(stackLen)), &frame.loc, &loc);
         frame.succs.push(succ)
       }}} ;
       wf::check_dcg(self);
@@ -1205,10 +1209,10 @@ impl Adapton for DCG {
         let loc = loc_of_id(current_path(self),
                             Rc::new(ArtId::Structural(hash)));
         if false {
-          debug!("{} alloc thunk: Structural {:?}\n{} ;; {:?}\n{} ;; {:?}",
-                 engineMsg!(self), &loc,
-                 engineMsg!(self), &prog_pt.symbol,
-                 engineMsg!(self), &arg);
+          //debug!("{} alloc thunk: Structural {:?}\n{} ;; {:?}\n{} ;; {:?}",
+          // engineMsg!(self), &loc,
+          // engineMsg!(self), &prog_pt.symbol,
+          //engineMsg!(self), &arg);
         } ;
         {   // If the node exists, return early.
           let node = self.table.get_mut(&loc);
@@ -1256,10 +1260,10 @@ impl Adapton for DCG {
         wf::check_dcg(self);
         let loc = loc_of_id(current_path(self),
                             Rc::new(ArtId::Nominal(nm)));
-        debug!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
-               engineMsg!(self), &loc,
-               engineMsg!(self), &prog_pt.symbol,
-               engineMsg!(self), &arg);
+        //debug!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
+        //engineMsg!(self), &loc,
+        //engineMsg!(self), &prog_pt.symbol,
+        //engineMsg!(self), &arg);
         let producer : App<Arg,Spurious,Res> =
           App{prog_pt:prog_pt.clone(),
               fn_box:fn_box,
@@ -1285,21 +1289,21 @@ impl Adapton for DCG {
               Node::Comp(ref mut comp_nd) => {
                 let equal_producer_prog_pts : bool =
                   comp_nd.producer.prog_pt().eq( producer.prog_pt() ) ;
-                debug!("{} alloc thunk: Nominal match: equal_producer_prog_pts: {:?}",
-                       engineMsg(Some(stackLen)), equal_producer_prog_pts);
+                //debug!("{} alloc thunk: Nominal match: equal_producer_prog_pts: {:?}",
+                // engineMsg(Some(stackLen)), equal_producer_prog_pts);
                 if equal_producer_prog_pts { // => safe cast to Box<Consumer<Arg>>
                   let app: &mut Box<App<Arg,Spurious,Res>> =
                     unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
                   ;
-                  debug!("{} alloc thunk: Nominal match: app: {:?}", engineMsg(Some(stackLen)), app);
+                  //debug!("{} alloc thunk: Nominal match: app: {:?}", engineMsg(Some(stackLen)), app);
                   if app.get_arg() == arg {
                     // Case: Same argument; Nothing else to do:
                     // do_dirty=false; do_insert=false
                     (false, false)
                   }
                   else { // Case: Not the same argument:
-                    debug!("{} alloc thunk: Nominal match: replacing {:?} ~~> {:?}",
-                           engineMsg(Some(stackLen)), app.get_arg(), arg);
+                    //debug!("{} alloc thunk: Nominal match: replacing {:?} ~~> {:?}",
+                    //       engineMsg(Some(stackLen)), app.get_arg(), arg);
                     app.consume(arg.clone()); // overwrite the old argument
                     comp_nd.res = None ; // clear the cache
                     // do_dirty=true; do_insert=false
@@ -1318,14 +1322,14 @@ impl Adapton for DCG {
           }
         } } ;
         if do_dirty {
-          debug!("{} alloc thunk: dirty_alloc {:?}.", engineMsg!(self), &loc);
+          //debug!("{} alloc thunk: dirty_alloc {:?}.", engineMsg!(self), &loc);
           dirty_alloc(self, &loc);
         } else {
-          debug!("{} alloc thunk: No dirtying.", engineMsg!(self))
+          //debug!("{} alloc thunk: No dirtying.", engineMsg!(self))
         } ;
         match self.stack.last_mut() { None => (), Some(frame) => {
           let pred = frame.loc.clone();
-          debug!("{} alloc thunk: edge {:?} --> {:?}", engineMsg(Some(stackLen)), &pred, &loc);
+          //debug!("{} alloc thunk: edge {:?} --> {:?}", engineMsg(Some(stackLen)), &pred, &loc);
           let succ =
             Succ{loc:loc.clone(),
                  dep:Rc::new(Box::new(AllocDependency{val:arg.clone()})),
@@ -1387,19 +1391,19 @@ impl Adapton for DCG {
         } ;
         let result = match cached_result {
           None => {
-            //debug!("{} force {:?}: cache empty", engineMsg!(st), &loc);
+            ////debug!("{} force {:?}: cache empty", engineMsg!(st), &loc);
             assert!(is_comp);
             //drop(st);            
             loc_produce(g, &loc)
           },
           Some(ref res) => {
             if is_comp {
-              //debug!("{} force {:?}: cache holds {:?}.  Using change propagation.", engineMsg!(st), &loc, &res);
+              ////debug!("{} force {:?}: cache holds {:?}.  Using change propagation.", engineMsg!(st), &loc, &res);
               // ProducerDep change-propagation precondition:
               // loc is a computational node:
               //drop(st);
               let res = ProducerDep{res:res.clone()}.clean(g, &loc) ;
-              //debug!("{} force {:?}: result changed?: {}", engineMsg!(self), &loc, res.changed) ;
+              ////debug!("{} force {:?}: result changed?: {}", engineMsg!(self), &loc, res.changed) ;
               let st : &mut DCG = &mut *g.borrow_mut();
               let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
               match *node {
@@ -1412,7 +1416,7 @@ impl Adapton for DCG {
                 _ => unreachable!(),
               }}
             else {
-              //debug!("{} force {:?}: not a computation. (no change prop necessary).", engineMsg!(self), &loc);
+              ////debug!("{} force {:?}: not a computation. (no change prop necessary).", engineMsg!(self), &loc);
               res.clone()
             }
           }
