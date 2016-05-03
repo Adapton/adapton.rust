@@ -62,18 +62,6 @@ pub fn list_gen<X,G,L:ListIntro<X>>
     return out
 }
 
-/// Rose Trees: A tree with arbitrary branching at each node.
-/// See also, Definition 2 (page 2) of
-///   [*Parallel Implementation of Tree Skeletons*, by D.B. Skillicorn 1995.]
-///   (http://ftp.qucis.queensu.ca/TechReports/Reports/1995-380.pdf)
-pub trait RoseElim<Leaf,Branch> : Debug+Clone+Hash+PartialEq+Eq {
-  type List: ListElim<Self>;
-  fn elim<Res>
-    (Self,
-     leaf_fn:  FnOnce(Leaf)               -> Res,
-     branch_fn:FnOnce(Branch, Self::List) -> Res) -> Res;
-}
-
 /// Types that can be pattern-matched like a list of `X` are `ListElim<X>`.
 /// We consider iterators to be a similar (nearly analogous) trait.
 /// The key distinction here are that list elimination is a pattern-match used with (pure) recursion,
@@ -114,6 +102,36 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
                |_,_|   true,
                |_,tl|  false)
   }
+}
+
+/// Rose Trees: A tree with arbitrary branching at each node.
+/// See also, Definition 2 (page 2) of
+///   [*Parallel Implementation of Tree Skeletons*, by D.B. Skillicorn 1995.]
+///   (http://ftp.qucis.queensu.ca/TechReports/Reports/1995-380.pdf)
+pub trait RoseIntro<Leaf,Branch> : Debug+Clone+Hash+PartialEq+Eq {
+  type List: ListElim<Self>;
+  /// Introduce a leaf with exactly zero children
+  fn leaf (Leaf) -> Self;
+  /// Introduce a branch with zero or more subtrees
+  fn branch (Branch, Self::List) -> Self;
+  /// Introduce a Named subtree  
+  fn name (Name, Self) -> Self ;
+  /// Introduce a list with an articulation that holds a list
+  fn art  (Art<Self>) -> Self ;
+}
+
+/// Rose Trees: A tree with arbitrary branching at each node.
+/// See also, Definition 2 (page 2) of
+///   [*Parallel Implementation of Tree Skeletons*, by D.B. Skillicorn 1995.]
+///   (http://ftp.qucis.queensu.ca/TechReports/Reports/1995-380.pdf)
+pub trait RoseElim<Leaf,Branch> : Debug+Clone+Hash+PartialEq+Eq {
+  type List: ListElim<Self>;
+  fn elim<Res>
+    (Self,     
+     leaf_fn:  FnOnce(Leaf)               -> Res,
+     branch_fn:FnOnce(Branch, Self::List) -> Res,
+     name_fn:  FnOnce(Name, Self)         -> Res,
+     ) -> Res;
 }
 
 /// Levels for a probabilistically-balanced trees. For more details see
