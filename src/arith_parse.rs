@@ -30,6 +30,77 @@ fn push<X:Clone+Copy+Hash+Eq+PartialEq+Debug>
   List::cons(elm, stack)
 }
 
+fn precedence_check (top_op:&Op, next_op:&Op) -> bool {
+  match (*top_op, *next_op) {
+    (Op::Plus,  _       ) => false,
+    (Op::Minus, Op::Plus) => true, // Critical!
+    (Op::Minus, _       ) => false,
+
+    (Op::Times, Op::Plus)   => true,
+    (Op::Times, Op::Minus)  => true,
+    (Op::Times, Op::Divide) => true,
+
+    (Op::Divide, Op::Plus)  => true,
+    (Op::Divide, Op::Minus) => true,
+    (Op::Divide, Op::Times) => true,
+    _ => false
+  }
+}
+
+fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
+  let (ops, postfix) : (List<Op>, List<Tok>) =
+    tree_fold_seq
+    (infix, Dir2::Left, (List::Nil, List::Nil),
+     Rc::new(|tok, (ops, postfix)| {
+       match tok {
+         Tok::Num(n) => (ops, push(postfix, Tok::Num(n))),
+         Tok::Op(op) => {
+           if List::is_empty(&ops) { (push(ops, op), postfix) }
+           else {
+             fn myloop (op:Op, ops:List<Op>, postfix:List<Tok>) -> (List<Op>, List<Tok>) {
+               if List::is_empty(&ops) { (ops, postfix) } else {
+                 let (top_op, popped_ops) = pop(ops);               
+                 if precedence_check (&top_op, &op) {
+                   myloop (op, popped_ops, push(postfix, Tok::Op(top_op)))
+                 }
+                 else {
+                   (push(popped_ops, top_op), postfix)
+                 }
+               }};
+             let (ops, postfix) = myloop(op, ops, postfix) ;
+             (push(ops, op), postfix)
+           }
+         }       
+       }}),
+     Rc::new(|_, a|   a),
+     Rc::new(|_,_, a| a),
+     );
+  fn myloop (ops:List<Op>, postfix:List<Tok>) -> (List<Tok>) {
+    if List::is_empty(&ops) { postfix } else {
+      let (top_op, popped_ops) = pop(ops);      
+      myloop (popped_ops, push(postfix, Tok::Op(top_op)))
+    }};  
+  myloop(ops, postfix)
+}
+
+#[test]
+fn test_postfix_of_infix () {
+
+  // 1 * 2 + 3
+  let input = vec![
+    NameElse::Else( Tok::Num(1) ),
+    NameElse::Else( Tok::Op(Op::Times) ),
+    NameElse::Else( Tok::Num(2) ),
+    NameElse::Else( Tok::Op(Op::Plus) ),
+    NameElse::Else( Tok::Num(3) ),
+    ];
+  let input : List<Tok> = list_of_vec(&input);
+  let tree  : Tree<Tok> = tree_of_list(Dir2::Left, input);
+  let ans = postfix_of_infix(tree);
+  println!("{:?}", ans)
+}
+
+
 fn evaluate_postfix(input: Tree<Tok>) -> isize {
   let stack =
     tree_fold_seq
@@ -40,8 +111,10 @@ fn evaluate_postfix(input: Tree<Tok>) -> isize {
            let (x,stack) = pop(stack);
            let (y,stack) = pop(stack);
            let z = match op {
-             Op::Plus => x + y,
-             _ => unimplemented!()
+             Op::Plus   => y + x,
+             Op::Minus  => y - x,
+             Op::Times  => y * x,
+             Op::Divide => y / x,
            };
            push(stack, z)
          },
@@ -59,28 +132,59 @@ fn evaluate_postfix(input: Tree<Tok>) -> isize {
 
 #[test]
 fn test_eval_postfix () {
-
-  // 1 2 3 + + 
   let input = vec![
     NameElse::Else( Tok::Num(1) ),
     NameElse::Else( Tok::Num(2) ),
     NameElse::Else( Tok::Num(3) ),
     NameElse::Else( Tok::Op(Op::Plus) ),
     NameElse::Else( Tok::Op(Op::Plus) ),
-    NameElse::Else( Tok::Num(2) ),
-    NameElse::Else( Tok::Num(3) ),
+    NameElse::Else( Tok::Num(22) ),
+    NameElse::Else( Tok::Num(33) ),
     NameElse::Else( Tok::Op(Op::Plus) ),
     NameElse::Else( Tok::Op(Op::Plus) ),
-    NameElse::Else( Tok::Num(2) ),
-    NameElse::Else( Tok::Num(3) ),
+    NameElse::Else( Tok::Num(12) ),
+    NameElse::Else( Tok::Num(13) ),
     NameElse::Else( Tok::Op(Op::Plus) ),
     NameElse::Else( Tok::Op(Op::Plus) ),
     ];
   let input : List<Tok> = list_of_vec(&input);
-  let tree  : Tree<Tok> = tree_of_list(Dir2::Left, input);
+  let tree  : Tree<Tok> = tree_of_list(Dir2::Left, input);  
   let ans = evaluate_postfix(tree);
-  println!("{:?}", ans);
+  assert_eq!(ans, 86)
 }
+
+#[test]
+fn test_arith_eval () {
+
+  // 1 * 2 + 3
+  let input = vec![
+    NameElse::Else( Tok::Num(1) ),
+    NameElse::Else( Tok::Op(Op::Plus) ),
+    NameElse::Else( Tok::Num(2) ),
+    NameElse::Else( Tok::Op(Op::Minus) ),
+    NameElse::Else( Tok::Num(3) ),
+    NameElse::Else( Tok::Op(Op::Plus) ),
+    NameElse::Else( Tok::Num(1) ),
+    // NameElse::Else( Tok::Op(Op::Plus) ),    
+    // NameElse::Else( Tok::Num(1) ),
+    // NameElse::Else( Tok::Op(Op::Times) ),
+    // NameElse::Else( Tok::Num(2) ),
+    // NameElse::Else( Tok::Op(Op::Divide) ),
+    // NameElse::Else( Tok::Num(2) ),
+    // NameElse::Else( Tok::Op(Op::Minus) ),
+    // NameElse::Else( Tok::Num(3) ),
+    ];
+  println!("{:?}", &input);
+  let input : List<Tok> = list_of_vec(&input);
+  let tree  : Tree<Tok> = tree_of_list(Dir2::Left, input);
+  let list  : List<Tok> = postfix_of_infix(tree);
+  println!("{:?}", &list);
+  //let input : List<Tok> = list_of_vec(&input);
+  let tree  : Tree<Tok> = tree_of_list(Dir2::Right, list);
+  let ans = evaluate_postfix(tree);
+  println!("{:?}", ans)
+}
+
 
 // fn infix_to_postfix(input: List<char>) -> List<List<char>> {
 //   let mut postfix = List::Nil;
