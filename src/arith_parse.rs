@@ -1,17 +1,14 @@
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::io;
-//mod funlist;
-//use funlist::*;
 use std::rc::Rc;
 
 use collections::*;
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
-enum Op { Plus, Minus, Times, Divide }
+pub enum Op { Plus, Minus, Times, Divide }
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
-enum Tok {
+pub enum Tok {
   Num(isize),
   Op(Op)
 }    
@@ -47,7 +44,7 @@ fn precedence_check (top_op:&Op, next_op:&Op) -> bool {
   }
 }
 
-fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
+pub fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
   let (ops, postfix) : (List<Op>, List<Tok>) =
     tree_fold_seq
     (infix, Dir2::Left, (List::Nil, List::Nil),
@@ -101,7 +98,7 @@ fn test_postfix_of_infix () {
 }
 
 
-fn evaluate_postfix(input: Tree<Tok>) -> isize {
+pub fn evaluate_postfix(input: Tree<Tok>) -> isize {
   let stack =
     tree_fold_seq
     (input, Dir2::Left, List::Nil,                  
