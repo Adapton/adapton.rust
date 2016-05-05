@@ -39,7 +39,7 @@ macro_rules! engineMsg {
 }
 
 // Names provide a symbolic way to identify nodes.
-#[derive(Hash,PartialEq,Eq,Clone)]
+#[derive(PartialEq,Eq,Clone)]
 pub struct Name {
   hash : u64, // hash of symbol
   symbol : Rc<NameSym>,
@@ -47,9 +47,14 @@ pub struct Name {
 impl Debug for Name {
   fn fmt(&self, f:&mut Formatter) -> Result { self.symbol.fmt(f) }
 }
+impl Hash for Name {
+  fn hash<H>(&self, state: &mut H) where H: Hasher {
+    self.hash.hash(state)
+  }
+}
 
 // Each location identifies a node in the DCG.
-#[derive(Hash,PartialEq,Eq,Clone)]
+#[derive(PartialEq,Eq,Clone)]
 pub struct Loc {
   hash : u64, // hash of (path,id)
   path : Rc<Path>,
@@ -58,6 +63,11 @@ pub struct Loc {
 impl Debug for Loc {
   fn fmt(&self, f:&mut Formatter) -> Result {
     write!(f,"{:?}*{:?}",self.path,self.id)
+  }
+}
+impl Hash for Loc {
+  fn hash<H>(&self, state: &mut H) where H: Hasher {
+    self.hash.hash(state)
   }
 }
 
