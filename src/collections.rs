@@ -224,6 +224,86 @@ pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   }
 }
 
+pub trait MapIntro<Dom,Cod>
+  : Debug+Hash+PartialEq+Eq+Clone+'static
+{
+  fn empty () -> Self;
+  //fn extend<F> (self:Self, d:Dom, f:F) -> (Self, Option<Cod>)
+  // where F:FnOnce(Option<Cod>) -> (Option<Cod>, Option<Cod>);
+  fn update (self:Self, d:Dom, c:Cod) -> Self;
+  //{
+  //let (map, _) = self.extend(d,move|_|{(Some(c),None)});
+  //map
+  //}
+  fn remove (self:Self, d:Dom)        -> Self;
+  //{
+  //let (map, _) = self.extend(d,move|_|{(None,None)});
+  //map
+  //}
+}
+
+pub trait MapElim<Dom,Cod>
+  : Debug+Hash+PartialEq+Eq+Clone+'static
+{
+  fn find(Self, d:&Dom) -> (Self, Option<Cod>);
+  fn fold<Res,F>(self:Self, Res, F) -> (Self, Res) where
+    F:Fn(Dom, Cod, Res) -> Res;
+  fn union(self:Self, other:Self) -> Self;
+}
+
+pub trait SetIntro<Elm>
+  : Debug+Hash+PartialEq+Eq+Clone+'static
+{
+  fn empty  () -> Self;
+  fn add    (self:Self, e:Elm) -> Self;
+  fn remove (self:Self, e:Elm) -> Self;
+  fn union  (self:Self, Self) -> Self;
+  fn inter  (self:Self, Self) -> Self;
+  fn diff   (self:Self, Self) -> Self;
+}
+
+impl<Elm,Map:MapIntro<Elm,()>+MapElim<Elm,()>> SetIntro<Elm> for Map {
+  fn empty  () -> Self { Map::empty() }
+  fn add    (self:Self, x:Elm) -> Self { Map::update(self, x, ()) }
+  fn remove (self:Self, x:Elm) -> Self { Map::remove(self, x) }
+  fn union  (self:Self, other:Self) -> Self { Map::union(self, other) }
+  fn inter (self:Self, other:Self) -> Self {
+    let (_, (out, _)) = Map::fold
+      (self, (Self::empty(), other), |x, (), (out, other)|
+       { let (other, mem) = Map::find(other, &x);
+         if mem == Some (()) { (Self::add(out, x), other)
+         } else { (out, other) }});
+    out
+  }
+  fn diff (self:Self, other:Self) -> Self {
+    panic!("")
+  }
+}
+
+pub trait SetElim<Elm>
+  : Debug+Hash+PartialEq+Eq+Clone+'static  
+{
+  fn is_mem (self:Self, e:&Elm) -> (Self, bool);
+  fn fold<Res,F>(self:Self, Res, F) -> (Self, Res) where
+    F:Fn(Elm, Res) -> Res;
+}
+
+impl<Elm,Map:MapElim<Elm,()>> SetElim<Elm> for Map {
+  fn is_mem (self:Self, e:&Elm) -> (Self, bool) {
+    let (out, mem) = Map::find(self, e);
+    (out, mem == Some(()))
+  }
+  fn fold<Res,F>(self:Self, res:Res, f:F) -> (Self, Res) where
+    F:Fn(Elm, Res) -> Res
+  {
+    Map::fold(self, res, |elm, (), res| f(elm, res))
+  }
+}
+
+
+
+
+  
 fn bin_arts_niltest
   < Lev:Level, Leaf
   , T:TreeElim<Lev,Leaf>+TreeIntro<Lev,Leaf>+'static
