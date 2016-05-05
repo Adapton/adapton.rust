@@ -125,13 +125,13 @@ pub trait RoseIntro<Leaf,Branch> : Debug+Clone+Hash+PartialEq+Eq {
 ///   [*Parallel Implementation of Tree Skeletons*, by D.B. Skillicorn 1995.]
 ///   (http://ftp.qucis.queensu.ca/TechReports/Reports/1995-380.pdf)
 pub trait RoseElim<Leaf,Branch> : Debug+Clone+Hash+PartialEq+Eq {
-  type List: ListElim<Self>;
-  fn elim<Res>
-    (Self,     
-     leaf_fn:  FnOnce(Leaf)               -> Res,
-     branch_fn:FnOnce(Branch, Self::List) -> Res,
-     name_fn:  FnOnce(Name, Self)         -> Res,
-     ) -> Res;
+  type Children: ListElim<Self>;
+  fn elim<Arg, Res, LeafFn, BranchFn, NameFn>
+    (Self, Arg, LeafFn, BranchFn, NameFn) -> Res
+    where LeafFn:  FnOnce(Leaf,                   Arg) -> Res
+    ,     BranchFn:FnOnce(Branch, Self::Children, Arg) -> Res
+    ,     NameFn:  FnOnce(Name,   Self,           Arg) -> Res
+    ;    
 }
 
 /// Levels for a probabilistically-balanced trees. For more details see
