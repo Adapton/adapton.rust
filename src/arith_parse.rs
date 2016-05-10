@@ -13,6 +13,8 @@ pub enum Tok {
   Op(Op)
 }    
 
+pub enum Precedence { Higher, Lower, Equal }
+
 fn pop<X:Clone+Copy+Hash+Eq+PartialEq+Debug>
   (stack:List<X>) -> (X, List<X>) {
     List::elim_arg(stack, (),
@@ -27,20 +29,24 @@ fn push<X:Clone+Copy+Hash+Eq+PartialEq+Debug>
   List::cons(elm, stack)
 }
 
-fn precedence_check (top_op:&Op, next_op:&Op) -> bool {
+fn precedence_check (top_op:&Op, next_op:&Op) -> Precedence {
   match (*top_op, *next_op) {
-    (Op::Plus,  _       ) => false,
-    (Op::Minus, Op::Plus) => true, // Critical!
-    (Op::Minus, _       ) => false,
+    (Op::Plus, Op::Plus) => Precedence::Equal,
+    (Op::Plus, Op::Minus) => Precedence::Equal,
+    (Op::Minus, Op::Plus) => Precedence::Equal,
+    (Op::Minus, Op::Minus) => Precedence::Equal,
 
-    (Op::Times, Op::Plus)   => true,
-    (Op::Times, Op::Minus)  => true,
-    (Op::Times, Op::Divide) => true,
+    (Op::Times, Op::Times) => Precedence::Equal,
+    (Op::Divide, Op::Divide) => Precedence::Equal,
 
-    (Op::Divide, Op::Plus)  => true,
-    (Op::Divide, Op::Minus) => true,
-    (Op::Divide, Op::Times) => true,
-    _ => false
+    (Op::Times, Op::Plus)   => Precedence::Higher,
+    (Op::Times, Op::Minus)  => Precedence::Higher,
+    (Op::Times, Op::Divide) => Precedence::Higher,
+
+    (Op::Divide, Op::Plus)  => Precedence::Higher,
+    (Op::Divide, Op::Minus) => Precedence::Higher,
+    (Op::Divide, Op::Times) => Precedence::Higher,
+    _ => Precedence::Lower
   }
 }
 
@@ -57,11 +63,10 @@ pub fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
              fn myloop (op:Op, ops:List<Op>, postfix:List<Tok>) -> (List<Op>, List<Tok>) {
                if List::is_empty(&ops) { (ops, postfix) } else {
                  let (top_op, popped_ops) = pop(ops);               
-                 if precedence_check (&top_op, &op) {
-                   myloop (op, popped_ops, push(postfix, Tok::Op(top_op)))
-                 }
-                 else {
-                   (push(popped_ops, top_op), postfix)
+                 match precedence_check (&top_op, &op) {
+                   Precedence::Higher => { myloop (op, popped_ops, push(postfix, Tok::Op(top_op)))},
+		   Precedence::Equal => {(popped_ops, push(postfix, Tok::Op(top_op)))},
+                   _ => {(push(popped_ops, top_op), postfix)}
                  }
                }};
              let (ops, postfix) = myloop(op, ops, postfix) ;
@@ -160,12 +165,12 @@ fn test_arith_eval () {
     NameElse::Else( Tok::Num(2) ),
     NameElse::Else( Tok::Op(Op::Minus) ),
     NameElse::Else( Tok::Num(3) ),
-    NameElse::Else( Tok::Op(Op::Plus) ),
+    NameElse::Else( Tok::Op(Op::Minus) ),
     NameElse::Else( Tok::Num(1) ),
-    // NameElse::Else( Tok::Op(Op::Plus) ),    
-    // NameElse::Else( Tok::Num(1) ),
-    // NameElse::Else( Tok::Op(Op::Times) ),
-    // NameElse::Else( Tok::Num(2) ),
+    NameElse::Else( Tok::Op(Op::Minus) ),    
+    NameElse::Else( Tok::Num(2) ),
+    NameElse::Else( Tok::Op(Op::Times) ),
+    NameElse::Else( Tok::Num(2) ),
     // NameElse::Else( Tok::Op(Op::Divide) ),
     // NameElse::Else( Tok::Num(2) ),
     // NameElse::Else( Tok::Op(Op::Minus) ),
