@@ -50,11 +50,31 @@ fn precedence_check (top_op:&Op, next_op:&Op) -> Precedence {
   }
 }
 
+pub fn check_ops_rec (ops:List<Op>, op:Op) -> bool {
+  if List::is_empty(&ops) { true }
+  else {
+    let (top_op, popped_ops) = pop(ops);
+    match precedence_check(&op, &top_op) {
+      Precedence::Higher => check_ops_rec(popped_ops, top_op),
+      _ => false
+    }
+  }
+}
+
+pub fn check_ops (ops:List<Op>) -> bool {
+  if List::is_empty(&ops) { true }
+  else {
+    let (top_op, popped_ops) = pop(ops);
+    check_ops_rec(popped_ops, top_op)
+  }
+}
+
 pub fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
   let (ops, postfix) : (List<Op>, List<Tok>) =
     tree_fold_seq
     (infix, Dir2::Left, (List::Nil, List::Nil),
-     Rc::new(|tok, (ops, postfix)| {
+     Rc::new(|tok, (ops, postfix) : (List<Op>, List<Tok>)| {
+       assert!(check_ops(ops.clone()));
        match tok {
          Tok::Num(n) => (ops, push(postfix, Tok::Num(n))),
          Tok::Op(op) => {
