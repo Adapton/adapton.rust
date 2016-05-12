@@ -104,6 +104,22 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
   }
 }
 
+pub fn list_is_empty<X, L:ListElim<X>>(stack:&L) -> bool {
+  L::is_empty(stack)
+}
+
+pub fn list_pop<X,L:ListElim<X>>(stack:L) -> (X, L) {
+  L::elim_arg(stack, (),
+              |_,_|    panic!("cannot pop an empty stack"),
+              |h,t, _| (h, t),
+              |_,t, _| list_pop(t))
+}
+
+pub fn list_push<X, L:ListIntro<X>>(stack:L, elm:X) -> L {
+  L::cons(elm, stack)
+}
+
+
 /// Rose Trees: A tree with arbitrary branching at each node.
 /// See also, Definition 2 (page 2) of
 ///   [*Parallel Implementation of Tree Skeletons*, by D.B. Skillicorn 1995.]
