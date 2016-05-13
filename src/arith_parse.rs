@@ -46,6 +46,7 @@ fn precedence_check (top_op:&Op, next_op:&Op) -> Precedence {
     (Op::Divide, Op::Plus)  => Precedence::Higher,
     (Op::Divide, Op::Minus) => Precedence::Higher,
     (Op::Divide, Op::Times) => Precedence::Higher,
+    (_, Op::ParanOpen) => Precedence::Higher,
     _ => Precedence::Lower
   }
 }
@@ -54,9 +55,14 @@ pub fn check_ops_rec (ops:List<Op>, op:Op) -> bool {
   if List::is_empty(&ops) { true }
   else {
     let (top_op, popped_ops) = pop(ops);
-    match precedence_check(&op, &top_op) {
-      Precedence::Higher => check_ops_rec(popped_ops, top_op),
-      _ => false
+    match op {
+      Op::ParanOpen => {
+	check_ops_rec(popped_ops, top_op)
+        },
+      _ => {match precedence_check(&op, &top_op) {
+        Precedence::Higher => check_ops_rec(popped_ops, top_op),
+        _ => false
+      }}
     }
   }
 }
@@ -74,7 +80,7 @@ pub fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
     tree_fold_seq
     (infix, Dir2::Left, (List::Nil, List::Nil),
      Rc::new(|tok, (ops, postfix) : (List<Op>, List<Tok>)| {
-       //assert!(check_ops(ops.clone()));
+       assert!(check_ops(ops.clone()));
        match tok {
          Tok::Num(n) => (ops, push(postfix, Tok::Num(n))),
          Tok::Op(op) => {
@@ -144,16 +150,22 @@ pub fn evaluate_postfix(input: Tree<Tok>) -> isize {
      Rc::new(|tok, stack| {
        match tok {
          Tok::Op(op) => {
-           let (x,stack) = pop(stack);
-           let (y,stack) = pop(stack);
-           let z = match op {
-             Op::Plus   => y + x,
-             Op::Minus  => y - x,
-             Op::Times  => y * x,
-             Op::Divide => y / x,
-	     _ => panic!(),
-           };
-           push(stack, z)
+           match op {
+             Op::ParanClose => {panic!()},
+             Op::ParanOpen => {panic!()},
+             _ => {   
+               let (x,stack) = pop(stack);
+               let (y,stack) = pop(stack);
+               let z = match op {
+                 Op::Plus   => y + x,
+                 Op::Minus  => y - x,
+                 Op::Times  => y * x,
+                 Op::Divide => y / x,
+                 _ => panic!(),
+               };
+               push(stack, z)
+            }
+          }
          },
          Tok::Num(n) => {
            push(stack, n)
