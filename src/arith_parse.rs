@@ -5,7 +5,7 @@ use std::rc::Rc;
 use collections::*;
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
-pub enum Op { Plus, Minus, Times, Divide }
+pub enum Op { Plus, Minus, Times, Divide, ParanOpen, ParanClose }
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
 pub enum Tok {
@@ -74,24 +74,38 @@ pub fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
     tree_fold_seq
     (infix, Dir2::Left, (List::Nil, List::Nil),
      Rc::new(|tok, (ops, postfix) : (List<Op>, List<Tok>)| {
-       assert!(check_ops(ops.clone()));
+       //assert!(check_ops(ops.clone()));
        match tok {
          Tok::Num(n) => (ops, push(postfix, Tok::Num(n))),
          Tok::Op(op) => {
-           if List::is_empty(&ops) { (push(ops, op), postfix) }
-           else {
-             fn myloop (op:Op, ops:List<Op>, postfix:List<Tok>) -> (List<Op>, List<Tok>) {
-               if List::is_empty(&ops) { (ops, postfix) } else {
-                 let (top_op, popped_ops) = pop(ops);               
-                 match precedence_check (&top_op, &op) {
-                   Precedence::Higher => { myloop (op, popped_ops, push(postfix, Tok::Op(top_op)))},
-		   Precedence::Equal => {(popped_ops, push(postfix, Tok::Op(top_op)))},
-                   _ => {(push(popped_ops, top_op), postfix)}
-                 }
-               }};
-             let (ops, postfix) = myloop(op, ops, postfix) ;
-             (push(ops, op), postfix)
-           }
+           match op { 
+	    Op::ParanOpen => {(push(ops, op), postfix)}
+            Op::ParanClose => {
+              fn myloop (op:Op, ops:List<Op>, postfix:List<Tok>) -> (List<Op>, List<Tok>) {
+                let (top_op, popped_ops) = pop(ops);
+		match top_op {
+		  Op::ParanOpen => {print!("hello");(popped_ops, postfix)},
+                  _ => {myloop(op, popped_ops, push(postfix, Tok::Op(top_op)))},
+                }
+	      };
+              myloop(op, ops, postfix)
+	    }
+	    _ => {
+             if List::is_empty(&ops) { (push(ops, op), postfix) }
+             else {
+               fn myloop (op:Op, ops:List<Op>, postfix:List<Tok>) -> (List<Op>, List<Tok>) {
+                 if List::is_empty(&ops) { (ops, postfix) } else {
+                   let (top_op, popped_ops) = pop(ops);               
+                   match precedence_check (&top_op, &op) {
+                     Precedence::Higher => { myloop (op, popped_ops, push(postfix, Tok::Op(top_op)))},
+	             Precedence::Equal => {(popped_ops, push(postfix, Tok::Op(top_op)))},
+                     _ => {(push(popped_ops, top_op), postfix)}
+                   }
+                 }};
+               let (ops, postfix) = myloop(op, ops, postfix) ;
+               (push(ops, op), postfix)
+             }
+           }}
          }       
        }}),
      Rc::new(|_, a|   a),
@@ -137,6 +151,7 @@ pub fn evaluate_postfix(input: Tree<Tok>) -> isize {
              Op::Minus  => y - x,
              Op::Times  => y * x,
              Op::Divide => y / x,
+	     _ => panic!(),
            };
            push(stack, z)
          },
@@ -207,6 +222,32 @@ fn test_arith_eval () {
   println!("{:?}", ans)
 }
 
+#[test]
+fn test_paran_eval () {
+
+  // 1 * 2 + 3
+  let input = vec![
+    NameElse::Else( Tok::Num(2) ),
+    NameElse::Else( Tok::Op(Op::Times) ),
+    NameElse::Else( Tok::Op(Op::ParanOpen) ),
+    //NameElse::Else( Tok::Num(1) ),
+    //NameElse::Else( Tok::Op(Op::Plus) ),
+    NameElse::Else( Tok::Num(2) ),
+    NameElse::Else( Tok::Op(Op::Minus) ),
+    NameElse::Else( Tok::Num(3) ),
+    NameElse::Else( Tok::Op(Op::ParanClose) ),
+    ];
+ 
+    println!("{:?}", &input);
+    let input : List<Tok> = list_of_vec(&input);
+    let tree  : Tree<Tok> = tree_of_list(Dir2::Left, input);
+    let list  : List<Tok> = postfix_of_infix(tree);
+    println!("{:?}", &list);
+    //let input : List<Tok> = list_of_vec(&input);
+    let tree  : Tree<Tok> = tree_of_list(Dir2::Right, list);
+    let ans = evaluate_postfix(tree);
+    println!("{:?}", ans)
+}
 
 // fn infix_to_postfix(input: List<char>) -> List<List<char>> {
 //   let mut postfix = List::Nil;
