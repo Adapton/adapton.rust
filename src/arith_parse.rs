@@ -261,6 +261,46 @@ fn test_paran_eval () {
     println!("{:?}", ans)
 }
 
+pub fn generate_balanced_string () {
+  use std::hash::{Hash,Hasher,SipHasher};
+  
+  fn my_hash<T>(obj: T) -> u64 where T: Hash {
+    let mut hasher = SipHasher::new();
+    obj.hash(&mut hasher);
+    hasher.finish()
+  };
+    
+  fn level<T>(x:T) -> usize where T: Hash {
+    let h = my_hash(x);
+    h.trailing_zeros() as usize
+  };
+
+  let (oparen,cparen) = ('(',')');
+  let mut out : Vec<char> = vec![ ];
+  let mut opc = 0; // open paren count
+  out.push('1');
+  for i in 0..100 {
+    let lev = level(i);    
+    println!("{:?} {:?}", i, lev);
+    while lev != opc {
+      if lev > opc {
+        out.push('+');
+        out.push(oparen);
+        out.push('1');
+        opc += 1;
+      }       
+      else {
+        out.push('+');
+        out.push('1');
+        out.push(cparen);
+        opc -= 1;
+      }
+    }    
+  }
+  let outs: String = out.into_iter().collect();
+  println!("{:?}", outs);
+}
+
 // fn infix_to_postfix(input: List<char>) -> List<List<char>> {
 //   let mut postfix = List::Nil;
 //   let mut operators = List::Nil;
