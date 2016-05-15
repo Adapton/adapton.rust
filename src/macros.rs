@@ -42,7 +42,7 @@ pub fn my_hash_n<T>(obj: T, n:usize) -> u64
   where T: Hash
 {
   let mut hasher = SipHasher::new();
-  for i in 0..n {
+  for _ in 0..n {
     obj.hash(&mut hasher);
   }
   hasher.finish()

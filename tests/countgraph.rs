@@ -6,6 +6,7 @@ extern crate test ;
 use std::rc::Rc;
 use adapton::engine::* ;
 use adapton::macros::* ;
+use adapton::fixpoints::* ;
 
 /// Direction Graph where each node has exactly two outgoing edges
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]

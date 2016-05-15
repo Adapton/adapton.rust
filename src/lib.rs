@@ -22,6 +22,7 @@
 pub mod macros ;
 pub mod engine ;
 pub mod collections ;
+pub mod fixpoints ;
 pub mod arith_parse ;
 
 mod adapton {

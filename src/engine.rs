@@ -4,39 +4,39 @@ use std::env;
 use std::fmt::Debug;
 use std::fmt::{Formatter,Result};
 use std::fmt;
-use std::fs::{OpenOptions,File};
+use std::fs::{OpenOptions};
 use std::hash::{Hash,Hasher,SipHasher};
-use std::marker::PhantomData;
+//use std::marker::PhantomData;
 use std::mem::replace;
 use std::mem::transmute;
 use std::num::Zero;
 use std::ops::Add;
 use std::rc::Rc;
-use std::thread;
+//use std::thread;
  
 use macros::*;
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
 
-const engineMsgStr : &'static str = "adapton::engine:";
+//const engineMsgStr : &'static str = "adapton::engine:";
 
-fn engineMsg (indent:Option<usize>) -> String {
-  match indent {
-    None => "adapton::engine:".to_string(),
-    Some(indent) => {
-      let mut indent_str = "".to_string() ;
-      for i in 1..indent {
-        indent_str.push_str("···〉")
-      };
-      ("adapton::engine:".to_string() + &indent_str)
-    }}}
+// fn engineMsg (indent:Option<usize>) -> String {
+//   match indent {
+//     None => "adapton::engine:".to_string(),
+//     Some(indent) => {
+//       let mut indent_str = "".to_string() ;
+//       for i in 1..indent {
+//         indent_str.push_str("···〉")
+//       };
+//       ("adapton::engine:".to_string() + &indent_str)
+//     }}}
 
-macro_rules! engineMsg {
-  ( $st:expr ) => {{
-    engineMsg(Some($st.stack.len()))
-  }}
-}
+// macro_rules! engineMsg {
+//   ( $st:expr ) => {{
+//     engineMsg(Some($st.stack.len()))
+//   }}
+// }
 
 // Names provide a symbolic way to identify nodes.
 #[derive(PartialEq,Eq,Clone)]
@@ -298,7 +298,9 @@ struct App<Arg:Debug,Spurious,Res> {
 // ---------- App implementation of Debug and Hash
 
 impl<Arg:Debug,Spurious,Res> Debug for App<Arg,Spurious,Res> {
-  fn fmt(&self, f: &mut Formatter) -> Result { self.prog_pt.fmt(f) ; self.arg.fmt(f) }
+  fn fmt(&self, f: &mut Formatter) -> Result {
+    write!(f,"App({:?} {:?})", self.prog_pt, self.arg)
+  }
 }
 
 impl<Arg:Hash+Debug,Spurious,Res> Hash for App<Arg,Spurious,Res> {
@@ -365,7 +367,7 @@ fn res_node_of_loc<'r,Res> (st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<Node<Re
 mod wf {
   use std::collections::HashMap;
   use std::rc::Rc;
-  use std::io;
+  //use std::io;
   use std::io::prelude::*;
   use std::io::BufWriter;
   use std::fs::File;
@@ -469,13 +471,13 @@ mod wf {
     let mut writer = BufWriter::new(file);
     writeln!(&mut writer, "digraph {{\n").unwrap();
     writeln!(&mut writer, "ordering=out;").unwrap();
-    let mut frame_num = 0;
+    //let mut frame_num = 0;
     for frame in st.stack.iter() {
       writeln!(&mut writer, "\"{:?}\" [color=blue,penwidth=10];", frame.loc);
       for succ in frame.succs.iter() {
         writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=blue,weight=10,penwidth=10];", &frame.loc, &succ.loc).unwrap();
       }
-      frame_num += 1;
+      //frame_num += 1;
     };
     for (loc, node) in &st.table {
       if ! node.succs_def () {
@@ -724,22 +726,22 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
     Some(frame) => frame
   } ;
   assert!( &frame.loc == loc );
-  let mut succ_idx = 0;
+  //let mut succ_idx = 0;
   for succ in &frame.succs {
     //debug!("{} produce: edge: {:?} --{:?}--dirty?:{:?}--> {:?}", engineMsg!(st), &loc, &succ.effect, &succ.dirty, &succ.loc);
-    let (effect, is_weak) =
-      match succ.effect {
-        //Effect::Observe => ("observe", true),
-        Effect::Observe => ("observe", false), // XXX
-        Effect::Allocate => ("allocate", false)
-      } ;
-    if st.flags.gmlog_dcg {
-      // gm::startdframe(st, &format!("{:?}--{}->{:?}", loc, effect, succ.loc), None);
-      // gm::addedge(st, &format!("{:?}",loc), &format!("{:?}",succ.loc),
-      //             &format!("{}",succ_idx),
-      //             effect, "", None, is_weak);
-    }
-    succ_idx += 1;
+    // let (effect, is_weak) =
+    //   match succ.effect {
+    //     //Effect::Observe => ("observe", true),
+    //     Effect::Observe => ("observe", false), // XXX
+    //     Effect::Allocate => ("allocate", false)
+    //   } ;
+    // if st.flags.gmlog_dcg {
+    //   // gm::startdframe(st, &format!("{:?}--{}->{:?}", loc, effect, succ.loc), None);
+    //   // gm::addedge(st, &format!("{:?}",loc), &format!("{:?}",succ.loc),
+    //   //             &format!("{}",succ_idx),
+    //   //             effect, "", None, is_weak);
+    // }
+    // succ_idx += 1;
     if succ.dirty {
       // This case witnesses an illegal use of nominal side effects
       panic!("invariants broken: newly-built DCG edge should be clean, but is dirty.")
@@ -837,7 +839,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
 // ---------- Node implementation:
 
 fn revoke_succs<'x> (st:&mut DCG, src:&Rc<Loc>, succs:&Vec<Succ>) {
-  let mut succ_idx = 0;
+  //let mut succ_idx = 0;
   for succ in succs.iter() {
     if st.flags.gmlog_dcg {
       // gm::startdframe(st, &format!("revoke_succ {:?} {} --> {:?}", src, succ_idx, succ.loc), None);
@@ -845,7 +847,7 @@ fn revoke_succs<'x> (st:&mut DCG, src:&Rc<Loc>, succs:&Vec<Succ>) {
       //             &format!("{}",succ_idx), "", None);
     } ;
     let succ_node : &mut Box<GraphNode> = lookup_abs(st, &succ.loc) ;
-    succ_idx += 1;
+    //succ_idx += 1;
     succ_node.preds_remove(src)
   }
 }
@@ -856,7 +858,7 @@ fn loc_of_id(path:Rc<Path>,id:Rc<ArtId>) -> Rc<Loc> {
 }
 
 fn get_succ<'r>(st:&'r DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r Succ {
-  let stackLen = st.stack.len() ;
+  //let stackLen = st.stack.len() ;
   let nd = st.table.get(src_loc);
   let nd = match nd {
     None => panic!(""),
@@ -876,7 +878,7 @@ fn get_succ<'r>(st:&'r DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &
 // The succ edge is returned as a mutable borrow, to permit checking
 // and mutating the dirty bit.
 fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
-  let stackLen = st.stack.len() ;
+  //let stackLen = st.stack.len() ;
   let nd = lookup_abs( st, src_loc );
   //debug!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
   for succ in nd.succs_mut().iter_mut() {
@@ -890,7 +892,7 @@ fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Lo
 
 fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
   //debug!("{} dirty_pred_observers: {:?}", engineMsg!(st), loc);
-  let stackLen = st.stack.len() ;
+  //let stackLen = st.stack.len() ;
   let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs() ;
   let mut dirty_edge_count = 0;
   for pred_loc in pred_locs {
@@ -919,7 +921,7 @@ fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
 fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
   //debug!("{} dirty_alloc: {:?}", engineMsg!(st), loc);
   dirty_pred_observers(st, loc);
-  let stackLen = st.stack.len() ;
+  //let stackLen = st.stack.len() ;
   let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc() ;
   for pred_loc in pred_locs {
     if st.root.eq (&pred_loc) { panic!("root in preds") } // Todo-Question: Dead code?
@@ -1045,7 +1047,7 @@ impl Adapton for DCG {
                         succs:Vec::new()} ) ;
     }
     let table = HashMap::new ();
-    let mut outfile =
+    let outfile =
       match env::var("ADAPTON_WRITE_GMLOG")  {
         Ok(ref filename) if filename.len() > 0 => 
           Some(OpenOptions::new()
@@ -1059,11 +1061,11 @@ impl Adapton for DCG {
     drop(outfile) ; // Do something with this in the future
     DCG {
       flags : Flags {
-        use_purity_optimization       : { match env::var("ADAPTON_NO_PURITY")  { Ok(val) => false, _ => true } },
-        ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(val) => true,  _ => false } },
-        check_dcg_is_wf               : { match env::var("ADAPTON_CHECK_DCG")  { Ok(val) => true,  _ => false } },
-        write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(val) => true,  _ => false } },
-        gmlog_dcg                     : { match env::var("ADAPTON_GMLOG_DCG")  { Ok(val) => true,  _ => false } },
+        use_purity_optimization       : { match env::var("ADAPTON_NO_PURITY")  { Ok(_) => false, _ => true } },
+        ignore_nominal_use_structural : { match env::var("ADAPTON_STRUCTURAL") { Ok(_) => true,  _ => false } },
+        check_dcg_is_wf               : { match env::var("ADAPTON_CHECK_DCG")  { Ok(_) => true,  _ => false } },
+        write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(_) => true,  _ => false } },
+        gmlog_dcg                     : { match env::var("ADAPTON_GMLOG_DCG")  { Ok(_) => true,  _ => false } },
       },
       root  : root, // Todo-Question: Don't need this?
       table : table,
@@ -1147,9 +1149,9 @@ impl Adapton for DCG {
         if self.table.contains_key(&loc) {
           let node : &Box<Node<T>> = res_node_of_loc(self, &loc) ;
           match **node {
-            Node::Mut(ref nd)  => { (false, true,  None, false) }
+            Node::Mut(_)       => { (false, true,  None, false) }
             Node::Comp(ref nd) => { (true,  false, Some(nd.succs.clone()),  true ) }
-            Node::Pure(ref nd) => { (false, false, None, false) }
+            Node::Pure(_)      => { (false, false, None, false) }
             Node::Unused       => unreachable!()
           }} else                 { (false, false, None, true ) } ;
       if do_set || do_insert {
@@ -1172,7 +1174,7 @@ impl Adapton for DCG {
         //println!("create: {:?}", &loc);
         self.table.insert(loc.clone(), Box::new(node));
       } ;
-      let stackLen = self.stack.len() ;
+      //let stackLen = self.stack.len() ;
       if ! is_pure { match self.stack.last_mut() { None => (), Some(frame) => {
         let succ =
           Succ{loc:loc.clone(),
@@ -1234,7 +1236,7 @@ impl Adapton for DCG {
         match self.stack.last_mut() {
           None => (),
           Some(frame) => {
-            let pred = frame.loc.clone();
+            //let pred = frame.loc.clone();
             let succ =
               Succ{loc:loc.clone(),
                    dep:Rc::new(Box::new(NoDependency)),
@@ -1281,7 +1283,7 @@ impl Adapton for DCG {
               spurious:spurious.clone(),
           }
         ;
-        let stackLen = self.stack.len() ;
+        //let stackLen = self.stack.len() ;
         let (do_dirty, do_insert) = { match self.table.get_mut( &loc ) {
           None => {
             // do_dirty=false; do_insert=true
@@ -1338,7 +1340,7 @@ impl Adapton for DCG {
           //debug!("{} alloc thunk: No dirtying.", engineMsg!(self))
         } ;
         match self.stack.last_mut() { None => (), Some(frame) => {
-          let pred = frame.loc.clone();
+          //let pred = frame.loc.clone();
           //debug!("{} alloc thunk: edge {:?} --> {:?}", engineMsg(Some(stackLen)), &pred, &loc);
           let succ =
             Succ{loc:loc.clone(),
@@ -1412,7 +1414,7 @@ impl Adapton for DCG {
               // ProducerDep change-propagation precondition:
               // loc is a computational node:
               //drop(st);
-              let res = ProducerDep{res:res.clone()}.clean(g, &loc) ;
+              let _ = ProducerDep{res:res.clone()}.clean(g, &loc) ;
               ////debug!("{} force {:?}: result changed?: {}", engineMsg!(self), &loc, res.changed) ;
               let st : &mut DCG = &mut *g.borrow_mut();
               let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
@@ -1792,43 +1794,4 @@ pub fn engine_is_dcg () -> bool {
       Engine::DCG(_) => true,
       Engine::Naive  => false
     }})
-}
-
-
-// -------------------------------------------------------------------------
-// Experimental API stuff below:
-
-pub fn thunk_codata<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
-  (prog_pt:ProgPt,
-   fn_box:Rc<Box< Fn(Arg, bool, &(Fn(Arg) -> Res)) -> Res >>,
-   arg:Arg)
-   -> Art<Res>
-{
-  panic!("")
-}
-
-pub struct Trip {
-  Todo:(),
-}
-
-pub struct Set<T> {
-  phantom:PhantomData<T>,
-}
-
-pub fn thunk_codata2<Arg:Hash+Eq+Debug+Clone,Res:Hash+Eq+Debug+Clone>
-  (prog_pt:ProgPt,
-   fn_box:Rc<Box< Fn(Arg, bool, Trip, &(Fn(Arg,Trip) -> (Res,Trip))) -> (Res,Trip) >>,
-   arg:Arg)
-   -> Art<Res>
-{
-  fn rec<Arg,Trip,Res>(arg:Arg,trip:Trip) -> (Res,Trip) {
-    // extend trip with arg (for later), return extended trip;
-    // call fn_box with visited=false; return the result
-    panic!("")
-  };
-  fn visit<Arg>(visited:Set<Arg>,frontier:Set<Arg>) -> (Set<Arg>,Set<Arg>) {
-    //let (node:Arg, frontier:Set<Arg>) = frontier.choose();
-    panic!("");
-  }
-  panic!("")
 }

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::marker::PhantomData;
-use std::num::Zero;
+//use std::marker::PhantomData;
+//use std::num::Zero;
 use std::rc::Rc;
 
 //use rand::{Rng,Rand};
@@ -98,9 +98,9 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
   /// Tests if the head of the list consists of a `name` constructor. Derived from `elim`.
   fn is_name (list:&Self) -> bool {
     Self::elim(list,
-               |_|     false,
-               |_,_|   true,
-               |_,tl|  false)
+               |_|   false,
+               |_,_| true,
+               |_,_| false)
   }
 }
 
@@ -234,8 +234,8 @@ pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
       (tree,
        ||        true,
        |_|       false,
-       |_,l,r|   false,
-       |_,_,l,r| false,
+       |_,_,_|   false,
+       |_,_,_,_| false,
        )
   }
 }
@@ -291,7 +291,7 @@ impl<Elm,Map:MapIntro<Elm,()>+MapElim<Elm,()>> SetIntro<Elm> for Map {
          } else { (out, other) }});
     out
   }
-  fn diff (self:Self, other:Self) -> Self {
+  fn diff (self:Self, _other:Self) -> Self {
     panic!("")
   }
 }
@@ -1011,8 +1011,8 @@ pub fn mergesort_list_of_tree2
 {
   tree_fold_up_nm_dn
     (tree, nm,
-     Rc::new(|n,|         L::nil()),
-     Rc::new(|n,x|        L::singleton(x)),
+     Rc::new(|_n,|        L::nil()),
+     Rc::new(|_n,x|       L::singleton(x)),
      Rc::new(|_, l, r|    { list_merge_wrapper(None, l, None, r) }),
      Rc::new(|n, _, l, r| { let (n1,n2) = name_fork(n);
                             list_merge_wrapper(Some(n1), l, Some(n2), r) }),
@@ -1346,7 +1346,7 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
         let list = force(art);
         Self::elim(&list, nilf, consf, namef)
       },
-      List::Tree(ref tree, ref dir, ref tl) => {
+      List::Tree(ref _tree, ref _dir, ref _tl) => {
         let (res, rest) = structural(|| panic!("List::next_leaf_rec(tree, dir, tl)")) ;
         match res {
           None => Self::elim(rest, nilf, consf, namef),
@@ -1370,7 +1370,7 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
         let list = force(art);
         Self::elim_arg(list, arg, nilf, consf, namef)
       },
-      List::Tree(tree, dir, tl) => {
+      List::Tree(_tree, _dir, _tl) => {
         //let tree = *tree;
         //let tl = *tl;
         let (res, rest) = structural(|| panic!("List::next_leaf_rec(tree, dir, tl)")) ;
