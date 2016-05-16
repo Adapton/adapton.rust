@@ -5,7 +5,7 @@ use std::rc::Rc;
 use collections::*;
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
-pub enum Op { Plus, Minus, Times, Divide, ParanOpen, ParanClose }
+pub enum Op { Plus, Minus, Times, Divide, ParenOpen, ParenClose }
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
 pub enum Tok {
@@ -46,7 +46,7 @@ fn precedence_check (top_op:&Op, next_op:&Op) -> Precedence {
     (Op::Divide, Op::Plus)  => Precedence::Higher,
     (Op::Divide, Op::Minus) => Precedence::Higher,
     (Op::Divide, Op::Times) => Precedence::Higher,
-    (_, Op::ParanOpen) => Precedence::Higher,
+    (_, Op::ParenOpen) => Precedence::Higher,
     _ => Precedence::Lower
   }
 }
@@ -56,7 +56,7 @@ pub fn check_ops_rec (ops:List<Op>, op:Op) -> bool {
   else {
     let (top_op, popped_ops) = pop(ops);
     match op {
-      Op::ParanOpen => {
+      Op::ParenOpen => {
 	check_ops_rec(popped_ops, top_op)
         },
       _ => {match precedence_check(&op, &top_op) {
@@ -75,6 +75,29 @@ pub fn check_ops (ops:List<Op>) -> bool {
   }
 }
 
+pub fn char_to_tok(input: Tree<char>) -> Tree<Tok> {
+  let (digits, output): (List<char>, List<Tok>) =
+    tree_fold_seq 
+      (input, Dir2::Left, (List::Nil, List::Nil),
+      Rc::new(|ch, (digits, output) : (List<char>, List<Tok>)| {
+         match ch {
+	 	'+' => {(digits, push(output, Tok::Op(Op::Plus)))}
+		'-' => {(digits, push(output, Tok::Op(Op::Minus)))}
+		'*' => {(digits, push(output, Tok::Op(Op::Times)))}
+		'/' => {(digits, push(output, Tok::Op(Op::Divide)))}
+		'(' => {(digits, push(output, Tok::Op(Op::ParenOpen)))}
+		')' => {(digits, push(output, Tok::Op(Op::ParenClose)))}
+		'0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {panic!()}
+		_ => {panic!()}
+	 }
+      }), 
+      Rc::new(|_, a| a),
+      Rc::new(|_,_, a| a),
+      );
+  let out  : Tree<Tok> = tree_of_list(Dir2::Left, output);
+  (out)
+}
+
 pub fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
   let (ops, postfix) : (List<Op>, List<Tok>) =
     tree_fold_seq
@@ -85,12 +108,12 @@ pub fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
          Tok::Num(n) => (ops, push(postfix, Tok::Num(n))),
          Tok::Op(op) => {
            match op { 
-	    Op::ParanOpen => {(push(ops, op), postfix)}
-            Op::ParanClose => {
+	    Op::ParenOpen => {(push(ops, op), postfix)}
+            Op::ParenClose => {
               fn myloop (op:Op, ops:List<Op>, postfix:List<Tok>) -> (List<Op>, List<Tok>) {
                 let (top_op, popped_ops) = pop(ops);
 		match top_op {
-		  Op::ParanOpen => {print!("hello");(popped_ops, postfix)},
+		  Op::ParenOpen => {print!("hello");(popped_ops, postfix)},
                   _ => {myloop(op, popped_ops, push(postfix, Tok::Op(top_op)))},
                 }
 	      };
@@ -151,8 +174,8 @@ pub fn evaluate_postfix(input: Tree<Tok>) -> isize {
        match tok {
          Tok::Op(op) => {
            match op {
-             Op::ParanClose => {panic!()},
-             Op::ParanOpen => {panic!()},
+             Op::ParenClose => {panic!()},
+             Op::ParenOpen => {panic!()},
              _ => {   
                let (x,stack) = pop(stack);
                let (y,stack) = pop(stack);
@@ -235,19 +258,19 @@ fn test_arith_eval () {
 }
 
 #[test]
-fn test_paran_eval () {
+fn test_paren_eval () {
 
   // 1 * 2 + 3
   let input = vec![
     NameElse::Else( Tok::Num(2) ),
     NameElse::Else( Tok::Op(Op::Times) ),
-    NameElse::Else( Tok::Op(Op::ParanOpen) ),
+    NameElse::Else( Tok::Op(Op::ParenOpen) ),
     //NameElse::Else( Tok::Num(1) ),
     //NameElse::Else( Tok::Op(Op::Plus) ),
     NameElse::Else( Tok::Num(2) ),
     NameElse::Else( Tok::Op(Op::Minus) ),
     NameElse::Else( Tok::Num(3) ),
-    NameElse::Else( Tok::Op(Op::ParanClose) ),
+    NameElse::Else( Tok::Op(Op::ParenClose) ),
     ];
  
     println!("{:?}", &input);
