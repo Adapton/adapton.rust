@@ -246,12 +246,11 @@ pub trait MapIntro<Dom,Cod>
   fn empty () -> Self;
   //fn extend<F> (self:Self, d:Dom, f:F) -> (Self, Option<Cod>)
   // where F:FnOnce(Option<Cod>) -> (Option<Cod>, Option<Cod>);
-  fn update (self:Self, d:Dom, c:Cod) -> Self;
+  fn update (map:Self, d:Dom, c:Cod) -> Self;
   //{
   //let (map, _) = self.extend(d,move|_|{(Some(c),None)});
   //map
   //}
-  fn remove (self:Self, d:Dom)        -> Self;
   //{
   //let (map, _) = self.extend(d,move|_|{(None,None)});
   //map
@@ -260,59 +259,66 @@ pub trait MapIntro<Dom,Cod>
 
 pub trait MapElim<Dom,Cod>
   : Debug+Hash+PartialEq+Eq+Clone+'static
+
 {
-  fn find(Self, d:&Dom) -> (Self, Option<Cod>);
-  fn fold<Res,F>(self:Self, Res, F) -> (Self, Res) where
+  fn find<'a>(&'a Self, d:&Dom) -> Option<Cod>;
+  fn remove (Self, d:&Dom) -> (Self, Option<Cod>);
+  fn fold<Res,F>(Self, Res, F) -> (Self, Res) where
     F:Fn(Dom, Cod, Res) -> Res;
-  fn union(self:Self, other:Self) -> Self;
+  fn union(Self, other:Self) -> Self;
 }
 
 pub trait SetIntro<Elm>
   : Debug+Hash+PartialEq+Eq+Clone+'static
 {
   fn empty  () -> Self;
-  fn add    (self:Self, e:Elm) -> Self;
-  fn remove (self:Self, e:Elm) -> Self;
-  fn union  (self:Self, Self) -> Self;
-  fn inter  (self:Self, Self) -> Self;
-  fn diff   (self:Self, Self) -> Self;
+  fn add    (Self, e:Elm) -> Self;
+  fn remove (Self, e:&Elm) -> Self;
+  fn union  (Self, Self) -> Self;
+  fn inter  (Self, Self) -> Self;
+  fn diff   (Self, Self) -> Self;
 }
 
 impl<Elm,Map:MapIntro<Elm,()>+MapElim<Elm,()>> SetIntro<Elm> for Map {
   fn empty  () -> Self { Map::empty() }
-  fn add    (self:Self, x:Elm) -> Self { Map::update(self, x, ()) }
-  fn remove (self:Self, x:Elm) -> Self { Map::remove(self, x) }
-  fn union  (self:Self, other:Self) -> Self { Map::union(self, other) }
-  fn inter (self:Self, other:Self) -> Self {
+  fn add    (set:Self, x:Elm) -> Self { Map::update(set, x, ()) }
+  fn remove (set:Self, x:&Elm) -> Self { let (map, _) = Map::remove(set, x); map }
+  fn union  (set:Self, other:Self) -> Self { Map::union(set, other) }
+  fn inter (set:Self, other:Self) -> Self {
     let (_, (out, _)) = Map::fold
-      (self, (Self::empty(), other), |x, (), (out, other)|
-       { let (other, mem) = Map::find(other, &x);
-         if mem == Some (()) { (Self::add(out, x), other)
-         } else { (out, other) }});
+      (set, (Self::empty(), other), |x, (), (out, other)|{
+        let out = match Map::find(&other, &x) {
+          Some (ref _unit) => Self::add(out, x),
+          None => out
+        };
+        (out, other)
+      });    
     out
   }
-  fn diff (self:Self, _other:Self) -> Self {
-    panic!("")
+  fn diff (_set:Self, _other:Self) -> Self {
+    unimplemented!() // Should be very similar to inter, above.
   }
 }
 
 pub trait SetElim<Elm>
   : Debug+Hash+PartialEq+Eq+Clone+'static  
 {
-  fn is_mem (self:Self, e:&Elm) -> (Self, bool);
-  fn fold<Res,F>(self:Self, Res, F) -> (Self, Res) where
+  fn is_mem (set:&Self, e:&Elm) -> bool;
+  fn fold<Res,F>(set:Self, Res, F) -> (Self, Res) where
     F:Fn(Elm, Res) -> Res;
 }
 
 impl<Elm,Map:MapElim<Elm,()>> SetElim<Elm> for Map {
-  fn is_mem (self:Self, e:&Elm) -> (Self, bool) {
-    let (out, mem) = Map::find(self, e);
-    (out, mem == Some(()))
+  fn is_mem (set:&Self, e:&Elm) -> bool {
+    match Map::find(set, e) {
+      Some (ref _unit) => true,
+      None => false,
+    }
   }
-  fn fold<Res,F>(self:Self, res:Res, f:F) -> (Self, Res) where
+  fn fold<Res,F>(set:Self, res:Res, f:F) -> (Self, Res) where
     F:Fn(Elm, Res) -> Res
   {
-    Map::fold(self, res, |elm, (), res| f(elm, res))
+    Map::fold(set, res, |elm, (), res| f(elm, res))
   }
 }
 
@@ -1382,6 +1388,44 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
     }
   }
 }
+
+impl<Dom:Debug+Hash+PartialEq+Eq+Clone+'static,
+     Cod:Debug+Hash+PartialEq+Eq+Clone+'static> 
+  MapIntro<Dom,Cod> for List<(Dom,Cod)> 
+{
+  fn empty () -> Self { List::Nil }
+  fn update (map:Self, d:Dom, c:Cod) -> Self { List::Cons((d,c),Box::new(map)) }
+}
+
+impl<Dom:Debug+Hash+PartialEq+Eq+Clone+'static,
+     Cod:Debug+Hash+PartialEq+Eq+Clone+'static> 
+  MapElim<Dom,Cod> for List<(Dom,Cod)> 
+{
+  fn find<'a> (map:&'a Self, d:&Dom) -> Option<Cod> { 
+    match *map {
+      List::Nil => None,
+      List::Cons((ref d2, ref c), ref tl) => {
+        if d == d2 { Some(c.clone()) }
+        else { Self::find(&*tl, d) }
+      },
+      List::Tree(_,_,_) => unimplemented!(),
+      List::Name(_, ref list) => Self::find(&*list, d),
+      List::Art(ref a) => { Self::find(&(force(a)), d) }
+    }
+  }
+  fn remove (_set:Self, _d:&Dom) -> (Self, Option<Cod>) { 
+    unimplemented!()
+  }
+  fn fold<Res,F> (_set:Self, _res:Res, _f:F) -> (Self, Res) 
+    where F:Fn(Dom, Cod, Res) -> Res 
+  {
+    unimplemented!()
+  }
+  fn union(_set:Self, _other:Self) -> Self {
+    unimplemented!()    
+  }
+}
+
 
 /// Demonstrates how to write performance and correctness tests that
 /// compare the measurements and outputs of running a common piece of

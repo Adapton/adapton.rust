@@ -673,7 +673,7 @@ impl ShapeShifter for Box<GraphNode> {
 impl<Res> fmt::Debug for CompNode<Res> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     //write!(f, "(CompNode)")
-    self.producer.fmt(f)
+    write!(f, "{:?}", self.producer)
   }
 }
 
