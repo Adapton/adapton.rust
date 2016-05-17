@@ -76,25 +76,66 @@ pub fn check_ops (ops:List<Op>) -> bool {
 }
 
 pub fn char_to_tok(input: Tree<char>) -> Tree<Tok> {
+  fn digits_to_num_rec(num: isize, digits: List<char>) -> (Tok, List<char>) {
+    if List::is_empty(&digits) { 
+      (Tok::Num(num), digits) } else {
+      let (top_dig, popped_digs) = pop(digits);
+      let d = top_dig as isize - 48;
+      if num > 0 {
+           digits_to_num_rec(num + 10*d, popped_digs) }
+      else{
+           digits_to_num_rec(d, popped_digs) }
+    }
+  };
+
+  fn digits_to_num(digits: List<char>, output:List<Tok>) -> (List<char>, List<Tok>) {
+    if List::is_empty(&digits) {(digits, output)}
+    else { 
+	let (num, digits) = digits_to_num_rec(0, digits);
+	(digits, push(output, num)) }    
+  };
+
+  fn transfer_num(digits: List<char>, output: List<Tok>, op: Op) -> (List<char>, List<Tok>) {
+	let (digits, output) = digits_to_num(digits, output);
+	(digits, push(output, Tok::Op(op)))
+  };
+
+  fn transfer_remain_num(digits: List<char>, output: List<Tok>) -> (List<char>, List<Tok>) {
+	let (digits, output) = digits_to_num(digits, output);
+        (digits, output)
+  }; 
+
   let (digits, output): (List<char>, List<Tok>) =
     tree_fold_seq 
       (input, Dir2::Left, (List::Nil, List::Nil),
       Rc::new(|ch, (digits, output) : (List<char>, List<Tok>)| {
          match ch {
-	 	'+' => {(digits, push(output, Tok::Op(Op::Plus)))}
-		'-' => {(digits, push(output, Tok::Op(Op::Minus)))}
-		'*' => {(digits, push(output, Tok::Op(Op::Times)))}
-		'/' => {(digits, push(output, Tok::Op(Op::Divide)))}
-		'(' => {(digits, push(output, Tok::Op(Op::ParenOpen)))}
-		')' => {(digits, push(output, Tok::Op(Op::ParenClose)))}
-		'0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {panic!()}
-		_ => {panic!()}
+	 	'+' => {transfer_num(digits, output, Op::Plus)},
+                '-' => {transfer_num(digits, output, Op::Minus)},
+                '*' => {transfer_num(digits, output, Op::Times)},
+                '/' => {transfer_num(digits, output, Op::Divide)},
+                '(' => {transfer_num(digits, output, Op::ParenOpen)},
+                ')' => {transfer_num(digits, output, Op::ParenClose)},
+		'0' => {(push(digits, '0'), output)},
+		'1' => {(push(digits, '1'), output)},
+		'2' => {(push(digits, '2'), output)},
+		'3' => {(push(digits, '3'), output)},
+		'4' => {(push(digits, '4'), output)},
+		'5' => {(push(digits, '5'), output)},
+		'6' => {(push(digits, '6'), output)},
+		'7' => {(push(digits, '7'), output)},
+		'8' => {(push(digits, '8'), output)},
+		'9' => {(push(digits, '9'), output)},
+		_ => {panic!()},
 	 }
       }), 
       Rc::new(|_, a| a),
       Rc::new(|_,_, a| a),
       );
-  let out  : Tree<Tok> = tree_of_list(Dir2::Left, output);
+
+  let (digits, output): (List<char>, List<Tok>)= transfer_remain_num(digits, output);
+  println!("Tree<Tok> as list {:?}", output);
+  let out  : Tree<Tok> = tree_of_list(Dir2::Right, output);
   (out)
 }
 
@@ -113,7 +154,7 @@ pub fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
               fn myloop (op:Op, ops:List<Op>, postfix:List<Tok>) -> (List<Op>, List<Tok>) {
                 let (top_op, popped_ops) = pop(ops);
 		match top_op {
-		  Op::ParenOpen => {print!("hello");(popped_ops, postfix)},
+		  Op::ParenOpen => {(popped_ops, postfix)},
                   _ => {myloop(op, popped_ops, push(postfix, Tok::Op(top_op)))},
                 }
 	      };
@@ -267,7 +308,7 @@ fn test_paren_eval () {
     NameElse::Else( Tok::Op(Op::ParenOpen) ),
     //NameElse::Else( Tok::Num(1) ),
     //NameElse::Else( Tok::Op(Op::Plus) ),
-    NameElse::Else( Tok::Num(2) ),
+    NameElse::Else( Tok::Num(23) ),
     NameElse::Else( Tok::Op(Op::Minus) ),
     NameElse::Else( Tok::Num(3) ),
     NameElse::Else( Tok::Op(Op::ParenClose) ),
@@ -276,12 +317,37 @@ fn test_paren_eval () {
     println!("{:?}", &input);
     let input : List<Tok> = list_of_vec(&input);
     let tree  : Tree<Tok> = tree_of_list(Dir2::Left, input);
+    println!("Tree {:?}", &tree);
     let list  : List<Tok> = postfix_of_infix(tree);
-    println!("{:?}", &list);
+    println!("Postfix{:?}", &list);
     //let input : List<Tok> = list_of_vec(&input);
     let tree  : Tree<Tok> = tree_of_list(Dir2::Right, list);
     let ans = evaluate_postfix(tree);
     println!("{:?}", ans)
+}
+
+#[test]
+fn test_char_to_tok() {
+   let input = vec![
+   NameElse::Else('2'),
+   NameElse::Else('*'),
+   NameElse::Else('('),
+   NameElse::Else('2'),
+   NameElse::Else('3'),
+   NameElse::Else('-'),
+   NameElse::Else('3'),
+   NameElse::Else(')'),];
+   let input : List<char> = list_of_vec(&input);
+   let tree  : Tree<char> = tree_of_list(Dir2::Left, input);
+   println!("Input Tree<char> {:?}",&tree);
+   let list  : Tree<Tok> = char_to_tok(tree);
+   println!("Tree<Tok> {:?}", &list);
+   let list1  : List<Tok> = postfix_of_infix(list);
+   println!("Postfix expr {:?}", list1);
+   let tree  : Tree<Tok> = tree_of_list(Dir2::Right, list1);
+   let ans = evaluate_postfix(tree);
+   println!("Ans {:?}", ans)
+
 }
 
 pub fn generate_balanced_string () {
