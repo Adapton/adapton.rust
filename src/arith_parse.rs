@@ -75,47 +75,48 @@ pub fn check_ops (ops:List<Op>) -> bool {
   }
 }
 
-pub fn char_to_tok(input: Tree<char>) -> Tree<Tok> {
-  fn digits_to_num_rec(num: isize, digits: List<char>) -> (Tok, List<char>) {
+pub fn tok_of_char(input: Tree<char>) -> Tree<Tok> {
+  fn num_of_digits_rec(num: isize, digits: List<char>) -> (Tok, List<char>) {
     if List::is_empty(&digits) { 
       (Tok::Num(num), digits) } else {
       let (top_dig, popped_digs) = pop(digits);
-      let d = top_dig as isize - 48;
+      let top_dig_as_isize = top_dig as isize - '0' as isize;
       if num > 0 {
-           digits_to_num_rec(num + 10*d, popped_digs) }
+           num_of_digits_rec(num + 10 * top_dig_as_isize, popped_digs) }
       else{
-           digits_to_num_rec(d, popped_digs) }
+           num_of_digits_rec(top_dig_as_isize, popped_digs) }
     }
   };
 
-  fn digits_to_num(digits: List<char>, output:List<Tok>) -> (List<char>, List<Tok>) {
+  fn num_of_digits(digits: List<char>, output:List<Tok>) -> (List<char>, List<Tok>) {
     if List::is_empty(&digits) {(digits, output)}
     else { 
-	let (num, digits) = digits_to_num_rec(0, digits);
+	let (num, digits) = num_of_digits_rec(0, digits);
 	(digits, push(output, num)) }    
   };
 
-  fn transfer_num(digits: List<char>, output: List<Tok>, op: Op) -> (List<char>, List<Tok>) {
-	let (digits, output) = digits_to_num(digits, output);
-	(digits, push(output, Tok::Op(op)))
+  fn transfer_num(digits: List<char>, output: List<Tok>) -> (List<char>, List<Tok>) {
+        let (digits, output) = num_of_digits(digits, output);
+        (digits, output)
   };
 
-  fn transfer_remain_num(digits: List<char>, output: List<Tok>) -> (List<char>, List<Tok>) {
-	let (digits, output) = digits_to_num(digits, output);
-        (digits, output)
-  }; 
 
+  fn read_op(digits: List<char>, output: List<Tok>, op: Op) -> (List<char>, List<Tok>) {
+	let (digits, output) = transfer_num(digits, output);
+	(digits, push(output, Tok::Op(op)))
+  };
+  
   let (digits, output): (List<char>, List<Tok>) =
     tree_fold_seq 
       (input, Dir2::Left, (List::Nil, List::Nil),
       Rc::new(|ch, (digits, output) : (List<char>, List<Tok>)| {
          match ch {
-	 	'+' => {transfer_num(digits, output, Op::Plus)},
-                '-' => {transfer_num(digits, output, Op::Minus)},
-                '*' => {transfer_num(digits, output, Op::Times)},
-                '/' => {transfer_num(digits, output, Op::Divide)},
-                '(' => {transfer_num(digits, output, Op::ParenOpen)},
-                ')' => {transfer_num(digits, output, Op::ParenClose)},
+	 	'+' => {read_op(digits, output, Op::Plus)},
+                '-' => {read_op(digits, output, Op::Minus)},
+                '*' => {read_op(digits, output, Op::Times)},
+                '/' => {read_op(digits, output, Op::Divide)},
+                '(' => {read_op(digits, output, Op::ParenOpen)},
+                ')' => {read_op(digits, output, Op::ParenClose)},
 		'0' => {(push(digits, '0'), output)},
 		'1' => {(push(digits, '1'), output)},
 		'2' => {(push(digits, '2'), output)},
@@ -133,7 +134,8 @@ pub fn char_to_tok(input: Tree<char>) -> Tree<Tok> {
       Rc::new(|_,_, a| a),
       );
 
-  let (digits, output): (List<char>, List<Tok>)= transfer_remain_num(digits, output);
+  let (digits, output): (List<char>, List<Tok>)= transfer_num(digits, output);
+  assert!(List::is_empty(&digits));
   println!("Tree<Tok> as list {:?}", output);
   let out  : Tree<Tok> = tree_of_list(Dir2::Right, output);
   (out)
@@ -327,7 +329,7 @@ fn test_paren_eval () {
 }
 
 #[test]
-fn test_char_to_tok() {
+fn test_tok_of_char() {
    let input = vec![
    NameElse::Else('2'),
    NameElse::Else('*'),
@@ -339,11 +341,8 @@ fn test_char_to_tok() {
    NameElse::Else(')'),];
    let input : List<char> = list_of_vec(&input);
    let tree  : Tree<char> = tree_of_list(Dir2::Left, input);
-   println!("Input Tree<char> {:?}",&tree);
-   let list  : Tree<Tok> = char_to_tok(tree);
-   println!("Tree<Tok> {:?}", &list);
+   let list  : Tree<Tok> = tok_of_char(tree);
    let list1  : List<Tok> = postfix_of_infix(list);
-   println!("Postfix expr {:?}", list1);
    let tree  : Tree<Tok> = tree_of_list(Dir2::Right, list1);
    let ans = evaluate_postfix(tree);
    println!("Ans {:?}", ans)
