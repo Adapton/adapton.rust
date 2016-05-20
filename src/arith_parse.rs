@@ -387,6 +387,14 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
     input
   };
 
+  fn prepend_input(input:List<char>, name:isize) -> List<char> {
+    let input = <List<char> as ListIntro<char>>::art(cell(name_of_isize(name), input));
+    let input = <List<char> as ListIntro<char>>::name(name_of_isize(name), input);
+    let input = push(input.clone(), '+');
+    let input = push(input.clone(), '1');
+    input
+  };
+
   fn doit(input: List<char>) -> isize {
     //let list : List<char>  = list_of_vec(&input);
     let tree : Tree<char> = tree_of_list(Dir2::Left, input);
@@ -405,16 +413,40 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
     }
   };
 
-  init_naive();
-  assert!(engine_is_naive());
-  for i in 1..max_len {
-    let input = construct_input(i);
-    let naive_start = time::precise_time_ns();
-    let naive_out = doit(input);
-    let naive_end = time::precise_time_ns();
-    runtimes.push((i,naive_end - naive_start, naive_out));}
-  csv_of_runtimes(runtimes.clone()); 
-  runtimes
+  {
+    init_dcg();
+    assert!(engine_is_dcg());
+    
+    let mut input : List<char> = List::Nil;
+    input = push(input, '1');
+    for i in 1..max_len {
+      input = prepend_input(input, i);
+      let naive_start = time::precise_time_ns();
+      let naive_out = doit(input.clone());
+      let naive_end = time::precise_time_ns();
+      println!("DCG: {}, {}, {}", i, naive_end - naive_start, naive_out);
+      runtimes.push((i,naive_end - naive_start, naive_out));}
+    csv_of_runtimes(runtimes.clone()); 
+    //runtimes
+  }
+
+  {
+    init_naive();
+    assert!(engine_is_naive());
+    
+    let mut input : List<char> = List::Nil;
+    input = push(input, '1');
+    for i in 1..max_len {
+      input = prepend_input(input, i);
+      let naive_start = time::precise_time_ns();
+      let naive_out = doit(input.clone());
+      let naive_end = time::precise_time_ns();
+      println!("Naive: {}, {}, {}", i, naive_end - naive_start, naive_out);
+      runtimes.push((i,naive_end - naive_start, naive_out));}
+    csv_of_runtimes(runtimes.clone()); 
+    //runtimes
+  }
+  Vec::new()
 }
 
 #[test]
@@ -422,7 +454,7 @@ fn test_runtime_harness() {
   use std::thread;
   let child =
     thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(move || { 
-      runtime_harness(1000);      
+      runtime_harness(10000);      
     });
   let _ = child.unwrap().join();
 }
