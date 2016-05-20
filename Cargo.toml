@@ -35,8 +35,9 @@ license = "MPL-2.0"
 [dependencies]
 #rand = "0.3"
 #log = "0.3.*"
-#time = "0.1"
 #quickcheck = "0.2.24"
+time = "0.1"
+csv  = "0.14.4"
 
 #[dependencies.quickcheck]
 #git = "https://github.com/ebfull/quickcheck.git"

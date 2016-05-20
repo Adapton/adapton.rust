@@ -353,9 +353,9 @@ fn test_tok_of_char() {
 
 }
 
-pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64)> {
+pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
 
-  let mut runtimes: Vec<(isize, u64)> = vec![];
+  let mut runtimes: Vec<(isize, u64, isize)> = vec![];
   //fn construct_exp(len: isize) -> Vec<NameElse<char>>{
   //  let cap = len as _ ;
   //  let mut input = Vec::with_capacity(cap);
@@ -378,12 +378,12 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64)> {
   };
 
   fn construct_input(len: isize) -> List<char> {
-    let input: List<char> = List::Nil;
+    let mut input: List<char> = List::Nil;
     for _ in 0..len {
-      let input = push(input.clone(), '1');
-      let input = push(input.clone(), '+');
+      input = push(input.clone(), '1');
+      input = push(input.clone(), '+');
     }
-    let input = push(input.clone(), '1');
+    input = push(input.clone(), '1');
     input
   };
 
@@ -396,8 +396,8 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64)> {
     evaluate_postfix(postfix_tree)
   };
 
-  fn csv_of_runtimes(runtimes: Vec<(isize, u64)>) {
-    let path = Path::new("/home/monal/git/adapton.rust/src/res.csv");
+  fn csv_of_runtimes(runtimes: Vec<(isize, u64, isize)>) {
+    let path = Path::new("./res.csv");
     let mut writer = csv::Writer::from_file(path).unwrap();
     for r in runtimes.into_iter() {
       println!("{:?}",r);
@@ -412,14 +412,19 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64)> {
     let naive_start = time::precise_time_ns();
     let naive_out = doit(input);
     let naive_end = time::precise_time_ns();
-    runtimes.push((i,naive_end - naive_start));}
+    runtimes.push((i,naive_end - naive_start, naive_out));}
   csv_of_runtimes(runtimes.clone()); 
   runtimes
 }
 
 #[test]
 fn test_runtime_harness() {
-  runtime_harness(10000);
+  use std::thread;
+  let child =
+    thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(move || { 
+      runtime_harness(1000);      
+    });
+  let _ = child.unwrap().join();
 }
 
 pub fn generate_balanced_string () {
