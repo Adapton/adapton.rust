@@ -261,12 +261,16 @@ pub trait MapElim<Dom,Cod>
   : Debug+Hash+PartialEq+Eq+Clone+'static
 
 {
-  fn find<'a>(&'a Self, d:&Dom) -> Option<Cod>;
+  fn find(&Self, d:&Dom) -> Option<Cod>;
   fn remove (Self, d:&Dom) -> (Self, Option<Cod>);
   fn fold<Res,F>(Self, Res, F) -> (Self, Res) where
     F:Fn(Dom, Cod, Res) -> Res;
   fn union(Self, other:Self) -> Self;
 }
+
+pub fn map_empty<Dom,Cod,M:MapIntro<Dom,Cod>>() -> M { M::empty() }
+pub fn map_update<Dom,Cod,M:MapIntro<Dom,Cod>>(map:M, d:Dom, c:Cod) -> M { M::update(map, d, c) }
+pub fn map_find<Dom,Cod,M:MapElim<Dom,Cod>>(map:&M, d:&Dom) -> Option<Cod> { M::find(map, d) }
 
 pub trait SetIntro<Elm>
   : Debug+Hash+PartialEq+Eq+Clone+'static
