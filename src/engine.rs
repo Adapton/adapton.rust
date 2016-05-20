@@ -1322,7 +1322,7 @@ impl Adapton for DCG {
                     (true, false)
                   }}
                 else {
-                  panic!("TODO-Sometime: Memozied functions not equal!\nFunction was:{:?} \tProducer:{:?}\nFunction now:{:?} \tProducer:{:?}\nCommon location:{:?}\nHint:Consider using distinct namespaces, via `Adapton::ns`\n",
+                  panic!("TODO-Sometime: Memozied functions not equal!\nFunction was: {:?} \tProducer: {:?}\nFunction now: {:?} \tProducer: {:?}\nCommon location: {:?}\nHint:Consider using distinct namespaces, via `Adapton::ns`\n",
                          comp_nd.producer.prog_pt(), &comp_nd.producer,
                          producer.prog_pt(), &producer,
                          &loc,
