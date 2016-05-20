@@ -397,11 +397,20 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
 
   fn doit(input: List<char>) -> isize {
     //let list : List<char>  = list_of_vec(&input);
-    let tree : Tree<char> = tree_of_list(Dir2::Left, input);
-    let tokenized_input : Tree<Tok> = tok_of_char(tree);
-    let postfix : List<Tok> = postfix_of_infix(tokenized_input);
-    let postfix_tree : Tree<Tok> = tree_of_list(Dir2::Right, postfix);	
-    evaluate_postfix(postfix_tree)
+    let tree : Tree<char> = 
+      ns(name_of_str("tree_of_list"),
+         ||tree_of_list(Dir2::Left, input));
+    let tokenized_input : Tree<Tok> = 
+      ns(name_of_str("tok_of_char"),
+         ||tok_of_char(tree));
+    let postfix : List<Tok> = 
+      ns(name_of_str("postfix_of_infix"),
+         ||postfix_of_infix(tokenized_input));
+    let postfix_tree : Tree<Tok> = 
+      ns(name_of_str("tree_of_list2"),
+         ||tree_of_list(Dir2::Right, postfix));	
+    ns(name_of_str("evaluate_postfix"),
+       ||evaluate_postfix(postfix_tree))
   };
 
   fn csv_of_runtimes(runtimes: Vec<(isize, u64, isize)>) {
