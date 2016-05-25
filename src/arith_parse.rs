@@ -435,7 +435,7 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
     let path = Path::new("./res.csv");
     let mut writer = csv::Writer::from_file(path).unwrap();
     for r in runtimes.into_iter() {
-      println!("{:?}",r);
+      //println!("{:?}",r);
       writer.encode(r).ok().expect("CSV writer error");
     }
   };
@@ -451,7 +451,7 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
       let naive_start = time::precise_time_ns();
       let naive_out = doit(input.clone());
       let naive_end = time::precise_time_ns();
-      println!("DCG: {}, {}, {}", i, naive_end - naive_start, naive_out);
+      //println!("DCG: {}, {}, {}", i, naive_end - naive_start, naive_out);
       runtimes.push((i,naive_end - naive_start, naive_out));}
     csv_of_runtimes(runtimes.clone()); 
     //runtimes
@@ -468,7 +468,7 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
       let naive_start = time::precise_time_ns();
       let naive_out = doit(input.clone());
       let naive_end = time::precise_time_ns();
-      println!("Naive: {}, {}, {}", i, naive_end - naive_start, naive_out);
+      //println!("Naive: {}, {}, {}", i, naive_end - naive_start, naive_out);
       runtimes.push((i,naive_end - naive_start, naive_out));}
     csv_of_runtimes(runtimes.clone()); 
     //runtimes
@@ -506,7 +506,7 @@ pub fn generate_balanced_string () {
   out.push('1');
   for i in 0..100 {
     let lev = level(i);    
-    println!("{:?} {:?}", i, lev);
+    //println!("{:?} {:?}", i, lev);
     while lev != opc {
       if lev > opc {
         out.push('+');
@@ -523,7 +523,7 @@ pub fn generate_balanced_string () {
     }    
   }
   let outs: String = out.into_iter().collect();
-  println!("{:?}", outs);
+  //println!("{:?}", outs);
 }
 
 // fn infix_to_postfix(input: List<char>) -> List<List<char>> {
