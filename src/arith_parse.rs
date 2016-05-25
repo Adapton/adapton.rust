@@ -138,7 +138,7 @@ pub fn tok_of_char(input: Tree<char>) -> Tree<Tok> {
       Rc::new(|_, a| a),
       Rc::new(|n:Name,_, (digs, toks)| {
         let toks = <List<Tok> as ListIntro<Tok>>::art(cell(n.clone(), toks));
-        //let toks = <List<Tok> as ListIntro<Tok>>::name(name_pair(name_unit(), n), toks); // Toggle this line to make things crash!
+        let toks = <List<Tok> as ListIntro<Tok>>::name(name_pair(name_unit(), n), toks); // Toggle this line to make things crash!
         (digs,toks) })
       );
 
@@ -189,10 +189,13 @@ pub fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
        }}),
      Rc::new(|_, a|   a),
      Rc::new(|n:Name,_, (ops, toks)| {
-             let ops  = <List<Op> as ListIntro<Op>>::art(cell(n.clone(), ops));
-             let toks = <List<Tok> as ListIntro<Tok>>::art(cell(n, toks));
-             (ops, toks)}
-             ),
+       let (n1, n2) = name_fork(name_pair(name_unit(), n.clone()));
+       let ops  = <List<Op> as ListIntro<Op>>::art(cell(n1, ops));
+       let ops  = <List<Op> as ListIntro<Op>>::name(n.clone(), ops);
+       let toks = <List<Tok> as ListIntro<Tok>>::art(cell(n2, toks));
+       //let toks = <List<Tok> as ListIntro<Tok>>::name(n.clone(), toks); // Including name n in toks output; important!
+       (ops, toks)}
+     ),
      );
   fn myloop (ops:List<Op>, postfix:List<Tok>) -> (List<Tok>) {
     if List::is_empty(&ops) { postfix } else {
@@ -250,9 +253,8 @@ pub fn evaluate_postfix(input: Tree<Tok>) -> isize {
        }}),
      Rc::new(|_, stack|   stack),
      Rc::new(|n,_, stack|{
-             let stack = <List<isize> as ListIntro<isize>>::art(cell(n, stack));
-             //let stack = <List<char> as ListIntro<char>>::name(n, input);
-             stack}),
+       let stack = <List<isize> as ListIntro<isize>>::art(cell(n, stack));
+       stack}),
      );
   let (x, stack) = pop(stack);
   assert!(List::is_empty(&stack));
@@ -479,7 +481,7 @@ fn test_runtime_harness() {
   use std::thread;
   let child =
     thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(move || { 
-      runtime_harness(10000);      
+      runtime_harness(4);
     });
   let _ = child.unwrap().join();
 }
