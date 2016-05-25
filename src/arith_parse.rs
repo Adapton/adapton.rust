@@ -191,9 +191,9 @@ pub fn postfix_of_infix(infix: Tree<Tok>) -> List<Tok> {
      Rc::new(|n:Name,_, (ops, toks)| {
        let (n1, n2) = name_fork(name_pair(name_unit(), n.clone()));
        let ops  = <List<Op> as ListIntro<Op>>::art(cell(n1, ops));
-       let ops  = <List<Op> as ListIntro<Op>>::name(n.clone(), ops);
+       //let ops  = <List<Op> as ListIntro<Op>>::name(n.clone(), ops);
        let toks = <List<Tok> as ListIntro<Tok>>::art(cell(n2, toks));
-       //let toks = <List<Tok> as ListIntro<Tok>>::name(n.clone(), toks); // Including name n in toks output; important!
+       let toks = <List<Tok> as ListIntro<Tok>>::name(n.clone(), toks); // Including name n in toks output; important!
        (ops, toks)}
      ),
      );
@@ -481,7 +481,7 @@ fn test_runtime_harness() {
   use std::thread;
   let child =
     thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(move || { 
-      runtime_harness(4);
+      runtime_harness(8);
     });
   let _ = child.unwrap().join();
 }
