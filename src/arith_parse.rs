@@ -431,8 +431,8 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
        ||evaluate_postfix(postfix_tree))
   };
 
-  fn csv_of_runtimes(runtimes: Vec<(isize, u64, isize)>) {
-    let path = Path::new("./res.csv");
+  fn csv_of_runtimes(path:&str, runtimes: Vec<(isize, u64, isize)>) {
+    let path = Path::new(path);
     let mut writer = csv::Writer::from_file(path).unwrap();
     for r in runtimes.into_iter() {
       //println!("{:?}",r);
@@ -440,7 +440,7 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
     }
   };
 
-  {
+  { // This should be really fast:
     init_dcg();
     assert!(engine_is_dcg());
     
@@ -448,16 +448,17 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
     input = push(input, '1');
     for i in 1..max_len {
       input = prepend_input(input, i);
-      let naive_start = time::precise_time_ns();
-      let naive_out = doit(input.clone());
-      let naive_end = time::precise_time_ns();
-      //println!("DCG: {}, {}, {}", i, naive_end - naive_start, naive_out);
-      runtimes.push((i,naive_end - naive_start, naive_out));}
-    csv_of_runtimes(runtimes.clone()); 
+      let dcg_start = time::precise_time_ns();
+      let dcg_out = doit(input.clone());
+      let dcg_end = time::precise_time_ns();
+      println!("DCG: {}, {} ms, {}", i, (dcg_end - dcg_start) as u64 / 1000000, dcg_out);
+      runtimes.push((i,dcg_end - dcg_start, dcg_out));}
+      csv_of_runtimes("./dcg.csv", runtimes.clone()); 
     //runtimes
   }
 
-  {
+  if false 
+  { // This is really, really slow:
     init_naive();
     assert!(engine_is_naive());
     
@@ -470,9 +471,9 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
       let naive_end = time::precise_time_ns();
       //println!("Naive: {}, {}, {}", i, naive_end - naive_start, naive_out);
       runtimes.push((i,naive_end - naive_start, naive_out));}
-    csv_of_runtimes(runtimes.clone()); 
+    csv_of_runtimes("./naive.csv", runtimes.clone()); 
     //runtimes
-  }
+  } else {}
   Vec::new()
 }
 
@@ -481,7 +482,7 @@ fn test_runtime_harness() {
   use std::thread;
   let child =
     thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(move || { 
-      runtime_harness(8);
+      runtime_harness(10000);
     });
   let _ = child.unwrap().join();
 }
@@ -506,7 +507,7 @@ pub fn generate_balanced_string () {
   out.push('1');
   for i in 0..100 {
     let lev = level(i);    
-    //println!("{:?} {:?}", i, lev);
+    println!("{:?} {:?}", i, lev);
     while lev != opc {
       if lev > opc {
         out.push('+');

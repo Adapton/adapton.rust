@@ -145,7 +145,7 @@ impl Debug for NameSym {
       NameSym::Usize(ref n) => write!(f, "{}", n),
       NameSym::Isize(ref n) => write!(f, "{}", n),
       NameSym::Pair(ref l, ref r) => write!(f, "({:?},{:?})",l,r),
-      NameSym::ForkL(ref s) => write!(f, "{:?}.l", s),
+      NameSym::ForkL(ref s) => write!(f, "{:?}.L", s),
       NameSym::ForkR(ref s) => write!(f, "{:?}.R", s),
     }
   }

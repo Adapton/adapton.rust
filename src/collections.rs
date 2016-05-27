@@ -104,6 +104,9 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
   }
 }
 
+pub fn list_nil<X, L:ListIntro<X>>()          -> L { L::nil() }
+pub fn list_cons<X, L:ListIntro<X>>(x:X, l:L) -> L { L::cons(x, l) }
+
 pub fn list_is_empty<X, L:ListElim<X>>(stack:&L) -> bool {
   L::is_empty(stack)
 }
