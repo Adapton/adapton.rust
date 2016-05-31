@@ -266,14 +266,15 @@ pub trait MapElim<Dom,Cod>
 {
   fn find(&Self, d:&Dom) -> Option<Cod>;
   fn remove (Self, d:&Dom) -> (Self, Option<Cod>);
-  fn fold<Res,F>(Self, Res, F) -> (Self, Res) where
+  fn fold<Res,F>(Self, Res, Rc<F>) -> Res where
     F:Fn(Dom, Cod, Res) -> Res;
-  fn union(Self, other:Self) -> Self;
+  fn append(Self, other:Self) -> Self;
 }
 
 pub fn map_empty<Dom,Cod,M:MapIntro<Dom,Cod>>() -> M { M::empty() }
 pub fn map_update<Dom,Cod,M:MapIntro<Dom,Cod>>(map:M, d:Dom, c:Cod) -> M { M::update(map, d, c) }
 pub fn map_find<Dom,Cod,M:MapElim<Dom,Cod>>(map:&M, d:&Dom) -> Option<Cod> { M::find(map, d) }
+pub fn map_fold<Dom,Cod,M:MapElim<Dom,Cod>,F,Res>(map:M, r:Res, f:Rc<F>) -> Res where F:Fn(Dom,Cod, Res) -> Res { M::fold(map, r, f) }
 
 pub trait SetIntro<Elm>
   : Debug+Hash+PartialEq+Eq+Clone+'static
@@ -290,17 +291,19 @@ impl<Elm,Map:MapIntro<Elm,()>+MapElim<Elm,()>> SetIntro<Elm> for Map {
   fn empty  () -> Self { Map::empty() }
   fn add    (set:Self, x:Elm) -> Self { Map::update(set, x, ()) }
   fn remove (set:Self, x:&Elm) -> Self { let (map, _) = Map::remove(set, x); map }
-  fn union  (set:Self, other:Self) -> Self { Map::union(set, other) }
+  fn union  (set:Self, other:Self) -> Self { Map::append(set, other) }
   fn inter (set:Self, other:Self) -> Self {
-    let (_, (out, _)) = Map::fold
-      (set, (Self::empty(), other), |x, (), (out, other)|{
-        let out = match Map::find(&other, &x) {
-          Some (ref _unit) => Self::add(out, x),
-          None => out
-        };
-        (out, other)
-      });    
-    out
+    let (out, _) =
+    Map::fold
+      (set, (Self::empty(), other), 
+       Rc::new(|x, (), (out, other)|{
+         let out = match Map::find(&other, &x) {
+           Some (ref _unit) => Self::add(out, x),
+           None => out
+         };
+         (out, other)
+       })) ; 
+    return out
   }
   fn diff (_set:Self, _other:Self) -> Self {
     unimplemented!() // Should be very similar to inter, above.
@@ -311,7 +314,7 @@ pub trait SetElim<Elm>
   : Debug+Hash+PartialEq+Eq+Clone+'static  
 {
   fn is_mem (set:&Self, e:&Elm) -> bool;
-  fn fold<Res,F>(set:Self, Res, F) -> (Self, Res) where
+  fn fold<Res,F>(set:Self, Res, F) -> Res where
     F:Fn(Elm, Res) -> Res;
 }
 
@@ -322,10 +325,10 @@ impl<Elm,Map:MapElim<Elm,()>> SetElim<Elm> for Map {
       None => false,
     }
   }
-  fn fold<Res,F>(set:Self, res:Res, f:F) -> (Self, Res) where
+  fn fold<Res,F>(set:Self, res:Res, f:F) -> Res where
     F:Fn(Elm, Res) -> Res
   {
-    Map::fold(set, res, |elm, (), res| f(elm, res))
+    Map::fold(set, res, Rc::new(|elm, (), res| f(elm, res)))
   }
 }
 
@@ -1398,7 +1401,9 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
 
 impl<Dom:Debug+Hash+PartialEq+Eq+Clone+'static,
      Cod:Debug+Hash+PartialEq+Eq+Clone+'static> 
-  MapIntro<Dom,Cod> for List<(Dom,Cod)> 
+  MapIntro<Dom,Cod> 
+  for 
+  List<(Dom,Cod)> 
 {
   fn empty () -> Self { List::Nil }
   fn update (map:Self, d:Dom, c:Cod) -> Self { List::Cons((d,c),Box::new(map)) }
@@ -1406,7 +1411,9 @@ impl<Dom:Debug+Hash+PartialEq+Eq+Clone+'static,
 
 impl<Dom:Debug+Hash+PartialEq+Eq+Clone+'static,
      Cod:Debug+Hash+PartialEq+Eq+Clone+'static> 
-  MapElim<Dom,Cod> for List<(Dom,Cod)> 
+  MapElim<Dom,Cod> 
+  for 
+  List<(Dom,Cod)> 
 {
   fn find<'a> (map:&'a Self, d:&Dom) -> Option<Cod> { 
     match *map {
@@ -1420,15 +1427,24 @@ impl<Dom:Debug+Hash+PartialEq+Eq+Clone+'static,
       List::Art(ref a) => { Self::find(&(force(a)), d) }
     }
   }
-  fn remove (_set:Self, _d:&Dom) -> (Self, Option<Cod>) { 
+  fn remove (_map:Self, _d:&Dom) -> (Self, Option<Cod>) { 
     unimplemented!()
   }
-  fn fold<Res,F> (_set:Self, _res:Res, _f:F) -> (Self, Res) 
+  fn fold<Res,F> (map:Self, res:Res, body:Rc<F>) -> Res
     where F:Fn(Dom, Cod, Res) -> Res 
   {
-    unimplemented!()
+    match map {
+      List::Nil => res,
+      List::Cons((d, c), tl) => {
+        let res = Self::fold(*tl, res, body.clone());
+        body(d,c,res)
+      }
+      List::Tree(_,_,_) => unimplemented!(),
+      List::Name(_, tl) => Self::fold(*tl,      res, body),
+      List::Art(ref a)  => Self::fold(force(a), res, body)
+    }
   }
-  fn union(_set:Self, _other:Self) -> Self {
+  fn append(_map:Self, _other:Self) -> Self {
     unimplemented!()    
   }
 }

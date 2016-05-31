@@ -3,6 +3,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 use std::path::Path;
 
+use macros::*;
 use collections::*;
 use engine::*;
 
@@ -407,8 +408,9 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
     input
   };
 
-  fn doit(input: List<char>) -> isize {
+  fn doit(input: Art<List<char>>) -> isize {
     //let list : List<char>  = list_of_vec(&input);
+    let input = force(&input);
     let tree : Tree<char> = 
       ns(name_of_str("tree_of_list"),
          ||tree_of_list(Dir2::Left, input));
@@ -447,14 +449,17 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
     let mut input : List<char> = List::Nil;
     input = push(input, '1');
     for i in 1..max_len {
-      input = prepend_input(input, i);
-      let dcg_start = time::precise_time_ns();
-      let dcg_out = doit(input.clone());
-      let dcg_end = time::precise_time_ns();
-      println!("DCG: {}, {} ms, {}", i, (dcg_end - dcg_start) as u64 / 1000000, dcg_out);
-      runtimes.push((i,dcg_end - dcg_start, dcg_out));}
+        input = prepend_input(input, i);
+        let input = input.clone();
+        let dcg_start = time::precise_time_ns();
+        let input_cell = cell(name_of_str("input"), input);
+        let (_, dcg_out) = eager!(doit, input:input_cell);
+        let dcg_end = time::precise_time_ns();
+        println!("DCG: {}, {} ms, {}", i, (dcg_end - dcg_start) as u64 / 1000000, dcg_out);
+        runtimes.push((i,dcg_end - dcg_start, dcg_out));
+    }
       csv_of_runtimes("./dcg.csv", runtimes.clone()); 
-    //runtimes
+      //runtimes
   }
 
   if false 
@@ -467,7 +472,7 @@ pub fn runtime_harness(max_len: isize) -> Vec<(isize, u64, isize)> {
     for i in 1..max_len {
       input = prepend_input(input, i);
       let naive_start = time::precise_time_ns();
-      let naive_out = doit(input.clone());
+      let naive_out = doit(cell(name_of_str("input"), input.clone()));
       let naive_end = time::precise_time_ns();
       //println!("Naive: {}, {}, {}", i, naive_end - naive_start, naive_out);
       runtimes.push((i,naive_end - naive_start, naive_out));}
@@ -482,7 +487,7 @@ fn test_runtime_harness() {
   use std::thread;
   let child =
     thread::Builder::new().stack_size(64 * 1024 * 1024).spawn(move || { 
-      runtime_harness(10000);
+      runtime_harness(16);
     });
   let _ = child.unwrap().join();
 }
