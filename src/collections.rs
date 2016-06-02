@@ -106,6 +106,19 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
 
 pub fn list_nil<X, L:ListIntro<X>>()          -> L { L::nil() }
 pub fn list_cons<X, L:ListIntro<X>>(x:X, l:L) -> L { L::cons(x, l) }
+pub fn list_fold<X,L:ListElim<X>,F,Res>(l:L, res:Res, body:Rc<F>) -> Res 
+  where F:Fn(X,Res) -> Res 
+{ 
+  L::elim_arg
+    (l, res,
+     |_,res| res,
+     |x, tl, res| {
+       let res = list_fold(tl, res, body.clone());
+       body(x,res)
+     },
+     |_, tl, res| list_fold(tl, res, body.clone()),
+  )
+}
 
 pub fn list_is_empty<X, L:ListElim<X>>(stack:&L) -> bool {
   L::is_empty(stack)
@@ -1433,16 +1446,7 @@ impl<Dom:Debug+Hash+PartialEq+Eq+Clone+'static,
   fn fold<Res,F> (map:Self, res:Res, body:Rc<F>) -> Res
     where F:Fn(Dom, Cod, Res) -> Res 
   {
-    match map {
-      List::Nil => res,
-      List::Cons((d, c), tl) => {
-        let res = Self::fold(*tl, res, body.clone());
-        body(d,c,res)
-      }
-      List::Tree(_,_,_) => unimplemented!(),
-      List::Name(_, tl) => Self::fold(*tl,      res, body),
-      List::Art(ref a)  => Self::fold(force(a), res, body)
-    }
+    list_fold(map, res, Rc::new(move |(d,c),r|(*body)(d,c,r)) )
   }
   fn append(_map:Self, _other:Self) -> Self {
     unimplemented!()    
