@@ -135,6 +135,10 @@ pub fn list_push<X, L:ListIntro<X>>(stack:L, elm:X) -> L {
   L::cons(elm, stack)
 }
 
+pub fn list_append<X, L:ListIntro<X>+ListElim<X>>(l1:L, l2:L) -> L {
+  list_fold(l1, l2, Rc::new(|x,r| list_cons(x,r)))
+}
+
 
 /// Rose Trees: A tree with arbitrary branching at each node.
 /// See also, Definition 2 (page 2) of
