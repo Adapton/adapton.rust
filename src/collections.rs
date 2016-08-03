@@ -1906,6 +1906,11 @@ mod raz {
     curs:  Punc,
     right: Elms<X>
   }
+
+  fn merge_elms(Elms<X>, Option<Punc>, 
+                Elms<X>, Option<Punc>) -> Elms<X> {
+    panic!("")
+  }
 }
 
 
