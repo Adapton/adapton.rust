@@ -6,37 +6,16 @@ use std::fmt::{Formatter,Result};
 use std::fmt;
 use std::fs::{OpenOptions};
 use std::hash::{Hash,Hasher,SipHasher};
-//use std::marker::PhantomData;
 use std::mem::replace;
 use std::mem::transmute;
 use std::num::Zero;
 use std::ops::Add;
 use std::rc::Rc;
-//use std::thread;
  
 use macros::*;
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
-
-//const engineMsgStr : &'static str = "adapton::engine:";
-
-// fn engineMsg (indent:Option<usize>) -> String {
-//   match indent {
-//     None => "adapton::engine:".to_string(),
-//     Some(indent) => {
-//       let mut indent_str = "".to_string() ;
-//       for i in 1..indent {
-//         indent_str.push_str("···〉")
-//       };
-//       ("adapton::engine:".to_string() + &indent_str)
-//     }}}
-
-// macro_rules! engineMsg {
-//   ( $st:expr ) => {{
-//     engineMsg(Some($st.stack.len()))
-//   }}
-// }
 
 // Names provide a symbolic way to identify nodes.
 #[derive(PartialEq,Eq,Clone)]
@@ -229,7 +208,6 @@ struct AllocDependency<T> { val:T }
 impl<T:Debug> DCGDep for AllocDependency<T> {
   fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
 }
-
 
 trait ShapeShifter {
   fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<GraphNode> ;
@@ -1030,7 +1008,7 @@ impl Adapton for DCG {
 
   fn new () -> DCG {
     let path = Rc::new(Path::Empty);
-    let root = {
+    let root = { // Todo-Next: Kill this; new design tests for empty stacks to detect when current node is root node
       let path   = path.clone();
       let symbol = Rc::new(NameSym::Root);
       let hash   = my_hash(&symbol);
@@ -1067,7 +1045,7 @@ impl Adapton for DCG {
         write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(_) => true,  _ => false } },
         gmlog_dcg                     : { match env::var("ADAPTON_GMLOG_DCG")  { Ok(_) => true,  _ => false } },
       },
-      root  : root, // Todo-Question: Don't need this?
+      root  : root, // Todo-Next: Remove this
       table : table,
       stack : stack,
       path  : path,
@@ -1465,7 +1443,7 @@ pub struct Art<T> {
 enum EnumArt<T> {
   Rc(Rc<T>),    // No entry in table. No dependency tracking.
   Loc(Rc<Loc>), // Location in table.
-  Force(Rc<Force<T>>),
+  Force(Rc<Force<T>>), // A closure that is 'force-able'
 }
 
 impl<T:Hash> Hash for EnumArt<T> {

@@ -1859,6 +1859,55 @@ impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
   //      )}  
 }
 
+/// Random Access Zipper (RAZ).
+/// Purely functional sequences with global access (via a balanced
+/// tree structure) and simple local edits (via a zipper structure).
+///
+/// See also: http:://github.com/cuplv/raz.ocaml.git
+mod raz {
+  use macros::* ;
+  use adapton::engine::* ;
+
+  /// Punctuation: Information that is interposed between each run of
+  /// elements, and sometimes before and after them.  The RAZ uses
+  /// user-chosen levels to probabilistically balance the Tree form.
+  /// The RAZ uses the Name to identify cached computations in
+  /// Adapton.
+  pub struct Punc{ level:usize, name:Name }
+  
+  /// A rope (i.e., a tree with vector leaves), balanced
+  /// probabilistically.
+  pub enum Tree<X> { 
+    /// Invariant: Nil only appears in certain edge positions
+    Nil, 
+    /// Invariant: Each element run in a Leaf is interposed between two `Punc`s
+    Leaf(Vec<X>),
+    Bin(X,Punc,Box<Tree<X>>,Box<Tree<X>>),
+    Art(Art<Tree<X>>),
+  }
+  
+  /// Elms: Runs of contiguous element sequences, interposed with
+  /// occasional punctuation.
+  enum Elms<X> {
+    Vec(Vec<X>),
+    Trees(Vec<Tree<X>>),
+    Cons(Vec<X>,Option<ConsTl<X>>)
+  }
+  struct ConsTl<X> {
+    punc:Punc,
+    elms:Box<Elms<X>>,
+  }
+
+  /// The Zipper form consists of element sequences before (to the
+  /// left of) and after (to the right of) a distinguished punctuation
+  /// point in the sequence.
+  pub struct Zip<X> {
+    left:  Elms<X>,
+    curs:  Punc,
+    right: Elms<X>
+  }
+}
+
 
 // #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
 // pub enum CursorEdit<X,Dir> {
