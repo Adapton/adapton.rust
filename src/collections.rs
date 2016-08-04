@@ -1864,7 +1864,8 @@ impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
 /// tree structure) and simple local edits (via a zipper structure).
 ///
 /// See also: http:://github.com/cuplv/raz.ocaml.git
-mod raz {
+pub mod raz {
+  use std::rc::Rc;
   use std::fmt::Debug;
   use std::hash::Hash;
 
@@ -1887,7 +1888,10 @@ mod raz {
     Nil, 
     /// Invariant: Each element run in a Leaf is interposed between two `Punc`s
     Leaf(Vec<X>),
+    /// (Non-trivial) Inductive case: Two balanced sub-trees, interposed with punctuation.
+    /// Invariant: For balance, every Bin node in left/right subtrees has a equal-or-lower level.
     Bin(Box<Tree<X>>,Punc,Box<Tree<X>>),
+    /// (Trivial) Inductive case: An Adapton articulation.
     Art(Art<Tree<X>>),
   }
   
@@ -1895,8 +1899,12 @@ mod raz {
   /// occasional punctuation.
   #[derive(PartialEq,Eq,Hash,Debug,Clone)]
   enum Elms<X> {
-    Trees(Vec<Tree<X>>),
-    Cons(Vec<X>,Option<ConsTl<X>>)
+    /// Base case: No more Cons cells, all remaining elements are formed into a sequence of Trees.
+    Trees(Vec<Tree<X>>), 
+    /// (Non-trivial) Inductive case: Run of elements, followed by more elements.
+    Cons(Vec<X>,Option<ConsTl<X>>),
+    /// (Trivial) Inductive case: an Adapton articulation.
+    Art(Art<Elms<X>>),
   }
   #[derive(PartialEq,Eq,Hash,Debug,Clone)]
   struct ConsTl<X> {
@@ -1914,35 +1922,38 @@ mod raz {
     right: Elms<X>
   }
 
-  fn merge_elms<X:Ord+Hash+Eq+Debug+Clone>
+  fn merge_elms<X:Ord+Hash+Eq+Debug+Clone+'static>
   (es1:Elms<X>, es2:Elms<X>) -> Elms<X> {
     let (mut v1, tl1, 
          mut v2, tl2) = match (es1, es2) {
       (Elms::Cons(v1, tl1), 
-       Elms::Cons(v2, tl2)) => (v1.clone(), tl1, v2.clone(), tl2),
+       Elms::Cons(v2, tl2)) => (v1.clone(), tl1, v2.clone(), tl2), // TODO Avoid these clones.
       (_, _)                => panic!("illegal argument(s)")
     };
     let mut merged = Vec::new();
     loop {
       match (v1.pop(), v2.pop()) {
         (None, None)     => { return Elms::Cons(Vec::new(), None) },
-        (None, Some(e2)) => { // v1 is out of elements; use its punctuation, if any
+        (None, Some(e2)) => { // First vector "wins" race to empty.
           v2.push(e2); let es2 = Elms::Cons(v2, tl2);
           match tl1 { 
-            None      => return es2,
-            Some(tl1) => return Elms::Cons(merged, Some(ConsTl{punc:tl1.punc, elms:Box::new(merge_elms(*(tl1.elms), es2))}))
-            // TODO: merge_elms(...) ~~> Art(thunk!(tl1.punc.name, merge_elms, ... ))
+            None => return es2,
+            Some(tl1) => { // since v1 is out of elements, use its punctuation (aka, tl1.punc)
+              let rest = thunk!(tl1.punc.name.clone() =>> merge_elms, es1:*(tl1.elms), es2:es2);
+              return Elms::Cons(merged, Some(ConsTl{punc:tl1.punc, elms:Box::new(Elms::Art(rest))}))
+            }
           }
         },
-        (Some(e1), None) => { 
+        (Some(e1), None) => { // Second vector "wins" race to empty.
           v1.push(e1); let es1 = Elms::Cons(v1, tl1);
           match tl2 { 
             None      => return es1,
-            Some(tl2) => return Elms::Cons(merged, Some(ConsTl{punc:tl2.punc, elms:Box::new(merge_elms(es1, *(tl2.elms)))}))
-            // TODO: merge_elms(...) ~~> Art(thunk!(tl2.punc.name, merge_elms, ... ))
-          }
+            Some(tl2) => { // since v2 is out of elements, use its punctuation (aka, tl2.punc)
+              let rest = thunk!(tl2.punc.name.clone() =>> merge_elms, es1:es1, es2:*(tl2.elms));
+              return Elms::Cons(merged, Some(ConsTl{punc:tl2.punc, elms:Box::new(Elms::Art(rest))}))
+          }}
         }
-        (Some(e1), Some(e2)) => {
+        (Some(e1), Some(e2)) => { // Neither vector is empty; determine the next element, replace the other.
           if e1 <= e2 { merged.push(e1); v2.push(e2) } 
           else        { merged.push(e2); v1.push(e1) }
         }
@@ -1950,27 +1961,39 @@ mod raz {
     }
   }
 
-  fn merge_sort_tree<X:Ord+Hash+Eq+Debug+Clone>(tr:Tree<X>, rp:Option<Punc>) -> Elms<X> {
-    fn tl_of_opp<X>(opp:Option<Punc>) -> Option<ConsTl<X>> {
-      let emp = Box::new(Elms::Cons(Vec::new(), None));
-      match opp { 
-        None    => None, 
-        Some(p) => Some(ConsTl{punc:p, elms:emp})
+  fn merge_sort_tree<X:Ord+Hash+Eq+Debug+Clone+'static>(n:Option<Name>, tr:Tree<X>, rp:Option<Punc>) -> Elms<X> {
+    match n { Some(n) => {let (_,ans) = eager!(n =>> merge_sort_tree, n:None, tr:tr, rp:rp); ans}, None => { // <<< EXPLICIT-IC
+      fn tl_of_opp<X>(opp:Option<Punc>) -> Option<ConsTl<X>> {
+        let emp = Box::new(Elms::Cons(Vec::new(), None));
+        match opp { 
+          None    => None, 
+          Some(p) => Some(ConsTl{punc:p, elms:emp})
+        }
       }
-    }
-    match tr {
-      Tree::Nil         => { Elms::Cons(Vec::new(), None) }
-      Tree::Leaf(es)    => { Elms::Cons({let mut es = es.clone();es.sort(); es}, tl_of_opp(rp)) }
-      Tree::Bin(l,lp,r) => { 
-        // TODO: Memoize these calls
-        let ms_l = merge_sort_tree(*l, Some(lp));
-        let ms_r = merge_sort_tree(*r, rp);
-        merge_elms(ms_l, ms_r)
+      match tr {
+        Tree::Nil => { Elms::Cons(Vec::new(), None) }
+        Tree::Leaf(es) => { 
+          let last = es.last().clone() ; // Unavoidable clone; need to find last element below
+          let mut sorted = es.clone(); /* TODO: Avoid this Vec clone(). */
+          sorted.sort();
+          match rp {
+            None    => Elms::Cons(sorted, None),
+            Some(p) => {
+              let (sorted1, sorted2) = { (sorted, Vec::new()) /* TODO: Partition sorted based on position of `last` */ };
+              Elms::Cons(sorted1, Some(ConsTl{punc:p, elms:Box::new(Elms::Cons(sorted2, None))}))
+            }}}
+        Tree::Bin(l,lp,r) => { 
+          let (n1,n2) = name_fork(lp.name.clone()); // <<< EXPLICIT-IC
+          let ms_l = merge_sort_tree(Some(n1), *l, Some(lp));
+          let ms_r = merge_sort_tree(Some(n2), *r, rp);
+          merge_elms(ms_l, ms_r)
+        }
+        Tree::Art(ref a) => merge_sort_tree(None, force(a), rp)
       }
-      Tree::Art(ref a) => merge_sort_tree(force(a), rp)
-    }
+    }}
   }
-}  
+  }
+
                 
 // #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
 // pub enum CursorEdit<X,Dir> {
