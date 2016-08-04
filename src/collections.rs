@@ -1895,8 +1895,8 @@ pub mod raz {
     Art(Art<Tree<X>>),
   }
   
-  /// Elms: Runs of contiguous element sequences, interposed with
-  /// occasional punctuation.
+  /// Runs of contiguous element sequences, interposed with
+  /// punctuation information of type `Punc`.
   #[derive(PartialEq,Eq,Hash,Debug,Clone)]
   enum Elms<X> {
     /// Base case: No more Cons cells, all remaining elements are formed into a sequence of Trees.
@@ -1908,7 +1908,9 @@ pub mod raz {
   }
   #[derive(PartialEq,Eq,Hash,Debug,Clone)]
   struct ConsTl<X> {
+    /// Invariant: Punctuation separates each run of elements.
     punc:Punc,
+    /// Inductive structure: (possibly empty) sequence of more element runs.
     elms:Box<Elms<X>>,
   }
 
