@@ -1923,6 +1923,68 @@ pub mod raz {
     curs:  Punc,
     right: Elms<X>
   }
+  
+  pub enum Dir { L, R }
+  pub enum Edit<X> {
+    Insert(Dir,X,Option<Punc>),
+    Replace(Dir,X),
+    Remove(Dir),
+    Move(Dir),
+  }
+
+  pub fn insert<X:Eq+Clone+Hash+Debug>(z:Zip<X>, d:Dir, x:X, p:Option<Punc>) -> Zip<X> {
+    match d {
+      L => {
+        match p {
+          Some(p) => { // Punctuate the insertion with the given p; creates new run of elements, consisting only of element x
+            let a = cell(p.name.clone(), z.left);
+            Zip{left:Elms::Cons(vec![x], Some(ConsTl{punc:p, elms:Box::new(Elms::Art(a))})), ..z}
+          }
+          None => {
+            match z.left { // Mutate the current run of elements, by pushing element x onto it
+              Elms::Cons(mut xs,tl) => { xs.push(x); Zip{left:Elms::Cons(xs, tl), ..z} },
+              _ => panic!("bad arguments: need punctuation")
+            }
+          }
+        }
+      }
+    }
+  }
+    
+  pub fn edit<X:Eq+Clone+Hash+Debug>(z:Zip<X>, edit:Edit<X>) -> Zip<X> {
+    match edit {
+      Edit::Insert(d,x,p) => { insert(z, d, x, p) },
+      _ => unimplemented!()
+    }
+  }
+
+  fn cons_trampoline<X:Eq+Clone+Hash+Debug>(parent_lev:usize, tr_lev:usize, tr:Tree<X>, es:Elms<X>) 
+                                            -> (Tree<X>, Elms<X>)
+  {
+    match es {
+      Elms::Trees(trs) => { (tr, Elms::Trees(trs)) }
+      Elms::Cons(v, None) => { if v.len() > 0 { panic!("bad") } else { (tr, Elms::Cons(v, None)) }},
+      Elms::Art(a) => cons_trampoline(parent_lev, tr_lev, tr, force(&a)),
+      Elms::Cons(v, Some(ConsTl{punc:p, elms:es})) => {
+        if tr_lev <= p.level && p.level <= parent_lev {
+          let (n1, n2) = eager!(p.name =>> cons_trampoline, parent_lev:p.level, tr_lev:0, tr:Tree::Leaf(vec![]), es:*es);
+          let (rtr, es) = cons_trampoline(p.level, 0, Tree::Leaf(vec![]), *es);
+          cons_trampoline(parent_lev, p.level, Tree::Bin(Box::new(tr), p, Box::new(rtr)), es)
+        }
+        else {
+          (tr, Elms::Cons(v, Some(ConsTl{punc:p, elms:es})))
+        }
+      }
+    }
+  } 
+
+  // Compute a vector of trees, building any leading Cons cells into Tree structure
+  fn trees_of_elms<X:Eq+Clone+Hash+Debug>(es:Elms<X>) -> Vec<Tree<X>> {
+    match cons_trampoline(usize::max_value(), 0, Tree::Nil, es) {
+      (tr, Elms::Trees(mut trs)) => { trs.push(tr); return trs }
+      _ => unreachable!(),
+    }
+  }
 
   fn merge_elms<X:Ord+Hash+Eq+Debug+Clone+'static>
   (es1:Elms<X>, es2:Elms<X>) -> Elms<X> {
@@ -1994,7 +2056,7 @@ pub mod raz {
       }
     }}
   }
-  }
+}
 
                 
 // #[derive(Debug,Hash,PartialEq,Eq,Clone,Rand)]
