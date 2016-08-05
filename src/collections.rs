@@ -1878,7 +1878,7 @@ pub mod raz {
   /// The RAZ uses the Name to identify cached computations in
   /// Adapton.
   #[derive(PartialEq,Eq,Hash,Debug,Clone)]
-  pub struct Punc{ level:usize, name:Name }
+  pub struct Punc{ pub level:usize, pub name:Name }
   
   /// A rope (i.e., a tree with vector leaves), balanced
   /// probabilistically.
@@ -1923,8 +1923,11 @@ pub mod raz {
     curs:  Punc,
     right: Elms<X>
   }
-  
+
+  #[derive(PartialEq,Eq,Hash,Debug,Clone,Copy)]
   pub enum Dir { L, R }
+  
+  #[derive(PartialEq,Eq,Hash,Debug,Clone)]
   pub enum Edit<X> {
     Insert(Dir,X,Option<Punc>),
     Replace(Dir,X),
@@ -1932,9 +1935,22 @@ pub mod raz {
     Move(Dir),
   }
 
+  pub fn empty_zip<X>(p:Punc) -> Zip<X> {
+    return Zip{left:Elms::Cons(vec![], None),
+               curs:p,
+               right:Elms::Cons(vec![], None)}
+  }
+
+  pub fn empty_tree<X>(p:Punc) -> Tree<X> {
+    return Tree::Bin(Box::new(Tree::Nil), p, Box::new(Tree::Nil))
+  }
+
+  /// Transform the zipper, inserting x in the given direction. The
+  /// optional punctuation follows the inserted element, in the given
+  /// direction.
   pub fn insert<X:Eq+Clone+Hash+Debug>(z:Zip<X>, d:Dir, x:X, p:Option<Punc>) -> Zip<X> {
-    match d {
-      L => {
+    match &d {
+      &Dir::L => {
         match p {
           Some(p) => { // Punctuate the insertion with the given p; creates new run of elements, consisting only of element x
             let a = cell(p.name.clone(), z.left);
@@ -1948,9 +1964,14 @@ pub mod raz {
           }
         }
       }
+      &Dir::R => {
+        panic!("symmetric to above")
+      }
     }
   }
     
+  /// Perform the given edit, in the given direction, at the current focus of the given zipper.
+  /// The zipper is taken because its head vectors may be mutated, e.g., to insert or remove elements.
   pub fn edit<X:Eq+Clone+Hash+Debug>(z:Zip<X>, edit:Edit<X>) -> Zip<X> {
     match edit {
       Edit::Insert(d,x,p) => { insert(z, d, x, p) },
@@ -1958,18 +1979,25 @@ pub mod raz {
     }
   }
 
-  fn cons_trampoline<X:Eq+Clone+Hash+Debug>(parent_lev:usize, tr_lev:usize, tr:Tree<X>, es:Elms<X>) 
-                                            -> (Tree<X>, Elms<X>)
+  fn cons_trampoline<X:Eq+Clone+Hash+Debug+'static>
+    (dir:Dir, parent_lev:usize, tr_lev:usize, tr:Tree<X>, es:Elms<X>) 
+     -> (Tree<X>, Elms<X>)
   {
     match es {
       Elms::Trees(trs) => { (tr, Elms::Trees(trs)) }
       Elms::Cons(v, None) => { if v.len() > 0 { panic!("bad") } else { (tr, Elms::Cons(v, None)) }},
-      Elms::Art(a) => cons_trampoline(parent_lev, tr_lev, tr, force(&a)),
+      Elms::Art(a) => cons_trampoline(dir, parent_lev, tr_lev, tr, force(&a)),
       Elms::Cons(v, Some(ConsTl{punc:p, elms:es})) => {
         if tr_lev <= p.level && p.level <= parent_lev {
-          let (n1, n2) = eager!(p.name =>> cons_trampoline, parent_lev:p.level, tr_lev:0, tr:Tree::Leaf(vec![]), es:*es);
-          let (rtr, es) = cons_trampoline(p.level, 0, Tree::Leaf(vec![]), *es);
-          cons_trampoline(parent_lev, p.level, Tree::Bin(Box::new(tr), p, Box::new(rtr)), es)
+          let (n1, n2) = name_fork(p.name.clone());
+          let (_, (rtr, es)) = eager!(n1 =>> cons_trampoline, dir:dir, parent_lev:p.level, tr_lev:0, tr:Tree::Leaf(vec![]), es:*es);
+          let tr = match &dir {
+            & Dir::L => Tree::Bin(Box::new(tr),  p.clone(), Box::new(rtr)),
+            & Dir::R => Tree::Bin(Box::new(rtr), p.clone(), Box::new(tr)),
+          };
+          let tr = Tree::Art(cell(p.name.clone(), tr));
+          let (_, (tr, es)) = eager!(n2 =>> cons_trampoline, dir:dir, parent_lev:parent_lev, tr_lev:p.level, tr:tr, es:es);
+          (tr, es)
         }
         else {
           (tr, Elms::Cons(v, Some(ConsTl{punc:p, elms:es})))
@@ -1978,12 +2006,31 @@ pub mod raz {
     }
   } 
 
-  // Compute a vector of trees, building any leading Cons cells into Tree structure
-  fn trees_of_elms<X:Eq+Clone+Hash+Debug>(es:Elms<X>) -> Vec<Tree<X>> {
-    match cons_trampoline(usize::max_value(), 0, Tree::Nil, es) {
+  /// Compute a vector of trees, building any leading Cons cells into Tree structure
+  fn trees_of_elms<X:Eq+Clone+Hash+Debug+'static>(dir:Dir, es:Elms<X>) -> Vec<Tree<X>> {
+    match cons_trampoline(dir, usize::max_value(), 0, Tree::Nil, es) {
       (tr, Elms::Trees(mut trs)) => { trs.push(tr); return trs }
       _ => unreachable!(),
     }
+  }
+
+  /// Appends the sequences of two trees
+  pub fn tree_append<X>(tr1:Tree<X>, tr2:Tree<X>) -> Tree<X> {
+    panic!("TODO")    
+  }
+
+  /// Unfocuses the zipper into a tree form
+  pub fn tree_of_zip<X:Eq+Clone+Hash+Debug+'static>(z:Zip<X>) -> Tree<X> {
+    let mut tree = empty_tree(z.curs);
+    let ltrees = trees_of_elms(Dir::L, z.left);
+    for t in ltrees.iter() { // TODO: Take iterator; Reverse iteration here
+      tree = tree_append(t.clone(), tree); // TODO Avoid clone
+    }
+    let rtrees = trees_of_elms(Dir::R, z.right);
+    for t in rtrees.iter() {
+      tree = tree_append(tree, t.clone()); // TODO Avoid clone
+    }
+    return tree
   }
 
   fn merge_elms<X:Ord+Hash+Eq+Debug+Clone+'static>
@@ -2022,6 +2069,19 @@ pub mod raz {
           else        { merged.push(e2); v1.push(e1) }
         }
       }
+    }
+  }
+
+  /// Merge-sort the elements of the given tree, producing another
+  /// tree, in ascending order (when `d = Dir::L`) or descending order
+  /// (when `d = Dir::R`).
+  pub fn mergesort_eager<X:Ord+Hash+Eq+Debug+Clone+'static>(n:Option<Name>, tr:Tree<X>, d:Dir) -> Tree<X> {
+    let elms = merge_sort_tree(n, tr, None);
+    let mut trees = trees_of_elms(d, elms);
+    assert!( trees.len() == 1 );
+    match trees.pop() {
+      None       => unreachable!(),
+      Some(tree) => tree
     }
   }
 
