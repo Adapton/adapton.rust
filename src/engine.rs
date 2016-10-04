@@ -1700,16 +1700,16 @@ pub fn cell<T:Hash+Eq+Debug+Clone> (n:Name, val:T) -> Art<T> {
 }
 
 /// Mutates a mutable articulation.
-pub fn set<T:Eq+Debug+Clone> (a:Art<T>, val:T) {
-  match a.art {
+pub fn set<T:Eq+Debug+Clone> (a:&Art<T>, val:T) {
+  match (*a).art {
     EnumArt::Rc(_)    => { panic!("set: Cannot mutate immutable Rc articulation; use an DCG cell instead") },
     EnumArt::Force(_) => { panic!("set: Cannot mutate immutable Force articulation; use an DCG cell instead") },
-    EnumArt::Loc(l)   => {
+    EnumArt::Loc(ref l) => {
       GLOBALS.with(|g| {
         match g.borrow().engine {
           Engine::Naive => unimplemented!(), // TODO: Think more about this case.
           Engine::DCG(ref dcg) => {
-            (dcg.borrow_mut()).set(AbsArt::Loc(l), val)
+            (dcg.borrow_mut()).set(AbsArt::Loc(l.clone()), val)
           }
         }
       })
