@@ -16,33 +16,33 @@ use std::fmt::{Formatter,Result,Debug};
 
 #[derive(PartialEq,Eq,Clone,Hash)]
 pub struct ProgPt {
-    // Symbolic identity, in Rust semantics:
-    pub symbol:&'static str, // via stringify!(...)
-    // module:Rc<String>, // via module!()
+  // Symbolic identity, in Rust semantics:
+  pub symbol:&'static str, // via stringify!(...)
+  // module:Rc<String>, // via module!()
 
-    // Location in local filesystem:
-    //pub file:&'static str,   // via file!()
-    //pub line:u32,        // via line!()
-    //pub column:u32,      // via column!()
+  // Location in local filesystem:
+  //pub file:&'static str,   // via file!()
+  //pub line:u32,        // via line!()
+  //pub column:u32,      // via column!()
 }
 
 impl Debug for ProgPt {
-    fn fmt(&self, f: &mut Formatter) -> Result { self.symbol.fmt(f) }
+  fn fmt(&self, f: &mut Formatter) -> Result { self.symbol.fmt(f) }
 }
 
 pub fn my_hash<T>(obj: T) -> u64
-    where T: Hash
+  where T: Hash
 {
-    let mut hasher = SipHasher::new();
-    obj.hash(&mut hasher);
-    hasher.finish()
+  let mut hasher = SipHasher::new();
+  obj.hash(&mut hasher);
+  hasher.finish()
 }
 
 pub fn my_hash_n<T>(obj: T, n:usize) -> u64
-    where T: Hash
+  where T: Hash
 {
   let mut hasher = SipHasher::new();
-  for i in 0..n {
+  for _ in 0..n {
     obj.hash(&mut hasher);
   }
   hasher.finish()
@@ -50,252 +50,404 @@ pub fn my_hash_n<T>(obj: T, n:usize) -> u64
 
 #[macro_export]
 macro_rules! prog_pt {
-    ($symbol:expr) => {{
-        ProgPt{
-            symbol:$symbol,
-            //file:file!(),
-            //line:line!(),
-            //column:column!(),
-        }
-    }}
+  ($symbol:expr) => {{
+    ProgPt{
+      symbol:$symbol,
+      //file:file!(),
+      //line:line!(),
+      //column:column!(),
+    }
+  }}
 }
 
 #[macro_export]
 macro_rules! thunk {
-    ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-        ($st).thunk
-            (ArtIdChoice::Nominal($nm),
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*, _) = args ;
-                     $f :: < $( $ty ),* >( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),*, ()),
-             ()
-             )
-    }}
-    ;
-    ( $st:expr , $nm:expr =>> $f:ident , $( $lab:ident : $arg:expr ),* ) => {{
-        ($st).thunk
-            (ArtIdChoice::Nominal($nm),
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*, _) = args ;
-                     $f ( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),*, () ),
-             ()
-             )
-    }}
-    ;
-    ( $st:expr , $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-        ($st).thunk
-            (ArtIdChoice::Structural,
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*, _) = args ;
-                     $f :: < $( $ty ),* >( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),*, () ),
-             ()
-             )
-    }}
-    ;
-    ( $st:expr , $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-        ($st).thunk
-            (ArtIdChoice::Structural,
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*, _) = args ;
-                     $f ( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),*, () ),
-             ()
-             )        
-    }}
-    ;
+  ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+    thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*, _) = args ;
+           $f :: < $( $ty ),* >( $( $lab ),* )
+         })),
+       ( $( $arg ),*, ()),
+       ()
+       )
+  }}
+  ;
+  ( $nm:expr =>> $f:ident , $( $lab:ident : $arg:expr ),* ) => {{
+    thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*, _) = args ;
+           $f ( $( $lab ),* )
+         })),
+       ( $( $arg ),*, () ),
+       ()
+       )
+  }}
+  ;
+  ( $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+    thunk
+      (ArtIdChoice::Structural,
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*, _) = args ;
+           $f :: < $( $ty ),* >( $( $lab ),* )
+         })),
+       ( $( $arg ),*, () ),
+       ()
+       )
+  }}
+  ;
+  ( $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+    thunk
+      (ArtIdChoice::Structural,
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*, _) = args ;
+           $f ( $( $lab ),* )
+         })),
+       ( $( $arg ),*, () ),
+       ()
+       )        
+  }}
+  ;
 }
+
+// #[macro_export]
+// macro_rules! thunkic {
+//   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+//     thunk
+//       (ArtIdChoice::Nominal($nm),
+//        prog_pt!(stringify!($f)),
+//        Rc::new(Box::new(
+//          |args, _|{
+//            let ($( $lab ),*, _) = args ;
+//            $f :: < $( $ty ),* >( $( $lab ),* )
+//          })),
+//        ( $( $arg ),*, ()),
+//        ()
+//        )
+//   }}
+//   ;
+//   ( $nm:expr =>> $f:ident , $( $lab:ident : $arg:expr ),* ) => {{
+//     thunk
+//       (ArtIdChoice::Nominal($nm),
+//        prog_pt!(stringify!($f)),
+//        Rc::new(Box::new(
+//          |args, _|{
+//            let ($( $lab ),*, _) = args ;
+//            $f ( $( $lab ),* )
+//          })),
+//        ( $( $arg ),*, () ),
+//        ()
+//        )
+//   }}
+//   ;
+//   ( $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+//     thunk
+//       (ArtIdChoice::Structural,
+//        prog_pt!(stringify!($f)),
+//        Rc::new(Box::new(
+//          |args, _|{
+//            let ($( $lab ),*, _) = args ;
+//            $f :: < $( $ty ),* >( $( $lab ),* )
+//          })),
+//        ( $( $arg ),*, () ),
+//        ()
+//        )
+//   }}
+//   ;
+//   ( $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+//     thunk
+//       (ArtIdChoice::Structural,
+//        prog_pt!(stringify!($f)),
+//        Rc::new(Box::new(
+//          |args, _|{
+//            let ($( $lab ),*, _) = args ;
+//            $f ( $( $lab ),* )
+//          })),
+//        ( $( $arg ),*, () ),
+//        ()
+//        )        
+//   }}
+//   ;
+// }
 
 #[macro_export]
 macro_rules! memo {
-    ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-        let t = ($st).thunk
-            (ArtIdChoice::Nominal($nm),
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*) = args ;
-                     $f :: < $( $ty ),* >( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),*, ),
-             ()
-             );
-        ($st).force(&t)
-    }}
-    ;
-    ( $st:expr , $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-        let t = ($st).thunk
-            (ArtIdChoice::Nominal($nm),
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*) = args ;
-                     $f ( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),* ),
-             ()
-             );
-        ($st).force(&t)
-    }}
-    ;
-    ( $st:expr , $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-        let t = ($st).thunk
-            (ArtIdChoice::Structural,
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*) = args ;
-                     $f :: < $( $ty ),* >( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),* ),
-             ()
-             );
-        ($st).force(&t)
-    }}
-    ;
-    ( $st:expr , $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-        let t = ($st).thunk
-            (ArtIdChoice::Structural,
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*, _) = args ;
-                     $f ( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),*, () ),
-             ()
-             );
-        ($st).force(&t)
-    }}
-    ;
-    ( $st:expr , $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
-        let t = ($st).thunk
-            (ArtIdChoice::Nominal($nm),
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args1, args2|{
-                     let ($( $lab1 ),*, _) = args1 ;
-                     let ($( $lab2 ),*, _) = args2 ;
-                     $f ( st, $( $lab1 ),* , $( $lab2 ),* )
-                 })),
-             ( $( $arg1 ),*, () ),
-             ( $( $arg2 ),*, () ),
-             );
-        ($st).force(&t)
-    }}
-    ;
+  ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*) = args ;
+           $f :: < $( $ty ),* >( $( $lab ),* )
+         })),
+       ( $( $arg ),*, ),
+       ()
+       );
+    force(&t)
+  }}
+  ;
+  ( $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*) = args ;
+           $f ( $( $lab ),* )
+         })),
+       ( $( $arg ),* ),
+       ()
+       );
+    force(&t)
+  }}
+  ;
+  ( $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Structural,
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*) = args ;
+           $f :: < $( $ty ),* >( $( $lab ),* )
+         })),
+       ( $( $arg ),* ),
+       ()
+       );
+    force(&t)
+  }}
+  ;
+  ( $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Structural,
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*, _) = args ;
+           $f ( $( $lab ),* )
+         })),
+       ( $( $arg ),*, () ),
+       ()
+       );
+    force(&t)
+  }}
+  ;
+  ( $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args1, args2|{
+           let ($( $lab1 ),*, _) = args1 ;
+           let ($( $lab2 ),*, _) = args2 ;
+           $f ( $( $lab1 ),* , $( $lab2 ),* )
+         })),
+       ( $( $arg1 ),*, () ),
+       ( $( $arg2 ),*, () ),
+       );
+    force(&t)
+  }}
+  ;
 }
-
 
 #[macro_export]
 macro_rules! eager {
-    ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-        let t = ($st).thunk
-            (ArtIdChoice::Nominal($nm),
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*) = args ;
-                     $f :: < $( $ty ),* >( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),*, ),
-             ()
-             );
-        let res = ($st).force(&t) ;
-        (t, res)
-    }}
-    ;
-    ( $st:expr , $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-        let t = ($st).thunk
-            (ArtIdChoice::Nominal($nm),
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*) = args ;
-                     $f ( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),* ),
-             ()
-             );
-        let res = ($st).force(&t) ;
-        (t, res)
-    }}
-    ;
-    ( $st:expr , $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-        let t = ($st).thunk
-            (ArtIdChoice::Structural,
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*) = args ;
-                     $f :: < $( $ty ),* >( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),* ),
-             ()
-             );
-        let res = ($st).force(&t) ;
-        (t, res)
-    }}
-    ;
-    ( $st:expr , $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-        let t = ($st).thunk
-            (ArtIdChoice::Structural,
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args, _|{
-                     let ($( $lab ),*, _) = args ;
-                     $f ( st, $( $lab ),* )
-                 })),
-             ( $( $arg ),*, () ),
-             ()
-             );
-        let res = ($st).force(&t) ;
-        (t, res)
-    }}
-    ;
-    ( $st:expr , $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
-        let t = ($st).thunk
-            (ArtIdChoice::Nominal($nm),
-             prog_pt!(stringify!($f)),
-             Rc::new(Box::new(
-                 |st, args1, args2|{
-                     let ($( $lab1 ),*, _) = args1 ;
-                     let ($( $lab2 ),*, _) = args2 ;
-                     $f ( st, $( $lab1 ),* , $( $lab2 ),* )
-                 })),
-             ( $( $arg1 ),*, () ),
-             ( $( $arg2 ),*, () ),
-             );
-        let res = ($st).force(&t) ;
-        (t, res)
-    }}
-    ;
+  ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*) = args ;
+           $f :: < $( $ty ),* >( $( $lab ),* )
+         })),
+       ( $( $arg ),*, ),
+       ()
+       );
+    let res = force(&t) ;
+    (t, res)
+  }}
+  ;
+  ( $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*) = args ;
+           $f ( $( $lab ),* )
+         })),
+       ( $( $arg ),* ),
+       ()
+       );
+    let res = force(&t) ;
+    (t, res)
+  }}
+  ;
+  ( $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Structural,
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*) = args ;
+           $f :: < $( $ty ),* >( $( $lab ),* )
+         })),
+       ( $( $arg ),* ),
+       ()
+       );
+    let res = force(&t) ;
+    (t, res)
+  }}
+  ;
+  ( $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Structural,
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args, _|{
+           let ($( $lab ),*, _) = args ;
+           $f ( $( $lab ),* )
+         })),
+       ( $( $arg ),*, () ),
+       ()
+       );
+    let res = force(&t) ;
+    (t, res)
+  }}
+  ;
+  ( $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args1, args2|{
+           let ($( $lab1 ),*, _) = args1 ;
+           let ($( $lab2 ),*, _) = args2 ;
+           $f ( $( $lab1 ),* , $( $lab2 ),* )
+         })),
+       ( $( $arg1 ),*, () ),
+       ( $( $arg2 ),*, () ),
+       );
+    let res = force(&t) ;
+    (t, res)
+  }}
+  ;
 }
+
+// #[macro_export]
+// macro_rules! eageric {
+//   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+//     let t = thunk
+//       (ArtIdChoice::Nominal($nm),
+//        prog_pt!(stringify!($f)),
+//        Rc::new(Box::new(
+//          |args, _|{
+//            let ($( $lab ),*) = args ;
+//            $f :: < $( $ty ),* >( $( $lab ),* )
+//          })),
+//        ( $( $arg ),*, ),
+//        ()
+//        );
+//     let res = force(&t) ;
+//     (t, res)
+//   }}
+//   ;
+//   ( $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+//     let t = thunk
+//       (ArtIdChoice::Nominal($nm),
+//        prog_pt!(stringify!($f)),
+//        Rc::new(Box::new(
+//          |args, _|{
+//            let ($( $lab ),*) = args ;
+//            $f ( $( $lab ),* )
+//          })),
+//        ( $( $arg ),* ),
+//        ()
+//        );
+//     let res = force(&t) ;
+//     (t, res)
+//   }}
+//   ;
+//   ( $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+//     let t = thunk
+//       (ArtIdChoice::Structural,
+//        prog_pt!(stringify!($f)),
+//        Rc::new(Box::new(
+//          |args, _|{
+//            let ($( $lab ),*) = args ;
+//            $f :: < $( $ty ),* >( $( $lab ),* )
+//          })),
+//        ( $( $arg ),* ),
+//        ()
+//        );
+//     let res = force(&t) ;
+//     (t, res)
+//   }}
+//   ;
+//   ( $f:path , $( $lab:ident : $arg:expr ),* ) => {{
+//     let t = thunk
+//       (ArtIdChoice::Structural,
+//        prog_pt!(stringify!($f)),
+//        Rc::new(Box::new(
+//          |args, _|{
+//            let ($( $lab ),*, _) = args ;
+//            $f ( $( $lab ),* )
+//          })),
+//        ( $( $arg ),*, () ),
+//        ()
+//        );
+//     let res = force(&t) ;
+//     (t, res)
+//   }}
+//   ;
+//   ( expr , $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+//     let t = thunk
+//       (ArtIdChoice::Nominal($nm),
+//        prog_pt!(stringify!($f)),
+//        Rc::new(Box::new(
+//          |args1, args2|{
+//            let ($( $lab1 ),*, _) = args1 ;
+//            let ($( $lab2 ),*, _) = args2 ;
+//            $f ( $( $lab1 ),* , $( $lab2 ),* )
+//          })),
+//        ( $( $arg1 ),*, () ),
+//        ( $( $arg2 ),*, () ),
+//        );
+//     let res = force(&t) ;
+//     (t, res)
+//   }}
+//   ;
+// }
 
 #[macro_export]
 macro_rules! cell_call {
-    ( $st:expr , $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-      let res = {
-        $f :: < $( $ty ),* >( $st, $( $arg ),*, )
-      } ;
-      let cell = ($st).cell($nm, res) ;
-      let cell = ($st).read_only(cell);
-      cell
-    }}
+  ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
+    let res = {
+      $f :: < $( $ty ),* >( $( $arg ),*, )
+    } ;
+    let cell = cell($nm, res) ;
+    cell
+  }}
+  ;
+  ( $nm:expr =>> $f:ident , $( $lab:ident : $arg:expr ),* ) => {{
+    let res = {
+      $f ( $( $arg ),*, )
+    } ;
+    let cell = cell($nm, res) ;
+    cell
+  }}
+
 }
 
 

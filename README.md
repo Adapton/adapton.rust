@@ -79,4 +79,7 @@ Why?
 - Done:
   - [trait-objects-with-associated-types](http://users.rust-lang.org/t/trait-objects-with-associated-types/746/16?u=matthewhammer)
 
- 
+
+Play.Rust-lang.Org
+=====================
+ - http://is.gd/4czIEG
