@@ -2,12 +2,15 @@
 ====================================================================================
 
 A general-purpose **Incremental Computation** (IC) library for Rust.  
-[available on crates.io](https://crates.io/crates/adapton)  
 
-**Based on**:  
+Versions:
+---------
 
-- The paper [_Incremental Computation with Names_, OOPSLA 2015](http://arxiv.org/abs/1503.07792).  
-- A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).  
+- Older versions are [available on crates.io](https://crates.io/crates/adapton).  
+- The [https://github.com/cuplv/adapton.rust](https://github.com/cuplv/adapton.rust) has the latest, in `dev` and `master` branches.
+- (The `master` branch is intended to be "stable", e.g., for external libraries).
+- The **latest development** is always in branch [dev](https://github.com/cuplv/adapton.rust/tree/dev).  
+- See also: A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).  
 
 Research and Development Community :
 --------------------------------------
@@ -16,8 +19,15 @@ Research and Development Community :
  - If you are interested in joining this Slack team, send mail to `matthew.hammer@colorado.edu` for an invite.
  - For a list of current and past contributors, see [The Adapton Homepage](http://adapton.org)
 
-Library Components:
+Theory and Foundations:
 -----------------------
+
+- The draft [_Typed Adapton: Refinement types for nominal memoization_, Submitted.]().  
+- The paper [_Incremental computation with names_, OOPSLA 2015](http://arxiv.org/abs/1503.07792).  
+- The paper [_Adapton: Composable, demand-driven incremental computation_, PLDI 2014]().  
+
+Library Components:
+=====================
 
 - The library exposes a small **core interface**.
 For details, see the documentation of `engine` interface:
@@ -44,7 +54,7 @@ See also: [`collections.rs`](https://github.com/cuplv/adapton.rust/blob/master/s
 
 
 Supported Incremental Computation Paradigms:
---------------------------------------------
+==============================================
 
 - **Pure Function Caching**:  
 [*Incremental computation via function caching*](http://dl.acm.org/citation.cfm?id=75305)  
@@ -75,11 +85,22 @@ Future work
   - report time statistics
   - [report memory statistics](http://stackoverflow.com/questions/30869007/how-to-benchmark-memory-usage-of-a-function)
 
-Technical Debt
-================
 
-Rust-Specific:
---------------------
+Technicalities specific to Rust
+============================================
+
+Deconstruction of DCG as Rust traits and types
+-----------------------------------------------------------------
+
+See draft on [play.Rust-lang.org](http://is.gd/4czIEG)
+
+This provides a 1000-foot view of how we are encoding the Demanded
+Computation Graph (DCG) into Rust's universe of legal type and trait
+definitions.
+
+Technical Debt
+------------------
+
 - In `engine.rs` I wrote `Producer::copy` and the `ShapeShifter` trait.  Both avoid returning a `Self`.  
 Is there a better way?  
 See also: [0255-object-safety](https://github.com/rust-lang/rfcs/blob/master/text/0255-object-safety.md)  
@@ -89,6 +110,4 @@ Why?
   - [trait-objects-with-associated-types](http://users.rust-lang.org/t/trait-objects-with-associated-types/746/16?u=matthewhammer)
 
 
-Play.Rust-lang.Org
-=====================
- - http://is.gd/4czIEG
+
