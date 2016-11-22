@@ -9,6 +9,13 @@ A general-purpose **Incremental Computation** (IC) library for Rust.
 - The paper [_Incremental Computation with Names_, OOPSLA 2015](http://arxiv.org/abs/1503.07792).  
 - A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).  
 
+Research and Development Community :
+--------------------------------------
+
+ - The [Adapton Slack Team](http://adapton-public.slack.com) is open to anyone that is interested in learning more.
+ - If you are interested in joining this Slack team, send mail to `matthew.hammer@colorado.edu` for an invite.
+ - For a list of current and past contributors, see [The Adapton Homepage](http://adapton.org)
+
 Library Components:
 -----------------------
 
