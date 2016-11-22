@@ -7,7 +7,7 @@ Versions:
 ---------
 
 - Older versions are [available on crates.io](https://crates.io/crates/adapton).  
-- The [https://github.com/cuplv/adapton.rust](https://github.com/cuplv/adapton.rust) has the latest, in `dev` and `master` branches.
+- The repo [https://github.com/cuplv/adapton.rust](https://github.com/cuplv/adapton.rust) has the latest, in `dev` and `master` branches.
 - (The `master` branch is intended to be "stable", e.g., for external libraries).
 - The **latest development** is always in branch [dev](https://github.com/cuplv/adapton.rust/tree/dev).  
 - See also: A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).  
