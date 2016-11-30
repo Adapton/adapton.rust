@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use macros::* ;
 use adapton::engine::* ;
+use adapton::bitstring::*;
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
 pub enum Dir2 { Left, Right }
@@ -258,6 +259,20 @@ pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
        |_,_,_,_| false,
        )
   }
+}
+
+pub trait TrieIntro<X> : Debug+Hash+PartialEq+Eq+Clone+'static {
+    fn nil() -> Self;
+    fn leaf(BS, X) -> Self;
+    fn bin(BS, Self, Self) -> Self;
+
+    // requisite "adaptonic" constructors: `name` and `art`:
+    fn name(Name, Self) -> Self;
+    fn art(Art<Self>) -> Self;
+}
+
+pub trait TrieElim<X> : Debug+Hash+PartialEq+Eq+Clone+'static {
+    fn find(Self) -> Option<X>;
 }
 
 pub trait MapIntro<Dom,Cod>
@@ -1349,6 +1364,15 @@ pub enum Tree<X> {
   Art(Art<Tree<X>>),
 }
 
+#[derive(Debug,PartialEq,Eq,Hash,Clone)]
+pub enum Trie<X> {
+    Nil(BS),
+    Leaf(BS, X),
+    Bin(BS, Box<Trie<X>>, Box<Trie<X>>),
+    Name(Name, Box<Trie<X>>),
+    Art(Art<Trie<X>>),
+}
+
 #[derive(Debug,Clone,PartialEq,Eq,Hash)]
 pub enum NameElse<X> {
   Name(Name),
@@ -1857,6 +1881,45 @@ impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
   //        format!("Name({:?},{:?},{},{})",lev,nm,ls,rs)},
   //      |st,art,_| format!("Art({})", {let l = st.force(art); Self::get_string(st, l)}),
   //      )}  
+}
+
+/// Probabilistically Balanced Trie
+/// Rough implementation of probabilistic tries from OOPSLA 2015 paper.
+///
+/// See also: [Tries in OCaml](http://github.com/plum-umd/adapton.ocaml)
+impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
+    TrieIntro<X>
+    for Trie<X> {
+        fn nil() -> Self {
+            Trie::Nil(BS { length: 0, value: 0 })
+        }
+        fn leaf(bs:BS, x:X) -> Self {
+            Trie::Leaf(bs, x)
+        }
+        fn bin(bs:BS, l:Self, r:Self) -> Self {
+            Trie::Bin(bs, Box::new(l), Box::new(r))
+        }
+        fn name(nm:Name, trie:Self) -> Self {
+            Trie::Name(nm, Box::new(trie))
+        }
+        fn art(art:Art<Self>) -> Self {
+            Trie::Art(art)
+        }
+}
+
+impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
+    TrieElim<X>
+    for Trie<X> {
+        fn find(trie:Self) -> Option<X> {
+            match trie {
+                Trie::Nil(_) => None,
+                Trie::Leaf(_, x) => Some(x),
+                // TODO: Implement branching on bitstring
+                Trie::Bin(_, left, _) => Trie::find(*left),
+                Trie::Name(_, t) => Trie::find(*t),
+                Trie::Art(art_t) => Trie::find(force(&art_t)),
+            }
+        }
 }
 
 /// Random Access Zipper (RAZ).
