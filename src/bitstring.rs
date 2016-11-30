@@ -1,7 +1,7 @@
-#[derive(Eq,PartialEq,Hash,Debug)]
+#[derive(Eq,PartialEq,Hash,Debug,Clone,Copy)]
 pub struct BS {
-    length: i64,
-    value: i64,
+    pub length: i64,
+    pub value: i64,
 }
 
 pub trait BitString {
