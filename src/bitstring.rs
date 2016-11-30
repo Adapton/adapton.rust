@@ -10,6 +10,8 @@ pub trait BitString {
     fn is_set(i64, i64) -> bool;
     fn prepend(i64, BS) -> BS;
     fn length(BS) -> i64;
+
+    const max_len: u32;
 }
 
 impl BitString for BS {
@@ -69,6 +71,8 @@ impl BitString for BS {
     fn length(bs: BS) -> i64 {
         bs.length
     }
+
+    const max_len: u32  = 30;
 }
 
 #[test]

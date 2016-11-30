@@ -1,6 +1,7 @@
 // Adapton for Rust
 
 #![feature(zero_one)]
+#![feature(associated_consts)]
 //#![feature(associated_type_defaults)]
 //#![feature(custom_derive)]
 //#![feature(type_ascription)]
