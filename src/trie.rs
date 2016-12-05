@@ -76,7 +76,7 @@ pub trait TrieIntro<X> : Debug+Hash+PartialEq+Eq+Clone+'static {
 }
 
 pub trait TrieElim<X> : Debug+Hash+PartialEq+Eq+Clone+'static {
-    fn find(Self) -> Option<X>;
+    fn find(Self, i64) -> Option<X>;
 
     fn elim<Res,NilC,LeafC,BinC,RootC,NameC>
         (Self, NilC, LeafC, BinC, RootC, NameC) -> Res
@@ -153,16 +153,20 @@ impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
 impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
     TrieElim<X>
     for Trie<X> {
-        fn find(trie:Self) -> Option<X> {
-            match trie {
-                Trie::Nil(_) => None,
-                Trie::Leaf(_, x) => Some(x),
-                // TODO: Implement branching on bitstring
-                Trie::Bin(_, left, _) => Trie::find(*left),
-                Trie::Root(_, t) => Trie::find(*t),
-                Trie::Name(_, t) => Trie::find(*t),
-                Trie::Art(art_t) => Trie::find(force(&art_t)),
-            }
+        fn find(trie: Self, i:i64) -> Option<X> {
+            fn _loop<X:Debug+Hash+PartialEq+Eq+Clone+'static>(h: i64, t: Trie<X>) -> Option<X> {
+                match t {
+                    Trie::Nil(_) => None,
+                    Trie::Leaf(_, x) => Some(x),
+                    Trie::Bin(_, left, right) => {
+                        _loop(h >> 1, if h % 2 == 0 { *left } else { *right })
+                    },
+                    Trie::Root(_, t) => _loop(h, *t),
+                    Trie::Name(_, t) => _loop(h, *t),
+                    Trie::Art(art_t) => _loop(h, force(&art_t)),
+                }
+            };
+            _loop(i,trie)
         }
 
         fn elim<Res,NilC,LeafC,BinC,RootC,NameC>
