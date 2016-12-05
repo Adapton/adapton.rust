@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::hash::{Hash, Hasher, SipHasher};
+use std::hash::Hash;
 //use std::marker::PhantomData;
 //use std::num::Zero;
 use std::rc::Rc;
