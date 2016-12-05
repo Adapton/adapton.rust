@@ -11,7 +11,7 @@ pub trait BitString {
     fn prepend(i64, BS) -> BS;
     fn length(BS) -> i64;
 
-    const max_len: u32;
+    const MAX_LEN: u32;
 }
 
 impl BitString for BS {
@@ -72,7 +72,7 @@ impl BitString for BS {
         bs.length
     }
 
-    const max_len: u32  = 30;
+    const MAX_LEN: u32 = 30;
 }
 
 #[test]
@@ -103,9 +103,49 @@ fn test_is_set() {
 
 #[test]
 fn test_prepend() {
-    assert_eq!(BS::prepend(0, BS { length: 0, value: 0}), BS { length: 1, value: 0 });
-    assert_eq!(BS::prepend(1, BS { length: 0, value: 0}), BS { length: 1, value: 1});
-    assert_eq!(BS::prepend(1, BS { length: 1, value: 1}), BS { length: 2, value: 3});
-    assert_eq!(BS::prepend(0, BS { length: 1, value: 1}), BS { length: 2, value: 1});
-    assert_eq!(BS::prepend(1, BS { length: 2, value: 1}), BS { length: 3, value: 5});
+    assert_eq!(BS::prepend(0,
+                           BS {
+                               length: 0,
+                               value: 0,
+                           }),
+               BS {
+                   length: 1,
+                   value: 0,
+               });
+    assert_eq!(BS::prepend(1,
+                           BS {
+                               length: 0,
+                               value: 0,
+                           }),
+               BS {
+                   length: 1,
+                   value: 1,
+               });
+    assert_eq!(BS::prepend(1,
+                           BS {
+                               length: 1,
+                               value: 1,
+                           }),
+               BS {
+                   length: 2,
+                   value: 3,
+               });
+    assert_eq!(BS::prepend(0,
+                           BS {
+                               length: 1,
+                               value: 1,
+                           }),
+               BS {
+                   length: 2,
+                   value: 1,
+               });
+    assert_eq!(BS::prepend(1,
+                           BS {
+                               length: 2,
+                               value: 1,
+                           }),
+               BS {
+                   length: 3,
+                   value: 5,
+               });
 }
