@@ -1,3 +1,5 @@
+/// Bit Strings are length/value pairs, so that bit strings with leading
+/// zeros aren't conflated.
 #[derive(Eq,PartialEq,Hash,Debug,Clone,Copy)]
 pub struct BS {
     pub length: i64,
@@ -15,6 +17,7 @@ pub trait BitString {
 }
 
 impl BitString for BS {
+    /// `pow(b, n)` yields b^n
     fn pow(b: i64, n: i64) -> i64 {
         match n {
             0 => 1,
@@ -25,6 +28,7 @@ impl BitString for BS {
             }
         }
     }
+    /// `flip(i, b)` toggles the `i`th bit of `b`.
     fn flip(i: i64, b: i64) -> i64 {
         let n = Self::pow(2, i);
         if n & b == n {
@@ -33,10 +37,13 @@ impl BitString for BS {
             return b + Self::pow(2, i);
         }
     }
+    /// `is_set(i, b)` returns true if the `i`th bit of `b` is set
     fn is_set(i: i64, b: i64) -> bool {
         let n = Self::flip(i, 0);
         (n & b) == n
     }
+    /// `prepend(b, bs)` prepends the bit `b` onto the bitstring `bs`.
+    /// `b` must be either `0` or `1`.
     fn prepend(b: i64, bs: BS) -> BS {
         match b {
             0 => {
@@ -68,10 +75,12 @@ impl BitString for BS {
             _ => panic!("b has to be a bit (0 or 1)"),
         }
     }
+    /// Returns the length of the bitstring `bs`.
     fn length(bs: BS) -> i64 {
         bs.length
     }
 
+    /// The maximum supported length of a bitstring is 30 bits.
     const MAX_LEN: u32 = 30;
 }
 

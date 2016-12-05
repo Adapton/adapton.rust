@@ -4,6 +4,10 @@ use std::hash::{Hash, Hasher, SipHasher};
 use adapton::bitstring::*;
 use adapton::engine::{Art, Name, force};
 
+/// Probablistically Balanced Trie
+/// Rough implementation of probabilistic tries from OOPSLA 2015 paper.
+///
+/// See also: [Tries in OCaml](http://github.com/plum-umd/adapton.ocaml)
 #[derive(Debug,PartialEq,Eq,Clone)]
 pub enum Trie<X> {
     Nil(BS),
@@ -45,6 +49,7 @@ impl Hash for IFreq {
     }
 }
 
+/// Metadata held by the root node.
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
 pub struct Meta {
     min_depth: u64,
@@ -95,10 +100,6 @@ pub trait TrieElim<X> : Debug+Hash+PartialEq+Eq+Clone+'static {
         ,NameC : FnOnce(&Name, &Self) -> Res;
 }
 
-/// Probablistically Balanced Trie
-/// Rough implementation of probabilistic tries from OOPSLA 2015 paper.
-///
-/// See also: [Tries in OCaml](http://github.com/plum-umd/adapton.ocaml)
 impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
     TrieIntro<X>
     for Trie<X> {
