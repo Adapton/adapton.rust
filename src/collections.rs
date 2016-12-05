@@ -8,8 +8,6 @@ use std::rc::Rc;
 
 use macros::* ;
 use adapton::engine::* ;
-use adapton::bitstring::*;
-use adapton::trie_meta::*;
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
 pub enum Dir2 { Left, Right }
@@ -260,37 +258,6 @@ pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
        |_,_,_,_| false,
        )
   }
-}
-
-pub trait TrieIntro<X> : Debug+Hash+PartialEq+Eq+Clone+'static {
-    fn nil() -> Self;
-    fn leaf(BS, X) -> Self;
-    fn bin(BS, Self, Self) -> Self;
-    fn root(Meta, Self) -> Self;
-
-    // requisite "adaptonic" constructors: `name` and `art`:
-    fn name(Name, Self) -> Self;
-    fn art(Art<Self>) -> Self;
-}
-
-pub trait TrieElim<X> : Debug+Hash+PartialEq+Eq+Clone+'static {
-    fn find(Self) -> Option<X>;
-
-    fn elim<Res,NilC,LeafC,BinC,RootC,NameC>
-        (Self, NilC, LeafC, BinC, RootC, NameC) -> Res
-        where NilC : FnOnce(BS) -> Res
-        ,LeafC : FnOnce(BS, X) -> Res
-        ,BinC : FnOnce(BS, Self, Self) -> Res
-        ,RootC : FnOnce(Meta, Self) -> Res
-        ,NameC : FnOnce(Name, Self) -> Res;
-
-    fn elim_ref<Res,NilC,LeafC,BinC,RootC,NameC>
-        (&Self, NilC, LeafC, BinC, RootC, NameC) -> Res
-        where NilC : FnOnce(&BS) -> Res
-        ,LeafC : FnOnce(&BS, &X) -> Res
-        ,BinC : FnOnce(&BS, &Self, &Self) -> Res
-        ,RootC : FnOnce(&Meta, &Self) -> Res
-        ,NameC : FnOnce(&Name, &Self) -> Res;
 }
 
 pub trait MapIntro<Dom,Cod>
@@ -1382,16 +1349,6 @@ pub enum Tree<X> {
   Art(Art<Tree<X>>),
 }
 
-#[derive(Debug,PartialEq,Eq,Clone)]
-pub enum Trie<X> {
-    Nil(BS),
-    Leaf(BS, X),
-    Bin(BS, Box<Trie<X>>, Box<Trie<X>>),
-    Root(Meta, Box<Trie<X>>),
-    Name(Name, Box<Trie<X>>),
-    Art(Art<Trie<X>>),
-}
-
 #[derive(Debug,Clone,PartialEq,Eq,Hash)]
 pub enum NameElse<X> {
   Name(Name),
@@ -1900,119 +1857,6 @@ impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
   //        format!("Name({:?},{:?},{},{})",lev,nm,ls,rs)},
   //      |st,art,_| format!("Art({})", {let l = st.force(art); Self::get_string(st, l)}),
   //      )}  
-}
-
-/// Probabilistically Balanced Trie
-/// Rough implementation of probabilistic tries from OOPSLA 2015 paper.
-///
-/// See also: [Tries in OCaml](http://github.com/plum-umd/adapton.ocaml)
-impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
-    TrieIntro<X>
-    for Trie<X> {
-        fn nil() -> Self {
-            Trie::Nil(BS { length: 0, value: 0 })
-        }
-        fn leaf(bs:BS, x:X) -> Self {
-            Trie::Leaf(bs, x)
-        }
-        fn bin(bs:BS, l:Self, r:Self) -> Self {
-            Trie::Bin(bs, Box::new(l), Box::new(r))
-        }
-        fn root(meta:Meta, trie:Self) -> Self {
-            Trie::Root(meta, Box::new(trie))
-        }
-        fn name(nm:Name, trie:Self) -> Self {
-            Trie::Name(nm, Box::new(trie))
-        }
-        fn art(art:Art<Self>) -> Self {
-            Trie::Art(art)
-        }
-}
-
-impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
-    Hash
-    for Trie<X> {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            match *self {
-                Trie::Nil(bs) => bs.hash(state),
-                Trie::Leaf(bs, ref x) => {
-                    x.hash(state);
-                    bs.hash(state)
-                },
-                Trie::Bin(bs, ref left, ref right) => {
-                    right.hash(state);
-                    left.hash(state);
-                    bs.hash(state)
-                },
-                Trie::Root(ref md, ref t) => {
-                    t.hash(state);
-                    md.hash_seeded(state.finish());
-                },
-                Trie::Name(ref nm, ref t) => {
-                    t.hash(state);
-                    nm.hash(state)
-                },
-                Trie::Art(ref art_t) => art_t.hash(state),
-            }
-        }
-}
-
-impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
-    TrieElim<X>
-    for Trie<X> {
-        fn find(trie:Self) -> Option<X> {
-            match trie {
-                Trie::Nil(_) => None,
-                Trie::Leaf(_, x) => Some(x),
-                // TODO: Implement branching on bitstring
-                Trie::Bin(_, left, _) => Trie::find(*left),
-                Trie::Root(_, t) => Trie::find(*t),
-                Trie::Name(_, t) => Trie::find(*t),
-                Trie::Art(art_t) => Trie::find(force(&art_t)),
-            }
-        }
-
-        fn elim<Res,NilC,LeafC,BinC,RootC,NameC>
-            (trie:Self, nil:NilC, leaf:LeafC, bin:BinC, root:RootC, name:NameC) -> Res
-            where NilC : FnOnce(BS) -> Res
-            ,LeafC : FnOnce(BS, X) -> Res
-            ,BinC : FnOnce(BS, Self, Self) -> Res
-            ,RootC : FnOnce(Meta, Self) -> Res
-            ,NameC : FnOnce(Name, Self) -> Res
-        {
-            match trie {
-                Trie::Nil(bs) => nil(bs),
-                Trie::Leaf(bs, x) => leaf(bs, x),
-                Trie::Bin(bs, l, r) => bin(bs, *l, *r),
-                Trie::Name(nm, t) => name(nm, *t),
-                Trie::Root(meta, t) => root(meta, *t),
-                Trie::Art(art) => {
-                    let trie = force(&art);
-                    Self::elim(trie, nil, leaf, bin, root, name)
-                }
-            }
-        }
-
-        fn elim_ref<Res,NilC,LeafC,BinC,RootC,NameC>
-            (trie:&Self, nil:NilC, leaf:LeafC, bin:BinC, root:RootC, name:NameC) -> Res
-            where NilC : FnOnce(&BS) -> Res
-            ,LeafC : FnOnce(&BS, &X) -> Res
-            ,BinC : FnOnce(&BS, &Self, &Self) -> Res
-            ,RootC : FnOnce(&Meta, &Self) -> Res
-            ,NameC : FnOnce(&Name, &Self) -> Res
-        {
-            match *trie {
-                Trie::Nil(ref bs) => nil(bs),
-                Trie::Leaf(ref bs, ref x) => leaf(bs, x),
-                Trie::Bin(ref bs, ref l, ref r) => bin(bs, &*l, &*r),
-                Trie::Name(ref nm, ref t) => name(nm, &*t),
-                Trie::Root(ref meta, ref t) => root(meta, &*t),
-                Trie::Art(ref art) => {
-                    let trie = force(&art);
-                    Self::elim_ref(&trie, nil, leaf, bin, root, name)
-                }
-            }
-        }
 }
 
 /// Random Access Zipper (RAZ).
