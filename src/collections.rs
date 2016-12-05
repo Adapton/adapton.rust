@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher, SipHasher};
 //use std::marker::PhantomData;
 //use std::num::Zero;
 use std::rc::Rc;
@@ -9,6 +9,7 @@ use std::rc::Rc;
 use macros::* ;
 use adapton::engine::* ;
 use adapton::bitstring::*;
+use adapton::trie_meta::*;
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
 pub enum Dir2 { Left, Right }
@@ -1364,11 +1365,12 @@ pub enum Tree<X> {
   Art(Art<Tree<X>>),
 }
 
-#[derive(Debug,PartialEq,Eq,Hash,Clone)]
+#[derive(Debug,PartialEq,Eq,Clone)]
 pub enum Trie<X> {
     Nil(BS),
     Leaf(BS, X),
     Bin(BS, Box<Trie<X>>, Box<Trie<X>>),
+    Root(Meta, Box<Trie<X>>),
     Name(Name, Box<Trie<X>>),
     Art(Art<Trie<X>>),
 }
@@ -1908,6 +1910,34 @@ impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
 }
 
 impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
+    Hash
+    for Trie<X> {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            match *self {
+                Trie::Nil(bs) => bs.hash(state),
+                Trie::Leaf(bs, ref x) => {
+                    x.hash(state);
+                    bs.hash(state)
+                },
+                Trie::Bin(bs, ref left, ref right) => {
+                    right.hash(state);
+                    left.hash(state);
+                    bs.hash(state)
+                },
+                Trie::Root(ref md, ref t) => {
+                    t.hash(state);
+                    md.hash_seeded(state.finish());
+                },
+                Trie::Name(ref nm, ref t) => {
+                    t.hash(state);
+                    nm.hash(state)
+                },
+                Trie::Art(ref art_t) => art_t.hash(state),
+            }
+        }
+}
+
+impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
     TrieElim<X>
     for Trie<X> {
         fn find(trie:Self) -> Option<X> {
@@ -1916,6 +1946,7 @@ impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
                 Trie::Leaf(_, x) => Some(x),
                 // TODO: Implement branching on bitstring
                 Trie::Bin(_, left, _) => Trie::find(*left),
+                Trie::Root(_, t) => Trie::find(*t),
                 Trie::Name(_, t) => Trie::find(*t),
                 Trie::Art(art_t) => Trie::find(force(&art_t)),
             }

@@ -26,6 +26,7 @@ pub mod collections ;
 pub mod fixpoints ;
 pub mod arith_parse ;
 pub mod bitstring ;
+pub mod trie_meta ;
 
 mod adapton {
     pub use super::*;
