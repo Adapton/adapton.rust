@@ -266,6 +266,7 @@ pub trait TrieIntro<X> : Debug+Hash+PartialEq+Eq+Clone+'static {
     fn nil() -> Self;
     fn leaf(BS, X) -> Self;
     fn bin(BS, Self, Self) -> Self;
+    fn root(Meta, Self) -> Self;
 
     // requisite "adaptonic" constructors: `name` and `art`:
     fn name(Name, Self) -> Self;
@@ -274,6 +275,22 @@ pub trait TrieIntro<X> : Debug+Hash+PartialEq+Eq+Clone+'static {
 
 pub trait TrieElim<X> : Debug+Hash+PartialEq+Eq+Clone+'static {
     fn find(Self) -> Option<X>;
+
+    fn elim<Res,NilC,LeafC,BinC,RootC,NameC>
+        (Self, NilC, LeafC, BinC, RootC, NameC) -> Res
+        where NilC : FnOnce(BS) -> Res
+        ,LeafC : FnOnce(BS, X) -> Res
+        ,BinC : FnOnce(BS, Self, Self) -> Res
+        ,RootC : FnOnce(Meta, Self) -> Res
+        ,NameC : FnOnce(Name, Self) -> Res;
+
+    fn elim_ref<Res,NilC,LeafC,BinC,RootC,NameC>
+        (&Self, NilC, LeafC, BinC, RootC, NameC) -> Res
+        where NilC : FnOnce(&BS) -> Res
+        ,LeafC : FnOnce(&BS, &X) -> Res
+        ,BinC : FnOnce(&BS, &Self, &Self) -> Res
+        ,RootC : FnOnce(&Meta, &Self) -> Res
+        ,NameC : FnOnce(&Name, &Self) -> Res;
 }
 
 pub trait MapIntro<Dom,Cod>
@@ -1901,6 +1918,9 @@ impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
         fn bin(bs:BS, l:Self, r:Self) -> Self {
             Trie::Bin(bs, Box::new(l), Box::new(r))
         }
+        fn root(meta:Meta, trie:Self) -> Self {
+            Trie::Root(meta, Box::new(trie))
+        }
         fn name(nm:Name, trie:Self) -> Self {
             Trie::Name(nm, Box::new(trie))
         }
@@ -1949,6 +1969,48 @@ impl <X:Debug+Hash+PartialEq+Eq+Clone+'static>
                 Trie::Root(_, t) => Trie::find(*t),
                 Trie::Name(_, t) => Trie::find(*t),
                 Trie::Art(art_t) => Trie::find(force(&art_t)),
+            }
+        }
+
+        fn elim<Res,NilC,LeafC,BinC,RootC,NameC>
+            (trie:Self, nil:NilC, leaf:LeafC, bin:BinC, root:RootC, name:NameC) -> Res
+            where NilC : FnOnce(BS) -> Res
+            ,LeafC : FnOnce(BS, X) -> Res
+            ,BinC : FnOnce(BS, Self, Self) -> Res
+            ,RootC : FnOnce(Meta, Self) -> Res
+            ,NameC : FnOnce(Name, Self) -> Res
+        {
+            match trie {
+                Trie::Nil(bs) => nil(bs),
+                Trie::Leaf(bs, x) => leaf(bs, x),
+                Trie::Bin(bs, l, r) => bin(bs, *l, *r),
+                Trie::Name(nm, t) => name(nm, *t),
+                Trie::Root(meta, t) => root(meta, *t),
+                Trie::Art(art) => {
+                    let trie = force(&art);
+                    Self::elim(trie, nil, leaf, bin, root, name)
+                }
+            }
+        }
+
+        fn elim_ref<Res,NilC,LeafC,BinC,RootC,NameC>
+            (trie:&Self, nil:NilC, leaf:LeafC, bin:BinC, root:RootC, name:NameC) -> Res
+            where NilC : FnOnce(&BS) -> Res
+            ,LeafC : FnOnce(&BS, &X) -> Res
+            ,BinC : FnOnce(&BS, &Self, &Self) -> Res
+            ,RootC : FnOnce(&Meta, &Self) -> Res
+            ,NameC : FnOnce(&Name, &Self) -> Res
+        {
+            match *trie {
+                Trie::Nil(ref bs) => nil(bs),
+                Trie::Leaf(ref bs, ref x) => leaf(bs, x),
+                Trie::Bin(ref bs, ref l, ref r) => bin(bs, &*l, &*r),
+                Trie::Name(ref nm, ref t) => name(nm, &*t),
+                Trie::Root(ref meta, ref t) => root(meta, &*t),
+                Trie::Art(ref art) => {
+                    let trie = force(&art);
+                    Self::elim_ref(&trie, nil, leaf, bin, root, name)
+                }
             }
         }
 }
