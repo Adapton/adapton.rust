@@ -52,7 +52,7 @@ impl Hash for IFreq {
 /// Metadata held by the root node.
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
 pub struct Meta {
-    min_depth: u64,
+    min_depth: i64,
     ifreq: IFreq,
 }
 
@@ -70,7 +70,7 @@ impl MetaT for Meta {
 }
 
 pub trait TrieIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
-    fn nil() -> Self;
+    fn nil(BS) -> Self;
     fn leaf(BS, X) -> Self;
     fn bin(BS, Self, Self) -> Self;
     fn root(Meta, Self) -> Self;
@@ -82,6 +82,7 @@ pub trait TrieIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
 
 pub trait TrieElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
     fn find(&Self, i64) -> Option<X>;
+    fn split_atomic(Self) -> Self;
 
     fn elim<Res, NilC, LeafC, BinC, RootC, NameC>(Self, NilC, LeafC, BinC, RootC, NameC) -> Res
         where NilC: FnOnce(BS) -> Res,
@@ -105,11 +106,8 @@ pub trait TrieElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
 }
 
 impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X> {
-    fn nil() -> Self {
-        Trie::Nil(BS {
-            length: 0,
-            value: 0,
-        })
+    fn nil(bs: BS) -> Self {
+        Trie::Nil(bs)
     }
     fn leaf(bs: BS, x: X) -> Self {
         Trie::Leaf(bs, x)
@@ -191,6 +189,27 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
                        },
                        |_, t| Self::find(t, i),
                        |_, t| Self::find(t, i))
+    }
+
+    fn split_atomic(trie: Self) -> Self {
+        fn suffix(bs: BS, k: i64) -> bool {
+            bs.value & k == bs.value
+        }
+        match trie {
+            t @ Trie::Nil(_) | t @ Trie::Bin(_,_,_) => t,
+            Trie::Leaf(bs, e) => {
+                let bs0 = BS::prepend(0, bs);
+                let bs1 = BS::prepend(1, bs);
+                let mut hasher = DefaultHasher::new();
+                e.hash(&mut hasher);
+                if suffix(bs1, hasher.finish() as i64) {
+                    Self::bin(bs, Self::nil(bs0), Self::leaf(bs1, e))
+                } else {
+                    Self::bin(bs, Self::leaf(bs0, e), Self::nil(bs1))
+                }
+            }
+            _ => panic!("Bad split_atomic(t)")
+        }
     }
 
     fn elim<Res, NilC, LeafC, BinC, RootC, NameC>(trie: Self,
