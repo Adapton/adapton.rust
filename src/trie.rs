@@ -1,8 +1,10 @@
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher, SipHasher};
+use std::collections::hash_map::DefaultHasher;
+use std::cmp::min;
 
 use adapton::bitstring::*;
-use adapton::engine::{Art, Name, force};
+use adapton::engine::{Art, Name, force, name_fork, name_of_str, name_unit, put};
 
 /// Probablistically Balanced Trie
 /// Rough implementation of probabilistic tries from OOPSLA 2015 paper.
@@ -78,10 +80,15 @@ pub trait TrieIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
     // requisite "adaptonic" constructors: `name` and `art`:
     fn name(Name, Self) -> Self;
     fn art(Art<Self>) -> Self;
+
+    fn empty(Meta) -> Self;
+    fn singleton(Meta, Name, X) -> Self;
+    fn extend(Name, Self, X) -> Self;
 }
 
 pub trait TrieElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
     fn find(&Self, i64) -> Option<X>;
+    fn is_empty(&Self) -> bool;
     fn split_atomic(Self) -> Self;
 
     fn elim<Res, NilC, LeafC, BinC, RootC, NameC>(Self, NilC, LeafC, BinC, RootC, NameC) -> Res
@@ -105,6 +112,70 @@ pub trait TrieElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
               NameC: FnOnce(&Name, &Self) -> Res;
 }
 
+impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
+    fn mfn(nm: Name, meta: Meta, trie: Self, bs: BS, elt: X, hash: u64) -> Self {
+        match trie {
+            Trie::Nil(_) if BS::length(bs) < meta.min_depth => {
+                let h_ = hash << 1;
+                let bs0 = BS::prepend(0, bs);
+                let bs1 = BS::prepend(1, bs);
+                let mt0 = Self::nil(bs0);
+                let mt1 = Self::nil(bs1);
+                if BS::is_set(0, bs.value) {
+                    Self::bin(bs, mt0, Self::mfn(nm, meta, mt1, bs1, elt, h_))
+                } else {
+                    Self::bin(bs, Self::mfn(nm, meta, mt0, bs0, elt, h_), mt1)
+                }
+            }
+            Trie::Nil(_) => Trie::Leaf(bs, elt),
+            Trie::Leaf(bs_, e) => {
+                let depth = BS::length(bs);
+                if depth >= BS::MAX_LEN || e == elt {
+                    Self::leaf(bs, elt)
+                } else if depth < BS::MAX_LEN {
+                    Self::mfn(nm,
+                              meta,
+                              Self::split_atomic(Self::leaf(bs_, e)),
+                              bs,
+                              elt,
+                              hash)
+                } else {
+                    panic!("Bad value found in nadd:\nLeaf(bs, e)\n");
+                }
+            }
+            Trie::Bin(bs, left, right) => {
+                let h_ = hash << 1;
+                if BS::is_set(0, bs.value) {
+                    let r = Self::mfn(nm, meta, *right, BS::prepend(1, bs), elt, h_);
+                    Self::bin(bs, *left, r)
+                } else {
+                    let l = Self::mfn(nm, meta, *left, BS::prepend(0, bs), elt, h_);
+                    Self::bin(bs, l, *right)
+                }
+            }
+            Trie::Name(_, box Trie::Art(a)) => Self::mfn(nm, meta, force(&a), bs, elt, hash),
+            t => panic!("Bad value found in nadd:\n{:?}\n", t),
+        }
+    }
+
+    fn root_mfn(_: Name, nm:Name, trie: Self, elt: X) -> Self {
+        match trie {
+            Trie::Name(_, box Trie::Art(a)) =>
+                match force(&a) {
+                    Trie::Root (meta, t) => {
+                        let (nm, nm_) = name_fork(nm);
+                        let mut hasher = DefaultHasher::new();
+                        elt.hash(&mut hasher);
+                        let a = Self::mfn(nm_, meta.clone(), *t, BS { length:0, value:0 }, elt, hasher.finish());
+                        Self::root(meta, Self::name(nm, Self::art(put(a))))
+                    }
+                    _ => panic!("Non-root node entry to `Trie.extend'")
+                },
+            _ => panic!("None-name node at entry to `Trie.extend'")
+        }
+    }
+}
+
 impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X> {
     fn nil(bs: BS) -> Self {
         Trie::Nil(bs)
@@ -123,6 +194,28 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
     }
     fn art(art: Art<Self>) -> Self {
         Trie::Art(art)
+    }
+
+    fn empty(meta:Meta) -> Self {
+        if meta.min_depth > BS::MAX_LEN {
+            println!("Cannot make Adapton.Trie with min_depth > {} (given {})", BS::MAX_LEN, meta.min_depth);
+        }
+        let min = min(meta.min_depth, BS::MAX_LEN);
+        let meta = Meta { min_depth:min, ifreq:meta.ifreq };
+        let nm = name_of_str("empty");
+        let (nm1, nm2) = name_fork(nm);
+        let mtbs = BS { length:0, value:0 };
+        Self::name(nm1, Self::root(meta, Self::name(nm2, Self::nil(mtbs))))
+    }
+
+    fn singleton(meta: Meta, nm: Name, elt: X) -> Self {
+        Self::extend(nm, Self::empty(meta), elt)
+    }
+
+    fn extend(nm: Name, trie: Self, elt: X) -> Self {
+        let (nm, nm_) = name_fork(nm);
+        let a = Self::root_mfn(nm.clone(), nm_, trie, elt);
+        Self::name(nm, Self::art(put(a)))
     }
 }
 
@@ -191,12 +284,22 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
                        |_, t| Self::find(t, i))
     }
 
+    fn is_empty(trie: &Self) -> bool {
+        Self::elim_ref(trie,
+                       |_| true,
+                       |_,_| false,
+                       |_,_,_| false,
+                       |_, t| Self::is_empty(t),
+                       |_, t| Self::is_empty(t))
+    }
+
     fn split_atomic(trie: Self) -> Self {
         fn suffix(bs: BS, k: i64) -> bool {
             bs.value & k == bs.value
         }
         match trie {
-            t @ Trie::Nil(_) | t @ Trie::Bin(_,_,_) => t,
+            t @ Trie::Nil(_) |
+            t @ Trie::Bin(_, _, _) => t,
             Trie::Leaf(bs, e) => {
                 let bs0 = BS::prepend(0, bs);
                 let bs1 = BS::prepend(1, bs);
@@ -208,7 +311,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
                     Self::bin(bs, Self::leaf(bs0, e), Self::nil(bs1))
                 }
             }
-            _ => panic!("Bad split_atomic(t)")
+            _ => panic!("Bad split_atomic(t)"),
         }
     }
 
@@ -263,4 +366,16 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
             }
         }
     }
+}
+
+#[test]
+fn test_is_empty() {
+    let meta = Meta { min_depth:1, ifreq:IFreq::Const(1) };
+    let empty = Trie::<usize>::empty(meta.clone());
+    let singleton = Trie::<usize>::singleton(meta.clone(), name_unit(), 7);
+    assert!(Trie::is_empty(&Trie::<usize>::nil(BS { length:0, value:0 })));
+    assert!(Trie::is_empty(&empty));
+
+    assert!(!Trie::is_empty(&Trie::<usize>::leaf(BS { length:0, value:0 }, 0)));
+    assert!(!Trie::is_empty(&singleton));
 }

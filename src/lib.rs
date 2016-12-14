@@ -3,6 +3,7 @@
 #![feature(zero_one)]
 #![feature(associated_consts)]
 #![feature(box_patterns)]
+#![feature(box_syntax)]
 //#![feature(associated_type_defaults)]
 //#![feature(custom_derive)]
 //#![feature(type_ascription)]
