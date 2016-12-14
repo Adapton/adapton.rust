@@ -158,20 +158,29 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
         }
     }
 
-    fn root_mfn(_: Name, nm:Name, trie: Self, elt: X) -> Self {
+    fn root_mfn(_: Name, nm: Name, trie: Self, elt: X) -> Self {
         match trie {
-            Trie::Name(_, box Trie::Art(a)) =>
+            Trie::Name(_, box Trie::Art(a)) => {
                 match force(&a) {
-                    Trie::Root (meta, t) => {
+                    Trie::Root(meta, t) => {
                         let (nm, nm_) = name_fork(nm);
                         let mut hasher = DefaultHasher::new();
                         elt.hash(&mut hasher);
-                        let a = Self::mfn(nm_, meta.clone(), *t, BS { length:0, value:0 }, elt, hasher.finish());
+                        let a = Self::mfn(nm_,
+                                          meta.clone(),
+                                          *t,
+                                          BS {
+                                              length: 0,
+                                              value: 0,
+                                          },
+                                          elt,
+                                          hasher.finish());
                         Self::root(meta, Self::name(nm, Self::art(put(a))))
                     }
-                    _ => panic!("Non-root node entry to `Trie.extend'")
-                },
-            _ => panic!("None-name node at entry to `Trie.extend'")
+                    _ => panic!("Non-root node entry to `Trie.extend'"),
+                }
+            }
+            _ => panic!("None-name node at entry to `Trie.extend'"),
         }
     }
 }
@@ -196,16 +205,26 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
         Trie::Art(art)
     }
 
-    fn empty(meta:Meta) -> Self {
+    fn empty(meta: Meta) -> Self {
         if meta.min_depth > BS::MAX_LEN {
-            println!("Cannot make Adapton.Trie with min_depth > {} (given {})", BS::MAX_LEN, meta.min_depth);
+            println!("Cannot make Adapton.Trie with min_depth > {} (given {})",
+                     BS::MAX_LEN,
+                     meta.min_depth);
         }
         let min = min(meta.min_depth, BS::MAX_LEN);
-        let meta = Meta { min_depth:min, ifreq:meta.ifreq };
+        let meta = Meta {
+            min_depth: min,
+            ifreq: meta.ifreq,
+        };
         let nm = name_of_str("empty");
         let (nm1, nm2) = name_fork(nm);
-        let mtbs = BS { length:0, value:0 };
-        Self::name(nm1, Self::art(put(Self::root(meta, Self::name(nm2, Self::art(put(Self::nil(mtbs))))))))
+        let mtbs = BS {
+            length: 0,
+            value: 0,
+        };
+        Self::name(nm1,
+                   Self::art(put(Self::root(meta,
+                                            Self::name(nm2, Self::art(put(Self::nil(mtbs))))))))
     }
 
     fn singleton(meta: Meta, nm: Name, elt: X) -> Self {
@@ -287,8 +306,8 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
     fn is_empty(trie: &Self) -> bool {
         Self::elim_ref(trie,
                        |_| true,
-                       |_,_| false,
-                       |_,_,_| false,
+                       |_, _| false,
+                       |_, _, _| false,
                        |_, t| Self::is_empty(t),
                        |_, t| Self::is_empty(t))
     }
@@ -370,12 +389,22 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
 
 #[test]
 fn test_is_empty() {
-    let meta = Meta { min_depth:1, ifreq:IFreq::Const(1) };
+    let meta = Meta {
+        min_depth: 1,
+        ifreq: IFreq::Const(1),
+    };
     let empty = Trie::<usize>::empty(meta.clone());
     let singleton = Trie::<usize>::singleton(meta.clone(), name_unit(), 7);
-    assert!(Trie::is_empty(&Trie::<usize>::nil(BS { length:0, value:0 })));
+    assert!(Trie::is_empty(&Trie::<usize>::nil(BS {
+        length: 0,
+        value: 0,
+    })));
     assert!(Trie::is_empty(&empty));
 
-    assert!(!Trie::is_empty(&Trie::<usize>::leaf(BS { length:0, value:0 }, 0)));
+    assert!(!Trie::is_empty(&Trie::<usize>::leaf(BS {
+                                                     length: 0,
+                                                     value: 0,
+                                                 },
+                                                 0)));
     assert!(!Trie::is_empty(&singleton));
 }
