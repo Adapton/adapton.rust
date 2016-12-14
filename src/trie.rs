@@ -56,7 +56,7 @@ pub trait TrieIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
 }
 
 pub trait TrieElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
-    fn find(&Self, i64) -> Option<X>;
+    fn find(&Self, &X, i64) -> Option<X>;
     fn is_empty(&Self) -> bool;
     fn split_atomic(Self) -> Self;
 
@@ -104,10 +104,10 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
                 let bs1 = BS::prepend(1, bs);
                 let mt0 = Self::nil(bs0);
                 let mt1 = Self::nil(bs1);
-                if BS::is_set(0, bs.value) {
-                    Self::bin(bs, mt0, Self::mfn(nm, meta, mt1, bs1, elt, h_))
-                } else {
+                if hash % 2 == 0 {
                     Self::bin(bs, Self::mfn(nm, meta, mt0, bs0, elt, h_), mt1)
+                } else {
+                    Self::bin(bs, mt0, Self::mfn(nm, meta, mt1, bs1, elt, h_))
                 }
             }
             Trie::Nil(_) => Trie::Leaf(bs, elt),
@@ -128,12 +128,12 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
             }
             Trie::Bin(bs, left, right) => {
                 let h_ = hash << 1;
-                if BS::is_set(0, bs.value) {
-                    let r = Self::mfn(nm, meta, *right, BS::prepend(1, bs), elt, h_);
-                    Self::bin(bs, *left, r)
-                } else {
+                if hash % 2 == 0 {
                     let l = Self::mfn(nm, meta, *left, BS::prepend(0, bs), elt, h_);
                     Self::bin(bs, l, *right)
+                } else {
+                    let r = Self::mfn(nm, meta, *right, BS::prepend(1, bs), elt, h_);
+                    Self::bin(bs, *left, r)
                 }
             }
             Trie::Name(_, box Trie::Art(a)) => Self::mfn(nm, meta, force(&a), bs, elt, hash),
@@ -195,9 +195,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
                      meta.min_depth);
         }
         let min = min(meta.min_depth, BS::MAX_LEN);
-        let meta = Meta {
-            min_depth: min,
-        };
+        let meta = Meta { min_depth: min };
         let nm = name_of_str("empty");
         let (nm1, nm2) = name_fork(nm);
         let mtbs = BS {
@@ -247,17 +245,17 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Hash for Trie<X> {
 }
 
 impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X> {
-    fn find(trie: &Self, i: i64) -> Option<X> {
+    fn find(trie: &Self, elt: &X, i: i64) -> Option<X> {
         Self::elim_ref(trie,
                        |_| None,
-                       |_, x| Some(x.clone()),
+                       |_, x| if *elt == *x { Some(x.clone()) } else { None },
                        |_, left, right| if i % 2 == 0 {
-                           Self::find(left, i >> 1)
+                           Self::find(left, elt, i >> 1)
                        } else {
-                           Self::find(right, i >> 1)
+                           Self::find(right, elt, i >> 1)
                        },
-                       |_, t| Self::find(t, i),
-                       |_, t| Self::find(t, i))
+                       |_, t| Self::find(t, elt, i),
+                       |_, t| Self::find(t, elt, i))
     }
 
     fn is_empty(trie: &Self) -> bool {
@@ -373,9 +371,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
 
 #[test]
 fn test_is_empty() {
-    let meta = Meta {
-        min_depth: 1,
-    };
+    let meta = Meta { min_depth: 1 };
     let empty = TrieIntro::<usize>::empty(meta.clone());
     let singleton = Trie::singleton(meta.clone(), name_unit(), 7);
     assert!(Trie::<usize>::is_empty(&Trie::nil(BS {
@@ -394,9 +390,7 @@ fn test_is_empty() {
 
 #[test]
 fn test_equal() {
-    let meta = Meta {
-        min_depth: 1,
-    };
+    let meta = Meta { min_depth: 1 };
     let empty: Trie<usize> = TrieIntro::empty(meta.clone());
     let singleton_7 = Trie::singleton(meta.clone(), name_unit(), 7);
     let singleton_7_ = Trie::singleton(meta.clone(), name_unit(), 7);
@@ -427,9 +421,7 @@ pub trait SetElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
 
 impl<X, Set: TrieIntro<X> + TrieElim<X>> SetIntro<X> for Set {
     fn empty() -> Self {
-        let meta = Meta {
-            min_depth: 1,
-        };
+        let meta = Meta { min_depth: 1 };
         Self::empty(meta)
     }
 
@@ -440,9 +432,9 @@ impl<X, Set: TrieIntro<X> + TrieElim<X>> SetIntro<X> for Set {
 
 impl<X: Hash, Set: TrieIntro<X> + TrieElim<X>> SetElim<X> for Set {
     fn mem(set: &Self, elt: &X) -> bool {
-        let mut hasher = SipHasher::new_with_keys(0, PLACEMENT_SEED);
+        let mut hasher = DefaultHasher::new();
         elt.hash(&mut hasher);
-        match Set::find(set, hasher.finish() as i64) {
+        match Set::find(set, elt, hasher.finish() as i64) {
             Some(_) => true,
             None => false,
         }
@@ -451,14 +443,33 @@ impl<X: Hash, Set: TrieIntro<X> + TrieElim<X>> SetElim<X> for Set {
 
 type Set<X> = Trie<X>;
 
-// #[test]
-// fn test_set() {
-//     let e: Set<usize> = SetIntro::empty();
-//     let s = SetIntro::add(e, 7);
-//     let s = SetIntro::add(s, 1);
-//     let s = SetIntro::add(s, 8);
-//     assert!(Set::mem(&s, &1));
-//     assert!(Set::mem(&s, &7));
-//     assert!(Set::mem(&s, &8));
-//     assert!(!Set::mem(&s, &0));
-// }
+// Set membership is consistent after additions.
+#[test]
+fn test_set() {
+    let e: Set<usize> = SetIntro::empty();
+    assert!(!Set::mem(&e, &7));
+    assert!(!Set::mem(&e, &1));
+    let s = SetIntro::add(e, 7);
+    let s = SetIntro::add(s, 1);
+    let s = SetIntro::add(s, 8);
+    println!("{:?}", s);
+    assert!(Set::mem(&s, &1));
+    assert!(Set::mem(&s, &7));
+    assert!(Set::mem(&s, &8));
+    assert!(!Set::mem(&s, &0));
+}
+
+// Order in which elements are added to sets doesn't matter.
+#[test]
+fn test_set_equal() {
+    let e: Set<usize> = SetIntro::empty();
+    let s = SetIntro::add(e, 7);
+    let s = SetIntro::add(s, 1);
+    let s = SetIntro::add(s, 8);
+
+    let e: Set<usize> = SetIntro::empty();
+    let t = SetIntro::add(e, 8);
+    let t = SetIntro::add(t, 7);
+    let t = SetIntro::add(t, 1);
+    assert_eq!(s, t);
+}
