@@ -12,8 +12,9 @@ pub trait BitString {
     fn is_set(i64, i64) -> bool;
     fn prepend(i64, BS) -> BS;
     fn length(BS) -> i64;
+    fn shift_left(BS, i64) -> BS;
 
-    const MAX_LEN: u32;
+    const MAX_LEN: i64;
 }
 
 impl BitString for BS {
@@ -46,32 +47,21 @@ impl BitString for BS {
     /// `b` must be either `0` or `1`.
     fn prepend(b: i64, bs: BS) -> BS {
         match b {
-            0 => {
-                if !(Self::is_set(bs.length, bs.value)) {
-                    BS {
-                        length: bs.length + 1,
-                        value: bs.value,
-                    }
-                } else {
-                    BS {
-                        length: bs.length + 1,
-                        value: Self::flip(bs.length, bs.value),
-                    }
-                }
-            }
-            1 => {
-                if Self::is_set(bs.length, bs.value) {
-                    BS {
-                        length: bs.length + 1,
-                        value: bs.value,
-                    }
-                } else {
-                    BS {
-                        length: bs.length + 1,
-                        value: Self::flip(bs.length, bs.value),
-                    }
-                }
-            }
+            0 if !(Self::is_set(bs.length, bs.value)) =>
+                BS {
+                    length: bs.length + 1,
+                    value: bs.value,
+                },
+            1 if Self::is_set(bs.length, bs.value) =>
+                BS {
+                    length: bs.length + 1,
+                    value: bs.value,
+                },
+            0 | 1 =>
+                BS {
+                    length: bs.length + 1,
+                    value: Self::flip(bs.length, bs.value),
+                },
             _ => panic!("b has to be a bit (0 or 1)"),
         }
     }
@@ -79,9 +69,16 @@ impl BitString for BS {
     fn length(bs: BS) -> i64 {
         bs.length
     }
+    /// Performs a logical shift left on the bitstring `bs`.
+    fn shift_left(bs: BS, i: i64) -> BS {
+        BS {
+            length: bs.length,
+            value:(bs.value << i) & (2i64.pow(bs.length as u32) - 1),
+        }
+    }
 
     /// The maximum supported length of a bitstring is 30 bits.
-    const MAX_LEN: u32 = 30;
+    const MAX_LEN: i64 = 30;
 }
 
 #[test]
@@ -117,4 +114,13 @@ fn test_prepend() {
     assert_eq!(BS::prepend(1, BS { length: 1, value: 1 }), BS { length: 2, value: 3 });
     assert_eq!(BS::prepend(0, BS { length: 1, value: 1 }), BS { length: 2, value: 1 });
     assert_eq!(BS::prepend(1, BS { length: 2, value: 1 }), BS { length: 3, value: 5 });
+}
+
+#[test]
+fn test_shift_left() {
+    assert_eq!(BS::shift_left(BS { length: 1, value: 0 }, 1), BS { length: 1, value: 0 });
+    assert_eq!(BS::shift_left(BS { length: 1, value: 1 }, 1), BS { length: 1, value: 0 });
+    assert_eq!(BS::shift_left(BS { length: 2, value: 1 }, 1), BS { length: 2, value: 2 });
+    assert_eq!(BS::shift_left(BS { length: 2, value: 3 }, 1), BS { length: 2, value: 2 });
+    assert_eq!(BS::shift_left(BS { length: 4, value: 2 }, 2), BS { length: 4, value: 8 });
 }
