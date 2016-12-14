@@ -20,6 +20,8 @@ pub enum Trie<X> {
     Art(Art<Trie<X>>),
 }
 
+pub const PLACEMENT_SEED: u64 = 42;
+
 #[derive(Debug,PartialEq,Eq,Clone)]
 pub enum IFreq {
     Never,
@@ -97,6 +99,20 @@ pub trait TrieElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
               BinC: FnOnce(BS, Self, Self) -> Res,
               RootC: FnOnce(Meta, Self) -> Res,
               NameC: FnOnce(Name, Self) -> Res;
+
+    fn elim_arg<Arg, Res, NilC, LeafC, BinC, RootC, NameC>(Self,
+                                                           Arg,
+                                                           NilC,
+                                                           LeafC,
+                                                           BinC,
+                                                           RootC,
+                                                           NameC)
+                                                           -> Res
+        where NilC: FnOnce(BS, Arg) -> Res,
+              LeafC: FnOnce(BS, X, Arg) -> Res,
+              BinC: FnOnce(BS, Self, Self, Arg) -> Res,
+              RootC: FnOnce(Meta, Self, Arg) -> Res,
+              NameC: FnOnce(Name, Self, Arg) -> Res;
 
     fn elim_ref<Res, NilC, LeafC, BinC, RootC, NameC>(&Self,
                                                       NilC,
@@ -228,7 +244,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
     }
 
     fn singleton(meta: Meta, nm: Name, elt: X) -> Self {
-        Self::extend(nm, Self::empty(meta), elt)
+        Self::extend(nm, TrieIntro::empty(meta), elt)
     }
 
     fn extend(nm: Name, trie: Self, elt: X) -> Self {
@@ -335,6 +351,33 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
         }
     }
 
+    fn elim_arg<Arg, Res, NilC, LeafC, BinC, RootC, NameC>(trie: Self,
+                                                           arg: Arg,
+                                                           nil: NilC,
+                                                           leaf: LeafC,
+                                                           bin: BinC,
+                                                           root: RootC,
+                                                           name: NameC)
+                                                           -> Res
+        where NilC: FnOnce(BS, Arg) -> Res,
+              LeafC: FnOnce(BS, X, Arg) -> Res,
+              BinC: FnOnce(BS, Self, Self, Arg) -> Res,
+              RootC: FnOnce(Meta, Self, Arg) -> Res,
+              NameC: FnOnce(Name, Self, Arg) -> Res
+    {
+        match trie {
+            Trie::Nil(bs) => nil(bs, arg),
+            Trie::Leaf(bs, x) => leaf(bs, x, arg),
+            Trie::Bin(bs, l, r) => bin(bs, *l, *r, arg),
+            Trie::Name(nm, t) => name(nm, *t, arg),
+            Trie::Root(meta, t) => root(meta, *t, arg),
+            Trie::Art(art) => {
+                let trie = force(&art);
+                Self::elim_arg(trie, arg, nil, leaf, bin, root, name)
+            }
+        }
+    }
+
     fn elim_ref<Res, NilC, LeafC, BinC, RootC, NameC>(trie: &Self,
                                                       nil: NilC,
                                                       leaf: LeafC,
@@ -368,19 +411,19 @@ fn test_is_empty() {
         min_depth: 1,
         ifreq: IFreq::Const(1),
     };
-    let empty = Trie::<usize>::empty(meta.clone());
-    let singleton = Trie::<usize>::singleton(meta.clone(), name_unit(), 7);
-    assert!(Trie::is_empty(&Trie::<usize>::nil(BS {
+    let empty = TrieIntro::<usize>::empty(meta.clone());
+    let singleton = Trie::singleton(meta.clone(), name_unit(), 7);
+    assert!(Trie::<usize>::is_empty(&Trie::nil(BS {
         length: 0,
         value: 0,
     })));
     assert!(Trie::is_empty(&empty));
 
-    assert!(!Trie::is_empty(&Trie::<usize>::leaf(BS {
-                                                     length: 0,
-                                                     value: 0,
-                                                 },
-                                                 0)));
+    assert!(!Trie::is_empty(&Trie::leaf(BS {
+                                            length: 0,
+                                            value: 0,
+                                        },
+                                        0)));
     assert!(!Trie::is_empty(&singleton));
 }
 
@@ -390,10 +433,10 @@ fn test_equal() {
         min_depth: 1,
         ifreq: IFreq::Const(1),
     };
-    let empty = Trie::<usize>::empty(meta.clone());
-    let singleton_7 = Trie::<usize>::singleton(meta.clone(), name_unit(), 7);
-    let singleton_7_ = Trie::<usize>::singleton(meta.clone(), name_unit(), 7);
-    let singleton_8 = Trie::<usize>::singleton(meta.clone(), name_unit(), 8);
+    let empty: Trie<usize> = TrieIntro::empty(meta.clone());
+    let singleton_7 = Trie::singleton(meta.clone(), name_unit(), 7);
+    let singleton_7_ = Trie::singleton(meta.clone(), name_unit(), 7);
+    let singleton_8 = Trie::singleton(meta.clone(), name_unit(), 8);
     assert_eq!(empty, empty);
     assert_eq!(singleton_7, singleton_7);
     assert_eq!(singleton_7, singleton_7_);
@@ -403,3 +446,56 @@ fn test_equal() {
     assert_ne!(empty, singleton_8);
     assert_ne!(singleton_7, singleton_8);
 }
+
+pub trait SetIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
+    fn empty() -> Self;
+    fn add(Self, e: X) -> Self;
+    // fn remove(Self, e: &X) -> Self;
+    // fn union(Self, Self) -> Self;
+    // fn inter(Self, Self) -> Self;
+    // fn diff(Self, Self) -> Self;
+}
+
+pub trait SetElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
+    fn mem(set: &Self, e: &X) -> bool;
+    // fn fold<Res, F>(set: Self, Res, F) -> Res where F: Fn(X, Res) -> Res;
+}
+
+impl<X, Set: TrieIntro<X> + TrieElim<X>> SetIntro<X> for Set {
+    fn empty() -> Self {
+        let meta = Meta {
+            min_depth: 1,
+            ifreq: IFreq::Const(1),
+        };
+        Self::empty(meta)
+    }
+
+    fn add(set: Self, elt: X) -> Self {
+        Self::extend(name_unit(), set, elt)
+    }
+}
+
+impl<X: Hash, Set: TrieIntro<X> + TrieElim<X>> SetElim<X> for Set {
+    fn mem(set: &Self, elt: &X) -> bool {
+        let mut hasher = SipHasher::new_with_keys(0, PLACEMENT_SEED);
+        elt.hash(&mut hasher);
+        match Set::find(set, hasher.finish() as i64) {
+            Some(_) => true,
+            None => false,
+        }
+    }
+}
+
+type Set<X> = Trie<X>;
+
+// #[test]
+// fn test_set() {
+//     let e: Set<usize> = SetIntro::empty();
+//     let s = SetIntro::add(e, 7);
+//     let s = SetIntro::add(s, 1);
+//     let s = SetIntro::add(s, 8);
+//     assert!(Set::mem(&s, &1));
+//     assert!(Set::mem(&s, &7));
+//     assert!(Set::mem(&s, &8));
+//     assert!(!Set::mem(&s, &0));
+// }
