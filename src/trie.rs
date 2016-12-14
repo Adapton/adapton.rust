@@ -22,42 +22,10 @@ pub enum Trie<X> {
 
 pub const PLACEMENT_SEED: u64 = 42;
 
-#[derive(Debug,PartialEq,Eq,Clone)]
-pub enum IFreq {
-    Never,
-    Depth(u64, u64),
-    First(u64),
-    Const(u64),
-}
-
-impl Hash for IFreq {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match *self {
-            IFreq::Never => {
-                "Adapton.Trie.Meta.Freq#Never".hash(state);
-            }
-            IFreq::Depth(i, j) => {
-                "Adapton.Trie.Meta.Freq#Depth".hash(state);
-                i.hash(state);
-                j.hash(state);
-            }
-            IFreq::First(n) => {
-                "Adapton.Trie.Meta.Freq#First".hash(state);
-                n.hash(state);
-            }
-            IFreq::Const(i) => {
-                "Adapton.Trie.Meta.Freq#Const".hash(state);
-                i.hash(state);
-            }
-        }
-    }
-}
-
 /// Metadata held by the root node.
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
 pub struct Meta {
     min_depth: i64,
-    ifreq: IFreq,
 }
 
 pub trait MetaT {
@@ -69,7 +37,6 @@ impl MetaT for Meta {
         let mut hasher = SipHasher::new_with_keys(0, seed);
         "Adapton.Trie.Meta".hash(&mut hasher);
         self.min_depth.hash(&mut hasher);
-        self.ifreq.hash(&mut hasher);
     }
 }
 
@@ -230,7 +197,6 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
         let min = min(meta.min_depth, BS::MAX_LEN);
         let meta = Meta {
             min_depth: min,
-            ifreq: meta.ifreq,
         };
         let nm = name_of_str("empty");
         let (nm1, nm2) = name_fork(nm);
@@ -409,7 +375,6 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
 fn test_is_empty() {
     let meta = Meta {
         min_depth: 1,
-        ifreq: IFreq::Const(1),
     };
     let empty = TrieIntro::<usize>::empty(meta.clone());
     let singleton = Trie::singleton(meta.clone(), name_unit(), 7);
@@ -431,7 +396,6 @@ fn test_is_empty() {
 fn test_equal() {
     let meta = Meta {
         min_depth: 1,
-        ifreq: IFreq::Const(1),
     };
     let empty: Trie<usize> = TrieIntro::empty(meta.clone());
     let singleton_7 = Trie::singleton(meta.clone(), name_unit(), 7);
@@ -465,7 +429,6 @@ impl<X, Set: TrieIntro<X> + TrieElim<X>> SetIntro<X> for Set {
     fn empty() -> Self {
         let meta = Meta {
             min_depth: 1,
-            ifreq: IFreq::Const(1),
         };
         Self::empty(meta)
     }
