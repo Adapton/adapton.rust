@@ -8,7 +8,7 @@ use adapton::engine::{Art, Name, force};
 /// Rough implementation of probabilistic tries from OOPSLA 2015 paper.
 ///
 /// See also: [Tries in OCaml](http://github.com/plum-umd/adapton.ocaml)
-#[derive(Debug,PartialEq,Eq,Clone)]
+#[derive(Debug,Clone)]
 pub enum Trie<X> {
     Nil(BS),
     Leaf(BS, X),
@@ -127,6 +127,31 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
         Trie::Art(art)
     }
 }
+
+impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> PartialEq for Trie<X> {
+    fn eq(&self, other: &Trie<X>) -> bool {
+        match (self, other) {
+            (&Trie::Nil(bs_self), &Trie::Nil(bs_other)) => bs_self == bs_other,
+            (&Trie::Leaf(bs_self, ref e_self), &Trie::Leaf(bs_other, ref e_other)) => {
+                let bs_equal = bs_self == bs_other;
+                bs_equal && e_self == e_other
+            }
+            (&Trie::Bin(bs, ref left, ref right),
+             &Trie::Bin(bs_other, ref left_other, ref right_other)) => {
+                bs == bs_other && left == left_other && right == right_other
+            }
+            (&Trie::Root(ref md, ref t), &Trie::Root(ref md_other, ref t_other)) => {
+                md == md_other && t == t_other
+            }
+            (&Trie::Name(ref nm, ref t), &Trie::Name(ref nm_other, ref t_other)) => {
+                nm == nm_other && t == t_other
+            }
+            _ => false,
+        }
+    }
+}
+
+impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Eq for Trie<X> {}
 
 impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Hash for Trie<X> {
     fn hash<H: Hasher>(&self, state: &mut H) {
