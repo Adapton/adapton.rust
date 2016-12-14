@@ -205,7 +205,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
         let nm = name_of_str("empty");
         let (nm1, nm2) = name_fork(nm);
         let mtbs = BS { length:0, value:0 };
-        Self::name(nm1, Self::root(meta, Self::name(nm2, Self::nil(mtbs))))
+        Self::name(nm1, Self::art(put(Self::root(meta, Self::name(nm2, Self::art(put(Self::nil(mtbs))))))))
     }
 
     fn singleton(meta: Meta, nm: Name, elt: X) -> Self {
