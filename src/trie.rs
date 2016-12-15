@@ -1,10 +1,12 @@
 use std::fmt::Debug;
-use std::hash::{Hash, Hasher, SipHasher};
+use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
+use std::rc::Rc;
 use std::cmp::min;
 
 use adapton::bitstring::*;
-use adapton::engine::{Art, Name, force, name_fork, name_of_str, name_unit, put};
+use adapton::engine::*;
+use macros::*;
 
 /// Probablistically Balanced Trie
 /// Rough implementation of probabilistic tries from OOPSLA 2015 paper.
@@ -34,7 +36,8 @@ pub trait MetaT {
 
 impl MetaT for Meta {
     fn hash_seeded(&self, seed: u64) {
-        let mut hasher = SipHasher::new_with_keys(0, seed);
+        let mut hasher = DefaultHasher::new();
+        seed.hash(&mut hasher);
         "Adapton.Trie.Meta".hash(&mut hasher);
         self.min_depth.hash(&mut hasher);
     }
@@ -202,6 +205,9 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
             length: 0,
             value: 0,
         };
+        // let res = thunk!(nm1.clone() =>> Self::root, meta:meta, trie:Self::name(nm2.clone(),
+        // Self::art(thunk!(nm2 =>> Self::nil, bs: mtbs))));
+        // Self::name(nm1, Self::art(res))
         Self::name(nm1,
                    Self::art(put(Self::root(meta,
                                             Self::name(nm2, Self::art(put(Self::nil(mtbs))))))))
