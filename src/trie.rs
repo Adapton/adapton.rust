@@ -102,7 +102,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
     fn mfn(nm: Name, meta: Meta, trie: Self, bs: BS, elt: X, hash: u64) -> Self {
         match trie {
             Trie::Nil(_) if BS::length(bs) < meta.min_depth => {
-                let h_ = hash << 1;
+                let h_ = hash >> 1;
                 let bs0 = BS::prepend(0, bs);
                 let bs1 = BS::prepend(1, bs);
                 let mt0 = Self::nil(bs0);
@@ -114,14 +114,14 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
                 }
             }
             Trie::Nil(_) => Trie::Leaf(bs, elt),
-            Trie::Leaf(bs_, e) => {
+            Trie::Leaf(_, e) => {
                 let depth = BS::length(bs);
                 if depth >= BS::MAX_LEN || e == elt {
-                    Self::leaf(bs, elt)
+                    Self::leaf(bs, e)
                 } else if depth < BS::MAX_LEN {
                     Self::mfn(nm,
                               meta,
-                              Self::split_atomic(Self::leaf(bs_, e)),
+                              Self::split_atomic(Self::leaf(bs, e)),
                               bs,
                               elt,
                               hash)
@@ -130,7 +130,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
                 }
             }
             Trie::Bin(bs, left, right) => {
-                let h_ = hash << 1;
+                let h_ = hash >> 1;
                 if hash % 2 == 0 {
                     let l = Self::mfn(nm, meta, *left, BS::prepend(0, bs), elt, h_);
                     Self::bin(bs, l, *right)

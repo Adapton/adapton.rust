@@ -73,19 +73,13 @@ fn test_set_equal() {
 
 // The code that we want to compare/measure under naive versus DCG engines:
 fn doit(v:Vec<usize>, t:Trie<usize>) -> Trie<usize> {
-    let t_ = v.into_iter().fold(t, |acc, i| SetIntro::add(acc, i));
-    println!();
-    println!("adding...");
-    println!("{:?}", t_);
-    t_
+    v.into_iter().fold(t, |acc, i| TrieIntro::extend(name_of_usize(i), acc, i))
 }
 
 #[test]
 fn test_dcg_add_dups () {
     let mut naive_input : Trie<usize> = SetIntro::empty();
     let mut dcg_input : Trie<usize> = SetIntro::empty();
-    println!("{:?}", naive_input);
-    println!("{:?}", dcg_input);
 
     init_dcg();
     let mut dcg = init_naive();
