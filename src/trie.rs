@@ -27,7 +27,7 @@ pub const PLACEMENT_SEED: u64 = 42;
 /// Metadata held by the root node.
 #[derive(Debug,PartialEq,Eq,Hash,Clone)]
 pub struct Meta {
-    min_depth: i64,
+    pub min_depth: i64,
 }
 
 pub trait MetaT {
@@ -208,9 +208,10 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
         // let res = thunk!(nm1.clone() =>> Self::root, meta:meta, trie:Self::name(nm2.clone(),
         // Self::art(thunk!(nm2 =>> Self::nil, bs: mtbs))));
         // Self::name(nm1, Self::art(res))
-        Self::name(nm1,
-                   Self::art(put(Self::root(meta,
-                                            Self::name(nm2, Self::art(put(Self::nil(mtbs))))))))
+        Self::name(nm1.clone(),
+                   Self::art(thunk!(nm1 =>> Self::root, meta:meta,
+                                             trie:Self::name(nm2.clone(),
+                                                        Self::art(thunk!(nm2 =>> Self::nil, bs:mtbs))))))
     }
 
     fn singleton(meta: Meta, nm: Name, elt: X) -> Self {
@@ -375,42 +376,6 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
     }
 }
 
-#[test]
-fn test_is_empty() {
-    let meta = Meta { min_depth: 1 };
-    let empty = TrieIntro::<usize>::empty(meta.clone());
-    let singleton = Trie::singleton(meta.clone(), name_unit(), 7);
-    assert!(Trie::<usize>::is_empty(&Trie::nil(BS {
-        length: 0,
-        value: 0,
-    })));
-    assert!(Trie::is_empty(&empty));
-
-    assert!(!Trie::is_empty(&Trie::leaf(BS {
-                                            length: 0,
-                                            value: 0,
-                                        },
-                                        0)));
-    assert!(!Trie::is_empty(&singleton));
-}
-
-#[test]
-fn test_equal() {
-    let meta = Meta { min_depth: 1 };
-    let empty: Trie<usize> = TrieIntro::empty(meta.clone());
-    let singleton_7 = Trie::singleton(meta.clone(), name_unit(), 7);
-    let singleton_7_ = Trie::singleton(meta.clone(), name_unit(), 7);
-    let singleton_8 = Trie::singleton(meta.clone(), name_unit(), 8);
-    assert_eq!(empty, empty);
-    assert_eq!(singleton_7, singleton_7);
-    assert_eq!(singleton_7, singleton_7_);
-    assert_eq!(singleton_8, singleton_8);
-
-    assert_ne!(empty, singleton_7);
-    assert_ne!(empty, singleton_8);
-    assert_ne!(singleton_7, singleton_8);
-}
-
 pub trait SetIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
     fn empty() -> Self;
     fn add(Self, e: X) -> Self;
@@ -447,35 +412,4 @@ impl<X: Hash, Set: TrieIntro<X> + TrieElim<X>> SetElim<X> for Set {
     }
 }
 
-type Set<X> = Trie<X>;
-
-// Set membership is consistent after additions.
-#[test]
-fn test_set() {
-    let e: Set<usize> = SetIntro::empty();
-    assert!(!Set::mem(&e, &7));
-    assert!(!Set::mem(&e, &1));
-    let s = SetIntro::add(e, 7);
-    let s = SetIntro::add(s, 1);
-    let s = SetIntro::add(s, 8);
-    println!("{:?}", s);
-    assert!(Set::mem(&s, &1));
-    assert!(Set::mem(&s, &7));
-    assert!(Set::mem(&s, &8));
-    assert!(!Set::mem(&s, &0));
-}
-
-// Order in which elements are added to sets doesn't matter.
-#[test]
-fn test_set_equal() {
-    let e: Set<usize> = SetIntro::empty();
-    let s = SetIntro::add(e, 7);
-    let s = SetIntro::add(s, 1);
-    let s = SetIntro::add(s, 8);
-
-    let e: Set<usize> = SetIntro::empty();
-    let t = SetIntro::add(e, 8);
-    let t = SetIntro::add(t, 7);
-    let t = SetIntro::add(t, 1);
-    assert_eq!(s, t);
-}
+pub type Set<X> = Trie<X>;
