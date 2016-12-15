@@ -78,11 +78,11 @@ fn doit(v:Vec<usize>, t:Trie<usize>) -> Trie<usize> {
 
 #[test]
 fn test_dcg_add_dups () {
-    let mut naive_input : Trie<usize> = SetIntro::empty();
-    let mut dcg_input : Trie<usize> = SetIntro::empty();
-
     init_dcg();
     let mut dcg = init_naive();
+
+    let mut naive_input : Trie<usize> = SetIntro::empty();
+    let mut dcg_input : Trie<usize> = SetIntro::empty();
 
     let mut v = Vec::new();
 
