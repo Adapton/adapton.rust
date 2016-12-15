@@ -34,10 +34,10 @@ fn bench_dcg_add_dups() {
 
 #[bench]
 fn benchmark_naive_trie(b: &mut Bencher) {
-    b.bench_n(1, |b| b.iter(|| bench_naive_add_dups()))
+    b.iter(|| bench_naive_add_dups())
 }
 
 #[bench]
 fn benchmark_dcg_trie(b: &mut Bencher) {
-    b.bench_n(1, |b| b.iter(|| bench_dcg_add_dups()))
+    b.iter(|| bench_dcg_add_dups())
 }
