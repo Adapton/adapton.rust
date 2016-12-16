@@ -12,7 +12,7 @@ use macros::*;
 /// Rough implementation of probabilistic tries from OOPSLA 2015 paper.
 ///
 /// See also: [Tries in OCaml](http://github.com/plum-umd/adapton.ocaml)
-#[derive(Debug,Clone)]
+#[derive(Debug,PartialEq,Eq,Clone)]
 pub enum Trie<X> {
     Nil(BS),
     Leaf(BS, X),
@@ -43,46 +43,46 @@ impl MetaT for Meta {
     }
 }
 
-impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> PartialEq for Trie<X> {
-    fn eq(&self, other: &Trie<X>) -> bool {
-        match (self, other) {
-            (&Trie::Nil(ref bs_self), &Trie::Nil(ref bs_other)) => bs_self == bs_other,
-            (&Trie::Leaf(ref bs_self, ref e_self), &Trie::Leaf(ref bs_other, ref e_other)) => {
-                let bs_equal = bs_self == bs_other;
-                let b = bs_equal && e_self == e_other;
-                // println!("{:?}\n{}\n{:?}", self, b, other);
-                b
-            }
-            (&Trie::Bin(ref bs, ref left, ref right),
-             &Trie::Bin(ref bs_other, ref left_other, ref right_other)) => {
-                let b = bs == bs_other && left == left_other && right == right_other;
-                // println!("{:?}\n{}\n{:?}", self, b, other);
-                b
-            }
-            (&Trie::Root(ref md, ref t), &Trie::Root(ref md_other, ref t_other)) => {
-                let b = md == md_other && t == t_other;
-                // println!("{:?}\n{}\n{:?}", t, b, t_other);
-                b
-            }
-            (&Trie::Name(ref nm, ref t), &Trie::Name(ref nm_other, ref t_other)) => {
-                let b = nm == nm_other && t == t_other;
-                // println!("{:?}\n{}\n{:?}", t, b, t_other);
-                b
-            }
-            (&Trie::Art(ref a), &Trie::Art(ref a_other)) => {
-                let b = a == a_other;
-                // println!("{:?}\n{}\n{:?}", a, b, a_other);
-                b
-            }
-            (t, t_other) => {
-                // println!("{:?}\n!=\n{:?}", t, t_other);
-                false
-            }
-        }
-    }
-}
+// impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> PartialEq for Trie<X> {
+//     fn eq(&self, other: &Trie<X>) -> bool {
+//         match (self, other) {
+//             (&Trie::Nil(ref bs_self), &Trie::Nil(ref bs_other)) => bs_self == bs_other,
+//             (&Trie::Leaf(ref bs_self, ref e_self), &Trie::Leaf(ref bs_other, ref e_other)) => {
+//                 let bs_equal = bs_self == bs_other;
+//                 let b = bs_equal && e_self == e_other;
+//                 // println!("{:?}\n{}\n{:?}", self, b, other);
+//                 b
+//             }
+//             (&Trie::Bin(ref bs, ref left, ref right),
+//              &Trie::Bin(ref bs_other, ref left_other, ref right_other)) => {
+//                 let b = bs == bs_other && left == left_other && right == right_other;
+//                 // println!("{:?}\n{}\n{:?}", self, b, other);
+//                 b
+//             }
+//             (&Trie::Root(ref md, ref t), &Trie::Root(ref md_other, ref t_other)) => {
+//                 let b = md == md_other && t == t_other;
+//                 // println!("{:?}\n{}\n{:?}", t, b, t_other);
+//                 b
+//             }
+//             (&Trie::Name(ref nm, ref t), &Trie::Name(ref nm_other, ref t_other)) => {
+//                 let b = nm == nm_other && t == t_other;
+//                 // println!("{:?}\n{}\n{:?}", t, b, t_other);
+//                 b
+//             }
+//             (&Trie::Art(ref a), &Trie::Art(ref a_other)) => {
+//                 let b = a == a_other;
+//                 // println!("{:?}\n{}\n{:?}", a, b, a_other);
+//                 b
+//             }
+//             (t, t_other) => {
+//                 // println!("{:?}\n!=\n{:?}", t, t_other);
+//                 false
+//             }
+//         }
+//     }
+// }
 
-impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Eq for Trie<X> {}
+// impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Eq for Trie<X> {}
 
 pub trait TrieIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
     fn nil(BS) -> Self;

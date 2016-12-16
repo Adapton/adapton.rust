@@ -54,12 +54,48 @@ mod add_dups {
 
     #[bench]
     fn benchmark_naive_trie(b: &mut Bencher) {
-        b.iter(|| bench_naive_add_dups())
+        // b.iter(|| bench_naive_add_dups())
+        init_naive();
+        let mut naive_input: Trie<usize> = SetIntro::empty();
+        let mut v = Vec::new();
+
+        let mut ones = vec![1;50];
+        let mut twos = vec![2;50];
+        let mut threes = vec![3;50];
+        twos.append(&mut threes);
+        ones.append(&mut twos);
+        for i in ones.iter() {
+            v.push(*i);
+            b.iter(|| {
+                naive_input = doit(v.clone(), naive_input.clone());
+                SetElim::mem(&naive_input, i)
+            });
+            naive_input = doit(v.clone(), naive_input.clone());
+            // b.iter(|| SetElim::mem(&naive_input, i));
+        }
     }
 
     #[bench]
     fn benchmark_dcg_trie(b: &mut Bencher) {
-        b.iter(|| bench_dcg_add_dups())
+        // b.iter(|| bench_dcg_add_dups())
+        init_dcg();
+        let mut dcg_input: Trie<usize> = SetIntro::empty();
+        let mut v = Vec::new();
+
+        let mut ones = vec![1;50];
+        let mut twos = vec![2;50];
+        let mut threes = vec![3;50];
+        twos.append(&mut threes);
+        ones.append(&mut twos);
+        for i in ones.iter() {
+            v.push(*i);
+            b.iter(|| {
+                dcg_input = doit(v.clone(), dcg_input.clone());
+                SetElim::mem(&dcg_input, i)
+            });
+            dcg_input = doit(v.clone(), dcg_input.clone());
+            // b.iter(|| SetElim::mem(&dcg_input, i));
+        }
     }
 }
 
@@ -99,11 +135,25 @@ mod sum_fold {
 
     #[bench]
     fn benchmark_naive_trie(b: &mut Bencher) {
-        b.iter(|| bench_naive_fold())
+        // b.iter(|| bench_naive_fold(b)
+        init_naive();
+        let mut naive_input: Trie<usize> = SetIntro::empty();
+
+        for i in (1..100).into_iter() {
+            naive_input = push_input(i, naive_input);
+            b.iter(|| doit(naive_input.clone()))
+        }
     }
 
     #[bench]
     fn benchmark_dcg_trie(b: &mut Bencher) {
-        b.iter(|| bench_dcg_fold())
+        // b.iter(|| bench_dcg_fold())
+        init_dcg();
+        let mut dcg_input: Trie<usize> = SetIntro::empty();
+
+        for i in (1..100).into_iter() {
+            dcg_input = push_input(i, dcg_input);
+            b.iter(|| doit(dcg_input.clone()))
+        }
     }
 }

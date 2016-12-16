@@ -7,6 +7,7 @@ use adapton::trie::*;
 
 #[test]
 fn test_is_empty() {
+    init_dcg();
     let meta = Meta { min_depth: 1 };
     let empty = TrieIntro::<usize>::empty(meta.clone());
     let singleton = Trie::singleton(meta.clone(), name_unit(), 7);
@@ -26,11 +27,12 @@ fn test_is_empty() {
 
 #[test]
 fn test_equal() {
+    init_dcg();
     let meta = Meta { min_depth: 1 };
     let empty: Trie<usize> = TrieIntro::empty(meta.clone());
-    let singleton_7 = Trie::singleton(meta.clone(), name_unit(), 7);
-    let singleton_7_ = Trie::singleton(meta.clone(), name_unit(), 7);
-    let singleton_8 = Trie::singleton(meta.clone(), name_unit(), 8);
+    let singleton_7 = Trie::singleton(meta.clone(), name_of_usize(7), 7);
+    let singleton_7_ = Trie::singleton(meta.clone(), name_of_usize(7), 7);
+    let singleton_8 = Trie::singleton(meta.clone(), name_of_usize(8), 8);
     assert_eq!(empty, empty);
     assert_eq!(singleton_7, singleton_7);
     assert_eq!(singleton_7, singleton_7_);
@@ -44,6 +46,7 @@ fn test_equal() {
 // Set membership is consistent after additions.
 #[test]
 fn test_set() {
+    init_dcg();
     let e: Set<usize> = SetIntro::empty();
     assert!(!Set::mem(&e, &7));
     assert!(!Set::mem(&e, &1));
@@ -59,6 +62,7 @@ fn test_set() {
 // Order in which elements are added to sets doesn't matter.
 #[test]
 fn test_set_equal() {
+    init_dcg();
     let e: Set<usize> = SetIntro::empty();
     let s = SetIntro::add(e, 7);
     let s = SetIntro::add(s, 1);
@@ -80,6 +84,7 @@ fn push_input(i: usize, t: Trie<usize>) -> Trie<usize> {
 
 #[test]
 fn test_set_fold() {
+    init_dcg();
     let e: Set<usize> = SetIntro::empty();
     let t = push_input(8, e);
     let t = push_input(8, t);
