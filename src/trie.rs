@@ -164,6 +164,8 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
                                           hasher.finish());
                         Self::root(meta, Self::name(nm, Self::art(put(a))))
                     }
+                    t @ Trie::Name(_, box Trie::Art(_)) =>
+                        Self::root_mfn(nm.clone(), nm, t, elt),
                     t => panic!("Non-root node entry to `Trie.extend': {:?}", t),
                 }
             }
