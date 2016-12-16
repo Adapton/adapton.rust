@@ -72,18 +72,31 @@ fn test_set_equal() {
     assert_eq!(s, t);
 }
 
+
+fn push_input(i: usize, t: Trie<usize>) -> Trie<usize> {
+    let t = Trie::art(cell(name_of_usize(i), t));
+    let t = Trie::name(name_of_usize(i), t);
+    Trie::extend(name_unit(), t, i)
+}
+
 #[test]
 fn test_set_fold() {
     let e: Set<usize> = SetIntro::empty();
-    let t = SetIntro::add(e, 8);
-    let t = SetIntro::add(t, 7);
-    let t = SetIntro::add(t, 1);
+    let t = push_input(8, e);
+    let t = push_input(8, t);
+    assert!(SetElim::mem(&t, &8));
+    let t = push_input(7, t);
+    let t = push_input(1, t);
     assert_eq!(SetElim::fold(t, 0, Rc::new(|i, acc| i + acc)), 16);
 }
 
 // The code that we want to compare/measure under naive versus DCG engines:
 fn doit(v:Vec<usize>, t:Trie<usize>) -> Trie<usize> {
-    v.into_iter().fold(t, |acc, i| TrieIntro::extend(name_of_usize(i), acc, i))
+    v.into_iter().fold(t, |acc, i| {
+        let t = Trie::art(cell(name_of_usize(i), acc));
+        let t = Trie::name(name_of_usize(i), t);
+        Trie::extend(name_unit(), t, i)
+    })
 }
 
 #[test]
