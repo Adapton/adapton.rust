@@ -205,8 +205,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
                                           hasher.finish());
                         Self::root(meta, Self::name(nm, Self::art(put(a))))
                     }
-                    t @ Trie::Name(_, box Trie::Art(_)) =>
-                        Self::root_mfn(nm.clone(), nm, t, elt),
+                    t @ Trie::Name(_, box Trie::Art(_)) => Self::root_mfn(nm.clone(), nm, t, elt),
                     t => panic!("Non-root node entry to `Trie.extend': {:?}", t),
                 }
             }
@@ -249,11 +248,10 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
             length: 0,
             value: 0,
         };
-        Self::name(nm1.clone(),
-                   Self::art(thunk!(nm1 =>> Self::root, meta:meta,
-                                             trie:Self::name(nm2.clone(),
-                                                        Self::art(thunk!(nm2 =>>
-                                                                         Self::nil, bs:mtbs))))))
+        let nil_art = thunk!(nm2.clone() =>> Self::nil, bs:mtbs);
+        let root_art = thunk!(nm1.clone() =>> Self::root, meta:meta,
+                              trie:Self::name(nm2, Self::art(nil_art)));
+        Self::name(nm1.clone(), Self::art(root_art))
     }
 
     fn singleton(meta: Meta, nm: Name, elt: X) -> Self {
@@ -263,9 +261,8 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
     fn extend(nm: Name, trie: Self, elt: X) -> Self {
         let (nm, nm_) = name_fork(nm);
         // let a = Self::root_mfn(nm.clone(), nm_, trie, elt);
-        Self::name(nm.clone(),
-                   Self::art(thunk!(nm.clone() =>>
-                                    Self::root_mfn, nm:nm, nm_:nm_, trie:trie, elt:elt)))
+        let root_mfn_art = cell(nm.clone(), Self::root_mfn(nm.clone(), nm_, trie, elt));
+        Self::name(nm, Self::art(root_mfn_art))
     }
 }
 
@@ -456,14 +453,17 @@ impl<X: Hash, Set: TrieIntro<X> + TrieElim<X>> SetElim<X> for Set {
     }
 
     fn fold<Res, F>(set: Self, res: Res, f: Rc<F>) -> Res
-        where F: Fn(X, Res) -> Res {
+        where F: Fn(X, Res) -> Res
+    {
         Self::elim_arg(set,
                        res,
-                       |_,arg| arg,
-                       |_,x,arg| f(x, arg),
-                       |_,left,right,arg| Self::fold(right, Self::fold(left, arg, f.clone()), f.clone()),
-                       |_,t,arg| Self::fold(t, arg, f.clone()),
-                       |_,t,arg| Self::fold(t, arg, f.clone()))
+                       |_, arg| arg,
+                       |_, x, arg| f(x, arg),
+                       |_, left, right, arg| {
+                           Self::fold(right, Self::fold(left, arg, f.clone()), f.clone())
+                       },
+                       |_, t, arg| Self::fold(t, arg, f.clone()),
+                       |_, t, arg| Self::fold(t, arg, f.clone()))
     }
 }
 

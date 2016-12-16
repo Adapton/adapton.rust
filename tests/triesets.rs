@@ -50,7 +50,6 @@ fn test_set() {
     let s = SetIntro::add(e, 7);
     let s = SetIntro::add(s, 1);
     let s = SetIntro::add(s, 8);
-    println!("{:?}", s);
     assert!(Set::mem(&s, &1));
     assert!(Set::mem(&s, &7));
     assert!(Set::mem(&s, &8));
@@ -91,38 +90,28 @@ fn test_set_fold() {
 }
 
 // The code that we want to compare/measure under naive versus DCG engines:
-fn doit(v:Vec<usize>, t:Trie<usize>) -> Trie<usize> {
+fn doit(v: Vec<usize>, t: Trie<usize>) -> Trie<usize> {
     v.into_iter().fold(t, |acc, i| {
-        let t = Trie::art(cell(name_of_usize(i), acc));
-        let t = Trie::name(name_of_usize(i), t);
-        Trie::extend(name_unit(), t, i)
+        // let t = Trie::art(cell(name_of_usize(i), acc));
+        // let t = Trie::name(name_of_usize(i), t);
+        Trie::extend(name_unit(), acc, i)
     })
 }
 
 #[test]
-fn test_dcg_add_dups () {
+fn test_dcg_add_dups() {
     init_dcg();
-    let mut dcg = init_naive();
 
-    let mut naive_input : Trie<usize> = SetIntro::empty();
-    let mut dcg_input : Trie<usize> = SetIntro::empty();
+    let mut dcg_input: Trie<usize> = SetIntro::empty();
 
     let mut v = Vec::new();
 
-    for i in vec![1,1,1,1,1,2,2,2,2,2,3,3,3,3,3].iter()
-    {
-        assert!(engine_is_naive());
+    for i in vec![1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3].iter() {
         v.push(*i);
-        naive_input = doit(v.clone(), naive_input);
-        let naive_output = naive_input.clone();
-
-        use_engine(dcg);
-        assert!(engine_is_dcg());
-        dcg_input = doit(v.clone(), dcg_input);
-        let dcg_output = dcg_input.clone();
-        dcg = init_naive();
-
-
-        assert_eq!(dcg_output, naive_output);
+        dcg_input = doit(v.clone(), dcg_input.clone());
+        let count_i = SetElim::fold(dcg_input.clone(),
+                                    0,
+                                    Rc::new(|i_, acc| if *i == i_ { 1 } else { acc }));
+        assert_eq!(count_i, 1)
     }
 }

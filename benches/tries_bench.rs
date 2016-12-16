@@ -12,9 +12,9 @@ mod add_dups {
     // The code that we want to compare/measure under naive versus DCG engines:
     fn doit(v: Vec<usize>, t: Trie<usize>) -> Trie<usize> {
         v.into_iter().fold(t, |acc, i| {
-            let t = Trie::art(cell(name_of_usize(i), acc));
-            let t = Trie::name(name_of_usize(i), t);
-            Trie::extend(name_unit(), t, i)
+            // let t = Trie::art(cell(name_of_usize(i), acc));
+            // let t = Trie::name(name_of_usize(i), t);
+            Trie::extend(name_unit(), acc, i)
         })
     }
 
@@ -23,9 +23,9 @@ mod add_dups {
         let mut naive_input: Trie<usize> = SetIntro::empty();
         let mut v = Vec::new();
 
-        let mut ones = vec![1;5];
-        let mut twos = vec![2;5];
-        let mut threes = vec![3;5];
+        let mut ones = vec![1;50];
+        let mut twos = vec![2;50];
+        let mut threes = vec![3;50];
         twos.append(&mut threes);
         ones.append(&mut twos);
         for i in ones.iter() {
@@ -40,9 +40,9 @@ mod add_dups {
         let mut dcg_input: Trie<usize> = SetIntro::empty();
         let mut v = Vec::new();
 
-        let mut ones = vec![1;5];
-        let mut twos = vec![2;5];
-        let mut threes = vec![3;5];
+        let mut ones = vec![1;50];
+        let mut twos = vec![2;50];
+        let mut threes = vec![3;50];
         twos.append(&mut threes);
         ones.append(&mut twos);
         for i in ones.iter() {
@@ -81,7 +81,7 @@ mod sum_fold {
         init_naive();
         let mut naive_input: Trie<usize> = SetIntro::empty();
 
-        for i in vec![1,2,3,4,5,6,7,8,9].iter() {
+        for i in vec![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].iter() {
             naive_input = push_input(*i, naive_input);
             let _ = doit(naive_input.clone());
         }
@@ -91,7 +91,7 @@ mod sum_fold {
         init_dcg();
         let mut dcg_input: Trie<usize> = SetIntro::empty();
 
-        for i in vec![1,2,3,4,5,6,7,8,9].iter() {
+        for i in vec![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].iter() {
             dcg_input = push_input(*i, dcg_input);
             let _ = doit(dcg_input.clone());
         }
