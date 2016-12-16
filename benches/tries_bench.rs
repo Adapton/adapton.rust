@@ -15,7 +15,12 @@ fn bench_naive_add_dups() {
     let mut naive_input: Trie<usize> = SetIntro::empty();
     let mut v = Vec::new();
 
-    for i in vec![1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3].iter() {
+    let mut ones = vec![1;100];
+    let mut twos = vec![2;100];
+    let mut threes = vec![3;100];
+    twos.append(&mut threes);
+    ones.append(&mut twos);
+    for i in ones.iter() {
         v.push(*i);
         naive_input = doit(v.clone(), naive_input.clone())
     }
@@ -26,7 +31,12 @@ fn bench_dcg_add_dups() {
     let mut dcg_input: Trie<usize> = SetIntro::empty();
     let mut v = Vec::new();
 
-    for i in vec![1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3].iter() {
+    let mut ones = vec![1;100];
+    let mut twos = vec![2;100];
+    let mut threes = vec![3;100];
+    twos.append(&mut threes);
+    ones.append(&mut twos);
+    for i in ones.iter() {
         v.push(*i);
         dcg_input = doit(v.clone(), dcg_input.clone())
     }
