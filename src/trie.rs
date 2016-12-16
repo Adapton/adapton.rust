@@ -70,7 +70,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> PartialEq for Trie<X> {
                 b
             }
             (&Trie::Art(ref a), &Trie::Art(ref a_other)) => {
-                let b = force(a) == force(a_other);
+                let b = a == a_other;
                 // println!("{:?}\n{}\n{:?}", a, b, a_other);
                 b
             }

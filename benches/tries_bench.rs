@@ -12,9 +12,9 @@ mod add_dups {
     // The code that we want to compare/measure under naive versus DCG engines:
     fn doit(v: Vec<usize>, t: Trie<usize>) -> Trie<usize> {
         v.into_iter().fold(t, |acc, i| {
-            // let t = Trie::art(cell(name_of_usize(i), acc));
-            // let t = Trie::name(name_of_usize(i), t);
-            Trie::extend(name_unit(), acc, i)
+            let t = Trie::art(cell(name_of_usize(i), acc));
+            let t = Trie::name(name_of_usize(i), t);
+            Trie::extend(name_unit(), t, i)
         })
     }
 
@@ -72,8 +72,8 @@ mod sum_fold {
     }
 
     fn push_input(i: usize, t: Trie<usize>) -> Trie<usize> {
-        // let t = Trie::art(cell(name_of_usize(i), t));
-        // let t = Trie::name(name_of_usize(i), t);
+        let t = Trie::art(cell(name_of_usize(i), t));
+        let t = Trie::name(name_of_usize(i), t);
         Trie::extend(name_unit(), t, i)
     }
 
@@ -81,8 +81,8 @@ mod sum_fold {
         init_naive();
         let mut naive_input: Trie<usize> = SetIntro::empty();
 
-        for i in vec![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].iter() {
-            naive_input = push_input(*i, naive_input);
+        for i in (1..100).into_iter() {
+            naive_input = push_input(i, naive_input);
             let _ = doit(naive_input.clone());
         }
     }
@@ -91,8 +91,8 @@ mod sum_fold {
         init_dcg();
         let mut dcg_input: Trie<usize> = SetIntro::empty();
 
-        for i in vec![1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20].iter() {
-            dcg_input = push_input(*i, dcg_input);
+        for i in (1..100).into_iter() {
+            dcg_input = push_input(i, dcg_input);
             let _ = doit(dcg_input.clone());
         }
     }
