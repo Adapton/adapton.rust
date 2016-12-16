@@ -7,7 +7,11 @@ use adapton::engine::*;
 
 // The code that we want to compare/measure under naive versus DCG engines:
 fn doit(v: Vec<usize>, t: Trie<usize>) -> Trie<usize> {
-    v.into_iter().fold(t, |acc, i| TrieIntro::extend(name_of_usize(i), acc, i))
+    v.into_iter().fold(t, |acc, i| {
+        let t = Trie::art(cell(name_of_usize(i), acc));
+        let t = Trie::name(name_of_usize(i), t);
+        Trie::extend(name_of_usize(i), t, i)
+    })
 }
 
 fn bench_naive_add_dups() {
