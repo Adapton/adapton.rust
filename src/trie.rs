@@ -206,13 +206,11 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
             length: 0,
             value: 0,
         };
-        // let res = thunk!(nm1.clone() =>> Self::root, meta:meta, trie:Self::name(nm2.clone(),
-        // Self::art(thunk!(nm2 =>> Self::nil, bs: mtbs))));
-        // Self::name(nm1, Self::art(res))
         Self::name(nm1.clone(),
                    Self::art(thunk!(nm1 =>> Self::root, meta:meta,
                                              trie:Self::name(nm2.clone(),
-                                                        Self::art(thunk!(nm2 =>> Self::nil, bs:mtbs))))))
+                                                        Self::art(thunk!(nm2 =>>
+                                                                         Self::nil, bs:mtbs))))))
     }
 
     fn singleton(meta: Meta, nm: Name, elt: X) -> Self {
@@ -221,8 +219,10 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X
 
     fn extend(nm: Name, trie: Self, elt: X) -> Self {
         let (nm, nm_) = name_fork(nm);
-        let a = Self::root_mfn(nm.clone(), nm_, trie, elt);
-        Self::name(nm, Self::art(put(a)))
+        // let a = Self::root_mfn(nm.clone(), nm_, trie, elt);
+        Self::name(nm.clone(),
+                   Self::art(thunk!(nm.clone() =>>
+                                    Self::root_mfn, nm:nm, nm_:nm_, trie:trie, elt:elt)))
     }
 }
 
