@@ -1,5 +1,6 @@
 extern crate adapton;
 
+use std::rc::Rc;
 use adapton::bitstring::BS;
 use adapton::engine::*;
 use adapton::trie::*;
@@ -69,6 +70,15 @@ fn test_set_equal() {
     let t = SetIntro::add(t, 7);
     let t = SetIntro::add(t, 1);
     assert_eq!(s, t);
+}
+
+#[test]
+fn test_set_fold() {
+    let e: Set<usize> = SetIntro::empty();
+    let t = SetIntro::add(e, 8);
+    let t = SetIntro::add(t, 7);
+    let t = SetIntro::add(t, 1);
+    assert_eq!(SetElim::fold(t, 0, Rc::new(|i, acc| i + acc)), 16);
 }
 
 // The code that we want to compare/measure under naive versus DCG engines:

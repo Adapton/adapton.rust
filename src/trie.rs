@@ -387,8 +387,8 @@ pub trait SetIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
 }
 
 pub trait SetElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
-    fn mem(set: &Self, e: &X) -> bool;
-    // fn fold<Res, F>(set: Self, Res, F) -> Res where F: Fn(X, Res) -> Res;
+    fn mem(&Self, &X) -> bool;
+    fn fold<Res, F>(Self, Res, Rc<F>) -> Res where F: Fn(X, Res) -> Res;
 }
 
 impl<X, Set: TrieIntro<X> + TrieElim<X>> SetIntro<X> for Set {
@@ -410,6 +410,17 @@ impl<X: Hash, Set: TrieIntro<X> + TrieElim<X>> SetElim<X> for Set {
             Some(_) => true,
             None => false,
         }
+    }
+
+    fn fold<Res, F>(set: Self, res: Res, f: Rc<F>) -> Res
+        where F: Fn(X, Res) -> Res {
+        Self::elim_arg(set,
+                       res,
+                       |_,arg| arg,
+                       |_,x,arg| f(x, arg),
+                       |_,left,right,arg| Self::fold(right, Self::fold(left, arg, f.clone()), f.clone()),
+                       |_,t,arg| Self::fold(t, arg, f.clone()),
+                       |_,t,arg| Self::fold(t, arg, f.clone()))
     }
 }
 
