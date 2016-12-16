@@ -126,7 +126,8 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
                               elt,
                               hash)
                 } else {
-                    panic!("Bad value found in nadd:\nLeaf(bs, e)\n");
+                    panic!("Bad value found in nadd:\nLeaf(bs, e)\n{:?}",
+                           Self::leaf(bs, e));
                 }
             }
             Trie::Bin(bs, left, right) => {
@@ -163,7 +164,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
                                           hasher.finish());
                         Self::root(meta, Self::name(nm, Self::art(put(a))))
                     }
-                    _ => panic!("Non-root node entry to `Trie.extend'"),
+                    t => panic!("Non-root node entry to `Trie.extend': {:?}", t),
                 }
             }
             _ => panic!("None-name node at entry to `Trie.extend'"),
