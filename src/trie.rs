@@ -469,8 +469,25 @@ impl<X: Hash, Set: TrieIntro<X> + TrieElim<X>> SetElim<X> for Set {
 }
 
 pub type Set<X> = Trie<X>;
+pub fn trie_fold
+    <X, T:TrieElim<X>, Res:Hash+Debug+Eq+Clone+'static, F:'static>
+    (t: T, res:Res, f: Rc<F>) -> Res
+    where F: Fn(X, Res) -> Res {
+    T::elim_arg(t,
+                (res, f),
+                |_, (arg, _)| arg,
+                |_, x, (arg, f)| f(x, arg),
+                |_, left, right, (arg, f)| trie_fold(right, trie_fold(left, arg, f.clone()), f),
+                |_, t, (arg, f)| trie_fold(t, arg, f),
+                |nm, t, (arg, f)| memo!(nm =>> trie_fold, t:t, res:arg ;; f:f))
+}
 
-pub fn trie_of_list<X: Hash+Clone+Debug, T:TrieIntro<X>+'static, L:ListElim<X>+ListIntro<X>+'static>
-    (list: L) -> T {
-        list_fold(list, T::empty(Meta { min_depth: 1 }), Rc::new(|x, trie_acc| T::extend(name_unit(), trie_acc, x)))
+pub fn trie_of_list<X: Hash + Clone + Debug,
+                    T: TrieIntro<X> + 'static,
+                    L: ListElim<X> + ListIntro<X> + 'static>
+    (list: L)
+     -> T {
+    list_fold(list,
+              T::empty(Meta { min_depth: 1 }),
+              Rc::new(|x, trie_acc| T::extend(name_unit(), trie_acc, x)))
 }

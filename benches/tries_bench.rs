@@ -7,49 +7,12 @@ use adapton::trie::*;
 use adapton::engine::*;
 use std::rc::Rc;
 
-mod list_input {
-    use super::*;
-
-    // The code that we want to compare/measure under naive versus DCG engines:
-    fn doit(l: List<usize>) -> usize {
-        let t = trie_of_list::<_,Trie<_>,_>(l);
-        SetElim::fold(t, 0, Rc::new(|i, acc| i + acc))
-    }
-
-    fn push_input(i: usize, l: List<usize>) -> List<usize> {
-        let l = List::art(cell(name_of_usize(i), l));
-        let l = List::name(name_of_usize(i), l);
-        List::cons(i, l)
-    }
-
-    fn run_bench(b: &mut Bencher) {
-        let mut input: List<usize> = List::nil();
-
-        for i in (1..100).into_iter() {
-            input = push_input(i, input);
-            b.iter(|| doit(input.clone()))
-        }
-    }
-
-    #[bench]
-    fn benchmark_naive_trie(b: &mut Bencher) {
-        init_naive();
-        run_bench(b);
-    }
-
-    #[bench]
-    fn benchmark_dcg_trie(b: &mut Bencher) {
-        init_dcg();
-        run_bench(b);
-    }
-}
-
 mod trie_input {
     use super::*;
 
     // The code that we want to compare/measure under naive versus DCG engines:
     fn doit(t: Trie<usize>) -> usize {
-        SetElim::fold(t, 0, Rc::new(|i, acc| i + acc))
+        trie_fold(t, 0, Rc::new(|i:usize, acc:usize| i + acc))
     }
 
     fn push_input(i: usize, t: Trie<usize>) -> Trie<usize> {
