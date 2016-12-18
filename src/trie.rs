@@ -4,6 +4,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::rc::Rc;
 use std::cmp::min;
 
+use adapton::collections::{ListIntro, ListElim, list_fold};
 use adapton::bitstring::*;
 use adapton::engine::*;
 use macros::*;
@@ -468,3 +469,8 @@ impl<X: Hash, Set: TrieIntro<X> + TrieElim<X>> SetElim<X> for Set {
 }
 
 pub type Set<X> = Trie<X>;
+
+pub fn trie_of_list<X: Hash+Clone+Debug, T:TrieIntro<X>+'static, L:ListElim<X>+ListIntro<X>+'static>
+    (list: L) -> T {
+        list_fold(list, T::empty(Meta { min_depth: 1 }), Rc::new(|x, trie_acc| T::extend(name_unit(), trie_acc, x)))
+}
