@@ -7,100 +7,44 @@ use adapton::trie::*;
 use adapton::engine::*;
 use std::rc::Rc;
 
-mod add_dups {
+mod list_input {
     use super::*;
 
     // The code that we want to compare/measure under naive versus DCG engines:
-    fn doit(v: Vec<usize>, t: Trie<usize>) -> Trie<usize> {
-        v.into_iter().fold(t, |acc, i| {
-            let t = Trie::art(cell(name_of_usize(i), acc));
-            let t = Trie::name(name_of_usize(i), t);
-            Trie::extend(name_unit(), t, i)
-        })
+    fn doit(l: List<usize>) -> usize {
+        let t = trie_of_list::<_,Trie<_>,_>(l);
+        SetElim::fold(t, 0, Rc::new(|i, acc| i + acc))
     }
 
-    fn bench_naive_add_dups() {
-        init_naive();
-        let mut naive_input: Trie<usize> = SetIntro::empty();
-        let mut v = Vec::new();
-
-        let mut ones = vec![1;50];
-        let mut twos = vec![2;50];
-        let mut threes = vec![3;50];
-        twos.append(&mut threes);
-        ones.append(&mut twos);
-        for i in ones.iter() {
-            v.push(*i);
-            naive_input = doit(v.clone(), naive_input.clone());
-            let _ = SetElim::mem(&naive_input, i);
-        }
+    fn push_input(i: usize, l: List<usize>) -> List<usize> {
+        let l = List::art(cell(name_of_usize(i), l));
+        let l = List::name(name_of_usize(i), l);
+        List::cons(i, l)
     }
 
-    fn bench_dcg_add_dups() {
-        init_dcg();
-        let mut dcg_input: Trie<usize> = SetIntro::empty();
-        let mut v = Vec::new();
+    fn run_bench(b: &mut Bencher) {
+        let mut input: List<usize> = List::nil();
 
-        let mut ones = vec![1;50];
-        let mut twos = vec![2;50];
-        let mut threes = vec![3;50];
-        twos.append(&mut threes);
-        ones.append(&mut twos);
-        for i in ones.iter() {
-            v.push(*i);
-            dcg_input = doit(v.clone(), dcg_input.clone());
-            let _ = SetElim::mem(&dcg_input, i);
+        for i in (1..100).into_iter() {
+            input = push_input(i, input);
+            b.iter(|| doit(input.clone()))
         }
     }
 
     #[bench]
     fn benchmark_naive_trie(b: &mut Bencher) {
-        // b.iter(|| bench_naive_add_dups())
         init_naive();
-        let mut naive_input: Trie<usize> = SetIntro::empty();
-        let mut v = Vec::new();
-
-        let mut ones = vec![1;50];
-        let mut twos = vec![2;50];
-        let mut threes = vec![3;50];
-        twos.append(&mut threes);
-        ones.append(&mut twos);
-        for i in ones.iter() {
-            v.push(*i);
-            b.iter(|| {
-                naive_input = doit(v.clone(), naive_input.clone());
-                SetElim::mem(&naive_input, i)
-            });
-            naive_input = doit(v.clone(), naive_input.clone());
-            // b.iter(|| SetElim::mem(&naive_input, i));
-        }
+        run_bench(b);
     }
 
     #[bench]
     fn benchmark_dcg_trie(b: &mut Bencher) {
-        // b.iter(|| bench_dcg_add_dups())
         init_dcg();
-        let mut dcg_input: Trie<usize> = SetIntro::empty();
-        let mut v = Vec::new();
-
-        let mut ones = vec![1;50];
-        let mut twos = vec![2;50];
-        let mut threes = vec![3;50];
-        twos.append(&mut threes);
-        ones.append(&mut twos);
-        for i in ones.iter() {
-            v.push(*i);
-            b.iter(|| {
-                dcg_input = doit(v.clone(), dcg_input.clone());
-                SetElim::mem(&dcg_input, i)
-            });
-            dcg_input = doit(v.clone(), dcg_input.clone());
-            // b.iter(|| SetElim::mem(&dcg_input, i));
-        }
+        run_bench(b);
     }
 }
 
-mod sum_fold {
+mod trie_input {
     use super::*;
 
     // The code that we want to compare/measure under naive versus DCG engines:
@@ -114,48 +58,25 @@ mod sum_fold {
         Trie::extend(name_unit(), t, i)
     }
 
-    fn bench_naive_fold() {
-        init_naive();
-        let mut naive_input: Trie<usize> = SetIntro::empty();
+    fn run_bench(b: &mut Bencher) {
+        let mut input: Trie<usize> = SetIntro::empty();
 
         for i in (1..100).into_iter() {
-            naive_input = push_input(i, naive_input);
-            let _ = doit(naive_input.clone());
-        }
-    }
-
-    fn bench_dcg_fold() {
-        init_dcg();
-        let mut dcg_input: Trie<usize> = SetIntro::empty();
-
-        for i in (1..100).into_iter() {
-            dcg_input = push_input(i, dcg_input);
-            let _ = doit(dcg_input.clone());
+            input = push_input(i, input);
+            b.iter(|| doit(input.clone()))
         }
     }
 
     #[bench]
     fn benchmark_naive_trie(b: &mut Bencher) {
-        // b.iter(|| bench_naive_fold(b)
         init_naive();
-        let mut naive_input: Trie<usize> = SetIntro::empty();
-
-        for i in (1..100).into_iter() {
-            naive_input = push_input(i, naive_input);
-            b.iter(|| doit(naive_input.clone()))
-        }
+        run_bench(b);
     }
 
     #[bench]
     fn benchmark_dcg_trie(b: &mut Bencher) {
-        // b.iter(|| bench_dcg_fold())
         init_dcg();
-        let mut dcg_input: Trie<usize> = SetIntro::empty();
-
-        for i in (1..100).into_iter() {
-            dcg_input = push_input(i, dcg_input);
-            b.iter(|| doit(dcg_input.clone()))
-        }
+        run_bench(b);
     }
 }
 
