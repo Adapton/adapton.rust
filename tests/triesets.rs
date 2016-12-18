@@ -85,27 +85,6 @@ fn push_input(i: usize, t: Trie<usize>) -> Trie<usize> {
 #[test]
 fn test_set_fold() {
     init_dcg();
-    let e: Set<usize> = SetIntro::empty();
-    let t = push_input(8, e);
-    let t = push_input(8, t);
-    assert!(SetElim::mem(&t, &8));
-    let t = push_input(7, t);
-    let t = push_input(1, t);
-    assert_eq!(SetElim::fold(t, 0, Rc::new(|i, acc| i + acc)), 16);
-}
-
-// The code that we want to compare/measure under naive versus DCG engines:
-fn doit(v: Vec<usize>, t: Trie<usize>) -> Trie<usize> {
-    v.into_iter().fold(t, |acc, i| {
-        let t = Trie::art(cell(name_of_usize(i), acc));
-        let t = Trie::name(name_of_usize(i), t);
-        Trie::extend(name_unit(), t, i)
-    })
-}
-
-#[test]
-fn test_dcg_add_dups() {
-    init_dcg();
     let mut dcg = init_naive();
 
     let mut naive_input: Trie<usize> = SetIntro::empty();
@@ -113,23 +92,23 @@ fn test_dcg_add_dups() {
 
     let mut v = Vec::new();
 
-    for i in vec![1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3].iter() {
+    for i in 1..20 {
         assert!(engine_is_naive());
-        v.push(*i);
-        naive_input = doit(v.clone(), naive_input.clone());
-        let count_i = SetElim::fold(naive_input.clone(),
-                                    0,
-                                    Rc::new(|i_, acc| if *i == i_ { 1 } else { acc }));
-        assert_eq!(count_i, 1);
+        v.push(i);
+        naive_input = push_input(i, naive_input.clone());
+        let naive_out = trie_fold(naive_input.clone(),
+                                0,
+                                Rc::new(|i_, acc| i_ + acc));
 
         use_engine(dcg);
         assert!(engine_is_dcg());
-        dcg_input = doit(v.clone(), dcg_input.clone());
-        let count_i = SetElim::fold(dcg_input.clone(),
-                                    0,
-                                    Rc::new(|i_, acc| if *i == i_ { 1 } else { acc }));
-        assert_eq!(count_i, 1);
+        dcg_input = push_input(i, dcg_input.clone());
+        let dcg_out = trie_fold(dcg_input.clone(),
+                                0,
+                                Rc::new(|i_, acc| i_ + acc));
 
+        assert_eq!(naive_out, dcg_out);
+        assert_eq!(naive_out, v.iter().sum());
         dcg = init_naive();
     }
 }

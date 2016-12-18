@@ -46,11 +46,8 @@ mod trie_input {
 mod tree_benchmarks {
     use super::*;
 
-    fn sum_tree(l:List<usize>) -> usize {
-        let t = ns(name_of_str("tree_of_list"),
-                   ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, l));
-        ns(name_of_str("monoid_of_tree"),
-           || monoid_of_tree(t, 0, Rc::new(|x, y| x + y)))
+    fn sum_tree(t:Tree<usize>) -> usize {
+        monoid_of_tree(t, 0, Rc::new(|x, y| x + y))
     }
 
     fn push_list(i: usize, l: List<usize>) -> List<usize> {
@@ -66,7 +63,9 @@ mod tree_benchmarks {
 
         for i in (1..100).into_iter() {
             naive_input = push_list(i, naive_input);
-            b.iter(|| sum_tree(naive_input.clone()))
+            let t = ns(name_of_str("tree_of_list"),
+                       ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, naive_input.clone()));
+            b.iter(|| sum_tree(t.clone()))
         }
     }
 
@@ -77,7 +76,9 @@ mod tree_benchmarks {
 
         for i in (1..100).into_iter() {
             dcg_input = push_list(i, dcg_input);
-            b.iter(|| sum_tree(dcg_input.clone()))
+            let t = ns(name_of_str("tree_of_list"),
+                       ||tree_of_list::<_,_,Tree<_>,_>(Dir2::Left, dcg_input.clone()));
+            b.iter(|| sum_tree(t.clone()))
         }
     }
 }
