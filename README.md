@@ -9,6 +9,8 @@ Versions:
 - The repo [https://github.com/cuplv/adapton.rust](https://github.com/cuplv/adapton.rust) has the latest, in `dev` and `master` branches.
 - (The `master` branch is intended to be "stable", e.g., for external libraries).
 - The **latest development** is always in branch [dev](https://github.com/cuplv/adapton.rust/tree/dev).  
+- For generic testing and evaluation, see [Adapton Lab](https://github.com/cuplv/adapton-lab.rust).  
+
 - Older Rust versions are [available on crates.io](https://crates.io/crates/adapton).  
 - See also: A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).  
 
@@ -22,9 +24,9 @@ Research and Development Community :
 Theory and Foundations:
 -----------------------
 
-- The draft [_Typed Adapton: Refinement types for nominal memoization_, Submitted.]().  
+- The draft [_Typed Adapton: Refinement types for nominal memoization_, Submitted.](https://arxiv.org/abs/1610.00097).  
 - The paper [_Incremental computation with names_, OOPSLA 2015](http://arxiv.org/abs/1503.07792).  
-- The paper [_Adapton: Composable, demand-driven incremental computation_, PLDI 2014]().  
+- The paper [_Adapton: Composable, demand-driven incremental computation_, PLDI 2014](http://www.cs.umd.edu/~hammer/adapton/).  
 
 Library Components:
 =====================
