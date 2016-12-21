@@ -78,7 +78,7 @@ pub struct Globals {
   engine: Engine,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum Engine {
   DCG(RefCell<DCG>),
   Naive
@@ -536,7 +536,7 @@ pub enum ArtIdChoice {
   Nominal(Name),
 }
 
-#[derive(Debug,Hash,PartialEq,Eq,Clone)]
+#[derive(Debug,Hash,PartialEq,Eq,Clone,Encodable)]
 pub struct Cnt {
   pub create : usize, // Add trait performs sum
   pub eval   : usize, // Add trait performs sum

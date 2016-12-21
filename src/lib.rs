@@ -1,5 +1,6 @@
 // Adapton for Rust
-
+#![feature(field_init_shorthand)]
+#![feature(rustc_private)]
 #![feature(zero_one)]
 #![feature(associated_consts)]
 #![feature(box_patterns)]
@@ -15,6 +16,8 @@
     
 // extern crate quickcheck;
 // extern crate rand;
+
+extern crate serialize;
 
 // extern crate time;
 
