@@ -76,7 +76,7 @@ macro_rules! thunk {
        )
   }}
   ;
-  ( $nm:expr =>> $f:ident , $( $lab:ident : $arg:expr ),* ) => {{
+  ( $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
     thunk
       (ArtIdChoice::Nominal($nm),
        prog_pt!(stringify!($f)),

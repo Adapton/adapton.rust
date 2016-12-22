@@ -1863,7 +1863,7 @@ impl <Leaf:Debug+Hash+PartialEq+Eq+Clone+'static>
 /// Purely functional sequences with global access (via a balanced
 /// tree structure) and simple local edits (via a zipper structure).
 ///
-/// See also: http:://github.com/cuplv/raz.ocaml.git
+/// See also: [RAZ in OCaml](http://github.com/cuplv/raz.ocaml.git)
 pub mod raz {
   use std::rc::Rc;
   use std::fmt::Debug;
@@ -1880,7 +1880,7 @@ pub mod raz {
   #[derive(PartialEq,Eq,Hash,Debug,Clone)]
   pub struct Punc{ pub level:usize, pub name:Name }
   
-  /// A rope (i.e., a tree with vector leaves), balanced
+  /// A binary tree with vector leaves (aka, a "rope"), balanced
   /// probabilistically.
   #[derive(PartialEq,Eq,Hash,Debug,Clone)]
   pub enum Tree<X> { 
@@ -1924,9 +1924,13 @@ pub mod raz {
     right: Elms<X>
   }
 
+  /// Distinguishes left (`L`) and right (`R`) traversal orders for various operations involving trees.
   #[derive(PartialEq,Eq,Hash,Debug,Clone,Copy)]
   pub enum Dir { L, R }
   
+  /// An O(1)-sized change to the zipper: a single element insertion,
+  /// replacement, removal; or, a local cursor movement by one element
+  /// in either direction.
   #[derive(PartialEq,Eq,Hash,Debug,Clone)]
   pub enum Edit<X> {
     Insert(Dir,X,Option<Punc>),
@@ -1935,20 +1939,22 @@ pub mod raz {
     Move(Dir),
   }
 
-  pub fn empty_zip<X>(p:Punc) -> Zip<X> {
+  /// A zipper that consists of zero elements (and exactly one punctuation `p`).
+  pub fn zip_empty<X>(p:Punc) -> Zip<X> {
     return Zip{left:Elms::Cons(vec![], None),
                curs:p,
                right:Elms::Cons(vec![], None)}
   }
 
-  pub fn empty_tree<X>(p:Punc) -> Tree<X> {
+  /// A tree that consists of zero elements (and exactly one punctuation `p`).
+  pub fn tree_empty<X>(p:Punc) -> Tree<X> {
     return Tree::Bin(Box::new(Tree::Nil), p, Box::new(Tree::Nil))
   }
 
-  /// Transform the zipper, inserting x in the given direction. The
-  /// optional punctuation follows the inserted element, in the given
-  /// direction.
-  pub fn insert<X:Eq+Clone+Hash+Debug>(z:Zip<X>, d:Dir, x:X, p:Option<Punc>) -> Zip<X> {
+  /// Transform the zipper, inserting element `x` in the given
+  /// direction `d`. The optional punctuation `p` follows the inserted
+  /// element, in the given direction.
+  pub fn zip_insert<X:Eq+Clone+Hash+Debug>(z:Zip<X>, d:Dir, x:X, p:Option<Punc>) -> Zip<X> {
     match &d {
       &Dir::L => {
         match p {
@@ -1965,6 +1971,7 @@ pub mod raz {
         }
       }
       &Dir::R => {
+        // TODO-Now
         panic!("symmetric to above")
       }
     }
@@ -1972,10 +1979,10 @@ pub mod raz {
     
   /// Perform the given edit, in the given direction, at the current focus of the given zipper.
   /// The zipper is taken because its head vectors may be mutated, e.g., to insert or remove elements.
-  pub fn edit<X:Eq+Clone+Hash+Debug>(z:Zip<X>, edit:Edit<X>) -> Zip<X> {
+  pub fn zip_edit<X:Eq+Clone+Hash+Debug>(z:Zip<X>, edit:Edit<X>) -> Zip<X> {
     match edit {
-      Edit::Insert(d,x,p) => { insert(z, d, x, p) },
-      _ => unimplemented!()
+      Edit::Insert(d,x,p) => { zip_insert(z, d, x, p) },
+      _ => unimplemented!() // TODO-Later
     }
   }
 
@@ -2021,7 +2028,7 @@ pub mod raz {
 
   /// Unfocuses the zipper into a tree form
   pub fn tree_of_zip<X:Eq+Clone+Hash+Debug+'static>(z:Zip<X>) -> Tree<X> {
-    let mut tree = empty_tree(z.curs);
+    let mut tree = tree_empty(z.curs);
     let ltrees = trees_of_elms(Dir::L, z.left);
     for t in ltrees.iter() { // TODO: Take iterator; Reverse iteration here
       tree = tree_append(t.clone(), tree); // TODO Avoid clone
