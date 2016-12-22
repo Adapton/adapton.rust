@@ -106,6 +106,117 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
 
 pub fn list_nil<X, L:ListIntro<X>>()          -> L { L::nil() }
 pub fn list_cons<X, L:ListIntro<X>>(x:X, l:L) -> L { L::cons(x, l) }
+pub fn list_name<X, L:ListIntro<X>>(n:Name, l:L) -> L { L::name(n, l) }
+pub fn list_art<X, L:ListIntro<X>>(l:Art<L>) -> L { L::art(l) }
+
+/// Lazily maps the list, guided by names in input list.
+/// Creates lazy named thunks in output for each name in input.
+pub fn list_map_lazy<X, Le:'static+ListElim<X>, 
+                     Y, Li:'static+ListIntro<Y>, 
+                     F:'static>
+  (l:Le, body:Rc<F>) -> Li
+ where F:Fn(X) -> Y
+{
+  Le::elim_arg
+    (l, body,
+     |_,_| list_nil(),
+     |x, tl, body| {
+       let y = body.clone() (x);
+       list_cons(y, list_map_lazy(tl, body))
+     },
+     |n, tl, body| {
+       // We are lazy only when we encounter a name in the input
+       // The name n is written with a recursive call to list_map_lazy, using argument tl, and additionally, passing body.
+       // Note the `;;`. This means that the DCG does not check body for equality when dirtying the DCG. 
+       // (We have no equality test for functions, anyway).
+       list_art(thunk!( n =>> list_map_lazy =>> <X, Le, Y, Li, F>, l:tl ;; body:body.clone() ))
+     })
+}
+
+/// Lazily filters the list, guided by names in input list.
+/// Creates lazy named thunks in output for each name in input.
+pub fn list_filter_lazy<X, Le:'static+ListElim<X>, Li:'static+ListIntro<X>, F:'static>
+  (l:Le, body:Rc<F>) -> Li
+ where F:Fn(&X) -> bool
+{
+  Le::elim_arg
+    (l, body,
+     |_,_| list_nil(),
+     |x, tl, body| {
+       if body.clone() (&x) {
+         list_cons(x, list_filter_lazy(tl, body))
+       } else {
+         list_filter_lazy(tl, body)
+       }
+     },
+     |n, tl, body| {
+       list_art(thunk!( n =>> list_filter_lazy =>> <X, Le, Li, F>, l:tl ;; body:body.clone() ))
+     })
+}
+
+/// Eagerly filters the list, guided by names in input list.
+/// Memoizes recursion for each name in input.
+pub fn list_filter_eager<X, Le:'static+ListElim<X>, Li:'static+ListIntro<X>, F:'static>
+  (l:Le, body:Rc<F>) -> Li
+ where F:Fn(&X) -> bool
+{
+  Le::elim_arg
+    (l, body,
+     |_,_| list_nil(),
+     |x, tl, body| {
+       if body.clone() (&x) {
+         list_cons(x, list_filter_eager(tl, body))
+       } else {
+         list_filter_eager(tl, body)
+       }
+     },
+     |n, tl, body| {
+       let (rest, _) = eager!( n =>> list_filter_eager =>> <X, Le, Li, F>, l:tl ;; body:body.clone() );
+       list_art(rest)
+     })
+}
+
+/// Eagerly maps the list.
+/// Uses (eager) memoization for each name in `l`.
+pub fn list_map_eager<X, Le:'static+ListElim<X>, 
+                      Y, Li:'static+ListIntro<Y>, 
+                      F:'static>
+  (l:Le, body:Rc<F>) -> Li
+ where F:Fn(X) -> Y
+{
+  Le::elim_arg
+    (l, body,
+     |_,_| list_nil(),
+     |x, tl, body| {
+       let y = body.clone() (x);
+       list_cons(y, list_map_eager(tl, body))
+     },
+     |n, tl, body| {
+       // We only memoize when we encounter a name in the input
+       let (t,_) = eager!( n =>> list_map_eager =>> <X, Le, Y, Li, F>, l:tl ;; body:body.clone() );
+       list_art(t)
+     })
+}
+
+
+/// Eagerly maps the list.
+/// Uses (eager) memoization for each name in `l`.
+pub fn list_reverse<X, Le:'static+ListElim<X>, Li:'static+ListIntro<X>>
+  (l:Le, rev:Li) -> Li
+{
+  Le::elim_arg
+    (l, rev,
+     |_,rev| rev,
+     |x, tl, rev| { list_reverse(tl, list_cons(x, rev)) },
+     |n, tl, rev| {
+       // We only memoize when we encounter a name in the input
+       let rev = list_art( cell(name_pair(name_of_str("rev"),n.clone()), rev) );
+       let (t,_) = eager!( n.clone() =>> list_reverse <X, Le, Li>, l:tl, rev:rev );
+       list_name(n, list_art(t))
+     })
+}
+
+/// Ignores names; performs no memoization; use tree_fold_* for lists that could be long.
 pub fn list_fold<X,L:ListElim<X>,F,Res>(l:L, res:Res, body:Rc<F>) -> Res 
   where F:Fn(X,Res) -> Res 
 { 
