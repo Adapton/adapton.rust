@@ -1,8 +1,8 @@
-#![feature(test)]
-#![feature(alloc)]
-#![feature(heap_api)]
-#[macro_use]
-extern crate adapton ;
+// #![feature(test)]
+// #![feature(alloc)]
+// #![feature(heap_api)]
+// #[macro_use]
+// extern crate adapton ;
 
 // mod fib {
 //     const INPUT_SIZE:u64 = 20;
