@@ -3,13 +3,14 @@
 
 A general-purpose **Incremental Computation** (IC) library for Rust.  
 
+**Quickstart:**: See [Adapton Lab](https://github.com/cuplv/adapton-lab.rust).
+
 Versions:
 ---------
 
 - The repo [https://github.com/cuplv/adapton.rust](https://github.com/cuplv/adapton.rust) has the latest, in `dev` and `master` branches.
 - (The `master` branch is intended to be "stable", e.g., for external libraries).  
 - The **latest development** is always in branch [dev](https://github.com/cuplv/adapton.rust/tree/dev).  
-- For generic testing and evaluation, see [Adapton Lab](https://github.com/cuplv/adapton-lab.rust).  
 - Older Rust versions are [available on crates.io](https://crates.io/crates/adapton).  
 - See also: A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).  
 
