@@ -1381,7 +1381,7 @@ impl Adapton for DCG {
         } ;
         let result = match cached_result {
           None => {
-            ////debug!("{} force {:?}: cache empty", engineMsg!(st), &loc);
+            //println!("force {:?}: cache empty", &loc);
             assert!(is_comp);
             //drop(st);            
             loc_produce(g, &loc)

@@ -118,6 +118,22 @@ macro_rules! thunk {
        )        
   }}
   ;
+  ( $nm:expr =>> $f:ident =>> < $( $ty:ty ),* > , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args1, args2|{
+           let ($( $lab1 ),*, _) = args1 ;
+           let ($( $lab2 ),*, _) = args2 ;
+           $f :: < $( $ty ),* > ( $( $lab1 ),* , $( $lab2 ),* )
+         })),
+       ( $( $arg1 ),*, () ),
+       ( $( $arg2 ),*, () ),
+       );
+    t
+  }}
+  ;
 }
 
 // #[macro_export]
@@ -242,7 +258,7 @@ macro_rules! memo {
     force(&t)
   }}
   ;
-  ( $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+  ( $nm:expr =>> $f:ident , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
     let t = thunk
       (ArtIdChoice::Nominal($nm),
        prog_pt!(stringify!($f)),
@@ -251,6 +267,22 @@ macro_rules! memo {
            let ($( $lab1 ),*, _) = args1 ;
            let ($( $lab2 ),*, _) = args2 ;
            $f ( $( $lab1 ),* , $( $lab2 ),* )
+         })),
+       ( $( $arg1 ),*, () ),
+       ( $( $arg2 ),*, () ),
+       );
+    force(&t)
+  }}
+  ;
+  ( $nm:expr =>> $f:ident =>> < $( $ty:ty ),* > , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+    let t = thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!($f)),
+       Rc::new(Box::new(
+         |args1, args2|{
+           let ($( $lab1 ),*, _) = args1 ;
+           let ($( $lab2 ),*, _) = args2 ;
+           $f :: < $( $ty ),* > ( $( $lab1 ),* , $( $lab2 ),* )
          })),
        ( $( $arg1 ),*, () ),
        ( $( $arg2 ),*, () ),
@@ -326,7 +358,7 @@ macro_rules! eager {
     (t, res)
   }}
   ;
-  ( $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+  ( $nm:expr =>> $f:ident =>> < $( $ty:ty ),* > , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
     let t = thunk
       (ArtIdChoice::Nominal($nm),
        prog_pt!(stringify!($f)),
@@ -334,7 +366,7 @@ macro_rules! eager {
          |args1, args2|{
            let ($( $lab1 ),*, _) = args1 ;
            let ($( $lab2 ),*, _) = args2 ;
-           $f ( $( $lab1 ),* , $( $lab2 ),* )
+           $f :: < $( $ty ),* > ( $( $lab1 ),* , $( $lab2 ),* )
          })),
        ( $( $arg1 ),*, () ),
        ( $( $arg2 ),*, () ),
