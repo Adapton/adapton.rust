@@ -3,7 +3,8 @@
 
 A general-purpose **Incremental Computation** (IC) library for Rust.  
 
-**Quickstart:**: See [Adapton Lab](https://github.com/cuplv/adapton-lab.rust).
+**Quickstart**: See [Adapton Lab](https://github.com/cuplv/adapton-lab.rust)
+----------------------------------------------------------------------------
 
 Versions:
 ---------
