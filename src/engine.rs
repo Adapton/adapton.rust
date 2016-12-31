@@ -11,13 +11,15 @@ use std::mem::transmute;
 use std::num::Zero;
 use std::ops::Add;
 use std::rc::Rc;
- 
+
+use reflect::*; 
 use macros::*;
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
 
-// Names provide a symbolic way to identify nodes.
+/// Names: A fundemental abstraction in Adapton.  When they identify different content over time, they give rise to incremental changes.
+/// Names are used to identify mutable cells (see `cell`) and thunks (see `thunk).
 #[derive(PartialEq,Eq,Clone)]
 pub struct Name {
   hash : u64, // hash of symbol
@@ -32,7 +34,7 @@ impl Hash for Name {
   }
 }
 
-// Each location identifies a node in the DCG.
+/// Each location identifies a node in the DCG.
 #[derive(PartialEq,Eq,Clone)]
 pub struct Loc {
   hash : u64, // hash of (path,id)
@@ -65,25 +67,34 @@ impl Debug for ArtId {
   }
 }
 
+/// Flags control runtime behavior
 #[derive(Debug)]
 pub struct Flags {
   pub use_purity_optimization : bool,
-  pub ignore_nominal_use_structural : bool, // Ignore the Nominal ArtIdChoice, and use Structural behavior instead
-  pub check_dcg_is_wf : bool, // After each Adapton operation, check that the DCG is well-formed
-  pub write_dcg : bool, // Within each well-formedness check, write the DCG to the local filesystem
-  pub gmlog_dcg : bool, // At certain points in the Engine's code, write state changes as graph-movie output
+  /// Ignore the `Nominal` `ArtIdChoice`, and use `Structural` behavior instead
+  pub ignore_nominal_use_structural : bool, 
+  /// After each Adapton operation, check that the DCG is well-formed
+  pub check_dcg_is_wf : bool, 
+  /// Within each well-formedness check, write the DCG to the local filesystem
+  pub write_dcg : bool, 
+  /// Deprecated: At certain points in the Engine's code, write state changes as graph-movie output
+  /// TODO: To be replaced with DCG reflection, and reflection-to-filesystem logic.
+  pub gmlog_dcg : bool,
 }
 
 pub struct Globals {
   engine: Engine,
 }
 
+/// The engine API works in two modes: `Naive` and `DCG`.
 #[derive(Debug,Clone)]
 pub enum Engine {
   DCG(RefCell<DCG>),
   Naive
 }
 
+/// The DCG consists of private state (a memo table of DCG nodes, a
+/// stack of DCG nodes, etc.).
 #[derive(Debug)]
 pub struct DCG {
   pub flags : Flags, // public because I dont want to write / design abstract accessors
@@ -1584,44 +1595,52 @@ pub fn use_engine (engine: Engine) -> Engine {
   return engine
 }
 
+/// alias for `use_engine`
 pub fn init_engine (engine: Engine) -> Engine {
   use_engine(engine)
 }
 
+/// Create a name from unit, that is, create a "leaf" name.
 pub fn name_unit () -> Name {
   ROOT_NAME.with(|r|r.clone())
 }
 
-pub fn name_of_usize (u:usize) -> Name {
-  let h = my_hash(&u) ;
-  let s = NameSym::Usize(u) ;
-  Name{ hash:h, symbol:Rc::new(s) }
-}
-
-pub fn name_of_isize (i:isize) -> Name {
-  let h = my_hash(&i) ;
-  let s = NameSym::Isize(i) ;
-  Name{ hash:h, symbol:Rc::new(s) }
-}
-
-pub fn name_of_string (s:String) -> Name {
-  let h = my_hash(&s);
-  let s = NameSym::String(s) ;
-  Name{ hash:h, symbol:Rc::new(s) }
-}
-
-pub fn name_of_str (s:&'static str) -> Name {
-  let h = my_hash(&s);
-  let s = NameSym::String(s.to_string()) ;
-  Name{ hash:h, symbol:Rc::new(s) }
-}
-
+/// Create one name from two (binary name composition)
 pub fn name_pair (n1:Name, n2:Name) -> Name {
   let h = my_hash( &(n1.hash,n2.hash) ) ;
   let p = NameSym::Pair(n1.symbol, n2.symbol) ;
   Name{ hash:h, symbol:Rc::new(p) }
 }
 
+/// Create a name from a `usize`
+pub fn name_of_usize (u:usize) -> Name {
+  let h = my_hash(&u) ;
+  let s = NameSym::Usize(u) ;
+  Name{ hash:h, symbol:Rc::new(s) }
+}
+
+/// Create a name from a `isize`
+pub fn name_of_isize (i:isize) -> Name {
+  let h = my_hash(&i) ;
+  let s = NameSym::Isize(i) ;
+  Name{ hash:h, symbol:Rc::new(s) }
+}
+
+/// Create a name from a `string`
+pub fn name_of_string (s:String) -> Name {
+  let h = my_hash(&s);
+  let s = NameSym::String(s) ;
+  Name{ hash:h, symbol:Rc::new(s) }
+}
+
+/// Create a name from a `str`
+pub fn name_of_str (s:&'static str) -> Name {
+  let h = my_hash(&s);
+  let s = NameSym::String(s.to_string()) ;
+  Name{ hash:h, symbol:Rc::new(s) }
+}
+
+/// Create two names from one
 pub fn name_fork (n:Name) -> (Name, Name) {
   let h1 = my_hash( &(&n, 11111111) ) ; // TODO-Later: make this hashing better.
   let h2 = my_hash( &(&n, 22222222) ) ;
@@ -1631,6 +1650,7 @@ pub fn name_fork (n:Name) -> (Name, Name) {
           symbol:Rc::new(NameSym::ForkR(n.symbol)) } )    
 }
 
+/// Create three names from one
 pub fn name_fork3 (n:Name)
                    -> (Name,Name,Name)
 {
@@ -1639,6 +1659,7 @@ pub fn name_fork3 (n:Name)
   (n1,n2,n3)
 }
 
+/// Create four names from one
 pub fn name_fork4 (n:Name)
                    -> (Name,Name,Name,Name)
 {
@@ -1670,6 +1691,7 @@ pub fn structural<T,F> (body:F) -> T
     })    
   }
 
+/// Counts various engine cost metrics, returning a product of sums (`Cnt`)
 pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
   where F:FnOnce() -> Res {
     GLOBALS.with(|g| {
@@ -1758,6 +1780,7 @@ pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
   }
 }
 
+/// True iff the current engine is `Naive`
 pub fn engine_is_naive () -> bool {
   GLOBALS.with(|g| {
     match g.borrow().engine {
@@ -1766,6 +1789,7 @@ pub fn engine_is_naive () -> bool {
     }})    
 }
 
+/// True iff the current engine is a `DCG`
 pub fn engine_is_dcg () -> bool {
   GLOBALS.with(|g| {
     match g.borrow().engine {

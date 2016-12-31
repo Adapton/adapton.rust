@@ -32,6 +32,7 @@ pub mod fixpoints ;
 pub mod arith_parse ;
 pub mod bitstring ;
 pub mod trie ;
+pub mod reflect ;
 
 mod adapton {
     pub use super::*;
