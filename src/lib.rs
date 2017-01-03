@@ -28,11 +28,13 @@ extern crate serialize;
 pub mod macros ;
 pub mod engine ;
 pub mod collections ;
-pub mod fixpoints ;
-pub mod arith_parse ;
-pub mod bitstring ;
-pub mod trie ;
-pub mod reflect ;
+
+// various sub-modules of the public modules above:
+mod fixpoints ;
+mod arith_parse ;
+mod bitstring ;
+mod trie ;
+mod reflect ;
 
 mod adapton {
     pub use super::*;

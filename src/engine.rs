@@ -12,8 +12,11 @@ use std::num::Zero;
 use std::ops::Add;
 use std::rc::Rc;
 
-use reflect::*; 
 use macros::*;
+
+pub mod reflect {
+  pub use reflect::*;
+}
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
@@ -34,9 +37,9 @@ impl Hash for Name {
   }
 }
 
-/// Each location identifies a node in the DCG.
+// Each location identifies a node in the DCG.
 #[derive(PartialEq,Eq,Clone)]
-pub struct Loc {
+struct Loc {
   hash : u64, // hash of (path,id)
   path : Rc<Path>,
   id   : Rc<ArtId>,
@@ -54,8 +57,10 @@ impl Hash for Loc {
 
 #[derive(Hash,PartialEq,Eq,Clone)]
 enum ArtId {
-  Structural(u64), // Identifies an Art::Loc based on hashing content.
-  Nominal(Name),   // Identifies an Art::Loc based on a programmer-chosen name.
+  /// Identifies an `Art` structurally, based on hashing content.
+  Structural(u64), 
+  /// Identifies an `Art` nominally, based on a programmer-chosen `Name`.
+  Nominal(Name),
 }
 
 impl Debug for ArtId {
@@ -82,11 +87,11 @@ pub struct Flags {
   pub gmlog_dcg : bool,
 }
 
-pub struct Globals {
+struct Globals {
   engine: Engine,
 }
 
-/// The engine API works in two modes: `Naive` and `DCG`.
+/// The engine API works in two modes: `Naive` and `DCG`. A `Naive` engine is stateless, whereas the `DCG` is stateful.
 #[derive(Debug,Clone)]
 pub enum Engine {
   DCG(RefCell<DCG>),
@@ -529,14 +534,14 @@ mod wf {
   }
 }
 
-/// An `ArtIdChoice` is a symbolic identity for an articulation point made by
-/// Adapton::thunk.  An `ArtIdChoice` is chosen by the programmer to identify
-/// the point during evaluation (and simultaneously, to identify the
-/// point during re-evaluation).
+/// An `ArtIdChoice` choses between `Eager`, `Structural` and
+/// `Nominal` identities for articulation points introduced by
+/// `thunk`.
+/// 
 /// An `Eager` identity is special, and it means "do not introduce any
 /// laziness/memoization overhead here"; when Eager is used, no thunk
-/// is created; rather, the computation eagerly produces an articulated
-/// value of the form Art::Rc(v), for some value v.
+/// is created; rather, the computation eagerly produces an immutable
+/// value held in an `Rc`.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum ArtIdChoice {
   /// Eagerly produces an `Art` that merely consists of an `Rc`; no additional indirection is needed/used.
@@ -547,12 +552,18 @@ pub enum ArtIdChoice {
   Nominal(Name),
 }
 
+/// Counts metrics that reflect the time and space costs of the engine.
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Encodable)]
 pub struct Cnt {
+  /// Number of DCG nodes created
   pub create : usize, // Add trait performs sum
+  /// Number of DCG nodes evaluated
   pub eval   : usize, // Add trait performs sum
+  /// Number of DCG nodes marked as dirty
   pub dirty  : usize, // Add trait performs sum
+  /// Number of DCG nodes reverted from dirty to clean
   pub clean  : usize, // Add trait performs sum
+  /// Maximum height of the DCG node stack.  This stack is pushed when DCG nodes are evaluated, and popped when they complete.
   pub stack  : usize, // Add trait performs max
 }
 
