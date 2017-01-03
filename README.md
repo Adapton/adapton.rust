@@ -14,7 +14,7 @@ Versions:
 - Older Rust versions are [available on crates.io](https://crates.io/crates/adapton).  
 - See also: A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).  
 
-Research and Development Community :
+Research and Development Community:
 --------------------------------------
 
  - The [Adapton Slack Team](http://adapton-public.slack.com) is open to anyone that is interested in learning more.
