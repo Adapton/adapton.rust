@@ -21,8 +21,11 @@ pub mod reflect {
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
 
-/// Names: A fundemental abstraction in Adapton.  When they identify different content over time, they give rise to incremental changes.
-/// Names are used to identify mutable cells (see `cell`) and thunks (see `thunk).
+/// *Names*: First-class data that identifies a mutable cell (see
+/// `cell`) or a thunk (see `thunk`).  When a name identifies
+/// different content over time, it describes *where* incremental
+/// changing is occurring, relative to other (unaffected) parts of
+/// data structures or computations.
 #[derive(PartialEq,Eq,Clone)]
 pub struct Name {
   hash : u64, // hash of symbol
@@ -72,7 +75,7 @@ impl Debug for ArtId {
   }
 }
 
-/// Flags control runtime behavior
+/// Flags control runtime behavior of the DCG.
 #[derive(Debug)]
 pub struct Flags {
   pub use_purity_optimization : bool,
@@ -98,8 +101,11 @@ pub enum Engine {
   Naive
 }
 
+/// *(DCG) Demanded Computation Graph*: The cache of past computation.
+///
 /// The DCG consists of private state (a memo table of DCG nodes, a
-/// stack of DCG nodes, etc.).
+/// stack of DCG nodes, edges among these nodes, the current
+/// namespace, etc.).
 #[derive(Debug)]
 pub struct DCG {
   pub flags : Flags, // public because I dont want to write / design abstract accessors
@@ -552,7 +558,7 @@ pub enum ArtIdChoice {
   Nominal(Name),
 }
 
-/// Counts metrics that reflect the time and space costs of the engine.
+/// *Engine Counts*: Metrics that reflect the time and space costs of the engine.
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Encodable)]
 pub struct Cnt {
   /// Number of DCG nodes created
@@ -1452,10 +1458,25 @@ impl Adapton for DCG {
     }}
 }
 
-/// The term "Art" stands for two things here: "Adapton return type",
-/// and "Articulation point, for 'articulating' incremental change".
-/// The concept of an "Art" also abstracts over whether the producer
-/// is eager (like a ref cell) or lazy (like a thunk).
+/// *Articulations:* for incrementally-changing data/computation.
+///
+///  - Introduced by (produced by) `thunk`, `cell` and `put` 
+///
+///  - Eliminated by (consumed by) `force` (and `set`).
+///
+/// The term *Art* stands for two things here: _Adapton Return Type_
+/// (of `thunk` and `cell`), and _Articulation point for
+/// incrementally-changing data/computation_.  
+///
+/// Each art has a unique identity. (See also: `Name`s, and functions
+/// to produce them).  Because this identity, an art can be hashed and
+/// compared for equality efficiently, in O(1) time.
+///
+/// The concept of an art abstracts over whether the producer is eager
+/// (like a ref `cell`) or lazy (like a `thunk`).  One uses `force` to
+/// inspect both. Consequently, code that consumes structures with
+/// arts need only ever use `force` (not two different functions,
+/// depending on whether the art is lazy or eager).
 #[derive(Clone,PartialEq,Eq,Hash,Debug)]
 pub struct Art<T> {
   art:EnumArt<T>,
