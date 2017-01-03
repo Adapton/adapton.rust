@@ -29,5 +29,5 @@ Theory and Foundations:
 - The paper [_Adapton: Composable, demand-driven incremental computation_, **PLDI 2014**](http://www.cs.umd.edu/~hammer/adapton/).  
 
 
-**[Adapton Lab](https://github.com/cuplv/adapton-lab.rust)**
--------------------------------------------------------------
+More info: **[Adapton Lab](https://github.com/cuplv/adapton-lab.rust)**
+-------------------------------------------------------------------------
