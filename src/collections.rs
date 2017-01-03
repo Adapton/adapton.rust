@@ -9,6 +9,10 @@ use std::rc::Rc;
 use macros::* ;
 use adapton::engine::* ;
 
+pub mod trie {
+  pub use trie::*;
+}
+
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
 pub enum Dir2 { Left, Right }
 

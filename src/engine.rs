@@ -11,13 +11,21 @@ use std::mem::transmute;
 use std::num::Zero;
 use std::ops::Add;
 use std::rc::Rc;
- 
+
 use macros::*;
+
+pub mod reflect {
+  pub use reflect::*;
+}
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
 
-// Names provide a symbolic way to identify nodes.
+/// *Names*: First-class data that identifies a mutable cell (see
+/// `cell`) or a thunk (see `thunk`).  When a name identifies
+/// different content over time, it describes *where* incremental
+/// changing is occurring, relative to other (unaffected) parts of
+/// data structures or computations.
 #[derive(PartialEq,Eq,Clone)]
 pub struct Name {
   hash : u64, // hash of symbol
@@ -34,7 +42,7 @@ impl Hash for Name {
 
 // Each location identifies a node in the DCG.
 #[derive(PartialEq,Eq,Clone)]
-pub struct Loc {
+struct Loc {
   hash : u64, // hash of (path,id)
   path : Rc<Path>,
   id   : Rc<ArtId>,
@@ -52,8 +60,10 @@ impl Hash for Loc {
 
 #[derive(Hash,PartialEq,Eq,Clone)]
 enum ArtId {
-  Structural(u64), // Identifies an Art::Loc based on hashing content.
-  Nominal(Name),   // Identifies an Art::Loc based on a programmer-chosen name.
+  /// Identifies an `Art` structurally, based on hashing content.
+  Structural(u64), 
+  /// Identifies an `Art` nominally, based on a programmer-chosen `Name`.
+  Nominal(Name),
 }
 
 impl Debug for ArtId {
@@ -65,25 +75,37 @@ impl Debug for ArtId {
   }
 }
 
+/// Flags control runtime behavior of the DCG.
 #[derive(Debug)]
 pub struct Flags {
   pub use_purity_optimization : bool,
-  pub ignore_nominal_use_structural : bool, // Ignore the Nominal ArtIdChoice, and use Structural behavior instead
-  pub check_dcg_is_wf : bool, // After each Adapton operation, check that the DCG is well-formed
-  pub write_dcg : bool, // Within each well-formedness check, write the DCG to the local filesystem
-  pub gmlog_dcg : bool, // At certain points in the Engine's code, write state changes as graph-movie output
+  /// Ignore the `Nominal` `ArtIdChoice`, and use `Structural` behavior instead
+  pub ignore_nominal_use_structural : bool, 
+  /// After each Adapton operation, check that the DCG is well-formed
+  pub check_dcg_is_wf : bool, 
+  /// Within each well-formedness check, write the DCG to the local filesystem
+  pub write_dcg : bool, 
+  /// Deprecated: At certain points in the Engine's code, write state changes as graph-movie output
+  /// TODO: To be replaced with DCG reflection, and reflection-to-filesystem logic.
+  pub gmlog_dcg : bool,
 }
 
-pub struct Globals {
+struct Globals {
   engine: Engine,
 }
 
+/// The engine API works in two modes: `Naive` and `DCG`. A `Naive` engine is stateless, whereas the `DCG` is stateful.
 #[derive(Debug,Clone)]
 pub enum Engine {
   DCG(RefCell<DCG>),
   Naive
 }
 
+/// *(DCG) Demanded Computation Graph*: The cache of past computation.
+///
+/// The DCG consists of private state (a memo table of DCG nodes, a
+/// stack of DCG nodes, edges among these nodes, the current
+/// namespace, etc.).
 #[derive(Debug)]
 pub struct DCG {
   pub flags : Flags, // public because I dont want to write / design abstract accessors
@@ -518,14 +540,14 @@ mod wf {
   }
 }
 
-/// An `ArtIdChoice` is a symbolic identity for an articulation point made by
-/// Adapton::thunk.  An `ArtIdChoice` is chosen by the programmer to identify
-/// the point during evaluation (and simultaneously, to identify the
-/// point during re-evaluation).
+/// An `ArtIdChoice` choses between `Eager`, `Structural` and
+/// `Nominal` identities for articulation points introduced by
+/// `thunk`.
+/// 
 /// An `Eager` identity is special, and it means "do not introduce any
 /// laziness/memoization overhead here"; when Eager is used, no thunk
-/// is created; rather, the computation eagerly produces an articulated
-/// value of the form Art::Rc(v), for some value v.
+/// is created; rather, the computation eagerly produces an immutable
+/// value held in an `Rc`.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
 pub enum ArtIdChoice {
   /// Eagerly produces an `Art` that merely consists of an `Rc`; no additional indirection is needed/used.
@@ -536,12 +558,18 @@ pub enum ArtIdChoice {
   Nominal(Name),
 }
 
+/// *Engine Counts*: Metrics that reflect the time and space costs of the engine.
 #[derive(Debug,Hash,PartialEq,Eq,Clone,Encodable)]
 pub struct Cnt {
+  /// Number of DCG nodes created
   pub create : usize, // Add trait performs sum
+  /// Number of DCG nodes evaluated
   pub eval   : usize, // Add trait performs sum
+  /// Number of DCG nodes marked as dirty
   pub dirty  : usize, // Add trait performs sum
+  /// Number of DCG nodes reverted from dirty to clean
   pub clean  : usize, // Add trait performs sum
+  /// Maximum height of the DCG node stack.  This stack is pushed when DCG nodes are evaluated, and popped when they complete.
   pub stack  : usize, // Add trait performs max
 }
 
@@ -1430,10 +1458,25 @@ impl Adapton for DCG {
     }}
 }
 
-/// The term "Art" stands for two things here: "Adapton return type",
-/// and "Articulation point, for 'articulating' incremental change".
-/// The concept of an "Art" also abstracts over whether the producer
-/// is eager (like a ref cell) or lazy (like a thunk).
+/// *Articulations:* for incrementally-changing data/computation.
+///
+///  - Introduced by (produced by) `thunk`, `cell` and `put` 
+///
+///  - Eliminated by (consumed by) `force` (and `set`).
+///
+/// The term *Art* stands for two things here: _Adapton Return Type_
+/// (of `thunk` and `cell`), and _Articulation point for
+/// incrementally-changing data/computation_.  
+///
+/// Each art has a unique identity. (See also: `Name`s, and functions
+/// to produce them).  Because this identity, an art can be hashed and
+/// compared for equality efficiently, in O(1) time.
+///
+/// The concept of an art abstracts over whether the producer is eager
+/// (like a ref `cell`) or lazy (like a `thunk`).  One uses `force` to
+/// inspect both. Consequently, code that consumes structures with
+/// arts need only ever use `force` (not two different functions,
+/// depending on whether the art is lazy or eager).
 #[derive(Clone,PartialEq,Eq,Hash,Debug)]
 pub struct Art<T> {
   art:EnumArt<T>,
@@ -1584,44 +1627,52 @@ pub fn use_engine (engine: Engine) -> Engine {
   return engine
 }
 
+/// alias for `use_engine`
 pub fn init_engine (engine: Engine) -> Engine {
   use_engine(engine)
 }
 
+/// Create a name from unit, that is, create a "leaf" name.
 pub fn name_unit () -> Name {
   ROOT_NAME.with(|r|r.clone())
 }
 
-pub fn name_of_usize (u:usize) -> Name {
-  let h = my_hash(&u) ;
-  let s = NameSym::Usize(u) ;
-  Name{ hash:h, symbol:Rc::new(s) }
-}
-
-pub fn name_of_isize (i:isize) -> Name {
-  let h = my_hash(&i) ;
-  let s = NameSym::Isize(i) ;
-  Name{ hash:h, symbol:Rc::new(s) }
-}
-
-pub fn name_of_string (s:String) -> Name {
-  let h = my_hash(&s);
-  let s = NameSym::String(s) ;
-  Name{ hash:h, symbol:Rc::new(s) }
-}
-
-pub fn name_of_str (s:&'static str) -> Name {
-  let h = my_hash(&s);
-  let s = NameSym::String(s.to_string()) ;
-  Name{ hash:h, symbol:Rc::new(s) }
-}
-
+/// Create one name from two (binary name composition)
 pub fn name_pair (n1:Name, n2:Name) -> Name {
   let h = my_hash( &(n1.hash,n2.hash) ) ;
   let p = NameSym::Pair(n1.symbol, n2.symbol) ;
   Name{ hash:h, symbol:Rc::new(p) }
 }
 
+/// Create a name from a `usize`
+pub fn name_of_usize (u:usize) -> Name {
+  let h = my_hash(&u) ;
+  let s = NameSym::Usize(u) ;
+  Name{ hash:h, symbol:Rc::new(s) }
+}
+
+/// Create a name from a `isize`
+pub fn name_of_isize (i:isize) -> Name {
+  let h = my_hash(&i) ;
+  let s = NameSym::Isize(i) ;
+  Name{ hash:h, symbol:Rc::new(s) }
+}
+
+/// Create a name from a `string`
+pub fn name_of_string (s:String) -> Name {
+  let h = my_hash(&s);
+  let s = NameSym::String(s) ;
+  Name{ hash:h, symbol:Rc::new(s) }
+}
+
+/// Create a name from a `str`
+pub fn name_of_str (s:&'static str) -> Name {
+  let h = my_hash(&s);
+  let s = NameSym::String(s.to_string()) ;
+  Name{ hash:h, symbol:Rc::new(s) }
+}
+
+/// Create two names from one
 pub fn name_fork (n:Name) -> (Name, Name) {
   let h1 = my_hash( &(&n, 11111111) ) ; // TODO-Later: make this hashing better.
   let h2 = my_hash( &(&n, 22222222) ) ;
@@ -1631,6 +1682,7 @@ pub fn name_fork (n:Name) -> (Name, Name) {
           symbol:Rc::new(NameSym::ForkR(n.symbol)) } )    
 }
 
+/// Create three names from one
 pub fn name_fork3 (n:Name)
                    -> (Name,Name,Name)
 {
@@ -1639,6 +1691,7 @@ pub fn name_fork3 (n:Name)
   (n1,n2,n3)
 }
 
+/// Create four names from one
 pub fn name_fork4 (n:Name)
                    -> (Name,Name,Name,Name)
 {
@@ -1670,6 +1723,7 @@ pub fn structural<T,F> (body:F) -> T
     })    
   }
 
+/// Counts various engine cost metrics, returning a product of sums (`Cnt`)
 pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
   where F:FnOnce() -> Res {
     GLOBALS.with(|g| {
@@ -1758,6 +1812,7 @@ pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
   }
 }
 
+/// True iff the current engine is `Naive`
 pub fn engine_is_naive () -> bool {
   GLOBALS.with(|g| {
     match g.borrow().engine {
@@ -1766,6 +1821,7 @@ pub fn engine_is_naive () -> bool {
     }})    
 }
 
+/// True iff the current engine is a `DCG`
 pub fn engine_is_dcg () -> bool {
   GLOBALS.with(|g| {
     match g.borrow().engine {
