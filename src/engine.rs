@@ -5,7 +5,8 @@ use std::fmt::Debug;
 use std::fmt::{Formatter,Result};
 use std::fmt;
 use std::fs::{OpenOptions};
-use std::hash::{Hash,Hasher,SipHasher};
+use std::hash::{Hash,Hasher};
+use std::collections::hash_map::DefaultHasher;
 use std::mem::replace;
 use std::mem::transmute;
 use std::num::Zero;
@@ -559,7 +560,7 @@ pub enum ArtIdChoice {
 }
 
 /// *Engine Counts*: Metrics that reflect the time and space costs of the engine.
-#[derive(Debug,Hash,PartialEq,Eq,Clone,Encodable)]
+#[derive(Debug,Hash,PartialEq,Eq,Clone)]
 pub struct Cnt {
   /// Number of DCG nodes created
   pub create : usize, // Add trait performs sum
@@ -653,7 +654,7 @@ impl <Res:Debug+Hash> GraphNode for Node<Res> {
     }
   }
   fn hash_seeded(self:&Self, seed:u64) -> u64 {
-    let mut hasher = SipHasher::new();
+    let mut hasher = DefaultHasher::new();
     seed.hash(&mut hasher);
     self.hash(&mut hasher);
     hasher.finish()
@@ -1564,7 +1565,7 @@ impl<A:Hash+Clone+Eq+Debug+'static,S:Clone+'static,T:'static>
     & self.id
   }
   fn hash_u64(&self) -> u64 {
-    let mut hasher = SipHasher::new();
+    let mut hasher = DefaultHasher::new();
     self.id.hash( &mut hasher );
     self.prog_pt.hash( &mut hasher );
     self.arg.hash( &mut hasher );
