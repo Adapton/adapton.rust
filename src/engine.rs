@@ -40,6 +40,8 @@ impl Hash for Name {
     self.hash.hash(state)
   }
 }
+//impl reflect::Reflect<reflect::Name> for Name {
+//}
 
 // Each location identifies a node in the DCG.
 #[derive(PartialEq,Eq,Clone)]
@@ -56,6 +58,17 @@ impl Debug for Loc {
 impl Hash for Loc {
   fn hash<H>(&self, state: &mut H) where H: Hasher {
     self.hash.hash(state)
+  }
+}
+impl reflect::Reflect<reflect::Loc> for Loc {
+  fn reflect(&self) -> reflect::Loc {
+    reflect::Loc {
+      path:self.path.reflect(),
+      name:match *self.id { 
+        ArtId::Structural(ref hash) => name_of_hash64(*hash),
+        ArtId::Nominal(ref name) => name.clone(),
+      }
+    }
   }
 }
 
@@ -120,6 +133,23 @@ pub struct DCG {
   //gmfile : Option<File>,
 }
 
+impl reflect::Reflect<reflect::DCG> for DCG {
+  fn reflect(&self) -> reflect::DCG {
+    reflect::DCG{
+      table:{
+        let mut table = HashMap::new();
+        for (loc, gn) in self.table.iter() {
+          let _ = table.insert(loc.reflect(), Box::new(gn.reflect()));
+        }; table
+      },
+      stack:self.stack.iter()
+        .map(|ref frame| frame.reflect() )
+        .collect::<Vec<_>>(),
+      path:self.path.reflect(),
+    }
+  }
+}
+
 impl Hash  for     DCG { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
 impl Eq    for     DCG { }
 impl PartialEq for DCG { fn eq(&self, _other:&Self) -> bool { unimplemented!() } }
@@ -131,6 +161,7 @@ impl Clone for     DCG { fn clone(&self) -> Self { unimplemented!() } }
 #[derive(Hash,PartialEq,Eq,Clone)]
 enum NameSym {
   Root,           // Unit value for name symbols
+  Hash64,        // Hashes (for structural names); hash stored in name struct
   String(String), // Strings encode globally-unique symbols.
   Usize(usize),   // USizes encode globally-unique symbols.
   Isize(isize),   // USizes encode globally-unique symbols.
@@ -143,6 +174,7 @@ impl Debug for NameSym {
   fn fmt(&self, f:&mut Formatter) -> Result {
     match *self {
       NameSym::Root => write!(f, "/"),
+      NameSym::Hash64 => write!(f, "(Hash64)"),
       NameSym::String(ref s) => write!(f, "{}", s),
       NameSym::Usize(ref n) => write!(f, "{}", n),
       NameSym::Isize(ref n) => write!(f, "{}", n),
@@ -159,6 +191,18 @@ enum Path {
   Empty,
   Child(Rc<Path>,Name),
 }
+impl reflect::Reflect<reflect::Path> for Path {
+  fn reflect(&self) -> reflect::Path {
+    match *self {
+      Path::Empty => vec![],
+      Path::Child(ref path, ref name) => {
+        let mut p = path.reflect();
+        p.push(name.clone());
+        p
+      }
+    }
+  }
+}
 
 impl Debug for Path {
   fn fmt(&self, f:&mut Formatter) -> Result {
@@ -170,7 +214,7 @@ impl Debug for Path {
 }
 
 // The DCG structure consists of `GraphNode`s:
-trait GraphNode : Debug {
+trait GraphNode : Debug + reflect::Reflect<reflect::GraphNode> {
   fn preds_alloc<'r> (self:&Self) -> Vec<Rc<Loc>> ;
   fn preds_obs<'r>   (self:&Self) -> Vec<Rc<Loc>> ;
   fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>) -> () ;
@@ -188,6 +232,15 @@ struct Frame {
   succs : Vec<Succ>,  // The currently-executing node's effects (viz., the nodes it demands)
 }
 
+impl reflect::Reflect<reflect::Frame> for Frame {
+  fn reflect(&self) -> reflect::Frame {
+    reflect::Frame{
+      loc:self.loc.reflect(),
+      succs:self.succs.reflect(),
+    }
+  }
+}
+
 #[derive(Debug,Clone)]
 struct Succ {
   dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change
@@ -196,11 +249,39 @@ struct Succ {
   dep    : Rc<Box<DCGDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
 }
 
+impl reflect::Reflect<reflect::Succ> for Succ {
+  fn reflect(&self) -> reflect::Succ {
+    reflect::Succ {
+      dirty:self.dirty,
+      loc:self.loc.reflect(),
+      effect:self.effect.reflect(),
+      value:reflect::Val::ValTODO,
+    }
+  }
+}
+
+impl reflect::Reflect<Vec<reflect::Succ>> for Vec<Succ> {
+  fn reflect(&self) -> Vec<reflect::Succ> {
+    self.iter().map(|ref x| x.reflect()).collect::<Vec<_>>()
+  }
+}
+
 #[derive(PartialEq,Eq,Debug,Clone,Hash)]
 enum Effect {
   Observe,
   Allocate,
 }
+impl reflect::Reflect<reflect::Effect> for Effect {
+  fn reflect(&self) -> reflect::Effect {
+    match *self {
+      // Too many names for the same thing
+      Effect::Observe  => reflect::Effect::Force,
+      Effect::Allocate => reflect::Effect::Alloc,
+    }
+  }
+}
+
+
 struct DCGRes {
   changed : bool,
 }
@@ -246,6 +327,39 @@ enum Node<Res> {
   Unused,
 }
 
+impl<X:Debug> reflect::Reflect<reflect::GraphNode> for Node<X> {
+  fn reflect(&self) -> reflect::GraphNode {
+    match *self {
+      Node::Comp(ref n) => {
+        reflect::GraphNode::Comp(
+          reflect::CompNode{
+            preds:n.preds.reflect(),
+            succs:n.succs.reflect(),
+            prog_pt:n.producer.prog_pt().clone(),
+            value:match n.res { 
+              Some(ref _v) => Some(reflect::Val::ValTODO),
+              None => None
+            }
+          })
+      },
+      Node::Pure(ref _n) => {
+        reflect::GraphNode::Pure(
+          reflect::PureNode {
+            value:reflect::Val::ValTODO,
+          })
+      },
+      Node::Mut(ref n) => {
+        reflect::GraphNode::Ref(
+          reflect::RefNode {
+            preds:n.preds.reflect(),
+            value:reflect::Val::ValTODO,
+          })        
+      },
+      Node::Unused => panic!(""),
+    }
+  }
+}
+
 // PureNode<T> for pure hash-consing of T's.
 // Location in table never changes value.
 #[derive(Debug,Hash)]
@@ -274,6 +388,19 @@ struct CompNode<Res> {
   producer : Box<Producer<Res>>, // Producer can be App<Arg,Res>, where type Arg is hidden.
   res      : Option<Res>,
 }
+
+impl reflect::Reflect<Vec<reflect::Pred>> for Vec<(Effect,Rc<Loc>)> {
+  fn reflect(&self) -> Vec<reflect::Pred> {
+    self.iter().map(|eff_loc| 
+                    match *eff_loc {
+                      (ref eff, ref loc) => {                    
+                        reflect::Pred{
+                          effect:eff.reflect(),
+                          loc:loc.reflect()
+                        }}}).collect::<Vec<_>>()
+  }
+} 
+
 // Produce a value of type Res.
 trait Producer<Res> : Debug {
 //  fn produce(self:&Self, st:&mut DCG) -> Res;
@@ -1643,6 +1770,12 @@ pub fn name_pair (n1:Name, n2:Name) -> Name {
   let h = my_hash( &(n1.hash,n2.hash) ) ;
   let p = NameSym::Pair(n1.symbol, n2.symbol) ;
   Name{ hash:h, symbol:Rc::new(p) }
+}
+
+pub fn name_of_hash64(h:u64) -> Name {
+  // TODO: Get rid of need for Rc here; 
+  // Rc should be optional in names?
+  Name{ hash:h, symbol:Rc::new(NameSym::Hash64) }
 }
 
 /// Create a name from a `usize`
