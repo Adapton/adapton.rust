@@ -21,11 +21,28 @@ thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Ro
 struct Traces { traces:reflect::DCGTraces, }
 
 /// When this option is set to some, the engine will record a trace of its DCG effects.
-thread_local!(static TRACES: RefCell<Option<Traces>> = RefCell::new( None ));
+thread_local!(static TRACES: RefCell<Option<Vec<Traces>>> = RefCell::new( None ));
 
 #[macro_use]
 pub mod reflect {
   pub use reflect::*;
+
+  #[macro_export]
+  macro_rules! dcg_effect_begin {
+    ( $eff:expr, $loc:expr, $succ:expr ) => {{ 
+      TRACES.with(|tr| {
+        match *tr.borrow_mut() {
+          None => (),
+          Some(ref mut tr) => match tr.last_mut {
+            Some(ref mut tr) => { 
+              tr.traces.push( reflect::DCGTrace{
+                extent: Box::new(vec![]),
+                effect:$eff,
+                edge: reflect::DCGEdge{
+                  loc:  $loc.reflect(),
+                  succ: $succ.reflect(),
+                }})}}}})}}
+  }
 
   #[macro_export]
   macro_rules! dcg_effect {
@@ -44,6 +61,7 @@ pub mod reflect {
         }})
     }}
   }
+
 }
 
 use reflect::Reflect;
@@ -1064,13 +1082,14 @@ fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
         let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
         if succ.dirty { true } else {
           dirty_edge_count += 1 ;
-          dcg_effect!(reflect::DCGEffect::Dirty, Some(&pred_loc), succ);
+          dcg_effect_begin!(reflect::DCGEffect::Dirty, Some(&pred_loc), succ);
           replace(&mut succ.dirty, true);
           //debug!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
           false
         }} ;
       if !stop {
         dirty_pred_observers(st,&pred_loc);
+        dcg_effect_end!();
       } else {
         //debug!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen)))
       }
@@ -1306,7 +1325,7 @@ impl Adapton for DCG {
       };            
       let hash = my_hash(&(&path,&id));
       let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
-      //debug!("{} alloc cell: {:?} <--- {:?}", engineMsg!(self), &loc, &val);
+      //debug!("{} alloc cell: {:?} <--- {:?}", engineMsg!(self), &loc, &val);      
       let (do_dirty, do_set, succs, do_insert) =
         if self.table.contains_key(&loc) {
           let node : &Box<Node<T>> = res_node_of_loc(self, &loc) ;
