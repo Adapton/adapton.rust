@@ -139,3 +139,78 @@ pub struct DCG {
   pub stack: Vec<Frame>,
   pub path:  Vec<Name>,
 }
+
+pub enum DCGAlloc {
+  /// The allocation was **created** fresh; it was **not** reused
+  Create, 
+  /// The allocation matched the name of a prior allocation, and its content matched too
+  MatchSame, 
+  /// The allocation matched the name of a prior allocation, and its content did **not** match
+  MatchDiff, 
+}
+
+/// When the program performs a `force`, either the cache is either
+/// empty (`CacheMiss`) or non-empth (`CacheHit`).  The cached value
+/// may not be consistent without a cleaning.
+pub enum DCGForce {
+  /// The DCG has no cached value for this computation; no prior computation will be reused.
+  CacheMiss,
+  /// The DCG has a cached value for this computation; it may not be consistent without a cleaning.
+  CacheHit,
+}
+
+/// The effects of the DCG (including cleaning and dirtying) on one of
+/// its edges.
+pub enum DCGEffect { 
+  /// Wrapper for Effect::Alloc; transition to DCG after the alloc.
+  Alloc (DCGAlloc), 
+
+  /// Wrapper for Effect::Force; transition to DCG after the force.
+  Force (DCGForce),
+
+  /// Transition to this edge as **dirty** (potentially inconsistent).
+  /// This transition may consist of marking other edges dirty.  The
+  /// DCG's invariant about dirty edges is simple: If an edge is
+  /// dirty, then all edges that force (demand/observe) the source of
+  /// that edge must also be dirty.  This transitive closure property
+  /// ensures that we do not accidentally reuse stale cached values by
+  /// mistake (a dirty edge will always witness a potentially stale
+  /// cached value)
+  Dirty, 
+
+  /// Transition to this edge as **clean** (definitely consistent).
+  /// This transition may consist of marking other edges clean,
+  /// and/or, removing edges and replacing them via reexecution under
+  /// the current DCG state.
+  Clean,
+
+  /// Transition to the DCG without this edge.  Perhaps it will be
+  /// replaced via re-execution, sometime later.
+  Remove,
+}
+
+/// An adge in the DCG, representing an effect of the incremental program.
+pub struct DCGEdge {
+  /// The source of the directed edge; it is actively _doing_ the
+  /// effect of `succ.effect` to `succ.loc`.  `None` means the doer is
+  /// the **editor**, who is not identified by any location. (The editor
+  /// is not a node in the DCG, but rather, an actor operating outside
+  /// of it).
+  loc: Option<Loc>,
+  /// The effect and target of the directed edge.
+  succ: Succ,
+}
+
+/// `DCGTrace`: A Rose-tree of DCG edge-effects.  This tree structure
+/// allows the effects to have a a "time interval" that nests around
+/// and within the time intervals of other effects.
+pub struct DCGTrace {
+  /// The DCG edge on which this DCG effect precipitates a change
+  edge:  DCGEdge,
+  /// The DCG effect
+  effect:DCGEffect,
+  /// The DCG effects that occur subordinately as a result of this
+  /// effect. (They begin after this effect begins, and the end before
+  /// this effect ends).
+  extent:Box<Vec<DCGTrace>>,
+}
