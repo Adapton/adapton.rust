@@ -15,12 +15,38 @@ use std::rc::Rc;
 
 use macros::*;
 
-pub mod reflect {
-  pub use reflect::*;
-}
-
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
+
+struct Traces { traces:reflect::DCGTraces, }
+
+/// When this option is set to some, the engine will record a trace of its DCG effects.
+thread_local!(static TRACES: RefCell<Option<Traces>> = RefCell::new( None ));
+
+#[macro_use]
+pub mod reflect {
+  pub use reflect::*;
+
+  #[macro_export]
+  macro_rules! dcg_effect {
+    ( $eff:expr, $loc:expr, $succ:expr ) => {{ 
+      TRACES.with(|tr| {
+        match *tr.borrow_mut() {
+          None => (),
+          Some(ref mut tr) => tr.traces.push( reflect::DCGTrace{
+            extent: Box::new(vec![]),
+            effect:$eff,
+            edge: reflect::DCGEdge{
+              loc:  $loc.reflect(),
+              succ: $succ.reflect(),
+            }
+          })
+        }})
+    }}
+  }
+}
+
+use reflect::Reflect;
 
 /// *Names*: First-class data that identifies a mutable cell (see
 /// `cell`) or a thunk (see `thunk`).  When a name identifies
@@ -1034,10 +1060,11 @@ fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
     else {
       let stop : bool = {
         // The stop bit communicates information from st for use below.
-        //debug!("{} dirty_pred_observers: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);
+        //debug!("{} dirty_pred_observers: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);      
         let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
         if succ.dirty { true } else {
           dirty_edge_count += 1 ;
+          dcg_effect!(reflect::DCGEffect::Dirty, Some(&pred_loc), succ);
           replace(&mut succ.dirty, true);
           //debug!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
           false
@@ -1209,6 +1236,7 @@ impl Adapton for DCG {
       dcg_count : 0,
       dcg_hash : 0, // XXX This makes assumptions about hashing implementation
       //gmfile : outfile,
+      //reflect : None,
     }
   }
                      

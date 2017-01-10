@@ -12,6 +12,21 @@ pub trait Reflect<T> : Debug {
   fn reflect (&self) -> T;
 }
 
+impl<S,T:Reflect<S>+Debug> Reflect<Option<S>> for Option<T> {
+  fn reflect (&self) -> Option<S> {
+    match *self { 
+      None => None, 
+      Some(ref x) => Some(x.reflect())
+    }
+  }
+}
+
+impl<'a,S,T:Reflect<S>+Debug> Reflect<S> for &'a Rc<T> {
+  fn reflect (&self) -> S {
+    (**self).reflect()
+  }
+}
+
 /// Reflected value; Gives a syntax for inductive data type
 /// constructors (`Constr`), named articulations (`Art`) and primitive
 /// data (`Data).
@@ -140,6 +155,7 @@ pub struct DCG {
   pub path:  Vec<Name>,
 }
 
+#[derive(Debug)]
 pub enum DCGAlloc {
   /// The allocation was **created** fresh; it was **not** reused
   Create, 
@@ -152,6 +168,7 @@ pub enum DCGAlloc {
 /// When the program performs a `force`, either the cache is either
 /// empty (`CacheMiss`) or non-empth (`CacheHit`).  The cached value
 /// may not be consistent without a cleaning.
+#[derive(Debug)]
 pub enum DCGForce {
   /// The DCG has no cached value for this computation; no prior computation will be reused.
   CacheMiss,
@@ -161,6 +178,7 @@ pub enum DCGForce {
 
 /// The effects of the DCG (including cleaning and dirtying) on one of
 /// its edges.
+#[derive(Debug)]
 pub enum DCGEffect { 
   /// Wrapper for Effect::Alloc; transition to DCG after the alloc.
   Alloc (DCGAlloc), 
@@ -190,27 +208,33 @@ pub enum DCGEffect {
 }
 
 /// An adge in the DCG, representing an effect of the incremental program.
+#[derive(Debug)]
 pub struct DCGEdge {
   /// The source of the directed edge; it is actively _doing_ the
   /// effect of `succ.effect` to `succ.loc`.  `None` means the doer is
   /// the **editor**, who is not identified by any location. (The editor
   /// is not a node in the DCG, but rather, an actor operating outside
   /// of it).
-  loc: Option<Loc>,
+  pub loc: Option<Loc>,
   /// The effect and target of the directed edge.
-  succ: Succ,
+  pub succ: Succ,
 }
 
 /// `DCGTrace`: A Rose-tree of DCG edge-effects.  This tree structure
 /// allows the effects to have a a "time interval" that nests around
 /// and within the time intervals of other effects.
-pub struct DCGTrace {
-  /// The DCG edge on which this DCG effect precipitates a change
-  edge:  DCGEdge,
-  /// The DCG effect
-  effect:DCGEffect,
+#[derive(Debug)]
+pub struct DCGTrace { 
+  /// The DCG effect (e.g., Alloc(MatchDiff), Dirty, Clean, etc.)
+  pub effect:DCGEffect,
+
+  /// The DCG edge on which this DCG effect takes place
+  pub edge: DCGEdge,
+
   /// The DCG effects that occur subordinately as a result of this
   /// effect. (They begin after this effect begins, and the end before
   /// this effect ends).
-  extent:Box<Vec<DCGTrace>>,
+  pub extent:DCGTraces,
 }
+
+pub type DCGTraces = Box<Vec<DCGTrace>>;
