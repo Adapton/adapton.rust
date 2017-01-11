@@ -177,15 +177,22 @@ pub enum DCGAlloc {
   LocExists,
 }
 
-/// When the program performs a `force`, either the cache is either
-/// empty (`CacheMiss`) or non-empth (`CacheHit`).  The cached value
-/// may not be consistent without a cleaning.
+/// When the program `force`s a computation, either the cache is
+/// either empty (`CacheMiss`) or non-empty (`CacheHit`).  The cached
+/// value may not be consistent without a cleaning.  When the program
+/// `force`s a reference cell, it simply gets the current value.
 #[derive(Debug)]
 pub enum DCGForce {
-  /// The DCG has no cached value for this computation; no prior computation will be reused.
-  CacheMiss,
-  /// The DCG has a cached value for this computation; it may not be consistent without a cleaning.
-  CacheHit,
+  /// The DCG has no cached value for this computation; no prior
+  /// computation will be reused.
+  CompCacheMiss,
+  /// The DCG has a cached value for this computation; it may not be
+  /// consistent without a cleaning first.
+  CompCacheHit,
+  /// The forced node is a ref cell with a (mutable) value, and hence,
+  /// no computation was necessary.  The `force` simply gets the
+  /// current value.
+  RefGet,
 }
 
 /// The effects of the DCG (including cleaning and dirtying) on one of
@@ -205,7 +212,7 @@ pub enum DCGEffect {
   /// that edge must also be dirty.  This transitive closure property
   /// ensures that we do not accidentally reuse stale cached values by
   /// mistake (a dirty edge will always witness a potentially stale
-  /// cached value)
+  /// cached value).
   Dirty, 
 
   /// Transition to this edge as **clean** (definitely consistent).
