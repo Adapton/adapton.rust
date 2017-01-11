@@ -168,7 +168,7 @@ pub struct DCG {
 }
 
 /// Distinguish fresh allocations from those that reuse an existing location.
-#[derive(Debug)]
+#[derive(Clone,Debug)]
 pub enum DCGAlloc {
   /// The allocation was **created** fresh; it was **not** reused.
   LocFresh,
@@ -182,7 +182,7 @@ pub enum DCGAlloc {
 /// either empty (`CacheMiss`) or non-empty (`CacheHit`).  The cached
 /// value may not be consistent without a cleaning.  When the program
 /// `force`s a reference cell, it simply gets the current value.
-#[derive(Debug)]
+#[derive(Clone,Debug)]
 pub enum DCGForce {
   /// The DCG has no cached value for this computation; no prior
   /// computation will be reused.
@@ -198,7 +198,7 @@ pub enum DCGForce {
 
 /// The effects of the DCG (including cleaning and dirtying) on one of
 /// its edges.
-#[derive(Debug)]
+#[derive(Clone,Debug)]
 pub enum DCGEffect { 
   /// Wrapper for Effect::Alloc; transition to DCG after the alloc.
   Alloc (DCGAlloc), 
@@ -250,7 +250,7 @@ pub enum DCGEffect {
 }
 
 /// An adge in the DCG, representing an effect of the incremental program.
-#[derive(Debug)]
+#[derive(Clone,Debug)]
 pub struct DCGEdge {
   /// The source of the directed edge; it is actively _doing_ the
   /// effect of `succ.effect` to `succ.loc`.  `None` means the doer is
@@ -265,7 +265,7 @@ pub struct DCGEdge {
 /// `DCGTrace`: A Rose-tree of DCG edge-effects.  This tree structure
 /// allows the effects to have a a "time interval" that nests around
 /// and within the time intervals of other effects.
-#[derive(Debug)]
+#[derive(Clone,Debug)]
 pub struct DCGTrace { 
   /// The DCG effect (e.g., Alloc(MatchDiff), Dirty, Clean, etc.)
   pub effect:DCGEffect,

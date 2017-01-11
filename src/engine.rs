@@ -29,6 +29,42 @@ pub mod reflect {
 }
 use reflect::Reflect;
 
+/// Begin recording (reflections of) DCG effects.
+pub fn dcg_reflect_begin() {
+  TRACES.with(|tr| { 
+    let check = match *tr.borrow() {
+      None => true,
+      Some(_) => false };
+    if check { 
+      *tr.borrow_mut() = Some(TraceSt{stack:vec![Box::new(vec![])]})
+    } else { 
+      panic!("cannot currently nest calls to dcg_reflect_begin().")
+    }
+  })
+}
+
+/// Stop recording (reflections of) DCG effects, and return them as a
+/// forrest (of DCG traces).
+pub fn dcg_reflect_end() -> reflect::DCGTraces {
+  TRACES.with(|tr| { 
+    let traces = match *tr.borrow_mut() {
+      None => panic!("dcg_reflect_end() without a corresponding dcg_reflect_begin()."),
+      Some(ref mut tr) => { 
+        // Assert that dcg_effect_(begin/end) are not mismatched.
+        assert_eq!(tr.stack.len(), 1);
+        tr.stack.pop() 
+      }
+    };
+    match traces {
+      None => unreachable!(),
+      Some(traces) => {
+        *tr.borrow_mut() = None;
+        traces
+      }
+    }
+  })
+}
+
 //#[macro_export]
 macro_rules! dcg_effect_begin {
   ( $eff:expr, $loc:expr, $succ:expr, $has_extent:expr ) => {{ 
@@ -1007,6 +1043,7 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
         let result : Res = loc_produce( g, loc ) ;
         dcg_effect_end!();
         let changed = result != this_dep.res ;
+        dcg_effect_end!();
         return DCGRes{changed:changed}
       }
       else {
