@@ -236,5 +236,5 @@ pub struct DCGTrace {
   /// this effect ends).
   pub extent:DCGTraces,
 }
-
+/// A (boxed) vector of `DCGTrace`s.
 pub type DCGTraces = Box<Vec<DCGTrace>>;

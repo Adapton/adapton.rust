@@ -1128,10 +1128,12 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
         if succ.dirty { true } else {
           //debug!("{} dirty_alloc: edge {:?} --> {:?} marked dirty", engineMsg(Some(stackLen)), &pred_loc, &loc);
           replace(&mut succ.dirty, true);
+          dcg_effect_begin!(reflect::DCGEffect::Dirty, Some(&pred_loc), succ);
           false
         }} ;
       if !stop {
         dirty_pred_observers(st,&pred_loc);
+        dcg_effect_end!();
       } else {
         //debug!("{} dirty_alloc: early stop", engineMsg(Some(stackLen)))
       }
