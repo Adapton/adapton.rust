@@ -18,10 +18,10 @@ use macros::*;
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
 
-struct Traces { traces:reflect::DCGTraces, }
+struct TraceSt { stack:Vec<reflect::DCGTraces>, }
 
 /// When this option is set to some, the engine will record a trace of its DCG effects.
-thread_local!(static TRACES: RefCell<Option<Vec<Traces>>> = RefCell::new( None ));
+thread_local!(static TRACES: RefCell<Option<TraceSt>> = RefCell::new( None ));
 
 #[macro_use]
 pub mod reflect {
@@ -29,36 +29,51 @@ pub mod reflect {
 
   #[macro_export]
   macro_rules! dcg_effect_begin {
-    ( $eff:expr, $loc:expr, $succ:expr ) => {{ 
+    ( $eff:expr, $loc:expr, $succ:expr, $has_extent:expr ) => {{ 
+      /// The beginning of an effect, with an option extent (nested effects)
       TRACES.with(|tr| {
         match *tr.borrow_mut() {
           None => (),
-          Some(ref mut tr) => match tr.last_mut {
-            Some(ref mut tr) => { 
-              tr.traces.push( reflect::DCGTrace{
-                extent: Box::new(vec![]),
-                effect:$eff,
-                edge: reflect::DCGEdge{
-                  loc:  $loc.reflect(),
-                  succ: $succ.reflect(),
-                }})}}}})}}
+          // Some ==> We are building a trace
+          Some(ref mut ts) => {            
+            match ts.stack.last_mut() {
+              None => unreachable!(),
+              Some(ref mut ts) => { 
+                ts.push( reflect::DCGTrace{
+                  extent: Box::new(vec![]),
+                  effect:$eff,
+                  edge: reflect::DCGEdge{
+                    loc:  $loc.reflect(),
+                    succ: $succ.reflect(),
+                  }})}};
+            if $has_extent {
+              ts.stack.push(Box::new(vec![]))
+            } else { }
+          }
+        }})
+    }}
+    ;
+    ( $eff:expr, $loc:expr, $succ:expr ) => {{
+      dcg_effect_begin!($eff, $loc, $succ, true)
+    }}
   }
+
+  #[macro_export]
+  macro_rules! dcg_effect_end {
+    () => {{ 
+      /// The end of an effects' extent
+      TRACES.with(|tr| {
+        match *tr.borrow_mut() {
+          None => (),
+          Some(ref mut tr) => 
+            panic!("")
+        }})}}}
 
   #[macro_export]
   macro_rules! dcg_effect {
     ( $eff:expr, $loc:expr, $succ:expr ) => {{ 
-      TRACES.with(|tr| {
-        match *tr.borrow_mut() {
-          None => (),
-          Some(ref mut tr) => tr.traces.push( reflect::DCGTrace{
-            extent: Box::new(vec![]),
-            effect:$eff,
-            edge: reflect::DCGEdge{
-              loc:  $loc.reflect(),
-              succ: $succ.reflect(),
-            }
-          })
-        }})
+      /// An effect without an extent (without nested effects)
+      dcg_effect_begin($eff, $loc, $succ, false)
     }}
   }
 
