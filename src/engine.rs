@@ -63,13 +63,30 @@ macro_rules! dcg_effect_begin {
 //#[macro_export]
 macro_rules! dcg_effect_end {
   () => {{ 
-    /// The end of an effects' extent
+    /// The end of an effects' extent. Operationally, the traces at
+    /// the top of the stack are popped; they become the extent of the
+    /// trace at the end (top) of the second top-most sequence of
+    /// traces.
     TRACES.with(|tr| {
       match *tr.borrow_mut() {
         None => (),
-        Some(ref mut tr) => 
-          panic!("")
-      }})}}}
+        Some(ref mut tr) => {
+          let trs = tr.stack.pop(); 
+          match (trs, tr.stack.last_mut()) {
+            (None, _) => unreachable!(),
+            (_, None) => unreachable!(),
+            (Some(parent_extent), Some(trs)) => 
+              match trs.last_mut() {
+                None => unreachable!(),
+                Some(parent) => { assert_eq!(parent.extent.len(), 0);
+                                  parent.extent = parent_extent }
+              }
+          }
+        }
+      }
+    })
+  }}
+}
 
 //#[macro_export]
 macro_rules! dcg_effect {
