@@ -169,12 +169,12 @@ pub struct DCG {
 
 #[derive(Debug)]
 pub enum DCGAlloc {
-  /// The allocation was **created** fresh; it was **not** reused
-  Create, 
-  /// The allocation matched the name of a prior allocation, and its content matched too
-  MatchSame, 
-  /// The allocation matched the name of a prior allocation, and its content did **not** match
-  MatchDiff, 
+  /// The allocation was **created** fresh; it was **not** reused.
+  LocFresh,
+  /// The allocation matched the location of a prior allocation. its
+  /// content may or may not also match.  The `bool` indicates the two
+  /// cases: `true` means same content, `false` means changed content.
+  LocMatch(bool),
 }
 
 /// When the program performs a `force`, either the cache is either

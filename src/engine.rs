@@ -1144,7 +1144,8 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
   }
 }
 
-fn set_<T:Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
+/// Returns true if changed, false if unchanged.
+fn set_<T:Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) -> bool {
   if let AbsArt::Loc(ref loc) = cell { 
     let changed : bool = {
       let node = res_node_of_loc( st, loc ) ;
@@ -1159,9 +1160,10 @@ fn set_<T:Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
         _ => unreachable!(),
       }} ;
     if changed {
-      dirty_alloc(st, loc)
+      dirty_alloc(st, loc);
+      changed
     }
-    else { }
+    else { changed }
   }
   else { panic!("{:?} is not a cell", cell) }
 }
@@ -1359,18 +1361,27 @@ impl Adapton for DCG {
           //val.log_snapshot(self, &format!("{:?}",loc), None);
         }
       }
+      if do_dirty { dirty_alloc(self, &loc) } ;
+      let changed = 
+        if do_set { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } 
+      else { false } 
+      ;
       dcg_effect_begin!(
-        reflect::DCGEffect::Alloc(reflect::DCGAlloc::Create),                         
+        reflect::DCGEffect::Alloc(
+          match (do_dirty, do_set, do_insert) {
+            (false, false, true) => { reflect::DCGAlloc::LocFresh },
+            (false, true, false) => { reflect::DCGAlloc::LocMatch(!changed) },
+            (_, _, _) => { unreachable!() }}
+        ),
         { match self.stack.last_mut() { 
           None => None,        
           Some(frame) => Some(&frame.loc), }},
-        reflect::Succ{loc:loc.reflect(), 
-                      effect:reflect::Effect::Alloc, 
-                      value:reflect::Val::ValTODO, 
-                      dirty:false}
-      );
-      if do_dirty { dirty_alloc(self, &loc) } ;
-      if do_set   { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } ;
+        reflect::Succ{
+          loc:loc.reflect(), 
+          effect:reflect::Effect::Alloc, 
+          value:reflect::Val::ValTODO, 
+          dirty:false}
+      );      
       match succs { Some(succs) => revoke_succs(self, &loc, &succs), None => () } ;
       if do_insert {
         let node = if is_pure { Node::Pure(PureNode{val:val.clone()}) } else {
