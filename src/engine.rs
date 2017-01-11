@@ -1145,7 +1145,7 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
 }
 
 /// Returns true if changed, false if unchanged.
-fn set_<T:Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) -> bool {
+fn set_<T:Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
   if let AbsArt::Loc(ref loc) = cell { 
     let changed : bool = {
       let node = res_node_of_loc( st, loc ) ;
@@ -1161,9 +1161,8 @@ fn set_<T:Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) -> bool {
       }} ;
     if changed {
       dirty_alloc(st, loc);
-      changed
     }
-    else { changed }
+    else { }
   }
   else { panic!("{:?} is not a cell", cell) }
 }
@@ -1343,8 +1342,8 @@ impl Adapton for DCG {
         }
       };            
       let hash = my_hash(&(&path,&id));
-      let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
-      //debug!("{} alloc cell: {:?} <--- {:?}", engineMsg!(self), &loc, &val);      
+      let loc  = Rc::new(Loc{path:path,id:id,hash:hash})
+      ;
       let (do_dirty, do_set, succs, do_insert) =
         if self.table.contains_key(&loc) {
           let node : &Box<Node<T>> = res_node_of_loc(self, &loc) ;
@@ -1353,25 +1352,12 @@ impl Adapton for DCG {
             Node::Comp(ref nd) => { (true,  false, Some(nd.succs.clone()),  true ) }
             Node::Pure(_)      => { (false, false, None, false) }
             Node::Unused       => unreachable!()
-          }} else                 { (false, false, None, true ) } ;
-      if do_set || do_insert {
-        if self.flags.gmlog_dcg {
-          // gm::startdframe(self, &format!("cell {:?}", loc), None);
-          // gm::addnode(self, &format!("{:?}",loc), "cell", "", Some(&format!("cell {:?}", loc)));
-          //val.log_snapshot(self, &format!("{:?}",loc), None);
-        }
-      }
-      if do_dirty { dirty_alloc(self, &loc) } ;
-      let changed = 
-        if do_set { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } 
-      else { false } 
+          }} else                 { (false, false, None, true ) } 
       ;
       dcg_effect_begin!(
         reflect::DCGEffect::Alloc(
-          match (do_dirty, do_set, do_insert) {
-            (false, false, true) => { reflect::DCGAlloc::LocFresh },
-            (false, true, false) => { reflect::DCGAlloc::LocMatch(!changed) },
-            (_, _, _) => { unreachable!() }}
+          if do_insert { reflect::DCGAlloc::LocFresh } 
+          else { reflect::DCGAlloc::LocExists }
         ),
         { match self.stack.last_mut() { 
           None => None,        
@@ -1382,6 +1368,8 @@ impl Adapton for DCG {
           value:reflect::Val::ValTODO, 
           dirty:false}
       );      
+      if do_dirty { dirty_alloc(self, &loc) } ;
+      if do_set { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } ;
       match succs { Some(succs) => revoke_succs(self, &loc, &succs), None => () } ;
       if do_insert {
         let node = if is_pure { Node::Pure(PureNode{val:val.clone()}) } else {

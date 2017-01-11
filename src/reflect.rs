@@ -174,7 +174,7 @@ pub enum DCGAlloc {
   /// The allocation matched the location of a prior allocation. its
   /// content may or may not also match.  The `bool` indicates the two
   /// cases: `true` means same content, `false` means changed content.
-  LocMatch(bool),
+  LocExists,
 }
 
 /// When the program performs a `force`, either the cache is either
