@@ -1359,6 +1359,16 @@ impl Adapton for DCG {
           //val.log_snapshot(self, &format!("{:?}",loc), None);
         }
       }
+      dcg_effect_begin!(
+        reflect::DCGEffect::Alloc(reflect::DCGAlloc::Create),                         
+        { let loc = match self.stack.last_mut() { 
+          None => None,        
+          Some(frame) => Some(frame.loc) }},
+        reflect::Succ{loc:loc.reflect(), 
+                      effect:reflect::Effect::Alloc, 
+                      value:reflect::Val::ValTODO, 
+                      dirty:false}
+      );
       if do_dirty { dirty_alloc(self, &loc) } ;
       if do_set   { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } ;
       match succs { Some(succs) => revoke_succs(self, &loc, &succs), None => () } ;
@@ -1374,14 +1384,7 @@ impl Adapton for DCG {
       } ;
       //let stackLen = self.stack.len() ;
       if ! is_pure { match self.stack.last_mut() { 
-        None => 
-          dcg_effect!(reflect::DCGEffect::Alloc(reflect::DCGAlloc::Create), 
-                      None::<Loc>,
-                      reflect::Succ{loc:loc.reflect(), 
-                                    effect:reflect::Effect::Alloc, 
-                                    value:reflect::Val::ValTODO, 
-                                    dirty:false}),
-        
+        None => (),        
         Some(frame) => {
           let succ =
             Succ{loc:loc.clone(),
@@ -1392,6 +1395,7 @@ impl Adapton for DCG {
           frame.succs.push(succ)
         }}} ;
       wf::check_dcg(self);
+      dcg_effect_end!();
       AbsArt::Loc(loc)
     }
 
