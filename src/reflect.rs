@@ -215,11 +215,21 @@ pub enum DCGEffect {
   /// cached value).
   Dirty, 
 
-  /// Transition to this edge as **clean** (definitely consistent).
-  /// This transition may consist of marking other edges clean,
-  /// and/or, removing edges and replacing them via reexecution under
-  /// the current DCG state.
-  Clean,
+  /// Clean this edge, marking it not dirty, or **definitely
+  /// consistent**. Cleaning consists of processing the edges dirty
+  /// dependencies, if any.  Recursively, this processing may consist
+  /// of marking other edges clean (`CleanEdge`), and/or, removing
+  /// edges (`Remove`) and replacing them via reevaluation under the
+  /// current DCG state (`CleanEval`).
+  CleanRec,
+
+  /// Re-evaluate a previously-forced thunk, to clean it.
+  CleanEval,
+
+  /// Transition to this edge as **clean** (definitely consistent),
+  /// after doing a recursive cleaning of its dependencies and finding
+  /// that they are clean.
+  CleanEdge,
 
   /// Transition to the DCG without this edge.  Perhaps it will be
   /// replaced via re-execution, sometime later.

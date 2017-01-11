@@ -77,6 +77,15 @@ pub mod reflect {
     }}
   }
 
+  #[macro_export]
+  macro_rules! current_loc {
+    ( $st:expr ) => {{ 
+      match ($st).stack.last() { 
+        None => None,        
+        Some(frame) => Some(&frame.loc), 
+      }
+    }}
+  }
 }
 
 use reflect::Reflect;
@@ -974,10 +983,13 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
       get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty
     } ;
     if dirty {
+      dcg_effect_begin!(reflect::DCGEffect::CleanRec, Some(loc), succ);
       let succ_dep = & succ.dep ;
       let res = succ_dep.clean(g, &succ.loc) ;
       if res.changed {        
+        dcg_effect_begin!(reflect::DCGEffect::CleanEval, Some(loc), succ);
         let result : Res = loc_produce( g, loc ) ;
+        dcg_effect_end!();
         let changed = result != this_dep.res ;
         return DCGRes{changed:changed}
       }
@@ -985,7 +997,9 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
         let mut st : &mut DCG = &mut *g.borrow_mut();
         st.cnt.clean += 1 ;
         get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty = false ;
+        dcg_effect!(reflect::DCGEffect::CleanEdge, Some(loc), succ);
       }
+      dcg_effect_end!();
     }
   } ;
   let changed = this_dep.res != cache ;
@@ -1034,6 +1048,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
 fn revoke_succs<'x> (st:&mut DCG, src:&Rc<Loc>, succs:&Vec<Succ>) {
   //let mut succ_idx = 0;
   for succ in succs.iter() {
+    dcg_effect!(reflect::DCGEffect::Remove, Some(src), succ);
     if st.flags.gmlog_dcg {
       // gm::startdframe(st, &format!("revoke_succ {:?} {} --> {:?}", src, succ_idx, succ.loc), None);
       // gm::remedge(st, &format!("{:?}",src), &format!("{:?}",succ.loc),
@@ -1359,9 +1374,7 @@ impl Adapton for DCG {
           if do_insert { reflect::DCGAlloc::LocFresh } 
           else { reflect::DCGAlloc::LocExists }
         ),
-        { match self.stack.last_mut() { 
-          None => None,        
-          Some(frame) => Some(&frame.loc), }},
+        current_loc!(self),
         reflect::Succ{
           loc:loc.reflect(), 
           effect:reflect::Effect::Alloc, 
@@ -1615,8 +1628,20 @@ impl Adapton for DCG {
           None => {
             //println!("force {:?}: cache empty", &loc);
             assert!(is_comp);
-            //drop(st);            
-            loc_produce(g, &loc)
+            //drop(st);     
+            dcg_effect_begin!(
+              reflect::DCGEffect::Force(reflect::DCGForce::CompCacheMiss),
+              current_loc!(*g.borrow()),
+              reflect::Succ{
+                loc:loc.reflect(),
+                value:reflect::Val::ValTODO,
+                effect:reflect::Effect::Force,
+                dirty:false
+              }
+            );
+            let res = loc_produce(g, &loc);
+            dcg_effect_end!();
+            res
           },
           Some(ref res) => {
             if is_comp {
@@ -1624,7 +1649,18 @@ impl Adapton for DCG {
               // ProducerDep change-propagation precondition:
               // loc is a computational node:
               //drop(st);
+              dcg_effect_begin!(
+                reflect::DCGEffect::Force(reflect::DCGForce::CompCacheHit),
+                current_loc!(*g.borrow()),
+                reflect::Succ{
+                  loc:loc.reflect(),
+                  value:reflect::Val::ValTODO,
+                  effect:reflect::Effect::Force,
+                  dirty:false
+                }
+              );
               let _ = ProducerDep{res:res.clone()}.clean(g, &loc) ;
+              dcg_effect_end!();
               ////debug!("{} force {:?}: result changed?: {}", engineMsg!(self), &loc, res.changed) ;
               let st : &mut DCG = &mut *g.borrow_mut();
               let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
@@ -1639,6 +1675,15 @@ impl Adapton for DCG {
               }}
             else {
               ////debug!("{} force {:?}: not a computation. (no change prop necessary).", engineMsg!(self), &loc);
+              dcg_effect!(
+                reflect::DCGEffect::Force(reflect::DCGForce::RefGet),
+                current_loc!(*g.borrow()),
+                reflect::Succ{
+                  loc:loc.reflect(),
+                  value:reflect::Val::ValTODO,
+                  effect:reflect::Effect::Force,
+                  dirty:false
+                });
               res.clone()
             }
           }
