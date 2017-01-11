@@ -167,6 +167,7 @@ pub struct DCG {
   pub path:  Vec<Name>,
 }
 
+/// Distinguish fresh allocations from those that reuse an existing location.
 #[derive(Debug)]
 pub enum DCGAlloc {
   /// The allocation was **created** fresh; it was **not** reused.
@@ -215,21 +216,33 @@ pub enum DCGEffect {
   /// cached value).
   Dirty, 
 
-  /// Clean this edge, marking it not dirty, or **definitely
-  /// consistent**. Cleaning consists of processing the edges dirty
-  /// dependencies, if any.  Recursively, this processing may consist
-  /// of marking other edges clean (`CleanEdge`), and/or, removing
-  /// edges (`Remove`) and replacing them via reevaluation under the
-  /// current DCG state (`CleanEval`).
+  /// Clean this edge, marking it **not dirty**, or equivalently,
+  /// **definitely consistent**. Cleaning an edge consists of
+  /// processing the edge's dirty transitive dependencies, if any.
+  /// Recursively, this processing may consist of marking other edges
+  /// clean (`CleanEdge`), and/or, removing edges (`Remove`) and
+  /// replacing them via reevaluation under the current DCG state
+  /// (`CleanEval`).  
+  ///
+  /// This process finishes in one of two mutually-exclusive
+  /// situations: Either the edge is cleaned, meaning that its target
+  /// need not be recomputed (`CleanEdge`). Or else, the value on this
+  /// edge has changed, and this means that the edge's source is
+  /// potentially affected by the change. Consequently, this change
+  /// requires that the edge source be reevaluated (`CleanEval`).
   CleanRec,
-
-  /// Re-evaluate a previously-forced thunk, to clean it.
-  CleanEval,
 
   /// Transition to this edge as **clean** (definitely consistent),
   /// after doing a recursive cleaning of its dependencies and finding
-  /// that they are clean.
+  /// that they are clean.  This effect is mutually-exclusive with
+  /// `CleanEval`, and it occurs when `CleanEdge` **cannot** occur on
+  /// an edge that is being recursively cleaned (via `CleanRec`).
   CleanEdge,
+
+  /// Re-evaluate the previously-forced thunk that is the target of
+  /// this edge, to clean it.  This effect is mutually-exclusive with
+  /// `CleanEdge`.  It occurs when `CleanEdge` cannot occur.
+  CleanEval,
 
   /// Transition to the DCG without this edge.  Perhaps it will be
   /// replaced via re-execution, sometime later.
