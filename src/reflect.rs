@@ -30,7 +30,7 @@ impl<'a,S,T:Reflect<S>+Debug> Reflect<S> for &'a Rc<T> {
 /// Reflected value; Gives a syntax for inductive data type
 /// constructors (`Constr`), named articulations (`Art`) and primitive
 /// data (`Data).
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum Val {
   /// Constructor, with value parameters.
   Constr(Name,Vec<Val>),
@@ -46,7 +46,7 @@ pub enum Val {
 
 /// The content of an articulation: Either a cell holding a value, or
 /// a thunk that has optionally produced a value.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum ArtContent {
   /// A cell holding a value
   Val(Rc<Val>),
@@ -59,7 +59,7 @@ pub enum ArtContent {
 /// `Name`s), followed by a distinguished `Name`.  A `Loc` can be
 /// thought of roughly like a file path in UNIX (but Adapton has
 /// nothing to do with files, or with UNIX, directly).
-#[derive(PartialEq,Eq,Debug,Hash)]
+#[derive(PartialEq,Eq,Debug,Hash,Clone)]
 pub struct Loc {
   /// The path of the `Loc` is a list of `Name`s.
   pub path: Path,
@@ -71,7 +71,7 @@ pub struct Loc {
 pub type Path = Vec<Name>;
 
 /// `Reflected version of engine::Effect`
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum Effect {
   /// The effect consists of a thunk observing the value of another
   /// thunk or reference cell.  That is, the effect consists of
@@ -86,7 +86,7 @@ pub enum Effect {
 }
 
 /// Reflected version of `engine::Succ`
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Succ {
   /// Dirty invariant: If this edge is dirty, then all predecessors of
   /// the edge are dirty too.
@@ -97,6 +97,12 @@ pub struct Succ {
   pub effect: Effect,
   /// The value either produced or consumed by this `Effect`
   pub value:  Val,
+}
+
+impl Reflect<Succ> for Succ {
+  fn reflect (&self) -> Succ {
+    self.clone()
+  }
 }
 
 /// Reflected version of `engine::Pred`

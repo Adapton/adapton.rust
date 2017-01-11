@@ -73,7 +73,7 @@ pub mod reflect {
   macro_rules! dcg_effect {
     ( $eff:expr, $loc:expr, $succ:expr ) => {{ 
       /// An effect without an extent (without nested effects)
-      dcg_effect_begin($eff, $loc, $succ, false)
+      dcg_effect_begin!($eff, $loc, $succ, false)
     }}
   }
 
@@ -1368,20 +1368,29 @@ impl Adapton for DCG {
             preds:Vec::new(),
             val:val.clone(),
           })} ;
-        self.cnt.create += 1;
+        self.cnt.create += 1;                    
         //println!("create: {:?}", &loc);
         self.table.insert(loc.clone(), Box::new(node));
       } ;
       //let stackLen = self.stack.len() ;
-      if ! is_pure { match self.stack.last_mut() { None => (), Some(frame) => {
-        let succ =
-          Succ{loc:loc.clone(),
-               dep:Rc::new(Box::new(AllocDependency{val:val})),
-               effect:Effect::Allocate,
-               dirty:false};
-        //debug!("{} alloc cell: edge: {:?} --> {:?}", engineMsg(Some(stackLen)), &frame.loc, &loc);
-        frame.succs.push(succ)
-      }}} ;
+      if ! is_pure { match self.stack.last_mut() { 
+        None => 
+          dcg_effect!(reflect::DCGEffect::Alloc(reflect::DCGAlloc::Create), 
+                      None::<Loc>,
+                      reflect::Succ{loc:loc.reflect(), 
+                                    effect:reflect::Effect::Alloc, 
+                                    value:reflect::Val::ValTODO, 
+                                    dirty:false}),
+        
+        Some(frame) => {
+          let succ =
+            Succ{loc:loc.clone(),
+                 dep:Rc::new(Box::new(AllocDependency{val:val})),
+                 effect:Effect::Allocate,
+                 dirty:false};
+          //debug!("{} alloc cell: edge: {:?} --> {:?}", engineMsg(Some(stackLen)), &frame.loc, &loc);
+          frame.succs.push(succ)
+        }}} ;
       wf::check_dcg(self);
       AbsArt::Loc(loc)
     }
