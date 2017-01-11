@@ -27,6 +27,12 @@ impl<'a,S,T:Reflect<S>+Debug> Reflect<S> for &'a Rc<T> {
   }
 }
 
+impl<'a,S,T:Reflect<S>+Debug> Reflect<S> for Rc<T> {
+  fn reflect (&self) -> S {
+    (**self).reflect()
+  }
+}
+
 /// Reflected value; Gives a syntax for inductive data type
 /// constructors (`Constr`), named articulations (`Art`) and primitive
 /// data (`Data).

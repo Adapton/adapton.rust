@@ -1361,9 +1361,9 @@ impl Adapton for DCG {
       }
       dcg_effect_begin!(
         reflect::DCGEffect::Alloc(reflect::DCGAlloc::Create),                         
-        { let loc = match self.stack.last_mut() { 
+        { match self.stack.last_mut() { 
           None => None,        
-          Some(frame) => Some(frame.loc) }},
+          Some(frame) => Some(&frame.loc), }},
         reflect::Succ{loc:loc.reflect(), 
                       effect:reflect::Effect::Alloc, 
                       value:reflect::Val::ValTODO, 
