@@ -8,6 +8,12 @@ use std::collections::HashMap;
 /// Reflected primitive data
 pub trait Data : Debug { }
 
+/// This trait consists of the ability for a reference to `Self` to
+/// produce a `T`.  Conceptually, that value of type T is the
+/// "reflection" of `Self`.  A large set of types in `engine`
+/// implement this trait for a particular type in this module, which
+/// represents its reflection.  The documentation of this module makes
+/// this correspondance clear.
 pub trait Reflect<T> : Debug {
   fn reflect (&self) -> T;
 }
@@ -32,6 +38,12 @@ impl<'a,S,T:Reflect<S>+Debug> Reflect<S> for Rc<T> {
     (**self).reflect()
   }
 }
+
+// impl<T> Reflect<T> for T {
+//  fn reflect(&self) -> T {
+//    self.clone()
+//  }
+// }
 
 /// Reflected value; Gives a syntax for inductive data type
 /// constructors (`Constr`), named articulations (`Art`) and primitive
@@ -60,7 +72,7 @@ pub enum ArtContent {
   Comp(Option<Rc<Val>>),
 }
 
-/// `Reflected version of engine::Loc` A `Loc` is a particular
+/// Reflected version of `engine::Loc` A `Loc` is a particular
 /// template for a `Name`: It is a path (a possibly-empty list of
 /// `Name`s), followed by a distinguished `Name`.  A `Loc` can be
 /// thought of roughly like a file path in UNIX (but Adapton has
@@ -76,7 +88,7 @@ pub struct Loc {
 /// A `Path` here is just a `Vec` of `Name`s
 pub type Path = Vec<Name>;
 
-/// `Reflected version of engine::Effect`
+/// Reflected version of `engine::Effect`
 #[derive(Debug,Clone)]
 pub enum Effect {
   /// The effect consists of a thunk observing the value of another
@@ -105,6 +117,10 @@ pub struct Succ {
   pub value:  Val,
 }
 
+// Note: Can't implement Reflect<T> for T, since that conflicts with
+// impl Reflect<Option<S>> for Option<T>.  I don't understand why,
+// since T != S in the latter case, making it applicable when
+// Reflect<T> for T is not.
 impl Reflect<Succ> for Succ {
   fn reflect (&self) -> Succ {
     self.clone()
@@ -235,7 +251,7 @@ pub enum DCGEffect {
   /// Transition to this edge as **clean** (definitely consistent),
   /// after doing a recursive cleaning of its dependencies and finding
   /// that they are clean.  This effect is mutually-exclusive with
-  /// `CleanEval`, and it occurs when `CleanEdge` **cannot** occur on
+  /// `CleanEval`, which occurs when `CleanEdge` **cannot** occur on
   /// an edge that is being recursively cleaned (via `CleanRec`).
   CleanEdge,
 
@@ -249,7 +265,7 @@ pub enum DCGEffect {
   Remove,
 }
 
-/// An adge in the DCG, representing an effect of the incremental program.
+/// An edge in the DCG, representing an effect of the incremental program.
 #[derive(Clone,Debug)]
 pub struct DCGEdge {
   /// The source of the directed edge; it is actively _doing_ the

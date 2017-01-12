@@ -23,47 +23,99 @@ struct TraceSt { stack:Vec<reflect::DCGTraces>, }
 /// When this option is set to some, the engine will record a trace of its DCG effects.
 thread_local!(static TRACES: RefCell<Option<TraceSt>> = RefCell::new( None ));
 
-//#[macro_use]
+
+// TODO: Put these initialization and "engine control" functions into
+// a submodule called "control" (or "meta" or "runtime", etc.).
+
+/// Initializes global state with a fresh DCG-based engine; returns the old engine.
+/// The DCG is the central implementation structure behind Adapton.
+/// At a high level, it consists of a data dependence graph (the "demanded computation graph"), and an associated memoization table.
+pub fn init_dcg () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
+
+/// Initializes global state with a ("fresh") Naive engine; returns the old engine.
+/// The naive engine is stateless, and performs no memoization and builds no dependence graphs.
+/// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
+pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
+
+/// Initializes global state with a fresh DCG-based engine; returns the old engine
+pub fn use_engine (engine: Engine) -> Engine {
+  use std::mem;
+  let mut engine = engine;
+  GLOBALS.with(|g| {
+    mem::swap(&mut g.borrow_mut().engine, &mut engine);
+  });
+  return engine
+}
+
+/// alias for `use_engine`
+pub fn init_engine (engine: Engine) -> Engine {
+  use_engine(engine)
+}
+
+
+
+/// Reflects the DCG engine, including both the effects of the
+/// programs running in it, and the internal effects of the engine
+/// cleaning and dirtying the DCG.  
+///
+/// This module provides an interface used by Adapton Lab to produced
+/// HTML visualizations of these internal structures, for
+/// experimentation and debugging (namely, the `dcg_reflect_begin` and
+/// `dcg_reflect_end` functions).
 pub mod reflect {
+  use super::{TraceSt,TRACES,GLOBALS,Engine};
   pub use reflect::*;
+
+  /// Reflect the DCG's internal structure now.  Does not reflect any
+  /// engine effects over this DCG (e.g., no cleaning or dirtying),
+  /// just the _program effects_ recorded by the DCG's structure.
+  pub fn dcg_reflect_now() -> DCG {
+    GLOBALS.with(|g| {
+      match g.borrow().engine {
+        Engine::DCG(ref dcg) => (*dcg.borrow()).reflect(),
+        Engine::Naive => panic!("no DCG to reflect; current engine is Naive")
+      }
+    })
+  }
+
+  /// Begin recording (reflections of) DCG effects.  See `dcg_reflect_end()`.
+  pub fn dcg_reflect_begin() {
+    TRACES.with(|tr| { 
+      let check = match *tr.borrow() {
+        None => true,
+        Some(_) => false };
+      if check { 
+        *tr.borrow_mut() = Some(TraceSt{stack:vec![Box::new(vec![])]})
+      } else { 
+        panic!("cannot currently nest calls to dcg_reflect_begin().")
+      }
+    })
+  }
+  
+  /// Stop recording (reflections of) DCG effects, and return them as a
+  /// forrest (of DCG traces).  See `dcg_reflect_begin()`.
+  pub fn dcg_reflect_end() -> DCGTraces {
+    TRACES.with(|tr| { 
+      let traces = match *tr.borrow_mut() {
+        None => panic!("dcg_reflect_end() without a corresponding dcg_reflect_begin()."),
+        Some(ref mut tr) => { 
+          // Assert that dcg_effect_(begin/end) are not mismatched.
+          assert_eq!(tr.stack.len(), 1);
+          tr.stack.pop() 
+        }
+      };
+      match traces {
+        None => unreachable!(),
+        Some(traces) => {
+          *tr.borrow_mut() = None;
+          traces
+        }
+      }
+    })
+  }
 }
 use reflect::Reflect;
 
-/// Begin recording (reflections of) DCG effects.
-pub fn dcg_reflect_begin() {
-  TRACES.with(|tr| { 
-    let check = match *tr.borrow() {
-      None => true,
-      Some(_) => false };
-    if check { 
-      *tr.borrow_mut() = Some(TraceSt{stack:vec![Box::new(vec![])]})
-    } else { 
-      panic!("cannot currently nest calls to dcg_reflect_begin().")
-    }
-  })
-}
-
-/// Stop recording (reflections of) DCG effects, and return them as a
-/// forrest (of DCG traces).
-pub fn dcg_reflect_end() -> reflect::DCGTraces {
-  TRACES.with(|tr| { 
-    let traces = match *tr.borrow_mut() {
-      None => panic!("dcg_reflect_end() without a corresponding dcg_reflect_begin()."),
-      Some(ref mut tr) => { 
-        // Assert that dcg_effect_(begin/end) are not mismatched.
-        assert_eq!(tr.stack.len(), 1);
-        tr.stack.pop() 
-      }
-    };
-    match traces {
-      None => unreachable!(),
-      Some(traces) => {
-        *tr.borrow_mut() = None;
-        traces
-      }
-    }
-  })
-}
 
 //#[macro_export]
 macro_rules! dcg_effect_begin {
@@ -1909,30 +1961,9 @@ impl<A:PartialEq,S,T> PartialEq for NaiveThunk<A,S,T> {
   }
 }
 
-/// Initializes global state with a fresh DCG-based engine; returns the old engine.
-/// The DCG is the central implementation structure behind Adapton.
-/// At a high level, it consists of a data dependence graph (the "demanded computation graph"), and an associated memoization table.
-pub fn init_dcg () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
 
-/// Initializes global state with a ("fresh") Naive engine; returns the old engine.
-/// The naive engine is stateless, and performs no memoization and builds no dependence graphs.
-/// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
-pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
 
-/// Initializes global state with a fresh DCG-based engine; returns the old engine
-pub fn use_engine (engine: Engine) -> Engine {
-  use std::mem;
-  let mut engine = engine;
-  GLOBALS.with(|g| {
-    mem::swap(&mut g.borrow_mut().engine, &mut engine);
-  });
-  return engine
-}
 
-/// alias for `use_engine`
-pub fn init_engine (engine: Engine) -> Engine {
-  use_engine(engine)
-}
 
 /// Create a name from unit, that is, create a "leaf" name.
 pub fn name_unit () -> Name {
