@@ -47,7 +47,7 @@ impl<'a,S,T:Reflect<S>+Debug> Reflect<S> for Rc<T> {
 
 /// Reflected value; Gives a syntax for inductive data type
 /// constructors (`Constr`), named articulations (`Art`) and primitive
-/// data (`Data).  All values in the engine (including the values of
+/// data (`Data`).  All values in the engine (including the values of
 /// nodes, and the values stored on edges) are represented with this
 /// reflected `Val` type.  Primarily, this distinction between actual
 /// Rust values and this type is what makes the DCG engine "reflected"
@@ -196,8 +196,11 @@ pub struct DCG {
   pub path:  Vec<Name>,
 }
 
+/// Gives effects and traces for cleaning and dirtying, the engine's
+/// internal DCG traversal/processing.  By contrast, the enclosing
+/// module (`reflect`) only gives reflected versions of the DCG
+/// itself, not changes that the engine makes to it.
 pub mod trace {
-
 
   /// Distinguish fresh allocations from those that reuse an existing location.
   #[derive(Clone,Debug)]

@@ -56,12 +56,24 @@ pub fn init_engine (engine: Engine) -> Engine {
 
 /// Reflects the DCG engine, including both the effects of the
 /// programs running in it, and the internal effects of the engine
-/// cleaning and dirtying the DCG.  
+/// cleaning and dirtying the DCG.  For the latter effects, see the
+/// `trace` module.
 ///
-/// This module provides an interface used by Adapton Lab to produced
+/// **Reflected Values**.  Notably, the values in the engine
+/// (including the values of mutable and compute nodes, and the values
+/// stored on edges between them) are reflected here into a special `Val`
+/// type.  Primarily, the distinction between actual Rust values and
+/// this reflected `Val` type is what makes the DCG engine "reflected"
+/// by the definitions in this module, and not identical to them.
+/// 
+/// This module provides an interface used by Adapton Lab to produce
 /// HTML visualizations of these internal structures, for
 /// experimentation and debugging (namely, the `dcg_reflect_begin` and
-/// `dcg_reflect_end` functions).
+/// `dcg_reflect_end` functions).  For the purposes of debugging,
+/// visualization and design/exploration, we exploit the reflected
+/// version of values to "walk" them, finding their articulations, and
+/// walking their values, recursively.
+
 pub mod reflect {
   pub use reflect::*;
   use super::{TraceSt,TRACES,GLOBALS,Engine};
