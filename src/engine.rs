@@ -18,7 +18,7 @@ use macros::*;
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
 
-struct TraceSt { stack:Vec<reflect::DCGTraces>, }
+struct TraceSt { stack:Vec<Box<Vec<reflect::trace::Trace>>>, }
 
 /// When this option is set to some, the engine will record a trace of its DCG effects.
 thread_local!(static TRACES: RefCell<Option<TraceSt>> = RefCell::new( None ));
@@ -63,8 +63,8 @@ pub fn init_engine (engine: Engine) -> Engine {
 /// experimentation and debugging (namely, the `dcg_reflect_begin` and
 /// `dcg_reflect_end` functions).
 pub mod reflect {
-  use super::{TraceSt,TRACES,GLOBALS,Engine};
   pub use reflect::*;
+  use super::{TraceSt,TRACES,GLOBALS,Engine};
 
   /// Reflect the DCG's internal structure now.  Does not reflect any
   /// engine effects over this DCG (e.g., no cleaning or dirtying),
@@ -94,21 +94,21 @@ pub mod reflect {
   
   /// Stop recording (reflections of) DCG effects, and return them as a
   /// forrest (of DCG traces).  See `dcg_reflect_begin()`.
-  pub fn dcg_reflect_end() -> DCGTraces {
+  pub fn dcg_reflect_end() -> Vec<trace::Trace> {
     TRACES.with(|tr| { 
       let traces = match *tr.borrow_mut() {
         None => panic!("dcg_reflect_end() without a corresponding dcg_reflect_begin()."),
         Some(ref mut tr) => { 
           // Assert that dcg_effect_(begin/end) are not mismatched.
           assert_eq!(tr.stack.len(), 1);
-          tr.stack.pop() 
+          tr.stack.pop()
         }
       };
       match traces {
         None => unreachable!(),
         Some(traces) => {
           *tr.borrow_mut() = None;
-          traces
+          *traces
         }
       }
     })
@@ -129,10 +129,10 @@ macro_rules! dcg_effect_begin {
           match ts.stack.last_mut() {
             None => unreachable!(),
             Some(ref mut ts) => { 
-              ts.push( reflect::DCGTrace{
+              ts.push( reflect::trace::Trace{
                 extent: Box::new(vec![]),
                 effect:$eff,
-                edge: reflect::DCGEdge{
+                edge: reflect::trace::Edge{
                   loc:  $loc.reflect(),
                   succ: $succ.reflect(),
                 }})}};
@@ -311,7 +311,7 @@ impl reflect::Reflect<reflect::DCG> for DCG {
       table:{
         let mut table = HashMap::new();
         for (loc, gn) in self.table.iter() {
-          let _ = table.insert(loc.reflect(), Box::new(gn.reflect()));
+          let _ = table.insert(loc.reflect(), gn.reflect());
         }; table
       },
       stack:self.stack.iter()
@@ -386,7 +386,7 @@ impl Debug for Path {
 }
 
 // The DCG structure consists of `GraphNode`s:
-trait GraphNode : Debug + reflect::Reflect<reflect::GraphNode> {
+trait GraphNode : Debug + reflect::Reflect<reflect::Node> {
   fn preds_alloc<'r> (self:&Self) -> Vec<Rc<Loc>> ;
   fn preds_obs<'r>   (self:&Self) -> Vec<Rc<Loc>> ;
   fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>) -> () ;
@@ -499,11 +499,11 @@ enum Node<Res> {
   Unused,
 }
 
-impl<X:Debug> reflect::Reflect<reflect::GraphNode> for Node<X> {
-  fn reflect(&self) -> reflect::GraphNode {
+impl<X:Debug> reflect::Reflect<reflect::Node> for Node<X> {
+  fn reflect(&self) -> reflect::Node {
     match *self {
       Node::Comp(ref n) => {
-        reflect::GraphNode::Comp(
+        reflect::Node::Comp(
           reflect::CompNode{
             preds:n.preds.reflect(),
             succs:n.succs.reflect(),
@@ -515,13 +515,13 @@ impl<X:Debug> reflect::Reflect<reflect::GraphNode> for Node<X> {
           })
       },
       Node::Pure(ref _n) => {
-        reflect::GraphNode::Pure(
+        reflect::Node::Pure(
           reflect::PureNode {
             value:reflect::Val::ValTODO,
           })
       },
       Node::Mut(ref n) => {
-        reflect::GraphNode::Ref(
+        reflect::Node::Ref(
           reflect::RefNode {
             preds:n.preds.reflect(),
             value:reflect::Val::ValTODO,
@@ -1087,11 +1087,11 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
       get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty
     } ;
     if dirty {
-      dcg_effect_begin!(reflect::DCGEffect::CleanRec, Some(loc), succ);
+      dcg_effect_begin!(reflect::trace::Effect::CleanRec, Some(loc), succ);
       let succ_dep = & succ.dep ;
       let res = succ_dep.clean(g, &succ.loc) ;
       if res.changed {        
-        dcg_effect_begin!(reflect::DCGEffect::CleanEval, Some(loc), succ);
+        dcg_effect_begin!(reflect::trace::Effect::CleanEval, Some(loc), succ);
         let result : Res = loc_produce( g, loc ) ;
         dcg_effect_end!();
         let changed = result != this_dep.res ;
@@ -1102,7 +1102,7 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
         let mut st : &mut DCG = &mut *g.borrow_mut();
         st.cnt.clean += 1 ;
         get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty = false ;
-        dcg_effect!(reflect::DCGEffect::CleanEdge, Some(loc), succ);
+        dcg_effect!(reflect::trace::Effect::CleanEdge, Some(loc), succ);
       }
       dcg_effect_end!();
     }
@@ -1153,7 +1153,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
 fn revoke_succs<'x> (st:&mut DCG, src:&Rc<Loc>, succs:&Vec<Succ>) {
   //let mut succ_idx = 0;
   for succ in succs.iter() {
-    dcg_effect!(reflect::DCGEffect::Remove, Some(src), succ);
+    dcg_effect!(reflect::trace::Effect::Remove, Some(src), succ);
     if st.flags.gmlog_dcg {
       // gm::startdframe(st, &format!("revoke_succ {:?} {} --> {:?}", src, succ_idx, succ.loc), None);
       // gm::remedge(st, &format!("{:?}",src), &format!("{:?}",succ.loc),
@@ -1217,7 +1217,7 @@ fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
         let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
         if succ.dirty { true } else {
           dirty_edge_count += 1 ;
-          dcg_effect_begin!(reflect::DCGEffect::Dirty, Some(&pred_loc), succ);
+          dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
           replace(&mut succ.dirty, true);
           //debug!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
           false
@@ -1248,7 +1248,7 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
         if succ.dirty { true } else {
           //debug!("{} dirty_alloc: edge {:?} --> {:?} marked dirty", engineMsg(Some(stackLen)), &pred_loc, &loc);
           replace(&mut succ.dirty, true);
-          dcg_effect_begin!(reflect::DCGEffect::Dirty, Some(&pred_loc), succ);
+          dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
           false
         }} ;
       if !stop {
@@ -1475,9 +1475,9 @@ impl Adapton for DCG {
           }} else                 { (false, false, None, true ) } 
       ;
       dcg_effect_begin!(
-        reflect::DCGEffect::Alloc(
-          if do_insert { reflect::DCGAlloc::LocFresh } 
-          else { reflect::DCGAlloc::LocExists }
+        reflect::trace::Effect::Alloc(
+          if do_insert { reflect::trace::AllocCase::LocFresh } 
+          else { reflect::trace::AllocCase::LocExists }
         ),
         current_loc!(self),
         reflect::Succ{
@@ -1735,7 +1735,7 @@ impl Adapton for DCG {
             assert!(is_comp);
             //drop(st);     
             dcg_effect_begin!(
-              reflect::DCGEffect::Force(reflect::DCGForce::CompCacheMiss),
+              reflect::trace::Effect::Force(reflect::trace::ForceCase::CompCacheMiss),
               current_loc!(*g.borrow()),
               reflect::Succ{
                 loc:loc.reflect(),
@@ -1755,7 +1755,7 @@ impl Adapton for DCG {
               // loc is a computational node:
               //drop(st);
               dcg_effect_begin!(
-                reflect::DCGEffect::Force(reflect::DCGForce::CompCacheHit),
+                reflect::trace::Effect::Force(reflect::trace::ForceCase::CompCacheHit),
                 current_loc!(*g.borrow()),
                 reflect::Succ{
                   loc:loc.reflect(),
@@ -1781,7 +1781,7 @@ impl Adapton for DCG {
             else {
               ////debug!("{} force {:?}: not a computation. (no change prop necessary).", engineMsg!(self), &loc);
               dcg_effect!(
-                reflect::DCGEffect::Force(reflect::DCGForce::RefGet),
+                reflect::trace::Effect::Force(reflect::trace::ForceCase::RefGet),
                 current_loc!(*g.borrow()),
                 reflect::Succ{
                   loc:loc.reflect(),
