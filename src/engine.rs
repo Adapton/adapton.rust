@@ -1149,11 +1149,24 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
         _ => panic!("undefined")
       }
     } ;
+    let none : Option<Loc> = None ;
     match res_succs {
       Some((res,succs)) => clean_comp(g, self, loc, res, succs),
       None => {
+        dcg_effect_begin!(
+          reflect::trace::Effect::CleanEval,
+          none,
+          reflect::Succ{
+            loc:loc.reflect(),
+            dirty:true,
+            effect:reflect::Effect::Force,
+            value:reflect::Val::ValTODO,
+          }
+        );
         let res = loc_produce( g, loc );
         let changed = self.res != res ;
+        // TODO: changed to reflect::trace somehow?
+        dcg_effect_end!();
         DCGRes{changed:changed}
       }
     }
@@ -1486,10 +1499,12 @@ impl Adapton for DCG {
             Node::Unused       => unreachable!()
           }} else                 { (false, false, None, true ) } 
       ;
+      
       dcg_effect_begin!(
         reflect::trace::Effect::Alloc(
           if do_insert { reflect::trace::AllocCase::LocFresh } 
-          else { reflect::trace::AllocCase::LocExists }
+          else { reflect::trace::AllocCase::LocExists },
+          reflect::trace::AllocKind::RefCell,
         ),
         current_loc!(self),
         reflect::Succ{
@@ -1501,6 +1516,8 @@ impl Adapton for DCG {
       if do_dirty { dirty_alloc(self, &loc) } ;
       if do_set { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } ;
       match succs { Some(succs) => revoke_succs(self, &loc, &succs), None => () } ;
+      dcg_effect_end!();
+      
       if do_insert {
         let node = if is_pure { Node::Pure(PureNode{val:val.clone()}) } else {
           Node::Mut(MutNode{
@@ -1524,7 +1541,6 @@ impl Adapton for DCG {
           frame.succs.push(succ)
         }}} ;
       wf::check_dcg(self);
-      dcg_effect_end!();
       AbsArt::Loc(loc)
     }
 
@@ -1673,12 +1689,30 @@ impl Adapton for DCG {
             }
           }
         } } ;
+
+        dcg_effect_begin!(
+          reflect::trace::Effect::Alloc(
+            if do_insert { reflect::trace::AllocCase::LocFresh }
+            else { reflect::trace::AllocCase::LocExists },
+            reflect::trace::AllocKind::Thunk
+          ),
+          current_loc!(self),
+          reflect::Succ{
+            loc:loc.reflect(),
+            effect:reflect::Effect::Alloc,
+            value:reflect::Val::ValTODO,
+            dirty:false
+          });
+
         if do_dirty {
           //debug!("{} alloc thunk: dirty_alloc {:?}.", engineMsg!(self), &loc);
           dirty_alloc(self, &loc);
         } else {
           //debug!("{} alloc thunk: No dirtying.", engineMsg!(self))
         } ;
+        
+        dcg_effect_end!();
+
         match self.stack.last_mut() { None => (), Some(frame) => {
           //let pred = frame.loc.clone();
           //debug!("{} alloc thunk: edge {:?} --> {:?}", engineMsg(Some(stackLen)), &pred, &loc);

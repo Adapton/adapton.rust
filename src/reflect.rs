@@ -213,6 +213,13 @@ pub mod trace {
     LocExists,
   }
 
+  /// Distinguish ref cell allocations from thunk allocations
+  #[derive(Clone,Debug)]
+  pub enum AllocKind {
+    RefCell,
+    Thunk,
+  }
+
   /// When the program `force`s a computation, either the cache is
   /// either empty (`CacheMiss`) or non-empty (`CacheHit`).  The cached
   /// value may not be consistent without a cleaning.  When the program
@@ -236,7 +243,7 @@ pub mod trace {
   #[derive(Clone,Debug)]
   pub enum Effect { 
     /// Wrapper for Effect::Alloc; transition to DCG after the alloc.
-    Alloc (AllocCase), 
+    Alloc (AllocCase, AllocKind), 
     
     /// Wrapper for Effect::Force; transition to DCG after the force.
     Force (ForceCase),
