@@ -1,10 +1,13 @@
 // Adapton for Rust
-#![feature(field_init_shorthand)]
-#![feature(rustc_private)]
+
+// #![feature(field_init_shorthand)]
+// #![feature(rustc_private)]
+
 #![feature(zero_one)]
 #![feature(associated_consts)]
 #![feature(box_patterns)]
 #![feature(box_syntax)]
+
 //#![feature(associated_type_defaults)]
 //#![feature(custom_derive)]
 //#![feature(type_ascription)]
@@ -16,9 +19,7 @@
     
 // extern crate quickcheck;
 // extern crate rand;
-
-extern crate serialize;
-
+// extern crate serialize;
 // extern crate time;
 
 // #[macro_use]
@@ -30,8 +31,6 @@ pub mod engine ;
 pub mod collections ;
 
 // various sub-modules of the public modules above:
-mod fixpoints ;
-mod arith_parse ;
 mod bitstring ;
 mod trie ;
 mod reflect ;
@@ -39,4 +38,3 @@ mod reflect ;
 mod adapton {
     pub use super::*;
 }
-

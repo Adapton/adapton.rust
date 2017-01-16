@@ -35,7 +35,7 @@ fn push<X:Clone+Copy+Hash+Eq+PartialEq+Debug>
   List::cons(elm, stack)
 }
 
-fn precedence_check (top_op:&Op, next_op:&Op) -> Precedence {
+pub fn precedence_check (top_op:&Op, next_op:&Op) -> Precedence {
   match (*top_op, *next_op) {
     (Op::Plus, Op::Plus) => Precedence::Equal,
     (Op::Plus, Op::Minus) => Precedence::Equal,
@@ -495,10 +495,11 @@ fn test_tok_of_char() {
 // }
 
 pub fn generate_balanced_string () {
-  use std::hash::{Hash,Hasher,SipHasher};
+  use std::hash::{Hash,Hasher};
+  use std::collections::hash_map::DefaultHasher;
   
   fn my_hash<T>(obj: T) -> u64 where T: Hash {
-    let mut hasher = SipHasher::new();
+    let mut hasher = DefaultHasher::new();
     obj.hash(&mut hasher);
     hasher.finish()
   };

@@ -5,7 +5,8 @@ use std::fmt::Debug;
 use std::fmt::{Formatter,Result};
 use std::fmt;
 use std::fs::{OpenOptions};
-use std::hash::{Hash,Hasher,SipHasher};
+use std::hash::{Hash,Hasher};
+use std::collections::hash_map::DefaultHasher;
 use std::mem::replace;
 use std::mem::transmute;
 use std::num::Zero;
@@ -14,12 +15,196 @@ use std::rc::Rc;
 
 use macros::*;
 
-pub mod reflect {
-  pub use reflect::*;
-}
-
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
+
+struct TraceSt { stack:Vec<Box<Vec<reflect::trace::Trace>>>, }
+
+/// When this option is set to some, the engine will record a trace of its DCG effects.
+thread_local!(static TRACES: RefCell<Option<TraceSt>> = RefCell::new( None ));
+
+
+// TODO: Put these initialization and "engine control" functions into
+// a submodule called "control" (or "meta" or "runtime", etc.).
+
+/// Initializes global state with a fresh DCG-based engine; returns the old engine.
+/// The DCG is the central implementation structure behind Adapton.
+/// At a high level, it consists of a data dependence graph (the "demanded computation graph"), and an associated memoization table.
+pub fn init_dcg () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
+
+/// Initializes global state with a ("fresh") Naive engine; returns the old engine.
+/// The naive engine is stateless, and performs no memoization and builds no dependence graphs.
+/// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
+pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
+
+/// Initializes global state with a fresh DCG-based engine; returns the old engine
+pub fn use_engine (engine: Engine) -> Engine {
+  use std::mem;
+  let mut engine = engine;
+  GLOBALS.with(|g| {
+    mem::swap(&mut g.borrow_mut().engine, &mut engine);
+  });
+  return engine
+}
+
+/// alias for `use_engine`
+pub fn init_engine (engine: Engine) -> Engine {
+  use_engine(engine)
+}
+
+
+
+/// Reflects the DCG engine, including both the effects of the
+/// programs running in it, and the internal effects of the engine
+/// cleaning and dirtying the DCG.  For the latter effects, see the
+/// `trace` module.
+///
+/// **Reflected Values**.  Notably, the values in the engine
+/// (including the values of mutable and compute nodes, and the values
+/// stored on edges between them) are reflected here into a special `Val`
+/// type.  Primarily, the distinction between actual Rust values and
+/// this reflected `Val` type is what makes the DCG engine "reflected"
+/// by the definitions in this module, and not identical to them.
+/// 
+/// This module provides an interface used by Adapton Lab to produce
+/// HTML visualizations of these internal structures, for
+/// experimentation and debugging (namely, the `dcg_reflect_begin` and
+/// `dcg_reflect_end` functions).  For the purposes of debugging,
+/// visualization and design/exploration, we exploit the reflected
+/// version of values to "walk" them, finding their articulations, and
+/// walking their values, recursively.
+
+pub mod reflect {
+  pub use reflect::*;
+  use super::{TraceSt,TRACES,GLOBALS,Engine};
+
+  /// Reflect the DCG's internal structure now.  Does not reflect any
+  /// engine effects over this DCG (e.g., no cleaning or dirtying),
+  /// just the _program effects_ recorded by the DCG's structure.
+  pub fn dcg_reflect_now() -> DCG {
+    GLOBALS.with(|g| {
+      match g.borrow().engine {
+        Engine::DCG(ref dcg) => (*dcg.borrow()).reflect(),
+        Engine::Naive => panic!("no DCG to reflect; current engine is Naive")
+      }
+    })
+  }
+
+  /// Begin recording (reflections of) DCG effects.  See `dcg_reflect_end()`.
+  pub fn dcg_reflect_begin() {
+    TRACES.with(|tr| { 
+      let check = match *tr.borrow() {
+        None => true,
+        Some(_) => false };
+      if check { 
+        *tr.borrow_mut() = Some(TraceSt{stack:vec![Box::new(vec![])]})
+      } else { 
+        panic!("cannot currently nest calls to dcg_reflect_begin().")
+      }
+    })
+  }
+  
+  /// Stop recording (reflections of) DCG effects, and return them as a
+  /// forrest (of DCG traces).  See `dcg_reflect_begin()`.
+  pub fn dcg_reflect_end() -> Vec<trace::Trace> {
+    TRACES.with(|tr| { 
+      let traces = match *tr.borrow_mut() {
+        None => panic!("dcg_reflect_end() without a corresponding dcg_reflect_begin()."),
+        Some(ref mut tr) => { 
+          // Assert that dcg_effect_(begin/end) are not mismatched.
+          assert_eq!(tr.stack.len(), 1);
+          tr.stack.pop()
+        }
+      };
+      match traces {
+        None => unreachable!(),
+        Some(traces) => {
+          *tr.borrow_mut() = None;
+          *traces
+        }
+      }
+    })
+  }
+}
+use reflect::Reflect;
+
+
+//#[macro_export]
+macro_rules! dcg_effect_begin {
+  ( $eff:expr, $loc:expr, $succ:expr, $has_extent:expr ) => {{ 
+    /// The beginning of an effect, with an option extent (nested effects)
+    TRACES.with(|tr| {
+      match *tr.borrow_mut() {
+        None => (),
+        // Some ==> We are building a trace
+        Some(ref mut ts) => {            
+          match ts.stack.last_mut() {
+            None => unreachable!(),
+            Some(ref mut ts) => { 
+              ts.push( reflect::trace::Trace{
+                extent: Box::new(vec![]),
+                effect:$eff,
+                edge: reflect::trace::Edge{
+                  loc:  $loc.reflect(),
+                  succ: $succ.reflect(),
+                }})}};
+          if $has_extent {
+            ts.stack.push(Box::new(vec![]))
+          } else { }
+        }
+      }})
+  }}
+  ;
+  ( $eff:expr, $loc:expr, $succ:expr ) => {{
+    dcg_effect_begin!($eff, $loc, $succ, true)
+  }}
+}
+
+//#[macro_export]
+macro_rules! dcg_effect_end {
+  () => {{ 
+    /// The end of an effects' extent. Operationally, the traces at
+    /// the top of the stack are popped; they become the extent of the
+    /// trace at the end (top) of the second top-most sequence of
+    /// traces.
+    TRACES.with(|tr| {
+      match *tr.borrow_mut() {
+        None => (),
+        Some(ref mut tr) => {
+          let trs = tr.stack.pop(); 
+          match (trs, tr.stack.last_mut()) {
+            (None, _) => unreachable!(),
+            (_, None) => unreachable!(),
+            (Some(parent_extent), Some(trs)) => 
+              match trs.last_mut() {
+                None => unreachable!(),
+                Some(parent) => { assert_eq!(parent.extent.len(), 0);
+                                  parent.extent = parent_extent }
+              }
+          }
+        }
+      }
+    })
+  }}
+}
+
+//#[macro_export]
+macro_rules! dcg_effect {
+  ( $eff:expr, $loc:expr, $succ:expr ) => {{ 
+    /// An effect without an extent (without nested effects)
+    dcg_effect_begin!($eff, $loc, $succ, false)
+  }}
+}
+
+//#[macro_export]
+macro_rules! current_loc {
+  ( $st:expr ) => {{ 
+    match ($st).stack.last() { 
+      None => None,        
+      Some(frame) => Some(&frame.loc), 
+    }
+  }}
+}
 
 /// *Names*: First-class data that identifies a mutable cell (see
 /// `cell`) or a thunk (see `thunk`).  When a name identifies
@@ -39,6 +224,8 @@ impl Hash for Name {
     self.hash.hash(state)
   }
 }
+//impl reflect::Reflect<reflect::Name> for Name {
+//}
 
 // Each location identifies a node in the DCG.
 #[derive(PartialEq,Eq,Clone)]
@@ -55,6 +242,17 @@ impl Debug for Loc {
 impl Hash for Loc {
   fn hash<H>(&self, state: &mut H) where H: Hasher {
     self.hash.hash(state)
+  }
+}
+impl reflect::Reflect<reflect::Loc> for Loc {
+  fn reflect(&self) -> reflect::Loc {
+    reflect::Loc {
+      path:self.path.reflect(),
+      name:match *self.id { 
+        ArtId::Structural(ref hash) => name_of_hash64(*hash),
+        ArtId::Nominal(ref name) => name.clone(),
+      }
+    }
   }
 }
 
@@ -119,6 +317,23 @@ pub struct DCG {
   //gmfile : Option<File>,
 }
 
+impl reflect::Reflect<reflect::DCG> for DCG {
+  fn reflect(&self) -> reflect::DCG {
+    reflect::DCG{
+      table:{
+        let mut table = HashMap::new();
+        for (loc, gn) in self.table.iter() {
+          let _ = table.insert(loc.reflect(), gn.reflect());
+        }; table
+      },
+      stack:self.stack.iter()
+        .map(|ref frame| frame.reflect() )
+        .collect::<Vec<_>>(),
+      path:self.path.reflect(),
+    }
+  }
+}
+
 impl Hash  for     DCG { fn hash<H>(&self, _state: &mut H) where H: Hasher { unimplemented!() }}
 impl Eq    for     DCG { }
 impl PartialEq for DCG { fn eq(&self, _other:&Self) -> bool { unimplemented!() } }
@@ -130,6 +345,7 @@ impl Clone for     DCG { fn clone(&self) -> Self { unimplemented!() } }
 #[derive(Hash,PartialEq,Eq,Clone)]
 enum NameSym {
   Root,           // Unit value for name symbols
+  Hash64,        // Hashes (for structural names); hash stored in name struct
   String(String), // Strings encode globally-unique symbols.
   Usize(usize),   // USizes encode globally-unique symbols.
   Isize(isize),   // USizes encode globally-unique symbols.
@@ -142,6 +358,7 @@ impl Debug for NameSym {
   fn fmt(&self, f:&mut Formatter) -> Result {
     match *self {
       NameSym::Root => write!(f, "/"),
+      NameSym::Hash64 => write!(f, "(Hash64)"),
       NameSym::String(ref s) => write!(f, "{}", s),
       NameSym::Usize(ref n) => write!(f, "{}", n),
       NameSym::Isize(ref n) => write!(f, "{}", n),
@@ -158,6 +375,18 @@ enum Path {
   Empty,
   Child(Rc<Path>,Name),
 }
+impl reflect::Reflect<reflect::Path> for Path {
+  fn reflect(&self) -> reflect::Path {
+    match *self {
+      Path::Empty => vec![],
+      Path::Child(ref path, ref name) => {
+        let mut p = path.reflect();
+        p.push(name.clone());
+        p
+      }
+    }
+  }
+}
 
 impl Debug for Path {
   fn fmt(&self, f:&mut Formatter) -> Result {
@@ -169,7 +398,7 @@ impl Debug for Path {
 }
 
 // The DCG structure consists of `GraphNode`s:
-trait GraphNode : Debug {
+trait GraphNode : Debug + reflect::Reflect<reflect::Node> {
   fn preds_alloc<'r> (self:&Self) -> Vec<Rc<Loc>> ;
   fn preds_obs<'r>   (self:&Self) -> Vec<Rc<Loc>> ;
   fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>) -> () ;
@@ -187,6 +416,15 @@ struct Frame {
   succs : Vec<Succ>,  // The currently-executing node's effects (viz., the nodes it demands)
 }
 
+impl reflect::Reflect<reflect::Frame> for Frame {
+  fn reflect(&self) -> reflect::Frame {
+    reflect::Frame{
+      loc:self.loc.reflect(),
+      succs:self.succs.reflect(),
+    }
+  }
+}
+
 #[derive(Debug,Clone)]
 struct Succ {
   dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change
@@ -195,11 +433,39 @@ struct Succ {
   dep    : Rc<Box<DCGDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
 }
 
+impl reflect::Reflect<reflect::Succ> for Succ {
+  fn reflect(&self) -> reflect::Succ {
+    reflect::Succ {
+      dirty:self.dirty,
+      loc:self.loc.reflect(),
+      effect:self.effect.reflect(),
+      value:reflect::Val::ValTODO,
+    }
+  }
+}
+
+impl reflect::Reflect<Vec<reflect::Succ>> for Vec<Succ> {
+  fn reflect(&self) -> Vec<reflect::Succ> {
+    self.iter().map(|ref x| x.reflect()).collect::<Vec<_>>()
+  }
+}
+
 #[derive(PartialEq,Eq,Debug,Clone,Hash)]
 enum Effect {
   Observe,
   Allocate,
 }
+impl reflect::Reflect<reflect::Effect> for Effect {
+  fn reflect(&self) -> reflect::Effect {
+    match *self {
+      // Too many names for the same thing
+      Effect::Observe  => reflect::Effect::Force,
+      Effect::Allocate => reflect::Effect::Alloc,
+    }
+  }
+}
+
+
 struct DCGRes {
   changed : bool,
 }
@@ -245,6 +511,39 @@ enum Node<Res> {
   Unused,
 }
 
+impl<X:Debug> reflect::Reflect<reflect::Node> for Node<X> {
+  fn reflect(&self) -> reflect::Node {
+    match *self {
+      Node::Comp(ref n) => {
+        reflect::Node::Comp(
+          reflect::CompNode{
+            preds:n.preds.reflect(),
+            succs:n.succs.reflect(),
+            prog_pt:n.producer.prog_pt().clone(),
+            value:match n.res { 
+              Some(ref _v) => Some(reflect::Val::ValTODO),
+              None => None
+            }
+          })
+      },
+      Node::Pure(ref _n) => {
+        reflect::Node::Pure(
+          reflect::PureNode {
+            value:reflect::Val::ValTODO,
+          })
+      },
+      Node::Mut(ref n) => {
+        reflect::Node::Ref(
+          reflect::RefNode {
+            preds:n.preds.reflect(),
+            value:reflect::Val::ValTODO,
+          })        
+      },
+      Node::Unused => panic!(""),
+    }
+  }
+}
+
 // PureNode<T> for pure hash-consing of T's.
 // Location in table never changes value.
 #[derive(Debug,Hash)]
@@ -273,6 +572,19 @@ struct CompNode<Res> {
   producer : Box<Producer<Res>>, // Producer can be App<Arg,Res>, where type Arg is hidden.
   res      : Option<Res>,
 }
+
+impl reflect::Reflect<Vec<reflect::Pred>> for Vec<(Effect,Rc<Loc>)> {
+  fn reflect(&self) -> Vec<reflect::Pred> {
+    self.iter().map(|eff_loc| 
+                    match *eff_loc {
+                      (ref eff, ref loc) => {                    
+                        reflect::Pred{
+                          effect:eff.reflect(),
+                          loc:loc.reflect()
+                        }}}).collect::<Vec<_>>()
+  }
+} 
+
 // Produce a value of type Res.
 trait Producer<Res> : Debug {
 //  fn produce(self:&Self, st:&mut DCG) -> Res;
@@ -559,7 +871,7 @@ pub enum ArtIdChoice {
 }
 
 /// *Engine Counts*: Metrics that reflect the time and space costs of the engine.
-#[derive(Debug,Hash,PartialEq,Eq,Clone,Encodable)]
+#[derive(Debug,Hash,PartialEq,Eq,Clone)]
 pub struct Cnt {
   /// Number of DCG nodes created
   pub create : usize, // Add trait performs sum
@@ -653,7 +965,7 @@ impl <Res:Debug+Hash> GraphNode for Node<Res> {
     }
   }
   fn hash_seeded(self:&Self, seed:u64) -> u64 {
-    let mut hasher = SipHasher::new();
+    let mut hasher = DefaultHasher::new();
     seed.hash(&mut hasher);
     self.hash(&mut hasher);
     hasher.finish()
@@ -787,18 +1099,24 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
       get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty
     } ;
     if dirty {
+      dcg_effect_begin!(reflect::trace::Effect::CleanRec, Some(loc), succ);
       let succ_dep = & succ.dep ;
       let res = succ_dep.clean(g, &succ.loc) ;
       if res.changed {        
+        dcg_effect_begin!(reflect::trace::Effect::CleanEval, Some(loc), succ);
         let result : Res = loc_produce( g, loc ) ;
+        dcg_effect_end!();
         let changed = result != this_dep.res ;
+        dcg_effect_end!();
         return DCGRes{changed:changed}
       }
       else {
         let mut st : &mut DCG = &mut *g.borrow_mut();
         st.cnt.clean += 1 ;
         get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty = false ;
+        dcg_effect!(reflect::trace::Effect::CleanEdge, Some(loc), succ);
       }
+      dcg_effect_end!();
     }
   } ;
   let changed = this_dep.res != cache ;
@@ -831,11 +1149,24 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
         _ => panic!("undefined")
       }
     } ;
+    let none : Option<Loc> = None ;
     match res_succs {
       Some((res,succs)) => clean_comp(g, self, loc, res, succs),
       None => {
+        dcg_effect_begin!(
+          reflect::trace::Effect::CleanEval,
+          none,
+          reflect::Succ{
+            loc:loc.reflect(),
+            dirty:true,
+            effect:reflect::Effect::Force,
+            value:reflect::Val::ValTODO,
+          }
+        );
         let res = loc_produce( g, loc );
         let changed = self.res != res ;
+        // TODO: changed to reflect::trace somehow?
+        dcg_effect_end!();
         DCGRes{changed:changed}
       }
     }
@@ -847,6 +1178,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
 fn revoke_succs<'x> (st:&mut DCG, src:&Rc<Loc>, succs:&Vec<Succ>) {
   //let mut succ_idx = 0;
   for succ in succs.iter() {
+    dcg_effect!(reflect::trace::Effect::Remove, Some(src), succ);
     if st.flags.gmlog_dcg {
       // gm::startdframe(st, &format!("revoke_succ {:?} {} --> {:?}", src, succ_idx, succ.loc), None);
       // gm::remedge(st, &format!("{:?}",src), &format!("{:?}",succ.loc),
@@ -906,16 +1238,18 @@ fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
     else {
       let stop : bool = {
         // The stop bit communicates information from st for use below.
-        //debug!("{} dirty_pred_observers: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);
+        //debug!("{} dirty_pred_observers: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);      
         let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
         if succ.dirty { true } else {
           dirty_edge_count += 1 ;
+          dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
           replace(&mut succ.dirty, true);
           //debug!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
           false
         }} ;
       if !stop {
         dirty_pred_observers(st,&pred_loc);
+        dcg_effect_end!();
       } else {
         //debug!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen)))
       }
@@ -939,10 +1273,12 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
         if succ.dirty { true } else {
           //debug!("{} dirty_alloc: edge {:?} --> {:?} marked dirty", engineMsg(Some(stackLen)), &pred_loc, &loc);
           replace(&mut succ.dirty, true);
+          dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
           false
         }} ;
       if !stop {
         dirty_pred_observers(st,&pred_loc);
+        dcg_effect_end!();
       } else {
         //debug!("{} dirty_alloc: early stop", engineMsg(Some(stackLen)))
       }
@@ -953,6 +1289,7 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
   }
 }
 
+/// Returns true if changed, false if unchanged.
 fn set_<T:Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
   if let AbsArt::Loc(ref loc) = cell { 
     let changed : bool = {
@@ -968,7 +1305,7 @@ fn set_<T:Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
         _ => unreachable!(),
       }} ;
     if changed {
-      dirty_alloc(st, loc)
+      dirty_alloc(st, loc);
     }
     else { }
   }
@@ -1081,6 +1418,7 @@ impl Adapton for DCG {
       dcg_count : 0,
       dcg_hash : 0, // XXX This makes assumptions about hashing implementation
       //gmfile : outfile,
+      //reflect : None,
     }
   }
                      
@@ -1149,8 +1487,8 @@ impl Adapton for DCG {
         }
       };            
       let hash = my_hash(&(&path,&id));
-      let loc  = Rc::new(Loc{path:path,id:id,hash:hash});
-      //debug!("{} alloc cell: {:?} <--- {:?}", engineMsg!(self), &loc, &val);
+      let loc  = Rc::new(Loc{path:path,id:id,hash:hash})
+      ;
       let (do_dirty, do_set, succs, do_insert) =
         if self.table.contains_key(&loc) {
           let node : &Box<Node<T>> = res_node_of_loc(self, &loc) ;
@@ -1159,37 +1497,49 @@ impl Adapton for DCG {
             Node::Comp(ref nd) => { (true,  false, Some(nd.succs.clone()),  true ) }
             Node::Pure(_)      => { (false, false, None, false) }
             Node::Unused       => unreachable!()
-          }} else                 { (false, false, None, true ) } ;
-      if do_set || do_insert {
-        if self.flags.gmlog_dcg {
-          // gm::startdframe(self, &format!("cell {:?}", loc), None);
-          // gm::addnode(self, &format!("{:?}",loc), "cell", "", Some(&format!("cell {:?}", loc)));
-          //val.log_snapshot(self, &format!("{:?}",loc), None);
-        }
-      }
+          }} else                 { (false, false, None, true ) } 
+      ;
+      
+      dcg_effect_begin!(
+        reflect::trace::Effect::Alloc(
+          if do_insert { reflect::trace::AllocCase::LocFresh } 
+          else { reflect::trace::AllocCase::LocExists },
+          reflect::trace::AllocKind::RefCell,
+        ),
+        current_loc!(self),
+        reflect::Succ{
+          loc:loc.reflect(), 
+          effect:reflect::Effect::Alloc, 
+          value:reflect::Val::ValTODO, 
+          dirty:false}
+      );      
       if do_dirty { dirty_alloc(self, &loc) } ;
-      if do_set   { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } ;
+      if do_set { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } ;
       match succs { Some(succs) => revoke_succs(self, &loc, &succs), None => () } ;
+      dcg_effect_end!();
+      
       if do_insert {
         let node = if is_pure { Node::Pure(PureNode{val:val.clone()}) } else {
           Node::Mut(MutNode{
             preds:Vec::new(),
             val:val.clone(),
           })} ;
-        self.cnt.create += 1;
+        self.cnt.create += 1;                    
         //println!("create: {:?}", &loc);
         self.table.insert(loc.clone(), Box::new(node));
       } ;
       //let stackLen = self.stack.len() ;
-      if ! is_pure { match self.stack.last_mut() { None => (), Some(frame) => {
-        let succ =
-          Succ{loc:loc.clone(),
-               dep:Rc::new(Box::new(AllocDependency{val:val})),
-               effect:Effect::Allocate,
-               dirty:false};
-        //debug!("{} alloc cell: edge: {:?} --> {:?}", engineMsg(Some(stackLen)), &frame.loc, &loc);
-        frame.succs.push(succ)
-      }}} ;
+      if ! is_pure { match self.stack.last_mut() { 
+        None => (),        
+        Some(frame) => {
+          let succ =
+            Succ{loc:loc.clone(),
+                 dep:Rc::new(Box::new(AllocDependency{val:val})),
+                 effect:Effect::Allocate,
+                 dirty:false};
+          //debug!("{} alloc cell: edge: {:?} --> {:?}", engineMsg(Some(stackLen)), &frame.loc, &loc);
+          frame.succs.push(succ)
+        }}} ;
       wf::check_dcg(self);
       AbsArt::Loc(loc)
     }
@@ -1339,12 +1689,30 @@ impl Adapton for DCG {
             }
           }
         } } ;
+
+        dcg_effect_begin!(
+          reflect::trace::Effect::Alloc(
+            if do_insert { reflect::trace::AllocCase::LocFresh }
+            else { reflect::trace::AllocCase::LocExists },
+            reflect::trace::AllocKind::Thunk
+          ),
+          current_loc!(self),
+          reflect::Succ{
+            loc:loc.reflect(),
+            effect:reflect::Effect::Alloc,
+            value:reflect::Val::ValTODO,
+            dirty:false
+          });
+
         if do_dirty {
           //debug!("{} alloc thunk: dirty_alloc {:?}.", engineMsg!(self), &loc);
           dirty_alloc(self, &loc);
         } else {
           //debug!("{} alloc thunk: No dirtying.", engineMsg!(self))
         } ;
+        
+        dcg_effect_end!();
+
         match self.stack.last_mut() { None => (), Some(frame) => {
           //let pred = frame.loc.clone();
           //debug!("{} alloc thunk: edge {:?} --> {:?}", engineMsg(Some(stackLen)), &pred, &loc);
@@ -1411,8 +1779,20 @@ impl Adapton for DCG {
           None => {
             //println!("force {:?}: cache empty", &loc);
             assert!(is_comp);
-            //drop(st);            
-            loc_produce(g, &loc)
+            //drop(st);     
+            dcg_effect_begin!(
+              reflect::trace::Effect::Force(reflect::trace::ForceCase::CompCacheMiss),
+              current_loc!(*g.borrow()),
+              reflect::Succ{
+                loc:loc.reflect(),
+                value:reflect::Val::ValTODO,
+                effect:reflect::Effect::Force,
+                dirty:false
+              }
+            );
+            let res = loc_produce(g, &loc);
+            dcg_effect_end!();
+            res
           },
           Some(ref res) => {
             if is_comp {
@@ -1420,7 +1800,18 @@ impl Adapton for DCG {
               // ProducerDep change-propagation precondition:
               // loc is a computational node:
               //drop(st);
+              dcg_effect_begin!(
+                reflect::trace::Effect::Force(reflect::trace::ForceCase::CompCacheHit),
+                current_loc!(*g.borrow()),
+                reflect::Succ{
+                  loc:loc.reflect(),
+                  value:reflect::Val::ValTODO,
+                  effect:reflect::Effect::Force,
+                  dirty:false
+                }
+              );
               let _ = ProducerDep{res:res.clone()}.clean(g, &loc) ;
+              dcg_effect_end!();
               ////debug!("{} force {:?}: result changed?: {}", engineMsg!(self), &loc, res.changed) ;
               let st : &mut DCG = &mut *g.borrow_mut();
               let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
@@ -1435,6 +1826,15 @@ impl Adapton for DCG {
               }}
             else {
               ////debug!("{} force {:?}: not a computation. (no change prop necessary).", engineMsg!(self), &loc);
+              dcg_effect!(
+                reflect::trace::Effect::Force(reflect::trace::ForceCase::RefGet),
+                current_loc!(*g.borrow()),
+                reflect::Succ{
+                  loc:loc.reflect(),
+                  value:reflect::Val::ValTODO,
+                  effect:reflect::Effect::Force,
+                  dirty:false
+                });
               res.clone()
             }
           }
@@ -1564,7 +1964,7 @@ impl<A:Hash+Clone+Eq+Debug+'static,S:Clone+'static,T:'static>
     & self.id
   }
   fn hash_u64(&self) -> u64 {
-    let mut hasher = SipHasher::new();
+    let mut hasher = DefaultHasher::new();
     self.id.hash( &mut hasher );
     self.prog_pt.hash( &mut hasher );
     self.arg.hash( &mut hasher );
@@ -1607,30 +2007,9 @@ impl<A:PartialEq,S,T> PartialEq for NaiveThunk<A,S,T> {
   }
 }
 
-/// Initializes global state with a fresh DCG-based engine; returns the old engine.
-/// The DCG is the central implementation structure behind Adapton.
-/// At a high level, it consists of a data dependence graph (the "demanded computation graph"), and an associated memoization table.
-pub fn init_dcg () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
 
-/// Initializes global state with a ("fresh") Naive engine; returns the old engine.
-/// The naive engine is stateless, and performs no memoization and builds no dependence graphs.
-/// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
-pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
 
-/// Initializes global state with a fresh DCG-based engine; returns the old engine
-pub fn use_engine (engine: Engine) -> Engine {
-  use std::mem;
-  let mut engine = engine;
-  GLOBALS.with(|g| {
-    mem::swap(&mut g.borrow_mut().engine, &mut engine);
-  });
-  return engine
-}
 
-/// alias for `use_engine`
-pub fn init_engine (engine: Engine) -> Engine {
-  use_engine(engine)
-}
 
 /// Create a name from unit, that is, create a "leaf" name.
 pub fn name_unit () -> Name {
@@ -1642,6 +2021,12 @@ pub fn name_pair (n1:Name, n2:Name) -> Name {
   let h = my_hash( &(n1.hash,n2.hash) ) ;
   let p = NameSym::Pair(n1.symbol, n2.symbol) ;
   Name{ hash:h, symbol:Rc::new(p) }
+}
+
+pub fn name_of_hash64(h:u64) -> Name {
+  // TODO: Get rid of need for Rc here; 
+  // Rc should be optional in names?
+  Name{ hash:h, symbol:Rc::new(NameSym::Hash64) }
 }
 
 /// Create a name from a `usize`

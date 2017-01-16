@@ -10,7 +10,8 @@
 // identifies the function pointer (i.e., two distinct functions will
 // always have two distinct identities).
 //
-use std::hash::{Hash,Hasher,SipHasher};
+use std::hash::{Hash,Hasher};
+use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Formatter,Result,Debug};
 //use std::mem::replace;
 
@@ -33,7 +34,7 @@ impl Debug for ProgPt {
 pub fn my_hash<T>(obj: T) -> u64
   where T: Hash
 {
-  let mut hasher = SipHasher::new();
+  let mut hasher = DefaultHasher::new();
   obj.hash(&mut hasher);
   hasher.finish()
 }
@@ -41,7 +42,7 @@ pub fn my_hash<T>(obj: T) -> u64
 pub fn my_hash_n<T>(obj: T, n:usize) -> u64
   where T: Hash
 {
-  let mut hasher = SipHasher::new();
+  let mut hasher = DefaultHasher::new();
   for _ in 0..n {
     obj.hash(&mut hasher);
   }

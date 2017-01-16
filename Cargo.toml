@@ -5,7 +5,7 @@ authors = ["Matthew A. Hammer <Matthew.Hammer@Colorado.Edu>"]
 
 # A short blurb about the package. This is not rendered in any format when
 # uploaded to crates.io (aka this is not markdown)
-description = "Library for Incremental Computation (implicit dependency graphs & memoization)"
+description = "programming abstractions for general-purpose incremental computations"
 
 # These URLs point to more information about the repository
 documentation = "https://github.com/cuplv/adapton.rust/"
@@ -18,7 +18,7 @@ readme = "README.md"
 
 # This is a small list of keywords used to categorize and search for this
 # package.
-keywords = ["Self-Adjusting", "Incremental", "Memoization", "Dependency-Graph"]
+keywords = ["Incremental", "Memoization", "Dependency-Graph", "Self-Adjusting",]
 
 # This is a string description of the license for this package. Currently
 # crates.io will validate the license provided against a whitelist of known
