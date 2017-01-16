@@ -112,6 +112,15 @@ pub fn list_nil<X, L:ListIntro<X>>()          -> L { L::nil() }
 pub fn list_cons<X, L:ListIntro<X>>(x:X, l:L) -> L { L::cons(x, l) }
 pub fn list_name<X, L:ListIntro<X>>(n:Name, l:L) -> L { L::name(n, l) }
 pub fn list_art<X, L:ListIntro<X>>(l:Art<L>) -> L { L::art(l) }
+pub fn list_name_art_op<X, L:ListIntro<X>>(n:Option<Name>, l:L) -> L {
+  match n {
+    None => l,
+    Some(n) => {
+      let c : Art<L> = cell(n.clone(), l);
+      list_name(n, list_art(c))
+    }
+  }
+}
 
 /// Lazily maps the list, guided by names in input list.
 /// Creates lazy named thunks in output for each name in input.
@@ -1075,8 +1084,8 @@ pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
                                 list_merge::<X,L>,
                                 n1:None, l1:t1, n2:n2, l2:l2);
               let rest = L::art(rest);
-              let rest = L::name(n1b, rest);
               let rest = L::cons(h1, rest);
+              let rest = L::name(n1b, rest);
               rest
             }
           }
@@ -1095,8 +1104,8 @@ pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
                                 list_merge::<X,L>,
                                 n1:n1, l1:l1, n2:None, l2:t2);
               let rest = L::art(rest);
-              let rest = L::name(n2b, rest);
               let rest = L::cons(h2, rest);
+              let rest = L::name(n2b, rest);
               rest
             }
           }
@@ -1159,11 +1168,10 @@ pub fn mergesort_list_of_tree2
 {
   tree_fold_up_nm_dn
     (tree, nm,
-     Rc::new(|_n,|        L::nil()),
-     Rc::new(|_n,x|       L::singleton(x)),
+     Rc::new(|n,|         list_name_art_op(n,L::nil())),
+     Rc::new(|n,x|        list_name_art_op(n, L::singleton(x))),
      Rc::new(|_, l, r|    { list_merge_wrapper(None, l, None, r) }),
-     Rc::new(|n, _, l, r| { let (n1,n2) = name_fork(n);
-                            list_merge_wrapper(Some(n1), l, Some(n2), r) }),
+     Rc::new(|n, _, l, r| { list_merge_wrapper(Some(n), l, None, r) }),
      )
 }
 
