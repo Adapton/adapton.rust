@@ -1,3 +1,30 @@
+//! Adapton's core calculus, implemented as a runtime library.  We
+//! implement two versions of this interface, which we refer to as
+//! _engines_: The **naive engine** and the **DCG engine**,
+//! implemented based on the algorithms from the Adapton papers.
+//!
+//! To program algorithms that use this interface, consider the
+//! following functions and macros:
+//! 
+//!  - `fn force`, which observes/consumes/demands the value of an
+//!     `Art`.
+//!
+//!  - `fn cell`, which allocates/produces an `Art` to hold a given
+//!     value.  See also, the macro `cell_call!`, which places the
+//!     result of a function call into a (named) cell.
+//!
+//!  - `fn thunk`, and the macros `thunk!` and `eager!`, which
+//!     introduce `Art`s that hold suspended computations and produce
+//!     their results, when `force`d.  The macro `eager!` forces this
+//!     suspended computation eagerly.
+//! 
+//!  - `fn ns`, which manages a monadic _naming policy_ for
+//!     allocations by `cell` and `thunk` (and macros that use these).
+//!     This function extends the current path (a sequence of names)
+//!     by one name, which we refer to as a _namespace_.  This
+//!     namespace concept is analogous to a directory in the UNIX
+//!     filesystem.
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
@@ -76,16 +103,26 @@ pub fn init_engine (engine: Engine) -> Engine {
 
 pub mod reflect {
   pub use reflect::*;
+  use std::fmt::Debug;
   use super::{TraceSt,TRACES,GLOBALS,Engine};
+  use super::parse_val;
 
+  pub fn reflect_val <V:Debug> (v:&V) -> Val {
+    let s = format!("{:?}", v);
+    //println!("reflect_val({:?})", v);
+    let toks = parse_val::lex(s.into_bytes());
+    //println!("toks = {:?}", toks);
+    parse_val::parse_val(toks)
+  }
+  
   /// Reflect the DCG's internal structure now.  Does not reflect any
   /// engine effects over this DCG (e.g., no cleaning or dirtying),
   /// just the _program effects_ recorded by the DCG's structure.
-  pub fn dcg_reflect_now() -> DCG {
+  pub fn dcg_reflect_now() -> Option<DCG> {
     GLOBALS.with(|g| {
       match g.borrow().engine {
-        Engine::DCG(ref dcg) => (*dcg.borrow()).reflect(),
-        Engine::Naive => panic!("no DCG to reflect; current engine is Naive")
+        Engine::DCG(ref dcg) => Some((*dcg.borrow()).reflect()),
+        Engine::Naive => None,
       }
     })
   }
@@ -232,7 +269,8 @@ struct Loc {
 }
 impl Debug for Loc {
   fn fmt(&self, f:&mut Formatter) -> Result {
-    write!(f,"{:?}*{:?}",self.path,self.id)
+    //write!(f,"{:?}*{:?}",self.path,self.id)
+    write!(f,"Loc {{ path:[{:?}], id:{:?} }}", self.path, self.id)
   }
 }
 impl Hash for Loc {
@@ -341,7 +379,7 @@ impl Clone for     DCG { fn clone(&self) -> Self { unimplemented!() } }
 /// 
 /// For a general semantics of symbols, see Chapter 31 of PFPL 2nd
 /// Edition. Harper 2016: http://www.cs.cmu.edu/~rwh/pfpl
-#[derive(Hash,PartialEq,Eq,Clone)]
+#[derive(Hash,PartialEq,Eq,Clone,Debug)]
 enum NameSym {
   Root,           // Unit value for name symbols
   Hash64,        // Hashes (for structural names); hash stored in name struct
@@ -353,20 +391,20 @@ enum NameSym {
   ForkR(Rc<NameSym>), // Right projection of a unique symbol is unique
 }
 
-impl Debug for NameSym {
-  fn fmt(&self, f:&mut Formatter) -> Result {
-    match *self {
-      NameSym::Root => write!(f, "/"),
-      NameSym::Hash64 => write!(f, "(Hash64)"),
-      NameSym::String(ref s) => write!(f, "{}", s),
-      NameSym::Usize(ref n) => write!(f, "{}", n),
-      NameSym::Isize(ref n) => write!(f, "{}", n),
-      NameSym::Pair(ref l, ref r) => write!(f, "({:?},{:?})",l,r),
-      NameSym::ForkL(ref s) => write!(f, "{:?}.L", s),
-      NameSym::ForkR(ref s) => write!(f, "{:?}.R", s),
-    }
-  }
-}
+// impl Debug for NameSym {
+//   fn fmt(&self, f:&mut Formatter) -> Result {
+//     match *self {
+//       NameSym::Root => write!(f, "/"),
+//       NameSym::Hash64 => write!(f, "(Hash64)"),
+//       NameSym::String(ref s) => write!(f, "{}", s),
+//       NameSym::Usize(ref n) => write!(f, "{}", n),
+//       NameSym::Isize(ref n) => write!(f, "{}", n),
+//       NameSym::Pair(ref l, ref r) => write!(f, "({:?},{:?})",l,r),
+//       NameSym::ForkL(ref s) => write!(f, "{:?}.L", s),
+//       NameSym::ForkR(ref s) => write!(f, "{:?}.R", s),
+//     }
+//   }
+// }
 
 // Paths are built implicitly via the Adapton::ns command.
 #[derive(Hash,PartialEq,Eq,Clone)]
@@ -391,7 +429,7 @@ impl Debug for Path {
   fn fmt(&self, f:&mut Formatter) -> Result {
     match *self {
       Path::Empty => write!(f, ""),
-      Path::Child(ref p, ref n) => write!(f, "{:?}::{:?}", p, n),
+      Path::Child(ref p, ref n) => write!(f, "{:?},{:?}", p, n),
     }
   }
 }
@@ -502,22 +540,22 @@ impl<X:Debug> reflect::Reflect<reflect::Node> for Node<X> {
             succs:n.succs.reflect(),
             prog_pt:n.producer.prog_pt().clone(),
             value:match n.res { 
-              Some(ref _v) => Some(reflect::Val::ValTODO),
+              Some(ref v) => Some( reflect::reflect_val(v) ),
               None => None
             }
           })
       },
-      Node::Pure(ref _n) => {
+      Node::Pure(ref n) => {
         reflect::Node::Pure(
           reflect::PureNode {
-            value:reflect::Val::ValTODO,
+            value:reflect::reflect_val( &n.val ),
           })
       },
       Node::Mut(ref n) => {
         reflect::Node::Ref(
           reflect::RefNode {
             preds:n.preds.reflect(),
-            value:reflect::Val::ValTODO,
+            value:reflect::reflect_val( &n.val ),
           })        
       },
       Node::Unused => panic!(""),
@@ -2110,5 +2148,259 @@ mod wf {
         assert!( succ.dirty ); // The edge is clean.
       }
     }
+  }
+}
+
+/// Parses the output of Rust `Debug` strings into reflected `Val`
+/// values.  We use this parse as a non-intrusive mechanism for
+/// builing the reflected DCG.  Building this DCG consists of crawing
+/// user-defined data structures in the process (reflecting them into
+/// `Val` values), and following their articulations. We use the
+/// values' `Debug` strings to do this traversal.
+mod parse_val {
+  use std::rc::Rc;
+  use adapton::engine::reflect::{Val};
+  use adapton::engine::{Name, name_of_str, name_of_string};
+
+  /// _Balanced tokens_: Tokens that must be balanced with a left and
+  /// right instance and well-nested balanced tokens between them.
+  #[derive(Debug, Eq, PartialEq)]
+  pub enum BalTok {
+    Paren, 
+    Bracket, 
+    Brace
+  }
+
+  #[derive(Debug, Eq, PartialEq)]
+  pub enum Const {
+    Nat(usize),
+    String(String),
+  }
+
+  /// _Tokens_: The unit of input for parsing Rust `Debug` strings
+  /// into reflected `Val` values.
+  #[derive(Debug, Eq, PartialEq)]
+  pub enum Tok {
+    /// Left (and right) balanced tokens
+    Left(BalTok), 
+    /// Right (and left) balanced tokens
+    Right(BalTok),
+    /// Constant values that can immediately be injected into reflected `Val` type
+    Const(Const),
+    /// Identifers name fields of structs and constructors (of enums and structs)
+    Ident(String),
+    /// Colons separate field names from field values in structs.  Co
+    Colon,
+    /// Commas separate arguments to a constructor; for struct constructors, they separate fields
+    Comma, 
+  }
+
+  pub fn lex (mut chars: Vec<u8>) -> Vec<Tok> {
+    let mut toks = vec![];
+    chars.reverse(); // TODO rewrite to avoid this
+    loop {
+      match chars.pop() {
+        None => return toks,
+        Some(c) => {
+          let c : char = c as char ;
+          if      c == ' ' { continue }
+          else if c == ':' { toks.push(Tok::Colon); continue }
+          else if c == ',' { toks.push(Tok::Comma); continue }
+          else if c == '{' { toks.push(Tok::Left (BalTok::Brace));   continue }
+          else if c == '[' { toks.push(Tok::Left (BalTok::Bracket)); continue }
+          else if c == '(' { toks.push(Tok::Left (BalTok::Paren));   continue }
+          else if c == '}' { toks.push(Tok::Right(BalTok::Brace));   continue }
+          else if c == ']' { toks.push(Tok::Right(BalTok::Bracket)); continue }
+          else if c == ')' { toks.push(Tok::Right(BalTok::Paren));   continue }
+          else if c == '"' {
+            let mut string_chars = vec![];
+            loop {
+              match chars.pop() {
+                None => break,
+                Some(c) => {
+                  let c : char = c as char ;
+                  if c == '"' { break } else { 
+                    string_chars.push(c);
+                    continue 
+                  }
+                }
+              }
+            };
+            toks.push(Tok::Const(Const::String( 
+              string_chars.into_iter().collect() 
+            )));
+            continue
+          }
+          else if c >= '0' && c <= '9' {
+            let mut digs = vec![c];
+            loop {
+              match chars.pop() {
+                None    => break,
+                Some(c) => { 
+                  let c : char = c as char ;
+                  if c >= '0' && c <= '9' { 
+                    digs.push(c); 
+                    continue 
+                  } else { 
+                    chars.push(c as u8); 
+                    break 
+                  }
+                }
+              }
+            };
+            let s : String = digs.into_iter().collect();
+            toks.push(Tok::Const(Const::Nat( 
+              usize::from_str_radix(s.as_str(), 10).unwrap()
+            )));
+            continue
+          }
+          else if (c >= 'a' && c <= 'z') ||
+            (c >= 'A' && c <= 'Z') ||
+            (c == '_') 
+          {
+            let mut ident = vec![c];
+            loop {
+              match chars.pop() {
+                None    => break,
+                Some(c) => { 
+                  let c : char = c as char ;
+                  if (c >= 'a' && c <= 'z') ||
+                    (c >= 'A' && c <= 'Z') ||
+                    (c >= '0' && c <= '9') ||
+                    (c == '_')  
+                  {
+                    ident.push(c); 
+                    continue 
+                  } else { 
+                    chars.push(c as u8); 
+                    break 
+                  }
+                }
+              }
+            };
+            toks.push(Tok::Ident( ident.into_iter().collect() ));
+            continue           
+          }
+        }
+      }
+    } ;
+    return toks
+  }
+
+  /// Parse a sequence of fields (appending to `fields`) until right balanced token `bal`.  Return fields and remaining tokens.
+  pub fn parse_fields (mut toks:Vec<Tok>, mut fields:Vec<(Name, Val)>, bal:Tok) -> (Vec<(Name, Val)>, Vec<Tok>) {
+    match toks.pop() {
+      None => panic!("parse_vals: expected more vals, or end of sequence; but no more tokens"),
+      Some(t) => {
+        if t == bal { (fields, toks) } 
+        else if t == Tok::Comma { 
+          return parse_fields(toks, fields, bal)
+        } else {
+          match t {
+            Tok::Ident(i) => {
+              let toks = expect_tok(toks, Tok::Colon);
+              let (v, toks) = parse_val_rec(toks);
+              fields.push((name_of_string(i), v));
+              return parse_fields(toks, fields, bal)
+            }
+            t => {
+              panic!("parse_fields: expected identifier, but found {:?}", t)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /// Parse a sequence of values (appending to `vals`) until right balanced token `bal`.  Return fields and remaining tokens.
+  pub fn parse_vals (mut toks:Vec<Tok>, mut vals:Vec<Val>, bal:Tok) -> (Vec<Val>, Vec<Tok>) {
+    match toks.pop() {
+      None => panic!("parse_vals: expected more vals, or end of sequence; but no more tokens"),
+      Some(t) => {
+        if t == bal { (vals, toks) } 
+        else if t == Tok::Comma { 
+          return parse_vals(toks, vals, bal)
+        } 
+        else {
+          toks.push(t);
+          let (v, toks) = parse_val_rec(toks);
+          vals.push(v);
+          return parse_vals(toks, vals, bal)
+        }
+      }
+    }
+  }
+
+  /// Expect next token to be `tok` and panic otherwise.
+  pub fn expect_tok (mut toks: Vec<Tok>, tok:Tok) -> Vec<Tok> {
+    match toks.pop() {
+      None => panic!("expected token `{:?}`, but, no more tokens", tok),
+      Some(t) => {
+        if t == tok { toks } 
+        else { panic!("expected token `{:?}`, but instead found token `{:?}`", tok, t) }
+      }
+    }
+  }
+
+  pub fn parse_val(mut toks:Vec<Tok>) -> Val {
+    toks.reverse();
+    let (v, toks) = parse_val_rec(toks);
+    assert!(toks.len() == 0);
+    v
+  }
+
+  /// Parse a value from the tokens `toks` and return it.  Panic if the next tokens do not parse into value.
+  pub fn parse_val_rec (mut toks:Vec<Tok>) -> (Val, Vec<Tok>) {
+    let (v, toks) = match toks.pop() {
+      None => panic!("expected value; but, no more tokens"),
+      Some(Tok::Right(r)) => panic!("expected value, but found {:?} instead", Tok::Right(r)),
+      Some(Tok::Comma) => panic!("expected value, but found Comma instead"),
+      Some(Tok::Colon) => panic!("expected value, but found Colon instead"),
+      Some(Tok::Left(BalTok::Bracket)) => {
+        // Parse a vector: Begins with '[', then a list of comma-separated values, then ']'.
+        let (vs, toks) = parse_vals(toks, vec![], Tok::Right(BalTok::Bracket));
+        (Val::Vec(vs), toks)
+      },
+      Some(Tok::Left(BalTok::Paren)) => {
+        // Parse a tuple: Begins with '(', then a list of comma-separated values, then ')'.
+        let (vs, toks) = parse_vals(toks, vec![], Tok::Right(BalTok::Paren));
+        (Val::Tuple(vs), toks)
+      },
+      Some(Tok::Left(l)) => panic!("expected value, but found {:?} instead", Tok::Left(l)),     
+      Some(Tok::Ident(i)) => {
+        match toks.pop() {
+          None => {
+            // Constructors with no arguments (e.g., Nil)
+            (Val::Constr(name_of_string(i), vec![]), toks)
+          }
+          Some(Tok::Left(BalTok::Brace)) => {
+            //println!("parsing struct: {:?}", i);
+            let (fields, toks) = parse_fields(toks, vec![], Tok::Right(BalTok::Brace));
+            (Val::Struct(name_of_string(i), fields), toks)
+          }
+          Some(Tok::Left(BalTok::Paren)) => {
+            //println!("parsing constructor: {:?}", i);
+            let (vs, toks) = parse_vals(toks, vec![], Tok::Right(BalTok::Paren));
+            (Val::Constr(name_of_string(i), vs), toks)
+          },
+          Some(Tok::Comma) => {
+            toks.push(Tok::Comma);
+            (Val::Constr(name_of_string(i), vec![]), toks)
+          },
+          Some(Tok::Right(baltok)) => {
+            toks.push(Tok::Right(baltok));
+            (Val::Constr(name_of_string(i), vec![]), toks)
+          },
+          Some(t) => {
+            panic!("expected left balanced token, or comma, but instead found token {:?}", t)
+          }}},
+        Some(Tok::Const(Const::Nat(n)))    => (Val::Data(Rc::new(n)), toks),
+        Some(Tok::Const(Const::String(s))) => (Val::Data(Rc::new(s)), toks)
+    };
+    //println!("! parsed: {:?}", v);
+    { use std::io::stdout;
+      use std::io::Write;      
+      stdout().flush() };
+    (v,toks)      
   }
 }

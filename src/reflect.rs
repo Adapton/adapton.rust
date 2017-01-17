@@ -5,8 +5,8 @@ use std::fmt::Debug;
 use std::rc::Rc;
 use std::collections::HashMap;
 
-/// Reflected primitive data
-pub trait Data : Debug { }
+// /// Reflected primitive data
+//pub trait Data : Debug { }
 
 /// This trait consists of the ability for a reference to `Self` to
 /// produce a `T`.  Conceptually, that value of type T is the
@@ -54,12 +54,25 @@ impl<'a,S,T:Reflect<S>+Debug> Reflect<S> for Rc<T> {
 /// by the definitions in this module, and not identical to them.
 #[derive(Debug,Clone)]
 pub enum Val {
-  /// Constructor, with value parameters.
+  /// Constructor, with a sequence of value parameters.
   Constr(Name,Vec<Val>),
+
+  /// A tuple of values (like a constructor, but without a constructor
+  /// name). Can be seen as a special case of `Constr`.
+  Tuple(Vec<Val>),
+
+  /// A list of values (like a tuple, but parsed and printed
+  /// differently). Can be seen as a special case of `Constr`.
+  Vec(Vec<Val>),
+  
+  /// Constructor with a sequence of fields (name-value pairs) as parameters.
+  Struct(Name,Vec<(Name,Val)>),
+
   /// Named articulation, and its content (an `Art` is either a named value, or a named computation).
   Art(Name,ArtContent),
+  
   /// Primitive, immutable data.
-  Data(Rc<Data>),
+  Data(Rc<Debug>),
   
   /// Temporary; for marking places in code where we should produce a
   /// value, but don't yet have a good way to do so.
@@ -134,7 +147,7 @@ impl Reflect<Succ> for Succ {
 }
 
 /// Reflected version of `engine::Pred`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Pred {
   /// The predecessor of the node in question
   pub loc:    Loc,
@@ -145,7 +158,7 @@ pub struct Pred {
 /// Reflected version of `engine::CompNode`.  Stores a reflected value
 /// of type `Option<Val>`, which is `None` when the node has not yet
 /// been executed, and `Some(_)` otherwise.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CompNode {
   pub preds:   Vec<Pred>,
   pub succs:   Vec<Succ>,
@@ -154,14 +167,14 @@ pub struct CompNode {
 }
 
 /// Reflected version of `engine::MutNode`.  Stores a reflected value of type `Val`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RefNode {  
   pub preds: Vec<Pred>,
   pub value: Val,
 }
 
 /// Reflected version of `engine::PureNode`.  Stores a reflected value of type `Val`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PureNode {  
   pub value: Val,
 }
@@ -169,7 +182,7 @@ pub struct PureNode {
 /// Reflected version of `engine::Node`.  Unlike the real engine,
 /// these nodes are not parameterized by a value type.  Instead, their
 /// values are all reflected into type `Val`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Node {
   Comp(CompNode),
   Ref(RefNode),
@@ -177,14 +190,14 @@ pub enum Node {
 }
 
 /// Reflected version of `engine::Frame`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Frame {
   pub loc:   Loc,
   pub succs: Vec<Succ>,
 }
 
 /// Reflected version of `engine::DCG`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DCG {
   /// The current memo table, mapping `Loc`s to `Node`s.
   pub table: HashMap<Loc, Node>,
