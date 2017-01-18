@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use engine::Name;
 use macros::ProgPt;
 use std::fmt::Debug;
@@ -52,7 +53,7 @@ impl<'a,S,T:Reflect<S>+Debug> Reflect<S> for Rc<T> {
 /// reflected `Val` type.  Primarily, this distinction between actual
 /// Rust values and this type is what makes the DCG engine "reflected"
 /// by the definitions in this module, and not identical to them.
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Hash,Eq,PartialEq)]
 pub enum Val {
   /// Constructor, with a sequence of value parameters.
   Constr(Name,Vec<Val>),
@@ -72,16 +73,25 @@ pub enum Val {
   Art(Name,ArtContent),
   
   /// Primitive, immutable data.
-  Data(Rc<Debug>),
+  Const(Const),
   
   /// Temporary; for marking places in code where we should produce a
   /// value, but don't yet have a good way to do so.
   ValTODO,
 }
 
+/// Primitive constants
+#[derive(Debug,Clone,Hash,Eq,PartialEq)]
+pub enum Const {
+  /// Natural numbers
+  Nat(usize),
+  /// Strings
+  String(String),
+}
+
 /// The content of an articulation: Either a cell holding a value, or
 /// a thunk that has optionally produced a value.
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Hash,Eq,PartialEq)]
 pub enum ArtContent {
   /// A cell holding a value
   Val(Rc<Val>),
@@ -106,7 +116,7 @@ pub struct Loc {
 pub type Path = Vec<Name>;
 
 /// Reflected version of `engine::Effect`
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Eq,PartialEq,Hash)]
 pub enum Effect {
   /// The effect consists of a thunk observing the value of another
   /// thunk or reference cell.  That is, the effect consists of
@@ -123,7 +133,7 @@ pub enum Effect {
 /// Reflected version of `engine::Succ`.  Unlike the real engine's
 /// `Succ` type, this version stores a reflected value (of type
 /// `Val`).
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Eq,PartialEq,Hash)]
 pub struct Succ {
   /// Dirty invariant: If this edge is dirty, then all predecessors of
   /// the edge are dirty too.
@@ -147,7 +157,7 @@ impl Reflect<Succ> for Succ {
 }
 
 /// Reflected version of `engine::Pred`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Pred {
   /// The predecessor of the node in question
   pub loc:    Loc,
@@ -158,7 +168,7 @@ pub struct Pred {
 /// Reflected version of `engine::CompNode`.  Stores a reflected value
 /// of type `Option<Val>`, which is `None` when the node has not yet
 /// been executed, and `Some(_)` otherwise.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct CompNode {
   pub preds:   Vec<Pred>,
   pub succs:   Vec<Succ>,
@@ -167,14 +177,14 @@ pub struct CompNode {
 }
 
 /// Reflected version of `engine::MutNode`.  Stores a reflected value of type `Val`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct RefNode {  
   pub preds: Vec<Pred>,
   pub value: Val,
 }
 
 /// Reflected version of `engine::PureNode`.  Stores a reflected value of type `Val`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct PureNode {  
   pub value: Val,
 }
@@ -182,11 +192,29 @@ pub struct PureNode {
 /// Reflected version of `engine::Node`.  Unlike the real engine,
 /// these nodes are not parameterized by a value type.  Instead, their
 /// values are all reflected into type `Val`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Node {
   Comp(CompNode),
   Ref(RefNode),
   Pure(PureNode),
+}
+
+/// Get the `Succ`s of a `Node`, if they are defined.
+pub fn succs_of_node (nd:&Node) -> Option<&Vec<Succ>> {
+  match *nd {
+    Node::Comp(ref nd) => Some(&nd.succs),
+    Node::Ref(ref _nd) => None,
+    Node::Pure(ref _nd) => None,
+  }
+}
+
+/// Get the `Pred`s of a `Node`, if they are defined.
+pub fn preds_of_node (nd:&Node) -> Option<&Vec<Pred>> {
+  match *nd {
+    Node::Comp(ref nd) => Some(&nd.preds),
+    Node::Ref(ref nd) => Some(&nd.preds),
+    Node::Pure(ref _nd) => None,
+  }
 }
 
 /// Reflected version of `engine::Frame`.

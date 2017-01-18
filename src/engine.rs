@@ -39,6 +39,7 @@ use std::mem::transmute;
 use std::num::Zero;
 use std::ops::Add;
 use std::rc::Rc;
+use std::fmt::Write;
 
 use macros::*;
 
@@ -106,6 +107,13 @@ pub mod reflect {
   use std::fmt::Debug;
   use super::{TraceSt,TRACES,GLOBALS,Engine};
   use super::parse_val;
+  use adapton::engine::Name;
+
+  pub fn string_of_name (n:&Name) -> String {
+    let mut output = String::from("");
+    super::write_namesym(&mut output, &n.symbol);
+    output
+  }
 
   pub fn reflect_val <V:Debug> (v:&V) -> Val {
     let s = format!("{:?}", v);
@@ -391,20 +399,18 @@ enum NameSym {
   ForkR(Rc<NameSym>), // Right projection of a unique symbol is unique
 }
 
-// impl Debug for NameSym {
-//   fn fmt(&self, f:&mut Formatter) -> Result {
-//     match *self {
-//       NameSym::Root => write!(f, "/"),
-//       NameSym::Hash64 => write!(f, "(Hash64)"),
-//       NameSym::String(ref s) => write!(f, "{}", s),
-//       NameSym::Usize(ref n) => write!(f, "{}", n),
-//       NameSym::Isize(ref n) => write!(f, "{}", n),
-//       NameSym::Pair(ref l, ref r) => write!(f, "({:?},{:?})",l,r),
-//       NameSym::ForkL(ref s) => write!(f, "{:?}.L", s),
-//       NameSym::ForkR(ref s) => write!(f, "{:?}.R", s),
-//     }
-//   }
-// }
+fn write_namesym<W:Write>(w:&mut W, n:&NameSym) -> Result {
+  match *n {
+    NameSym::Root => write!(w, "/"),
+    NameSym::Hash64 => write!(w, "(Hash64)"),
+    NameSym::String(ref s) => write!(w, "{}", s),
+    NameSym::Usize(ref n) => write!(w, "{}", n),
+    NameSym::Isize(ref n) => write!(w, "{}", n),
+    NameSym::Pair(ref l, ref r) => { write_namesym(w, l).unwrap(); write!(w, "-").unwrap(); write_namesym(w, r) },
+    NameSym::ForkL(ref s) => { write_namesym(w, s).unwrap(); write!(w, "-l") },
+    NameSym::ForkR(ref s) => { write_namesym(w, s).unwrap(); write!(w, "-r") },
+  }
+}
 
 // Paths are built implicitly via the Adapton::ns command.
 #[derive(Hash,PartialEq,Eq,Clone)]
@@ -2159,7 +2165,7 @@ mod wf {
 /// values' `Debug` strings to do this traversal.
 mod parse_val {
   use std::rc::Rc;
-  use adapton::engine::reflect::{Val};
+  use adapton::engine::reflect::{Val,Const};
   use adapton::engine::{Name, name_of_str, name_of_string};
 
   /// _Balanced tokens_: Tokens that must be balanced with a left and
@@ -2171,11 +2177,11 @@ mod parse_val {
     Brace
   }
 
-  #[derive(Debug, Eq, PartialEq)]
-  pub enum Const {
-    Nat(usize),
-    String(String),
-  }
+  // #[derive(Debug, Eq, PartialEq)]
+  // pub enum Const {
+  //   Nat(usize),
+  //   String(String),
+  // }
 
   /// _Tokens_: The unit of input for parsing Rust `Debug` strings
   /// into reflected `Val` values.
@@ -2394,8 +2400,8 @@ mod parse_val {
           Some(t) => {
             panic!("expected left balanced token, or comma, but instead found token {:?}", t)
           }}},
-        Some(Tok::Const(Const::Nat(n)))    => (Val::Data(Rc::new(n)), toks),
-        Some(Tok::Const(Const::String(s))) => (Val::Data(Rc::new(s)), toks)
+        Some(Tok::Const(Const::Nat(n)))    => (Val::Const(Const::Nat(n)), toks),
+        Some(Tok::Const(Const::String(s))) => (Val::Const(Const::String(s)), toks)
     };
     //println!("! parsed: {:?}", v);
     { use std::io::stdout;
