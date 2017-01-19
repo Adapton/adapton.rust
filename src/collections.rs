@@ -121,6 +121,14 @@ pub fn list_name_art_op<X, L:ListIntro<X>>(n:Option<Name>, l:L) -> L {
     }
   }
 }
+pub fn list_name_op<X, L:ListIntro<X>>(n:Option<Name>, l:L) -> L {
+  match n {
+    None => l,
+    Some(n) => {
+      list_name(n, l)
+    }
+  }
+}
 
 /// Lazily maps the list, guided by names in input list.
 /// Creates lazy named thunks in output for each name in input.
@@ -603,25 +611,25 @@ pub fn tree_fold_up_nm_dn
    name:Rc<NameF>) -> Res
   where  NilF:Fn(Option<Name>        ) -> Res
   ,     LeafF:Fn(Option<Name>, Leaf  ) -> Res
-  ,      BinF:Fn(      Lev, Res, Res ) -> Res
-  ,     NameF:Fn(Name, Lev, Res, Res ) -> Res
+  ,      BinF:Fn(Option<Name>, Lev, Res, Res ) -> Res
+  ,     NameF:Fn(Option<Name>, Name, Lev, Res, Res ) -> Res
 {
   T::elim_arg
     (tree, (nm,nil,leaf,bin,name),
      |(nm,nil,_,_,_)|    nil(nm),
      |x,(nm,_,leaf,_,_)| leaf(nm, x),
      |x,l,r,(nm,nil,leaf,bin,name)| {
-       let resl = tree_fold_up_nm_dn(l, nm,   nil.clone(), leaf.clone(), bin.clone(), name.clone());
+       let resl = tree_fold_up_nm_dn(l, nm.clone(),   nil.clone(), leaf.clone(), bin.clone(), name.clone());
        let resr = tree_fold_up_nm_dn(r, None, nil,         leaf,         bin.clone(), name);
-       let res = bin(x, resl, resr); // TODO: Should `bin` function accept a name?
+       let res = bin(nm, x, resl, resr); // TODO: Should `bin` function accept a name?
        res
      },
      |n,x,l,r,(nm,nil,leaf,bin,name)| {
        let (n1,n2) = name_fork(n.clone());
        let nm2 = Some(n.clone());
-       let resl = memo!(n1 =>> tree_fold_up_nm_dn, tree:l, nm:nm  ;; nil:nil.clone(), leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
+       let resl = memo!(n1 =>> tree_fold_up_nm_dn, tree:l, nm:nm.clone()  ;; nil:nil.clone(), leaf:leaf.clone(), bin:bin.clone(), name:name.clone());
        let resr = memo!(n2 =>> tree_fold_up_nm_dn, tree:r, nm:nm2 ;; nil:nil,         leaf:leaf,         bin:bin,         name:name.clone());
-       let res = name(n, x, resl, resr);
+       let res = name(nm.clone(), n, x, resl, resr);
        res
      }
      )
@@ -1168,10 +1176,10 @@ pub fn mergesort_list_of_tree2
 {
   tree_fold_up_nm_dn
     (tree, nm,
-     Rc::new(|n,|         list_name_art_op(n,L::nil())),
-     Rc::new(|n,x|        list_name_art_op(n, L::singleton(x))),
-     Rc::new(|_, l, r|    { list_merge_wrapper(None, l, None, r) }),
-     Rc::new(|n, _, l, r| { list_merge_wrapper(Some(n), l, None, r) }),
+     Rc::new(|m,|         L::nil()),
+     Rc::new(|m,x|        list_name_op(m, L::singleton(x))),
+     Rc::new(|m,    _, l, r| { list_merge_wrapper(None, l, None, r) }),
+     Rc::new(|m, n, _, l, r| { list_merge_wrapper(None, l, Some(n), r) }),
      )
 }
 

@@ -126,6 +126,8 @@ pub mod reflect {
   /// Reflect the DCG's internal structure now.  Does not reflect any
   /// engine effects over this DCG (e.g., no cleaning or dirtying),
   /// just the _program effects_ recorded by the DCG's structure.
+  /// Returns None if the engine is `Naive` and thus has no reflected
+  /// state whatsoever.
   pub fn dcg_reflect_now() -> Option<DCG> {
     GLOBALS.with(|g| {
       match g.borrow().engine {
@@ -2165,7 +2167,7 @@ mod wf {
 /// values' `Debug` strings to do this traversal.
 mod parse_val {
   use std::rc::Rc;
-  use adapton::engine::reflect::{Val,Const};
+  use adapton::engine::reflect::{Loc,Path,Val,ArtContent,Const};
   use adapton::engine::{Name, name_of_str, name_of_string};
 
   /// _Balanced tokens_: Tokens that must be balanced with a left and
@@ -2201,6 +2203,7 @@ mod parse_val {
     Comma, 
   }
 
+  /// 
   pub fn lex (mut chars: Vec<u8>) -> Vec<Tok> {
     let mut toks = vec![];
     chars.reverse(); // TODO rewrite to avoid this
@@ -2293,7 +2296,8 @@ mod parse_val {
     return toks
   }
 
-  /// Parse a sequence of fields (appending to `fields`) until right balanced token `bal`.  Return fields and remaining tokens.
+  /// Parse a sequence of fields (appending to `fields`) until right
+  /// balanced token `bal`.  Return fields and remaining tokens.
   pub fn parse_fields (mut toks:Vec<Tok>, mut fields:Vec<(Name, Val)>, bal:Tok) -> (Vec<(Name, Val)>, Vec<Tok>) {
     match toks.pop() {
       None => panic!("parse_vals: expected more vals, or end of sequence; but no more tokens"),
@@ -2318,7 +2322,8 @@ mod parse_val {
     }
   }
 
-  /// Parse a sequence of values (appending to `vals`) until right balanced token `bal`.  Return fields and remaining tokens.
+  /// Parse a sequence of values (appending to `vals`) until right
+  /// balanced token `bal`.  Return fields and remaining tokens.
   pub fn parse_vals (mut toks:Vec<Tok>, mut vals:Vec<Val>, bal:Tok) -> (Vec<Val>, Vec<Tok>) {
     match toks.pop() {
       None => panic!("parse_vals: expected more vals, or end of sequence; but no more tokens"),
@@ -2355,6 +2360,89 @@ mod parse_val {
     v
   }
 
+  pub fn path_of_val ( p:&Val ) -> Path {
+    match *p {
+      Val::Vec( ref vs ) => vs.iter().map( name_of_val ).collect(),
+      _ => panic!("expected a vector of values representing names"),
+    }
+  }
+
+  pub fn name_of_val ( n:&Val ) -> Name {
+    use engine::*;
+
+    match *n {
+      Val::Constr( ref cons_name, ref cons_args ) => {
+        if *cons_name == name_of_str("Root") {
+          name_unit()
+        }
+        else if *cons_name == name_of_str("Hash64") {
+          name_of_hash64( 0 ) // TODO/XXX
+        }
+        else if *cons_name == name_of_str("String") {
+          name_of_string( match cons_args[0] {
+            Val::Const( Const::String( ref s ) ) => s.clone(),
+            _ => panic!("expected a String"),
+          })
+        }
+        else if *cons_name == name_of_str("Usize") {
+          name_of_usize( match cons_args[0] {
+            Val::Const( Const::Nat( ref n ) ) => n.clone(),
+            _ => panic!("expected a Nat"),
+          })
+        }
+        else if *cons_name == name_of_str("Isize") {
+          panic!("")
+        }
+        else if *cons_name == name_of_str("Pair") {
+          let n1 = name_of_val( & cons_args[0] );
+          let n2 = name_of_val( & cons_args[1] );
+          name_pair(n1, n2)
+        }
+        else if *cons_name == name_of_str("ForkL") {
+          let n = name_of_val( & cons_args[0] );
+          name_fork(n).0
+        }
+        else if *cons_name == name_of_str("ForkR") {
+          let n = name_of_val( & cons_args[0] );
+          name_fork(n).1
+        }
+        else {
+          unreachable!()
+        }        
+      },
+      _ => panic!("expected a constructor for a NameSym")
+    }
+  }
+
+  /// Attempts to parse a reflected value into an `Art` value case,
+  /// which consists of parsing a location represented as a `Val`
+  /// structure into a `Loc` represented as a Rust data type (in the
+  /// `reflect` module).  If it fails to parse a value into an art, it
+  /// returns None.
+  pub fn parse_art_val ( i:&String, fields:&Vec<(Name, Val)> ) -> Option<Val> {
+    if i == "Art" && fields.len() == 1 { 
+      match fields[0] { 
+        (ref nf, ref vf) =>
+          if *nf == name_of_str("art") {
+            match *vf { 
+              Val::Struct( ref j, ref ws ) => 
+                if *j == name_of_str("Loc") 
+                && ws.len() == 2
+                && ws[0].0 == name_of_str("path") 
+                && ws[1].0 == name_of_str("id")
+              {
+                // Now we are confident that the rest ought to parse.
+                // Any further parse errors are panics.
+                let path = path_of_val( & ws[0].1 );
+                let name = name_of_val( & ws[1].1 );
+                Some( Val::Art(Loc{path:path, name:name}, ArtContent::Unknown) )
+              } else { None },
+              _ => None,
+            }
+          } else { None }
+      }} else { None }           
+  }
+
   /// Parse a value from the tokens `toks` and return it.  Panic if the next tokens do not parse into value.
   pub fn parse_val_rec (mut toks:Vec<Tok>) -> (Val, Vec<Tok>) {
     let (v, toks) = match toks.pop() {
@@ -2382,7 +2470,12 @@ mod parse_val {
           Some(Tok::Left(BalTok::Brace)) => {
             //println!("parsing struct: {:?}", i);
             let (fields, toks) = parse_fields(toks, vec![], Tok::Right(BalTok::Brace));
-            (Val::Struct(name_of_string(i), fields), toks)
+            let art_op = parse_art_val(&i, &fields);
+            let mut v = match art_op {
+              Some(a) => a,
+              None => Val::Struct(name_of_string(i.clone()), fields.clone())
+            };    
+            (v, toks)
           }
           Some(Tok::Left(BalTok::Paren)) => {
             //println!("parsing constructor: {:?}", i);
@@ -2403,10 +2496,6 @@ mod parse_val {
         Some(Tok::Const(Const::Nat(n)))    => (Val::Const(Const::Nat(n)), toks),
         Some(Tok::Const(Const::String(s))) => (Val::Const(Const::String(s)), toks)
     };
-    //println!("! parsed: {:?}", v);
-    { use std::io::stdout;
-      use std::io::Write;      
-      stdout().flush() };
-    (v,toks)      
+    (v,toks)
   }
 }

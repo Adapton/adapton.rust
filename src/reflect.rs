@@ -70,7 +70,7 @@ pub enum Val {
   Struct(Name,Vec<(Name,Val)>),
 
   /// Named articulation, and its content (an `Art` is either a named value, or a named computation).
-  Art(Name,ArtContent),
+  Art(Loc,ArtContent),
   
   /// Primitive, immutable data.
   Const(Const),
@@ -93,10 +93,17 @@ pub enum Const {
 /// a thunk that has optionally produced a value.
 #[derive(Debug,Clone,Hash,Eq,PartialEq)]
 pub enum ArtContent {
-  /// A cell holding a value
+  /// The `Art` consists of a ref cell holding a value
   Val(Rc<Val>),
-  /// A thunk that, when forced, computes a value
+  /// The `Art` consists of a thunk that, when forced, computes a value
   Comp(Option<Rc<Val>>),
+  /// `Unknown` content means that it has not yet dereferenced by any
+  /// reflective process.  A reflective process dereferences an `Art`
+  /// by using a reflected `DCG` to map this `Art`'s `Loc` to a
+  /// `Node`.  This node gives one of the two known cases (`Val` or
+  /// `Comp`), above, depending on whether it is a `RefNode` or a
+  /// `CompNode`.
+  Unknown,
 }
 
 /// Reflected version of `engine::Loc` A `Loc` is a particular
