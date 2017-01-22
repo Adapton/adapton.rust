@@ -1073,11 +1073,11 @@ pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
 {
   L::elim_arg
     (l1, (n1,n2,l2),
-     /* Nil */  |_,(_, _, l2)| l2,
+     /* Nil */  |_,(_n1, n2,l2)| list_name_op(n2, l2),
      /* Cons */ |h1,t1,(n1,n2,l2)|
      L::elim_arg
      (l2, (h1,t1,n1,n2),
-      /* Nil */  |_,(h1, t1, _, _ )| L::cons(h1,t1),
+      /* Nil */  |_,(h1, t1, n1, _n2 )| list_name_op(n1, L::cons(h1,t1)),
       /* Cons */ |h2, t2, (h1, t1, n1, n2)| {
         if &h1 <= &h2 {
           let l2 = L::cons(h2,t2);
