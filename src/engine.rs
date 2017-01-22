@@ -104,17 +104,65 @@ pub fn init_engine (engine: Engine) -> Engine {
 
 pub mod reflect {
   pub use reflect::*;
-  use std::fmt::Debug;
+  use std::fmt::{Debug,Write};
   use super::{TraceSt,TRACES,GLOBALS,Engine};
   use super::parse_val;
   use adapton::engine::Name;
 
+  /// See doc for `write_name`. Returns this output as a string.
   pub fn string_of_name (n:&Name) -> String {
-    let mut output = String::from("");
-    super::write_namesym(&mut output, &n.symbol);
-    output
+    let mut output = String::from("");  write_name(&mut output, n);  output
+  }
+  /// See doc for `write_path`. Returns this output as a string.
+  pub fn string_of_path (p:&Path) -> String {
+    let mut output = String::from("");  write_path(&mut output, &p); output
+  }
+  /// See doc for `write_loc`. Returns this output as a string.
+  pub fn string_of_loc (l:&Loc) -> String {
+    let mut output = String::from("");  write_loc (&mut output, &l); output
   }
 
+  /// Write a concise human-readable version of the name (not the
+  /// verbose, machine-parsable `Debug` version).
+  pub fn write_name<W:Write> (w:&mut W, n:&Name) {
+    super::write_namesym(w, &n.symbol);
+  }
+
+  /// Write a concise human-readable version of the path (not the
+  /// verbose, machine-parsable `Debug` version).
+  pub fn write_path<W:Write> (w:&mut W, p:&Path) {
+    write!(w, "##");
+    for n in p.iter() {
+      write_name(w, n);
+      write!(w, "##");
+    }
+  }
+
+  /// Write a concise human-readable version of the location (not the
+  /// verbose, machine-parsable `Debug` version).  
+  pub fn write_loc<W:Write> (w:&mut W, l:&Loc)  {
+    write_path(w, &l.path);
+    write!(w, "#");
+    write_name(w, &l.name);
+  }
+
+  /// _Rust data and articulation reflection_: Transform any(*) Rust
+  /// data that derives `Debug` into a reflected `Val`.  
+  /// 
+  /// This parsing logic handles user-defined `struct` and `enum`
+  /// types, tuples and vectors.  It recognizes the `Debug` output of
+  /// these structures and parses them into trees of type
+  /// `Val`. Importantly, it recognizes articulations in this `Debug`
+  /// output and parses those into reflected locations (of type `Loc`)
+  /// and articulations (of type `Art`).  The reflected `DCG` maps
+  /// reflected articulations (whose reflected locations are of type
+  /// `Loc`) to reflected nodes that contain more reflected values.
+  /// 
+  /// (*) Note: Though this parsing logic handles vectors, tuples and
+  /// user-defined data types, this parsing logic is probably
+  /// incomplete for all of Rust's standard collections. (It does not
+  /// yet handle `HashMap<_,_>` debug output, or anything else of this
+  /// complexity as of yet).
   pub fn reflect_val <V:Debug> (v:&V) -> Val {
     let s = format!("{:?}", v);
     //println!("reflect_val({:?})", v);

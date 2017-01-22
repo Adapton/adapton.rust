@@ -1183,6 +1183,29 @@ pub fn mergesort_list_of_tree2
      )
 }
 
+/// Demand-driven sort over a tree's leaves, whose elements are `Ord`.
+/// To the extent that the tree contains `name`s, the output is lazy, and thus sorts on-demand.
+/// Demanding the first element is `O(n)` for a tree with `n` leaves.
+/// Demanding the next element requires more comparisons, but fewer than the first element.
+/// Demanding the last element requires only `O(1)` comparisons.
+/// In total, the number of comparisons to demand the entire output is, as usual, `O(n ° log(n))`.
+pub fn mergesort_list_of_tree3
+  < X:Ord+Hash+Debug+Clone
+  , Lev:Level
+  , T:TreeElim<Lev,X>
+  , L:ListIntro<X>+ListElim<X>+'static
+  >
+  (tree:T, nm:Option<Name>) -> L
+{
+  tree_fold_up_nm_dn
+    (tree, nm,
+     Rc::new(|m,|         L::nil()),
+     Rc::new(|m,x|        list_name_op(m, L::singleton(x))),
+     Rc::new(|m,    _, l, r| { list_merge_wrapper(None, l, None, r) }),
+     Rc::new(|m, n, _, l, r| { list_merge_wrapper(None, l, None, r) }),
+     )
+}
+
 pub fn list_merge_wrapper<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
   (n1:Option<Name>, l1:L,
    n2:Option<Name>, l2:L ) -> L
