@@ -131,10 +131,10 @@ pub mod reflect {
   /// Write a concise human-readable version of the path (not the
   /// verbose, machine-parsable `Debug` version).
   pub fn write_path<W:Write> (w:&mut W, p:&Path) {
-    write!(w, "##");
+    write!(w, "__"); // Underscores are valid in CSS class names
     for n in p.iter() {
       write_name(w, n);
-      write!(w, "##");
+      write!(w, "__"); // Underscores are valid in CSS class names
     }
   }
 
@@ -142,7 +142,7 @@ pub mod reflect {
   /// verbose, machine-parsable `Debug` version).  
   pub fn write_loc<W:Write> (w:&mut W, l:&Loc)  {
     write_path(w, &l.path);
-    write!(w, "#");
+    write!(w, "_"); // Underscores are valid in CSS class names
     write_name(w, &l.name);
   }
 
