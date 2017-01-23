@@ -192,8 +192,11 @@ pub fn list_filter_eager<X, Le:'static+ListElim<X>, Li:'static+ListIntro<X>, F:'
        }
      },
      |n, tl, body| {
-       let (rest, _) = eager!( n =>> list_filter_eager =>> <X, Le, Li, F>, l:tl ;; body:body.clone() );
-       list_art(rest)
+       let (rest, _) = eager!( 
+         n.clone() =>> list_filter_eager =>> 
+           <X, Le, Li, F>, l:tl ;; body:body.clone() 
+       );
+       list_name(n, list_art(rest))
      })
 }
 
@@ -214,8 +217,8 @@ pub fn list_map_eager<X, Le:'static+ListElim<X>,
      },
      |n, tl, body| {
        // We only memoize when we encounter a name in the input
-       let (t,_) = eager!( n =>> list_map_eager =>> <X, Le, Y, Li, F>, l:tl ;; body:body.clone() );
-       list_art(t)
+       let (t,_) = eager!( n.clone() =>> list_map_eager =>> <X, Le, Y, Li, F>, l:tl ;; body:body.clone() );
+       list_name(n, list_art(t))
      })
 }
 
@@ -879,7 +882,15 @@ pub fn prune_tree_of_tree
      )
 }
 
+/// Calls `vec_of_list` with the given `demand`
+pub fn list_demand<X:Clone,L:ListElim<X>+'static>
+ (list:L, demand:usize) -> Vec<NameElse<X>>
+{ 
+  vec_of_list(list, Some(demand))
+}
 
+/// Attempts to force `limit` number of `Cons` cells of the list,
+/// gathering these elements and any interposed `Name`s.
 pub fn vec_of_list<X:Clone,L:ListElim<X>+'static>
   (list:L, limit:Option<usize>) -> Vec<NameElse<X>>
 {

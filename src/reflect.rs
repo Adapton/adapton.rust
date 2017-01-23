@@ -71,6 +71,9 @@ pub enum Val {
 
   /// Named articulation, and its content (an `Art` is either a named value, or a named computation).
   Art(Loc,ArtContent),
+
+  /// First-class `Name` value.
+  Name(Name),
   
   /// Primitive, immutable data.
   Const(Const),

@@ -2458,9 +2458,73 @@ mod parse_val {
           unreachable!()
         }        
       },
+      Val::Name(ref n) => n.clone(),
       _ => panic!("expected a constructor for a NameSym")
     }
   }
+
+  pub fn name_option_of_val ( n:&Val ) -> Option<Name> {
+    use engine::*;
+    
+    match *n {
+      Val::Constr( ref cons_name, ref cons_args ) => {
+        if *cons_name == name_of_str("Root") {
+          Some(name_unit())
+        }
+        else if *cons_name == name_of_str("Hash64") {
+          Some(name_of_hash64( 0 )) // XXX \ TODO -- We are actually missing the hash here!
+        }
+        else if *cons_name == name_of_str("String") {
+          if cons_args.len() < 1 { None } else {
+            match cons_args[0] {            
+              Val::Const( Const::String( ref s ) ) => 
+                Some(name_of_string( s.clone() )),
+              _ => None,
+            }}
+        }
+        else if *cons_name == name_of_str("Usize") {
+          if cons_args.len() < 1 { None } else {
+            match cons_args[0] {          
+              Val::Const( Const::Nat( ref n ) ) => Some( name_of_usize( n.clone() ) ),
+              _ => None,
+            }}
+        }
+        else if *cons_name == name_of_str("Isize") {
+          panic!("TODO")
+        }
+        else if *cons_name == name_of_str("Pair") {          
+          if cons_args.len() < 2 { None } else {
+            let n1 = name_option_of_val( & cons_args[0] );
+            let n2 = name_option_of_val( & cons_args[1] );
+            if cons_args.len() < 2 { None } else {
+              match (n1,n2) {
+                (Some(n1),Some(n2)) => Some(name_pair(n1, n2)),
+                (_, _) => None,
+              }}}
+        }
+        else if *cons_name == name_of_str("ForkL") {
+          if cons_args.len() < 1 { None } else {
+            let n = name_option_of_val( & cons_args[0] );
+            match n {
+              None => None,
+              Some(n) => Some(name_fork(n).0)
+            }}
+        }
+        else if *cons_name == name_of_str("ForkR") {
+          if cons_args.len() < 1 { None } else {
+            let n = name_option_of_val( & cons_args[0] );
+            match n {
+              None => None,
+              Some(n) => Some(name_fork(n).1)
+            }}
+        }
+        else { None }
+      },
+      Val::Name(ref n) => Some(n.clone()),
+      _ => None,
+    }
+  }
+ 
 
   /// Attempts to parse a reflected value into an `Art` value case,
   /// which consists of parsing a location represented as a `Val`
@@ -2528,7 +2592,11 @@ mod parse_val {
           Some(Tok::Left(BalTok::Paren)) => {
             //println!("parsing constructor: {:?}", i);
             let (vs, toks) = parse_vals(toks, vec![], Tok::Right(BalTok::Paren));
-            (Val::Constr(name_of_string(i), vs), toks)
+            let v = Val::Constr(name_of_string(i), vs);
+            match name_option_of_val(&v) {
+              Some(n) => (Val::Name(n), toks),
+              None => (v, toks)
+            }
           },
           Some(Tok::Comma) => {
             toks.push(Tok::Comma);
