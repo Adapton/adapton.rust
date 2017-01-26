@@ -63,6 +63,19 @@ macro_rules! prog_pt {
 
 #[macro_export]
 macro_rules! thunk {
+  [ $nm:expr =>> $suspended_body:expr ] => {{
+    thunk
+      (ArtIdChoice::Nominal($nm),
+       prog_pt!(stringify!("anonymous")),
+       Rc::new(Box::new(
+         move |(),()|{
+           $suspended_body
+         })),
+       (), 
+       ()
+      )
+  }}
+  ;
   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
     thunk
       (ArtIdChoice::Nominal($nm),

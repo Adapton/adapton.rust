@@ -1700,9 +1700,12 @@ pub struct Art<T> {
 
 #[derive(Clone)]
 enum EnumArt<T> {
-  Rc(Rc<T>),    // No entry in table. No dependency tracking.
-  Loc(Rc<Loc>), // Location in table.
-  Force(Rc<Force<T>>), // A closure that is 'force-able'
+  /// No entry in table. No dependency tracking.
+  Rc(Rc<T>),    
+  /// Location in table.
+  Loc(Rc<Loc>), 
+  /// A closure that is 'force-able'
+  Force(Rc<Force<T>>),
 }
 
 impl<T:Hash> Hash for EnumArt<T> {
@@ -2209,10 +2212,10 @@ mod wf {
 
 /// Parses the output of Rust `Debug` strings into reflected `Val`
 /// values.  We use this parse as a non-intrusive mechanism for
-/// builing the reflected DCG.  Building this DCG consists of crawing
-/// user-defined data structures in the process (reflecting them into
-/// `Val` values), and following their articulations. We use the
-/// values' `Debug` strings to do this traversal.
+/// building the values in the reflected DCG, which consists of
+/// crawing user-defined data structures, and following their
+/// articulations. We use the values' `Debug` strings to do this
+/// traversal.
 mod parse_val {
   use std::rc::Rc;
   use adapton::engine::reflect::{Loc,Path,Val,ArtContent,Const};
@@ -2251,7 +2254,7 @@ mod parse_val {
     Comma, 
   }
 
-  /// 
+  /// Tokenize the characters of input into lexical tokens of type `Tok`
   pub fn lex (mut chars: Vec<u8>) -> Vec<Tok> {
     let mut toks = vec![];
     chars.reverse(); // TODO rewrite to avoid this
@@ -2536,6 +2539,9 @@ mod parse_val {
       match fields[0] { 
         (ref nf, ref vf) =>
           if *nf == name_of_str("art") {
+            // OK: it's a struct called Art with exactly one field
+            // called art.  We are going to parse this into an Art.
+
             match *vf { 
               Val::Struct( ref j, ref ws ) => 
                 if *j == name_of_str("Loc") 
@@ -2548,7 +2554,12 @@ mod parse_val {
                 let path = path_of_val( & ws[0].1 );
                 let name = name_of_val( & ws[1].1 );
                 Some( Val::Art(Loc{path:path, name:name}, ArtContent::Unknown) )
-              } else { None },
+              } 
+
+
+              else { 
+                None 
+              },
               _ => None,
             }
           } else { None }
