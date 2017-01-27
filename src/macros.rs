@@ -272,7 +272,7 @@ macro_rules! memo {
     force(&t)
   }}
   ;
-  ( $nm:expr =>> $f:ident , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+  ( $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
     let t = thunk
       (ArtIdChoice::Nominal($nm),
        prog_pt!(stringify!($f)),
