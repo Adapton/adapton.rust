@@ -2291,7 +2291,7 @@ mod parse_val {
             )));
             continue
           }
-          else if c >= '0' && c <= '9' {
+          else if c == '-' || (c >= '0' && c <= '9') {
             let mut digs = vec![c];
             loop {
               match chars.pop() {
@@ -2308,10 +2308,17 @@ mod parse_val {
                 }
               }
             };
-            let s : String = digs.into_iter().collect();
-            toks.push(Tok::Const(Const::Nat( 
-              usize::from_str_radix(s.as_str(), 10).unwrap()
-            )));
+            if c == '-' {
+              let s : String = digs.into_iter().collect();
+              toks.push(Tok::Const(Const::Num( 
+                isize::from_str_radix(s.as_str(), 10).unwrap()
+              )));              
+            } else {
+              let s : String = digs.into_iter().collect();
+              toks.push(Tok::Const(Const::Nat( 
+                usize::from_str_radix(s.as_str(), 10).unwrap()
+              )));
+            }
             continue
           }
           else if (c >= 'a' && c <= 'z') ||
@@ -2568,6 +2575,7 @@ mod parse_val {
 
   /// Parse a value from the tokens `toks` and return it.  Panic if the next tokens do not parse into value.
   pub fn parse_val_rec (mut toks:Vec<Tok>) -> (Val, Vec<Tok>) {
+    //println!("{:?}", toks);
     let (v, toks) = match toks.pop() {
       None => panic!("expected value; but, no more tokens"),
       Some(Tok::Right(r)) => panic!("expected value, but found {:?} instead", Tok::Right(r)),
@@ -2621,6 +2629,7 @@ mod parse_val {
             panic!("expected left balanced token, or comma, but instead found token {:?}", t)
           }}},
         Some(Tok::Const(Const::Nat(n)))    => (Val::Const(Const::Nat(n)), toks),
+        Some(Tok::Const(Const::Num(n)))    => (Val::Const(Const::Num(n)), toks),
         Some(Tok::Const(Const::String(s))) => (Val::Const(Const::String(s)), toks)
     };
     (v,toks)

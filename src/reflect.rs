@@ -86,6 +86,8 @@ pub enum Val {
 /// Primitive constants
 #[derive(Debug,Clone,Hash,Eq,PartialEq)]
 pub enum Const {
+  /// Integers
+  Num(isize),
   /// Natural numbers
   Nat(usize),
   /// Strings
