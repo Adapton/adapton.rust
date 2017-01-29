@@ -1199,13 +1199,16 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> AbsArt<T,Self::Loc> ;
   
   /// Creates a mutable articulation.
-  fn cell<T:Eq+Debug+Clone+Hash> (self:&mut Self, Name, T) -> AbsArt<T,Self::Loc> ;
+  fn cell<T:Eq+Debug+Clone+Hash+'static> (self:&mut Self, Name, T) -> AbsArt<T,Self::Loc> ;
   
   /// Mutates a mutable articulation.
   fn set<T:Eq+Debug+Clone> (self:&mut Self, AbsArt<T,Self::Loc>, T) ;
   
   /// Creates an articulated computation.
-  fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone+Hash>
+  fn thunk <Arg:Eq+Hash+Debug+Clone+'static,
+            Spurious:Clone+'static,
+            Res:Eq+Debug+Clone+Hash+'static
+            >
     (self:&mut Self,
      id:ArtIdChoice,
      prog_pt:ProgPt,
@@ -1214,7 +1217,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
      -> AbsArt<Res,Self::Loc> ;
   
   /// Demand & observe arts (all kinds): force
-  fn force<T:Eq+Debug+Clone+Hash> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>) -> T ;
+  fn force<T:Eq+Debug+Clone+Hash+'static> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>) -> T ;
 }
 
 impl Adapton for DCG {
@@ -1912,7 +1915,7 @@ pub fn put<T:Eq+Debug+Clone> (val:T) -> Art<T> {
 /// From the editor's perspective, this cell is mutable.  From the
 /// archivist's perspective, this cell is a "one-shot" reference cell:
 /// Once allocated, it is immutable.
-pub fn cell<T:Hash+Eq+Debug+Clone> (n:Name, val:T) -> Art<T> {
+pub fn cell<T:Hash+Eq+Debug+Clone+'static> (n:Name, val:T) -> Art<T> {
   GLOBALS.with(|g| {
     match g.borrow().engine {
       Engine::DCG(ref dcg) => {
@@ -2004,7 +2007,7 @@ pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+
 }
 
 /// Demands and observes the value of an `&Art<T>`, returning a (cloned) value of type `T`.
-pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
+pub fn force<T:Hash+Eq+Debug+Clone+'static> (a:&Art<T>) -> T {
   match a.art {
     EnumArt::Force(ref f) => f.force(),
     EnumArt::Rc(ref rc) => (&**rc).clone(),

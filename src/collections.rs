@@ -25,7 +25,7 @@ impl Invert for Dir2 {
 }
 
 /// Types that can be created like a list of `X` are `ListIntro<X>`
-pub trait ListIntro<X> : Debug+Clone+Hash+PartialEq+Eq {
+pub trait ListIntro<X:'static> : Debug+Clone+Hash+PartialEq+Eq+'static {
   /// Introduce an empty list
   fn nil  () -> Self ;
   /// Introduce a Cons cell
@@ -52,7 +52,7 @@ pub trait ListIntro<X> : Debug+Clone+Hash+PartialEq+Eq {
 
 // Generate a list, given a generator function from naturals to list elements.
 // Useful for generating test inputs.
-pub fn list_gen<X,G,L:ListIntro<X>>
+pub fn list_gen<X:'static,G,L:ListIntro<X>>
   (len:usize, gen_elm:G) -> L
   where G:Fn(usize) -> X {
     let mut out : L = L::nil();
@@ -108,11 +108,11 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
   }
 }
 
-pub fn list_nil<X, L:ListIntro<X>>()          -> L { L::nil() }
-pub fn list_cons<X, L:ListIntro<X>>(x:X, l:L) -> L { L::cons(x, l) }
-pub fn list_name<X, L:ListIntro<X>>(n:Name, l:L) -> L { L::name(n, l) }
-pub fn list_art<X, L:ListIntro<X>>(l:Art<L>) -> L { L::art(l) }
-pub fn list_name_art_op<X, L:ListIntro<X>>(n:Option<Name>, l:L) -> L {
+pub fn list_nil<X:'static, L:ListIntro<X>>()          -> L { L::nil() }
+pub fn list_cons<X:'static, L:ListIntro<X>>(x:X, l:L) -> L { L::cons(x, l) }
+pub fn list_name<X:'static, L:ListIntro<X>>(n:Name, l:L) -> L { L::name(n, l) }
+pub fn list_art<X:'static, L:ListIntro<X>>(l:Art<L>) -> L { L::art(l) }
+pub fn list_name_art_op<X:'static, L:ListIntro<X>>(n:Option<Name>, l:L) -> L {
   match n {
     None => l,
     Some(n) => {
@@ -121,7 +121,7 @@ pub fn list_name_art_op<X, L:ListIntro<X>>(n:Option<Name>, l:L) -> L {
     }
   }
 }
-pub fn list_name_op<X, L:ListIntro<X>>(n:Option<Name>, l:L) -> L {
+pub fn list_name_op<X:'static, L:ListIntro<X>>(n:Option<Name>, l:L) -> L {
   match n {
     None => l,
     Some(n) => {
@@ -132,8 +132,8 @@ pub fn list_name_op<X, L:ListIntro<X>>(n:Option<Name>, l:L) -> L {
 
 /// Lazily maps the list, guided by names in input list.
 /// Creates lazy named thunks in output for each name in input.
-pub fn list_map_lazy<X, Le:'static+ListElim<X>, 
-                     Y, Li:'static+ListIntro<Y>, 
+pub fn list_map_lazy<X:'static, Le:'static+ListElim<X>, 
+                     Y:'static, Li:'static+ListIntro<Y>, 
                      F:'static>
   (l:Le, body:Rc<F>) -> Li
  where F:Fn(X) -> Y
@@ -156,7 +156,7 @@ pub fn list_map_lazy<X, Le:'static+ListElim<X>,
 
 /// Lazily filters the list, guided by names in input list.
 /// Creates lazy named thunks in output for each name in input.
-pub fn list_filter_lazy<X, Le:'static+ListElim<X>, Li:'static+ListIntro<X>, F:'static>
+pub fn list_filter_lazy<X:'static, Le:'static+ListElim<X>, Li:'static+ListIntro<X>, F:'static>
   (l:Le, body:Rc<F>) -> Li
  where F:Fn(&X) -> bool
 {
@@ -177,7 +177,7 @@ pub fn list_filter_lazy<X, Le:'static+ListElim<X>, Li:'static+ListIntro<X>, F:'s
 
 /// Eagerly filters the list, guided by names in input list.
 /// Memoizes recursion for each name in input.
-pub fn list_filter_eager<X, Le:'static+ListElim<X>, Li:'static+ListIntro<X>, F:'static>
+pub fn list_filter_eager<X:'static, Le:'static+ListElim<X>, Li:'static+ListIntro<X>, F:'static>
   (l:Le, body:Rc<F>) -> Li
  where F:Fn(&X) -> bool
 {
@@ -202,8 +202,8 @@ pub fn list_filter_eager<X, Le:'static+ListElim<X>, Li:'static+ListIntro<X>, F:'
 
 /// Eagerly maps the list.
 /// Uses (eager) memoization for each name in `l`.
-pub fn list_map_eager<X, Le:'static+ListElim<X>, 
-                      Y, Li:'static+ListIntro<Y>, 
+pub fn list_map_eager<X:'static, Le:'static+ListElim<X>, 
+                      Y:'static, Li:'static+ListIntro<Y>, 
                       F:'static>
   (l:Le, body:Rc<F>) -> Li
  where F:Fn(X) -> Y
@@ -225,7 +225,7 @@ pub fn list_map_eager<X, Le:'static+ListElim<X>,
 
 /// Eagerly maps the list.
 /// Uses (eager) memoization for each name in `l`.
-pub fn list_reverse<X, Le:'static+ListElim<X>, Li:'static+ListIntro<X>>
+pub fn list_reverse<X:'static, Le:'static+ListElim<X>, Li:'static+ListIntro<X>>
   (l:Le, rev:Li) -> Li
 {
   Le::elim_arg
@@ -266,11 +266,11 @@ pub fn list_pop<X,L:ListElim<X>>(stack:L) -> (X, L) {
               |_,t, _| list_pop(t))
 }
 
-pub fn list_push<X, L:ListIntro<X>>(stack:L, elm:X) -> L {
+pub fn list_push<X:'static, L:ListIntro<X>>(stack:L, elm:X) -> L {
   L::cons(elm, stack)
 }
 
-pub fn list_append<X, L:ListIntro<X>+ListElim<X>>(l1:L, l2:L) -> L {
+pub fn list_append<X:'static, L:ListIntro<X>+ListElim<X>>(l1:L, l2:L) -> L {
   list_fold(l1, l2, Rc::new(|x,r| list_cons(x,r)))
 }
 
@@ -640,7 +640,7 @@ pub fn tree_fold_up_nm_dn
 
 
 pub fn tree_of_list
-  < Lev:Level, X:Hash+Clone+Debug
+  < Lev:Level, X:'static+Hash+Clone+Debug
   , T:TreeIntro<Lev,X>+'static
   , L:ListElim<X>+ListIntro<X>+'static
   >
@@ -652,7 +652,7 @@ pub fn tree_of_list
   }
 
 pub fn tree_of_list_rec
-  < Lev:Level, X:Hash+Clone+Debug
+  < Lev:Level, X:'static+Hash+Clone+Debug
   , T:TreeIntro<Lev,X>+'static
   , L:ListElim<X>+ListIntro<X>+'static
   >
@@ -764,7 +764,7 @@ pub fn tree_of_list_rec
 /// Direction `Dir2::Right` lists elements from right to left. (Rightmost elements are in the head of the list).
 /// Preserves the order of elements, up to `dir`, and the names in the tree.
 pub fn list_of_tree
-  < Lev:Level,X:Hash+Clone
+  < Lev:Level,X:'static+Hash+Clone
   , L:ListIntro<X>+'static
   , T:TreeElim<Lev,X>+'static>
   (tree:T, dir:Dir2) -> L
@@ -919,7 +919,7 @@ pub fn vec_of_list<X:Clone,L:ListElim<X>+'static>
 /// Constructs a linked list that consists of elements and names, as
 /// given by the input vector (in that order).
 /// Not incremental; used only for setting up inputs for tests.
-pub fn list_of_vec<X:Clone,L:ListIntro<X>>
+pub fn list_of_vec<X:'static+Clone,L:ListIntro<X>>
   (v:&Vec<NameElse<X>>) -> L
 {   
   let mut l = L::nil();
@@ -1078,7 +1078,7 @@ pub fn list_of_vec<X:Clone,L:ListIntro<X>>
 /// Produce a lazy list that consists of merging two input lists.
 /// The output is lazy to the extent that the input lists contain `name`s.
 /// When the input lists are each sorted according to `Ord`; the output is sorted.
-pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
+pub fn list_merge<X:'static+Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
   (n1:Option<Name>, l1:L,
    n2:Option<Name>, l2:L ) -> L
 {
@@ -1154,7 +1154,7 @@ pub fn list_merge<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
 /// Demanding the last element requires only `O(1)` comparisons.
 /// In total, the number of comparisons to demand the entire output is, as usual, `O(n ° log(n))`.
 pub fn mergesort_list_of_tree
-  < X:Ord+Hash+Debug+Clone
+  < X:'static+Ord+Hash+Debug+Clone
   , Lev:Level
   , T:TreeElim<Lev,X>
   , L:ListIntro<X>+ListElim<X>+'static
@@ -1178,7 +1178,7 @@ pub fn mergesort_list_of_tree
 /// Demanding the last element requires only `O(1)` comparisons.
 /// In total, the number of comparisons to demand the entire output is, as usual, `O(n ° log(n))`.
 pub fn mergesort_list_of_tree2
-  < X:Ord+Hash+Debug+Clone
+  < X:'static+Ord+Hash+Debug+Clone
   , Lev:Level
   , T:TreeElim<Lev,X>
   , L:ListIntro<X>+ListElim<X>+'static
@@ -1201,7 +1201,7 @@ pub fn mergesort_list_of_tree2
 /// Demanding the last element requires only `O(1)` comparisons.
 /// In total, the number of comparisons to demand the entire output is, as usual, `O(n ° log(n))`.
 pub fn mergesort_list_of_tree3
-  < X:Ord+Hash+Debug+Clone
+  < X:'static+Ord+Hash+Debug+Clone
   , Lev:Level
   , T:TreeElim<Lev,X>
   , L:ListIntro<X>+ListElim<X>+'static
@@ -1217,7 +1217,7 @@ pub fn mergesort_list_of_tree3
      )
 }
 
-pub fn list_merge_wrapper<X:Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
+pub fn list_merge_wrapper<X:'static+Ord+Clone+Debug,L:ListIntro<X>+ListElim<X>+'static>
   (n1:Option<Name>, l1:L,
    n2:Option<Name>, l2:L ) -> L
 {
@@ -1520,7 +1520,7 @@ pub enum NameElse<X> {
   Else(X),
 }
 
-impl<X:Debug+Hash+PartialEq+Eq+Clone> ListIntro<X> for List<X>
+impl<X:'static+Debug+Hash+PartialEq+Eq+Clone> ListIntro<X> for List<X>
 {
   fn nil  ()                 -> Self { List::Nil }
   fn cons (hd:X, tl:Self)    -> Self { List::Cons(hd,Box::new(tl)) }
@@ -1528,7 +1528,7 @@ impl<X:Debug+Hash+PartialEq+Eq+Clone> ListIntro<X> for List<X>
   fn art  (art:Art<List<X>>) -> Self { List::Art(art) }
 }
 
-impl<X:Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
+impl<X:'static+Debug+Hash+PartialEq+Eq+Clone> ListElim<X> for List<X>
 {
   fn elim<Res,NilF,ConsF,NameF>
     (list:&Self, nilf:NilF, consf:ConsF, namef:NameF) -> Res
@@ -2119,7 +2119,7 @@ pub mod raz {
   /// Transform the zipper, inserting element `x` in the given
   /// direction `d`. The optional punctuation `p` follows the inserted
   /// element, in the given direction.
-  pub fn zip_insert<X:Eq+Clone+Hash+Debug>(z:Zip<X>, d:Dir, x:X, p:Option<Punc>) -> Zip<X> {
+  pub fn zip_insert<X:'static+Eq+Clone+Hash+Debug>(z:Zip<X>, d:Dir, x:X, p:Option<Punc>) -> Zip<X> {
     match &d {
       &Dir::L => {
         match p {
@@ -2144,7 +2144,7 @@ pub mod raz {
     
   /// Perform the given edit, in the given direction, at the current focus of the given zipper.
   /// The zipper is taken because its head vectors may be mutated, e.g., to insert or remove elements.
-  pub fn zip_edit<X:Eq+Clone+Hash+Debug>(z:Zip<X>, edit:Edit<X>) -> Zip<X> {
+  pub fn zip_edit<X:'static+Eq+Clone+Hash+Debug>(z:Zip<X>, edit:Edit<X>) -> Zip<X> {
     match edit {
       Edit::Insert(d,x,p) => { zip_insert(z, d, x, p) },
       _ => unimplemented!() // TODO-Later

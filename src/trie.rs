@@ -482,7 +482,7 @@ pub fn trie_fold
                 |nm, t, (arg, f)| memo!(nm =>> trie_fold, t:t, res:arg ;; f:f))
 }
 
-pub fn trie_of_list<X: Hash + Clone + Debug,
+pub fn trie_of_list<X: Hash + Clone + Debug + 'static,
                     T: TrieIntro<X> + 'static,
                     L: ListElim<X> + ListIntro<X> + 'static>
     (list: L)
