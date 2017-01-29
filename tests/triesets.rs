@@ -2,6 +2,7 @@ extern crate adapton;
 
 use std::rc::Rc;
 use adapton::engine::*;
+use adapton::engine::manage::*;
 use adapton::collections::trie::*;
 
 #[test]

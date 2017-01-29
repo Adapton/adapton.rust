@@ -52,36 +52,6 @@ struct TraceSt { stack:Vec<Box<Vec<reflect::trace::Trace>>>, }
 thread_local!(static TRACES: RefCell<Option<TraceSt>> = RefCell::new( None ));
 
 
-// TODO: Put these initialization and "engine control" functions into
-// a submodule called "control" (or "meta" or "runtime", etc.).
-
-/// Initializes global state with a fresh DCG-based engine; returns the old engine.
-/// The DCG is the central implementation structure behind Adapton.
-/// At a high level, it consists of a data dependence graph (the "demanded computation graph"), and an associated memoization table.
-pub fn init_dcg () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
-
-/// Initializes global state with a ("fresh") Naive engine; returns the old engine.
-/// The naive engine is stateless, and performs no memoization and builds no dependence graphs.
-/// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
-pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
-
-/// Initializes global state with a fresh DCG-based engine; returns the old engine
-pub fn use_engine (engine: Engine) -> Engine {
-  use std::mem;
-  let mut engine = engine;
-  GLOBALS.with(|g| {
-    mem::swap(&mut g.borrow_mut().engine, &mut engine);
-  });
-  return engine
-}
-
-/// alias for `use_engine`
-pub fn init_engine (engine: Engine) -> Engine {
-  use_engine(engine)
-}
-
-
-
 /// Reflects the DCG engine, including both the effects of the
 /// programs running in it, and the internal effects of the engine
 /// cleaning and dirtying the DCG.  For the latter effects, see the
@@ -1842,7 +1812,10 @@ pub fn name_pair (n1:Name, n2:Name) -> Name {
   Name{ hash:h, symbol:Rc::new(p) }
 }
 
-pub fn name_of_hash64(h:u64) -> Name {
+/// Do not call this function directly; we introduced it in order to
+/// get reflection to type-check.  We should think of ways to avoid
+/// using this in the future.
+fn name_of_hash64(h:u64) -> Name {
   // TODO: Get rid of need for Rc here; 
   // Rc should be optional in names?
   Name{ hash:h, symbol:Rc::new(NameSym::Hash64) }
@@ -1927,23 +1900,18 @@ pub fn structural<T,F> (body:F) -> T
     })    
   }
 
-/// Counts various engine cost metrics, returning a product of sums (`Cnt`)
-pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
-  where F:FnOnce() -> Res {
-    GLOBALS.with(|g| {
-      match g.borrow().engine {
-        Engine::DCG(ref dcg) => <DCG as Adapton>::cnt(dcg,body),
-        Engine::Naive => ((body)(), Cnt::zero())
-      }
-    })
-  }
-
-/// Creates immutable, eager articulation.
+/// Creates an unnamed, immutable reference cell (an eager `Art<_>`)
+/// whose content may not change over time.
 pub fn put<T:Eq+Debug+Clone> (val:T) -> Art<T> {
   Art{art:EnumArt::Rc(Rc::new(val))}
 }
 
-/// Creates a mutable articulation.
+/// Creates a named reference cell (an eager `Art<_>`) whose content
+/// can change over time.
+///
+/// From the editor's perspective, this cell is mutable.  From the
+/// archivist's perspective, this cell is a "one-shot" reference cell:
+/// Once allocated, it is immutable.
 pub fn cell<T:Hash+Eq+Debug+Clone> (n:Name, val:T) -> Art<T> {
   GLOBALS.with(|g| {
     match g.borrow().engine {
@@ -1975,7 +1943,42 @@ pub fn set<T:Eq+Debug+Clone> (a:&Art<T>, val:T) {
   }
 }
 
-/// Creates an articulated computation.
+/// Allocates a thunk, an `Art<T>` that consists of a suspended
+/// computation that produces a value of type `T`.
+///
+/// Use the macros `thunk!`, `memo!` and `eager!` to create and force
+/// thunks with less typing.
+///
+/// A full invocation of `thunk` consists of the following:
+///
+///  - It has an `id` of type `ArtIdChoice`, either giving a `Name`,
+///    requesting structural identity, or requesting no caching
+///    whatsoever.
+///
+///  - Its code resides at a _program point_, of type `ProgPt`.  This
+///    uniquely identifies the static elements of the suspended
+///    computation (the code, but not the closing environment).
+///
+///  - It has a function for this code, of type
+///    `Rc<Box<Fn(Art,Spurious) -> Res >>`.  The `Rc<_>` is required
+///    for cloning this function, which we generally want to do.  We
+///    divide the arguments into the ordinary arguments of type `Arg`,
+///    and additional "spurious" arguments.  When we judge whether a
+///    thunk's closing environment is equal to another, we use the
+///    type `Arg`.  When we judge whether the result of a thunk has
+///    changed or not, we use the type `Res`.
+///
+///  - Spurious arguments are not compared for equality, and are
+///    ignored during the memo-matching process.  They are, however,
+///    saved in the thunk and supplied to the suspended computation
+///    when it runs.  Typically, these arguments consist of
+///    higher-order functions that parameterize the thunk; we make
+///    them spurious because (1) we cannot, and do not wish to compare
+///    them for equality and (2) the triple of type (`ProgPt`,
+///    `ArtIdChoice`, `Arg`) should determine these spurious
+///    arguments, if any.  Because some arguments have no equality
+///    relation, the presence of these arguments is sometimes a
+///    necessary hack.
 pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+Debug+Clone+'static>
   (id:ArtIdChoice,
    prog_pt:ProgPt,
@@ -2000,7 +2003,7 @@ pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+
   })
 }
 
-/// Demand & observe arts (all kinds): force
+/// Demands and observes the value of an `&Art<T>`, returning a (cloned) value of type `T`.
 pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
   match a.art {
     EnumArt::Force(ref f) => f.force(),
@@ -2016,22 +2019,65 @@ pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
   }
 }
 
-/// True iff the current engine is `Naive`
-pub fn engine_is_naive () -> bool {
-  GLOBALS.with(|g| {
-    match g.borrow().engine {
-      Engine::DCG(_) => false,
-      Engine::Naive  => true
-    }})    
-}
+/// Operations that monitor and alter the active engine.  Incremental
+/// applications should not use these operations directly.
+pub mod manage {
+  use super::*;
 
-/// True iff the current engine is a `DCG`
-pub fn engine_is_dcg () -> bool {
-  GLOBALS.with(|g| {
-    match g.borrow().engine {
-      Engine::DCG(_) => true,
-      Engine::Naive  => false
-    }})
+
+  /// Initializes global state with a fresh DCG-based engine; returns the old engine.
+  /// The DCG is the central implementation structure behind Adapton.
+  /// At a high level, it consists of a data dependence graph (the "demanded computation graph"), and an associated memoization table.
+  pub fn init_dcg () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
+  
+  /// Initializes global state with a ("fresh") Naive engine; returns the old engine.
+  /// The naive engine is stateless, and performs no memoization and builds no dependence graphs.
+  /// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
+  pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
+  
+  /// Initializes global state with a fresh DCG-based engine; returns the old engine
+  pub fn use_engine (engine: Engine) -> Engine {
+    use std::mem;
+    let mut engine = engine;
+    GLOBALS.with(|g| {
+      mem::swap(&mut g.borrow_mut().engine, &mut engine);
+    });
+    return engine
+  }
+  
+  /// alias for `use_engine`
+  pub fn init_engine (engine: Engine) -> Engine {
+    use_engine(engine)
+  }  
+  
+  /// Counts various engine cost metrics, returning a product of sums (`Cnt`)
+  pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
+    where F:FnOnce() -> Res {
+    GLOBALS.with(|g| {
+      match g.borrow().engine {
+        Engine::DCG(ref dcg) => <DCG as Adapton>::cnt(dcg,body),
+        Engine::Naive => ((body)(), Cnt::zero())
+      }
+    })
+  }
+
+  /// True iff the current engine is `Naive`
+  pub fn engine_is_naive () -> bool {
+    GLOBALS.with(|g| {
+      match g.borrow().engine {
+        Engine::DCG(_) => false,
+        Engine::Naive  => true
+      }})    
+  }
+  
+  /// True iff the current engine is a `DCG`
+  pub fn engine_is_dcg () -> bool {
+    GLOBALS.with(|g| {
+      match g.borrow().engine {
+        Engine::DCG(_) => true,
+        Engine::Naive  => false
+      }})
+  }
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

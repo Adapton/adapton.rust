@@ -1250,9 +1250,9 @@ pub fn test_mergesort1 () {
     println!("output vec: {:?}", o);
     o
   }
-  init_naive();
+  manage::init_naive();
   let o1 = doit();
-  init_dcg();
+  manage::init_dcg();
   let o2 = doit();
   assert_eq!(o1, o2);
 }
@@ -1274,9 +1274,9 @@ pub fn test_mergesort2 () {
     println!("output vec: {:?}", o);
     o
   }
-  init_naive();
+  manage::init_naive();
   let o1 = doit();
-  init_dcg();
+  manage::init_dcg();
   let o2 = doit();
   assert_eq!(o1, o2);
 }
@@ -1649,20 +1649,20 @@ fn test_engine_alternation () {
   let mut naive_input : List<usize> = List::nil(); // the naive input, which we will prepend in the loop below
   let mut   dcg_input : List<usize> = List::nil(); // the DCG   input, which we will prepend in the loop below
   
-  init_dcg(); // Initialize the current engine with an empty DCG instance
-  let mut dcg = init_naive(); // Current engine is naive; save DCG for later
+  manage::init_dcg(); // Initialize the current engine with an empty DCG instance
+  let mut dcg = manage::init_naive(); // Current engine is naive; save DCG for later
   
   for i in vec![1,2,3,4,5,6,7,8,9].iter()
   {
-    assert!(engine_is_naive()); // Sanity check
+    assert!(manage::engine_is_naive()); // Sanity check
     naive_input = push_input(*i, naive_input); // Prepend Naive input
     let naive_out = doit(naive_input.clone()); // MEASURE ME!
 
-    use_engine(dcg); // Switch to DCG engine    
-    assert!(engine_is_dcg()); // Sanity check
+    manage::use_engine(dcg); // Switch to DCG engine    
+    assert!(manage::engine_is_dcg()); // Sanity check
     dcg_input = push_input(*i, dcg_input); // Prepend DCG input
     let dcg_out = doit(dcg_input.clone()); // MEASURE ME!
-    dcg = init_naive(); // Switch back to naive; save DCG engine for later
+    dcg = manage::init_naive(); // Switch back to naive; save DCG engine for later
 
     assert_eq!(naive_out, dcg_out);
     
@@ -1698,13 +1698,13 @@ fn test_tree_of_list () {
     (s1,s2,max)
   };
 
-  init_naive();
+  manage::init_naive();
   let (s1,s2,m) = test_code();
   println!("naive: s1={:?}", s1);
   println!("naive: s2={:?}", s2);
   println!("naive: m ={:?}", m);
   
-  init_dcg();
+  manage::init_dcg();
   let (t1,t2,n) = test_code();
   println!("dcg:   t1={:?}", t1);
   println!("dcg:   t2={:?}", t2);
@@ -1751,13 +1751,13 @@ fn test_tree_filter () {
     (s1,s2,max)
   };
 
-  init_naive();
+  manage::init_naive();
   let (s1,s2,m) = test_code();
   println!("filter naive: s1={:?}", s1);
   println!("filter naive: s2={:?}", s2);
   println!("max    naive: m ={:?}", m);
   
-  init_dcg();
+  manage::init_dcg();
   let (t1,t2,n) = test_code();
   println!("filter dcg:   t1={:?}", t1);
   println!("filter dcg:   t2={:?}", t2);
