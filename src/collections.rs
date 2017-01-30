@@ -222,6 +222,31 @@ pub fn list_map_eager<X:'static, Le:'static+ListElim<X>,
      })
 }
 
+/// Eagerly maps the list.  Uses (eager) memoization for each name in
+/// `l`.  Unlike list_map_eager, it allocates a reference cell for
+/// each name, separate from the memoized thunk for the recursive
+/// call.
+pub fn list_map_eager2<X:'static, Le:'static+ListElim<X>, 
+                       Y:'static, Li:'static+ListIntro<Y>, 
+                       F:'static>
+  (l:Le, body:Rc<F>) -> Li
+ where F:Fn(X) -> Y
+{
+  Le::elim_arg
+    (l, body,
+     |_,_| list_nil(),
+     |x, tl, body| {
+       let y = body.clone() (x);
+       list_cons(y, list_map_eager2(tl, body))
+     },
+     |n, tl, body| {
+       // We only memoize when we encounter a name in the input
+       let (nm1, nm2, nm3) = name_fork3(n.clone());
+       let t = memo!( nm2 =>> list_map_eager2 =>> <X, Le, Y, Li, F>, l:tl ;; body:body.clone() );
+       list_name(nm1, list_art( cell( nm3 , t) ) )
+     })
+}
+
 
 /// Eagerly maps the list.
 /// Uses (eager) memoization for each name in `l`.
