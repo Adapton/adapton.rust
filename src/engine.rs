@@ -1,3 +1,30 @@
+//! Adapton's core calculus, implemented as a runtime library.  We
+//! implement two versions of this interface, which we refer to as
+//! _engines_: The **naive engine** and the **DCG engine**,
+//! implemented based on the algorithms from the Adapton papers.
+//!
+//! To program algorithms that use this interface, consider the
+//! following functions and macros:
+//! 
+//!  - `fn force`, which observes/consumes/demands the value of an
+//!     `Art`.
+//!
+//!  - `fn cell`, which allocates/produces an `Art` to hold a given
+//!     value.  See also, the macro `cell_call!`, which places the
+//!     result of a function call into a (named) cell.
+//!
+//!  - `fn thunk`, and the macros `thunk!` and `eager!`, which
+//!     introduce `Art`s that hold suspended computations and produce
+//!     their results, when `force`d.  The macro `eager!` forces this
+//!     suspended computation eagerly.
+//! 
+//!  - `fn ns`, which manages a monadic _naming policy_ for
+//!     allocations by `cell` and `thunk` (and macros that use these).
+//!     This function extends the current path (a sequence of names)
+//!     by one name, which we refer to as a _namespace_.  This
+//!     namespace concept is analogous to a directory in the UNIX
+//!     filesystem.
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
@@ -12,6 +39,7 @@ use std::mem::transmute;
 use std::num::Zero;
 use std::ops::Add;
 use std::rc::Rc;
+use std::fmt::Write;
 
 use macros::*;
 
@@ -22,36 +50,6 @@ struct TraceSt { stack:Vec<Box<Vec<reflect::trace::Trace>>>, }
 
 /// When this option is set to some, the engine will record a trace of its DCG effects.
 thread_local!(static TRACES: RefCell<Option<TraceSt>> = RefCell::new( None ));
-
-
-// TODO: Put these initialization and "engine control" functions into
-// a submodule called "control" (or "meta" or "runtime", etc.).
-
-/// Initializes global state with a fresh DCG-based engine; returns the old engine.
-/// The DCG is the central implementation structure behind Adapton.
-/// At a high level, it consists of a data dependence graph (the "demanded computation graph"), and an associated memoization table.
-pub fn init_dcg () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
-
-/// Initializes global state with a ("fresh") Naive engine; returns the old engine.
-/// The naive engine is stateless, and performs no memoization and builds no dependence graphs.
-/// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
-pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
-
-/// Initializes global state with a fresh DCG-based engine; returns the old engine
-pub fn use_engine (engine: Engine) -> Engine {
-  use std::mem;
-  let mut engine = engine;
-  GLOBALS.with(|g| {
-    mem::swap(&mut g.borrow_mut().engine, &mut engine);
-  });
-  return engine
-}
-
-/// alias for `use_engine`
-pub fn init_engine (engine: Engine) -> Engine {
-  use_engine(engine)
-}
-
 
 
 /// Reflects the DCG engine, including both the effects of the
@@ -76,16 +74,83 @@ pub fn init_engine (engine: Engine) -> Engine {
 
 pub mod reflect {
   pub use reflect::*;
+  use std::fmt::{Debug,Write};
   use super::{TraceSt,TRACES,GLOBALS,Engine};
+  use super::parse_val;
+  use adapton::engine::Name;
 
+  /// See doc for `write_name`. Returns this output as a string.
+  pub fn string_of_name (n:&Name) -> String {
+    let mut output = String::from("");  write_name(&mut output, n);  output
+  }
+  /// See doc for `write_path`. Returns this output as a string.
+  pub fn string_of_path (p:&Path) -> String {
+    let mut output = String::from("");  write_path(&mut output, &p); output
+  }
+  /// See doc for `write_loc`. Returns this output as a string.
+  pub fn string_of_loc (l:&Loc) -> String {
+    let mut output = String::from("");  write_loc (&mut output, &l); output
+  }
+
+  /// Write a concise human-readable version of the name (not the
+  /// verbose, machine-parsable `Debug` version).
+  pub fn write_name<W:Write> (w:&mut W, n:&Name) {
+    super::write_namesym(w, &n.symbol);
+  }
+
+  /// Write a concise human-readable version of the path (not the
+  /// verbose, machine-parsable `Debug` version).
+  pub fn write_path<W:Write> (w:&mut W, p:&Path) {
+    write!(w, "__"); // Underscores are valid in CSS class names
+    for n in p.iter() {
+      write_name(w, n);
+      write!(w, "__"); // Underscores are valid in CSS class names
+    }
+  }
+
+  /// Write a concise human-readable version of the location (not the
+  /// verbose, machine-parsable `Debug` version).  
+  pub fn write_loc<W:Write> (w:&mut W, l:&Loc)  {
+    write_path(w, &l.path);
+    write!(w, "_"); // Underscores are valid in CSS class names
+    write_name(w, &l.name);
+  }
+
+  /// _Rust data and articulation reflection_: Transform any(*) Rust
+  /// data that derives `Debug` into a reflected `Val`.  
+  /// 
+  /// This parsing logic handles user-defined `struct` and `enum`
+  /// types, tuples and vectors.  It recognizes the `Debug` output of
+  /// these structures and parses them into trees of type
+  /// `Val`. Importantly, it recognizes articulations in this `Debug`
+  /// output and parses those into reflected locations (of type `Loc`)
+  /// and articulations (of type `Art`).  The reflected `DCG` maps
+  /// reflected articulations (whose reflected locations are of type
+  /// `Loc`) to reflected nodes that contain more reflected values.
+  /// 
+  /// (*) Note: Though this parsing logic handles vectors, tuples and
+  /// user-defined data types, this parsing logic is probably
+  /// incomplete for all of Rust's standard collections. (It does not
+  /// yet handle `HashMap<_,_>` debug output, or anything else of this
+  /// complexity as of yet).
+  pub fn reflect_val <V:Debug> (v:&V) -> Val {
+    let s = format!("{:?}", v);
+    //println!("reflect_val({:?})", v);
+    let toks = parse_val::lex(s.into_bytes());
+    //println!("toks = {:?}", toks);
+    parse_val::parse_val(toks)
+  }
+  
   /// Reflect the DCG's internal structure now.  Does not reflect any
   /// engine effects over this DCG (e.g., no cleaning or dirtying),
   /// just the _program effects_ recorded by the DCG's structure.
-  pub fn dcg_reflect_now() -> DCG {
+  /// Returns None if the engine is `Naive` and thus has no reflected
+  /// state whatsoever.
+  pub fn dcg_reflect_now() -> Option<DCG> {
     GLOBALS.with(|g| {
       match g.borrow().engine {
-        Engine::DCG(ref dcg) => (*dcg.borrow()).reflect(),
-        Engine::Naive => panic!("no DCG to reflect; current engine is Naive")
+        Engine::DCG(ref dcg) => Some((*dcg.borrow()).reflect()),
+        Engine::Naive => None,
       }
     })
   }
@@ -188,7 +253,6 @@ macro_rules! dcg_effect_end {
   }}
 }
 
-//#[macro_export]
 macro_rules! dcg_effect {
   ( $eff:expr, $loc:expr, $succ:expr ) => {{ 
     /// An effect without an extent (without nested effects)
@@ -196,7 +260,6 @@ macro_rules! dcg_effect {
   }}
 }
 
-//#[macro_export]
 macro_rules! current_loc {
   ( $st:expr ) => {{ 
     match ($st).stack.last() { 
@@ -224,8 +287,6 @@ impl Hash for Name {
     self.hash.hash(state)
   }
 }
-//impl reflect::Reflect<reflect::Name> for Name {
-//}
 
 // Each location identifies a node in the DCG.
 #[derive(PartialEq,Eq,Clone)]
@@ -236,7 +297,8 @@ struct Loc {
 }
 impl Debug for Loc {
   fn fmt(&self, f:&mut Formatter) -> Result {
-    write!(f,"{:?}*{:?}",self.path,self.id)
+    //write!(f,"{:?}*{:?}",self.path,self.id)
+    write!(f,"Loc {{ path:[{:?}], id:{:?} }}", self.path, self.id)
   }
 }
 impl Hash for Loc {
@@ -307,14 +369,12 @@ pub enum Engine {
 #[derive(Debug)]
 pub struct DCG {
   pub flags : Flags, // public because I dont want to write / design abstract accessors
-  root  : Rc<Loc>,
   table : HashMap<Rc<Loc>, Box<GraphNode>>,
   stack : Vec<Frame>,
   path  : Rc<Path>,
   cnt   : Cnt,
   dcg_count : usize,
   dcg_hash  : u64,  
-  //gmfile : Option<File>,
 }
 
 impl reflect::Reflect<reflect::DCG> for DCG {
@@ -339,10 +399,15 @@ impl Eq    for     DCG { }
 impl PartialEq for DCG { fn eq(&self, _other:&Self) -> bool { unimplemented!() } }
 impl Clone for     DCG { fn clone(&self) -> Self { unimplemented!() } }
 
-// NameSyms: For a general semantics of symbols, see Chapter 31 of PFPL 2nd Edition. Harper 2015:
-// http://www.cs.cmu.edu/~rwh/pfpl/2nded.pdf
-//
-#[derive(Hash,PartialEq,Eq,Clone)]
+/// Name symbols.
+/// 
+/// For a core-calculus of names in this context, see this document:
+/// https://arxiv.org/abs/1610.00097 (Typed Adapton: Refinement types
+/// for nominal memoization).
+/// 
+/// For a general semantics of symbols, see Chapter 31 of PFPL 2nd
+/// Edition. Harper 2016: http://www.cs.cmu.edu/~rwh/pfpl
+#[derive(Hash,PartialEq,Eq,Clone,Debug)]
 enum NameSym {
   Root,           // Unit value for name symbols
   Hash64,        // Hashes (for structural names); hash stored in name struct
@@ -354,18 +419,16 @@ enum NameSym {
   ForkR(Rc<NameSym>), // Right projection of a unique symbol is unique
 }
 
-impl Debug for NameSym {
-  fn fmt(&self, f:&mut Formatter) -> Result {
-    match *self {
-      NameSym::Root => write!(f, "/"),
-      NameSym::Hash64 => write!(f, "(Hash64)"),
-      NameSym::String(ref s) => write!(f, "{}", s),
-      NameSym::Usize(ref n) => write!(f, "{}", n),
-      NameSym::Isize(ref n) => write!(f, "{}", n),
-      NameSym::Pair(ref l, ref r) => write!(f, "({:?},{:?})",l,r),
-      NameSym::ForkL(ref s) => write!(f, "{:?}.L", s),
-      NameSym::ForkR(ref s) => write!(f, "{:?}.R", s),
-    }
+fn write_namesym<W:Write>(w:&mut W, n:&NameSym) -> Result {
+  match *n {
+    NameSym::Root => write!(w, "/"),
+    NameSym::Hash64 => write!(w, "(Hash64)"),
+    NameSym::String(ref s) => write!(w, "{}", s),
+    NameSym::Usize(ref n) => write!(w, "{}", n),
+    NameSym::Isize(ref n) => write!(w, "{}", n),
+    NameSym::Pair(ref l, ref r) => { write_namesym(w, l).unwrap(); write!(w, "-").unwrap(); write_namesym(w, r) },
+    NameSym::ForkL(ref s) => { write_namesym(w, s).unwrap(); write!(w, "-l") },
+    NameSym::ForkR(ref s) => { write_namesym(w, s).unwrap(); write!(w, "-r") },
   }
 }
 
@@ -392,7 +455,7 @@ impl Debug for Path {
   fn fmt(&self, f:&mut Formatter) -> Result {
     match *self {
       Path::Empty => write!(f, ""),
-      Path::Child(ref p, ref n) => write!(f, "{:?}::{:?}", p, n),
+      Path::Child(ref p, ref n) => write!(f, "{:?},{:?}", p, n),
     }
   }
 }
@@ -412,7 +475,6 @@ trait GraphNode : Debug + reflect::Reflect<reflect::Node> {
 #[derive(Debug,Clone)]
 struct Frame {
   loc   : Rc<Loc>,    // The currently-executing node
-  //path  : Rc<Path>,   // The current path for creating new nodes; invariant: (prefix-of frame.loc.path frame.path)
   succs : Vec<Succ>,  // The currently-executing node's effects (viz., the nodes it demands)
 }
 
@@ -458,7 +520,8 @@ enum Effect {
 impl reflect::Reflect<reflect::Effect> for Effect {
   fn reflect(&self) -> reflect::Effect {
     match *self {
-      // Too many names for the same thing
+      // TODO-Someday: Too many names for the same thing
+      // (force/observe/consume, and allocate/alloc/produce).
       Effect::Observe  => reflect::Effect::Force,
       Effect::Allocate => reflect::Effect::Alloc,
     }
@@ -483,23 +546,6 @@ impl Hash for Succ {
   }
 }
 
-// ----------------------------------------------------------------------------------------------------
-
-#[derive(Debug)]
-struct NoDependency;
-impl DCGDep for NoDependency {
-  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:false} }
-}
-
-#[derive(Debug)]
-struct AllocDependency<T> { val:T }
-impl<T:Debug> DCGDep for AllocDependency<T> {
-  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
-}
-
-trait ShapeShifter {
-  fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<GraphNode> ;
-}
 
 // Structureful (Non-opaque) nodes:
 #[allow(dead_code)] // Pure case: not introduced currently.
@@ -510,7 +556,6 @@ enum Node<Res> {
   Mut(MutNode<Res>),
   Unused,
 }
-
 impl<X:Debug> reflect::Reflect<reflect::Node> for Node<X> {
   fn reflect(&self) -> reflect::Node {
     match *self {
@@ -521,22 +566,22 @@ impl<X:Debug> reflect::Reflect<reflect::Node> for Node<X> {
             succs:n.succs.reflect(),
             prog_pt:n.producer.prog_pt().clone(),
             value:match n.res { 
-              Some(ref _v) => Some(reflect::Val::ValTODO),
+              Some(ref v) => Some( reflect::reflect_val(v) ),
               None => None
             }
           })
       },
-      Node::Pure(ref _n) => {
+      Node::Pure(ref n) => {
         reflect::Node::Pure(
           reflect::PureNode {
-            value:reflect::Val::ValTODO,
+            value:reflect::reflect_val( &n.val ),
           })
       },
       Node::Mut(ref n) => {
         reflect::Node::Ref(
           reflect::RefNode {
             preds:n.preds.reflect(),
-            value:reflect::Val::ValTODO,
+            value:reflect::reflect_val( &n.val ),
           })        
       },
       Node::Unused => panic!(""),
@@ -584,273 +629,6 @@ impl reflect::Reflect<Vec<reflect::Pred>> for Vec<(Effect,Rc<Loc>)> {
                         }}}).collect::<Vec<_>>()
   }
 } 
-
-// Produce a value of type Res.
-trait Producer<Res> : Debug {
-//  fn produce(self:&Self, st:&mut DCG) -> Res;
-  fn produce(self:&Self) -> Res;
-  fn copy(self:&Self) -> Box<Producer<Res>>;
-  fn eq(self:&Self, other:&Producer<Res>) -> bool;
-  fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
-}
-// Consume a value of type Arg.
-trait Consumer<Arg> : Debug {
-  fn consume(self:&mut Self, Arg);
-  fn get_arg(self:&mut Self) -> Arg;
-}
-// struct App is hidden by traits Comp<Res> and CompWithArg<Res>, below.
-#[derive(Clone)]
-struct App<Arg:Debug,Spurious,Res> {
-  prog_pt: ProgPt,
-  fn_box:   Rc<Box<Fn(Arg, Spurious) -> Res>>,
-  arg:      Arg,
-  spurious: Spurious,
-}
-
-// ---------- App implementation of Debug and Hash
-
-impl<Arg:Debug,Spurious,Res> Debug for App<Arg,Spurious,Res> {
-  fn fmt(&self, f: &mut Formatter) -> Result {
-    write!(f,"App({:?} {:?})", self.prog_pt, self.arg)
-  }
-}
-
-impl<Arg:Hash+Debug,Spurious,Res> Hash for App<Arg,Spurious,Res> {
-  fn hash<H>(&self, state: &mut H) where H: Hasher { (&self.prog_pt,&self.arg).hash(state) }
-}
-
-// ---------- App implementation of Producer and Consumer traits:
-
-impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Debug+Hash> Producer<Res>
-  for App<Arg,Spurious,Res>
-{
-  fn produce(self:&Self) -> Res {
-    let f = self.fn_box.clone() ;
-    ////debug!("{} producer begin: ({:?} {:?})", engineMsg!(st), &self.prog_pt, &self.arg);
-    let res = f (self.arg.clone(),self.spurious.clone()) ;
-    ////debug!("{} producer end: ({:?} {:?}) produces {:?}", engineMsg!(st), &self.prog_pt, &self.arg, &res);
-    res
-  }
-  fn copy(self:&Self) -> Box<Producer<Res>> {
-    Box::new(App{
-      prog_pt:self.prog_pt.clone(),
-      fn_box:self.fn_box.clone(),
-      arg:self.arg.clone(),
-      spurious:self.spurious.clone(),
-    })
-  }
-  fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt {
-    & self.prog_pt
-  }
-  fn eq (&self, other:&Producer<Res>) -> bool {
-    if &self.prog_pt == other.prog_pt() {
-      let other = Box::new(other) ;
-      // This is safe if the prog_pt implies unique Arg and Res types.
-      let other : &Box<App<Arg,Spurious,Res>> = unsafe { transmute::<_,_>( other ) } ;
-      self.arg == other.arg
-    } else {
-      false
-    }
-  }
-}
-impl<Arg:Clone+PartialEq+Eq+Debug,Spurious,Res> Consumer<Arg> for App<Arg,Spurious,Res> {
-  fn consume(self:&mut Self, arg:Arg) { self.arg = arg; }
-  fn get_arg(self:&mut Self) -> Arg   { self.arg.clone() }
-}
-
-// ----------- Location resolution:
-
-fn lookup_abs<'r>(st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<GraphNode> {
-  match st.table.get_mut( loc ) {
-    None => panic!("dangling pointer: {:?}", loc),
-    Some(node) => node.be_node() // This is a weird workaround; TODO-Later: Investigate.
-  }
-}
-
-// This only is safe in contexts where the type of loc is known.
-// Unintended double-uses of names and hashes will generally cause uncaught type errors.
-fn res_node_of_loc<'r,Res> (st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
-  let abs_node = lookup_abs(st, loc) ;
-  unsafe { transmute::<_,_>(abs_node) }
-}
-
-
-/// Well-formedness tests; for documentation and for debugging.
-mod wf {
-  use std::collections::HashMap;
-  use std::rc::Rc;
-  //use std::io;
-  use std::io::prelude::*;
-  use std::io::BufWriter;
-  use std::fs::File;
-  use macros::*;
-
-  use super::*;
-
-  #[derive(Eq,PartialEq,Clone)]
-  enum NodeStatus {
-    Dirty, Clean, Unknown
-  }
-
-  type Cs = HashMap<Rc<Loc>, NodeStatus> ;
-
-  fn add_constraint (cs:&mut Cs, loc:&Rc<Loc>, new_status: NodeStatus)
-  {
-    let old_status = match
-      cs.get(loc) { None => NodeStatus::Unknown,
-                    Some(x) => (*x).clone() } ;
-    match (old_status, new_status) {
-      (NodeStatus::Clean, NodeStatus::Dirty) |
-      (NodeStatus::Dirty, NodeStatus::Clean) => {
-        panic!("{:?}: Constrained to be both clean and dirty: Inconsistent status => DCG is not well-formed.")
-      },
-      (NodeStatus::Unknown, new_status) => { cs.insert(loc.clone(), new_status); () },
-      (old_status, NodeStatus::Unknown) => { cs.insert(loc.clone(), old_status); () },
-      (ref old_status, ref new_status) if old_status == new_status => { },
-      _ => unreachable!(),
-    }
-  }
-
-  // Constrains loc and all predecessors (transitive) to be dirty
-  fn dirty (st:&DCG, cs:&mut Cs, loc:&Rc<Loc>) {
-    add_constraint(cs, loc, NodeStatus::Dirty) ;
-    let node = match st.table.get(loc) { Some(x) => x, None => panic!("") } ;
-    for pred in node.preds_obs () {
-      // Todo: Assert that pred has a dirty succ edge that targets loc
-      let succ = super::get_succ(st, &pred, super::Effect::Observe, loc) ;
-      if succ.dirty {} else {
-        debug_dcg(st);
-        write_next_dcg(st, None);
-        panic!("Expected dirty edge, but found clean edge: {:?} --Observe--dirty:!--> {:?}", &pred, loc);
-      } ; // The edge is dirty.
-      dirty(st, cs, &pred)                
-    }
-  }
-
-  // Constrains loc and all successors (transitive) to be clean
-  fn clean (st:&DCG, cs:&mut Cs, loc:&Rc<Loc>) {
-    add_constraint(cs, loc, NodeStatus::Clean) ;
-    let node = match st.table.get(loc) {
-      Some(x) => x,
-      None => {
-        if &st.root == loc { return } // Todo-Question: Dead code?
-        else { panic!("dangling: {:?}", loc) } }
-    } ;
-    if ! node.succs_def () { return } ;
-    for succ in node.succs () {
-      let succ = super::get_succ(st, loc, super::Effect::Observe, &succ.loc) ;
-      assert!( ! succ.dirty ); // The edge is clean.
-      clean(st, cs, &succ.loc)
-    }
-  }
-
-  pub fn check_dcg (st:&mut DCG) {
-    if st.flags.write_dcg {
-      let dcg_hash = my_hash(format!("{:?}",st.table)); // XXX: This assumes that the table's debugging string identifies it uniquely
-      if dcg_hash != st.dcg_hash {
-        println!("adapton: dcg #{} hash: {:?}", st.dcg_count, dcg_hash);
-        st.dcg_hash = dcg_hash;
-        let dcg_count = st.dcg_count;
-        st.dcg_count += 1;
-        write_next_dcg(st, Some(dcg_count));
-      }
-    } ;
-    if st.flags.check_dcg_is_wf {
-      let mut cs = HashMap::new() ;
-      for frame in st.stack.iter() {
-        clean(st, &mut cs, &frame.loc)
-      }
-      for (loc, node) in &st.table {
-        if ! node.succs_def () { continue } ;
-        for succ in node.succs () {
-          if succ.dirty {
-            dirty(st, &mut cs, loc)
-          }
-        }
-      }        
-    }}
-
-  pub fn write_next_dcg (st:&DCG, num:Option<usize>) {
-    let name = match num {
-      None => format!("adapton-dcg.dot"),
-      Some(n) => format!("adapton-dcg-{:08}.dot", n),
-    } ;
-    let mut file = File::create(name).unwrap() ;
-    write_dcg_file(st, &mut file);
-  }
-  
-  pub fn write_dcg_file (st:&DCG, file:&mut File) {
-    let mut writer = BufWriter::new(file);
-    writeln!(&mut writer, "digraph {{\n").unwrap();
-    writeln!(&mut writer, "ordering=out;").unwrap();
-    //let mut frame_num = 0;
-    for frame in st.stack.iter() {
-      writeln!(&mut writer, "\"{:?}\" [color=blue,penwidth=10];", frame.loc);
-      for succ in frame.succs.iter() {
-        writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=blue,weight=10,penwidth=10];", &frame.loc, &succ.loc).unwrap();
-      }
-      //frame_num += 1;
-    };
-    for (loc, node) in &st.table {
-      if ! node.succs_def () {
-        writeln!(&mut writer, "\"{:?}\" [shape=box];", loc).unwrap();
-        continue;
-      } ;
-      for succ in node.succs () {
-        if succ.dirty {
-          writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=red,weight=5,penwidth=5];", &loc, &succ.loc).unwrap();
-        } else {
-          let (weight, penwidth, color) =
-            match succ.effect {
-              super::Effect::Observe => (0.1, 1, "grey"),
-              super::Effect::Allocate => (2.0, 3, "darkgreen") } ;
-          writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [weight={},penwidth={},color={}];",
-                   &loc, &succ.loc, weight, penwidth, color).unwrap();
-        }
-      }
-    }
-    writeln!(&mut writer, "}}\n").unwrap();
-  }
-  
-  pub fn debug_dcg (st:&DCG) {
-    let prefix = "debug_dcg::stack: " ;
-    let mut frame_num = 0;
-    for frame in st.stack.iter() {
-      println!("{} frame {}: {:?}", prefix, frame_num, frame.loc);
-      for succ in frame.succs.iter() {
-        println!("{} frame {}: \t\t {:?}", prefix, frame_num, &succ);
-      }
-      frame_num += 1;
-    }
-    let prefix = "debug_dcg::table: " ;
-    for (loc, node) in &st.table {
-      println!("{} {:?} ==> {:?}", prefix, loc, node);
-      if ! node.succs_def () { continue } ;
-      for succ in node.succs () {
-        println!("{}\t\t{:?}", prefix, succ);
-      }
-    }      
-  }
-
-  // XXX Does not catch errors in IC_Edit that I expected it would
-  // XXX Not sure if it works as I expected
-  pub fn check_stack_is_clean (st:&DCG) {
-    let stack = st.stack.clone() ;
-    for frame in stack.iter() {
-      let node = match st.table.get(&frame.loc) {
-        Some(x) => x,
-        None => {
-          if &st.root == &frame.loc { return } // Todo-Question: Dead code?
-          else { panic!("dangling: {:?}", &frame.loc) } }
-      } ;
-      if ! node.succs_def () { return } ;
-      for succ in node.succs () {
-        let succ = super::get_succ(st, &frame.loc, succ.effect.clone(), &succ.loc) ;
-        assert!( succ.dirty ); // The edge is clean.
-      }
-    }
-  }
-}
 
 /// An `ArtIdChoice` choses between `Eager`, `Structural` and
 /// `Nominal` identities for articulation points introduced by
@@ -923,6 +701,114 @@ impl Zero for Cnt {
   }
 }
 
+// ----------------------------------------------------------------------------------------------------
+// Internal internals: Begin stuff that is not reflected in reflect module:
+
+#[derive(Debug)]
+struct NoDependency;
+impl DCGDep for NoDependency {
+  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:false} }
+}
+
+#[derive(Debug)]
+struct AllocDependency<T> { val:T }
+impl<T:Debug> DCGDep for AllocDependency<T> {
+  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
+}
+
+// Produce a value of type Res.
+trait Producer<Res> : Debug {
+//  fn produce(self:&Self, st:&mut DCG) -> Res;
+  fn produce(self:&Self) -> Res;
+  fn copy(self:&Self) -> Box<Producer<Res>>;
+  fn eq(self:&Self, other:&Producer<Res>) -> bool;
+  fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
+}
+// Consume a value of type Arg.
+trait Consumer<Arg> : Debug {
+  fn consume(self:&mut Self, Arg);
+  fn get_arg(self:&mut Self) -> Arg;
+}
+// struct App is hidden by traits Comp<Res> and CompWithArg<Res>, below.
+#[derive(Clone)]
+struct App<Arg:Debug,Spurious,Res> {
+  prog_pt: ProgPt,
+  fn_box:   Rc<Box<Fn(Arg, Spurious) -> Res>>,
+  arg:      Arg,
+  spurious: Spurious,
+}
+
+impl<Arg:Debug,Spurious,Res> 
+  Debug for 
+  App<Arg,Spurious,Res> 
+{
+  fn fmt(&self, f: &mut Formatter) -> Result {
+    write!(f,"App({:?} {:?})", self.prog_pt, self.arg)
+  }
+}
+
+impl<Arg:Hash+Debug,Spurious,Res> 
+  Hash for 
+  App<Arg,Spurious,Res> 
+{
+  fn hash<H>(&self, state: &mut H) where H: Hasher { (&self.prog_pt,&self.arg).hash(state) }
+}
+
+impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Debug+Hash> 
+  Producer<Res> for 
+  App<Arg,Spurious,Res>
+{
+  fn produce(self:&Self) -> Res {
+    let f = self.fn_box.clone() ;
+    let res = f (self.arg.clone(),self.spurious.clone()) ;
+    res
+  }
+  fn copy(self:&Self) -> Box<Producer<Res>> {
+    Box::new(App{
+      prog_pt:self.prog_pt.clone(),
+      fn_box:self.fn_box.clone(),
+      arg:self.arg.clone(),
+      spurious:self.spurious.clone(),
+    })
+  }
+  fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt {
+    & self.prog_pt
+  }
+  fn eq (&self, other:&Producer<Res>) -> bool {
+    if &self.prog_pt == other.prog_pt() {
+      let other = Box::new(other) ;
+      // This is safe if the prog_pt implies unique Arg and Res types.
+      let other : &Box<App<Arg,Spurious,Res>> = unsafe { transmute::<_,_>( other ) } ;
+      self.arg == other.arg
+    } else {
+      false
+    }
+  }
+}
+impl<Arg:Clone+PartialEq+Eq+Debug,Spurious,Res> 
+  Consumer<Arg> for 
+  App<Arg,Spurious,Res> 
+{
+  fn consume(self:&mut Self, arg:Arg) { self.arg = arg; }
+  fn get_arg(self:&mut Self) -> Arg   { self.arg.clone() }
+}
+
+// ----------- Location resolution:
+
+fn lookup_abs<'r>(st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<GraphNode> {
+  match st.table.get_mut( loc ) {
+    None => panic!("dangling pointer: {:?}", loc),
+    Some(node) => node.be_node() // This is a weird workaround; TODO-Later: Investigate.
+  }
+}
+
+// This only is safe in contexts where the type of loc is known.
+// UNSAFE: Unintended double-uses of names and hashes will generally cause uncaught type errors.
+fn res_node_of_loc<'r,Res> (st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
+  let abs_node = lookup_abs(st, loc) ;
+  unsafe { transmute::<_,_>(abs_node) }
+}
+
 // ---------- Node implementation:
 
 impl <Res:Debug+Hash> GraphNode for Node<Res> {
@@ -972,6 +858,10 @@ impl <Res:Debug+Hash> GraphNode for Node<Res> {
   }
 }
 
+trait ShapeShifter {
+  fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<GraphNode> ;
+}
+
 impl <Res> ShapeShifter for Box<Node<Res>> {
   fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<GraphNode> {
     // TODO-Later: Why is this transmute needed here ??
@@ -985,8 +875,6 @@ impl ShapeShifter for Box<GraphNode> {
     unsafe { transmute::<_,_>(self) }
   }
 }
-
-
 
 impl<Res> fmt::Debug for CompNode<Res> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1004,22 +892,25 @@ impl<Res:Hash> Hash for CompNode<Res> {
   }
 }
 
-// Performs the computation at loc, produces a result of type Res.
-// Error if loc is not a Node::Comp.
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+/// CLEANING and DIRTYING (aka "CHANGE PROPAGATION"), including
+/// re-evaluation.
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+/// Re-evaluation: `loc_produce` performs the computation at `loc`,
+/// and produces a result of type `Res`.  Error if `loc` is not a
+/// `Node::Comp`.
 fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&Rc<Loc>) -> Res
 {
   let (producer, prev_path) = {
     let st : &mut DCG = &mut *g.borrow_mut() ;
-    //debug!("{} produce begin: {:?}", engineMsg!(st), &loc);
     let succs : Vec<Succ> = {
       let succs : Vec<Succ> = Vec::new();
       let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
       replace(node.succs_mut(), succs)
     } ;
     revoke_succs( st, loc, &succs );
-    st.stack.push ( Frame{loc:loc.clone(),
-                          //path:loc.path.clone(),
-                          succs:Vec::new(), } );
+    st.stack.push ( Frame{loc:loc.clone(), succs:Vec::new(), } );
     st.cnt.stack = if st.cnt.stack > st.stack.len() { st.cnt.stack } else { st.stack.len() } ;
     let prev_path = st.path.clone () ;
     st.path = loc.path.clone() ;
@@ -1033,10 +924,15 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
     st.cnt.eval += 1 ; 
     drop(st);  // End mutable borrow of global RefCell
     (producer, prev_path)
-  }; 
-
+  };   
+  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  /// Invoke producer: Run the user's code, and get a result.
+  /// Critical note: This call will generally call back into this
+  /// engine library.  That's why we end the mutable borrow of `g`
+  /// above, before making this call.  We re-borrow `g` below, when
+  /// the call is complete.
   let res = producer.produce() ;
-
+  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   let st = &mut * g.borrow_mut() ;
   st.path = prev_path ;
   let frame = match st.stack.pop() {
@@ -1044,22 +940,7 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
     Some(frame) => frame
   } ;
   assert!( &frame.loc == loc );
-  //let mut succ_idx = 0;
   for succ in &frame.succs {
-    //debug!("{} produce: edge: {:?} --{:?}--dirty?:{:?}--> {:?}", engineMsg!(st), &loc, &succ.effect, &succ.dirty, &succ.loc);
-    // let (effect, is_weak) =
-    //   match succ.effect {
-    //     //Effect::Observe => ("observe", true),
-    //     Effect::Observe => ("observe", false), // XXX
-    //     Effect::Allocate => ("allocate", false)
-    //   } ;
-    // if st.flags.gmlog_dcg {
-    //   // gm::startdframe(st, &format!("{:?}--{}->{:?}", loc, effect, succ.loc), None);
-    //   // gm::addedge(st, &format!("{:?}",loc), &format!("{:?}",succ.loc),
-    //   //             &format!("{}",succ_idx),
-    //   //             effect, "", None, is_weak);
-    // }
-    // succ_idx += 1;
     if succ.dirty {
       // This case witnesses an illegal use of nominal side effects
       panic!("invariants broken: newly-built DCG edge should be clean, but is dirty.")
@@ -1077,16 +958,8 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
       _ => panic!("internal error"),
     }
   } ;
-  //debug!("{} produce end: {:?} produces {:?}", engineMsg!(st), &loc, &res);
   res
 }
-
-
-
-// ---------- DCGDep implementation:
-
-#[derive(Debug)]
-struct ProducerDep<T> { res:T }
 
 fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
   (g:&RefCell<DCG>,
@@ -1122,6 +995,11 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
   let changed = this_dep.res != cache ;
   DCGRes{changed:changed}
 }
+
+/// The structure implements DCGDep, caching a value of type `T` to
+/// compare against future values.
+#[derive(Debug)]
+struct ProducerDep<T:Debug> { res:T }
 
 impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
   DCGDep for ProducerDep<Res>
@@ -1179,13 +1057,7 @@ fn revoke_succs<'x> (st:&mut DCG, src:&Rc<Loc>, succs:&Vec<Succ>) {
   //let mut succ_idx = 0;
   for succ in succs.iter() {
     dcg_effect!(reflect::trace::Effect::Remove, Some(src), succ);
-    if st.flags.gmlog_dcg {
-      // gm::startdframe(st, &format!("revoke_succ {:?} {} --> {:?}", src, succ_idx, succ.loc), None);
-      // gm::remedge(st, &format!("{:?}",src), &format!("{:?}",succ.loc),
-      //             &format!("{}",succ_idx), "", None);
-    } ;
     let succ_node : &mut Box<GraphNode> = lookup_abs(st, &succ.loc) ;
-    //succ_idx += 1;
     succ_node.preds_remove(src)
   }
 }
@@ -1196,16 +1068,13 @@ fn loc_of_id(path:Rc<Path>,id:Rc<ArtId>) -> Rc<Loc> {
 }
 
 fn get_succ<'r>(st:&'r DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r Succ {
-  //let stackLen = st.stack.len() ;
   let nd = st.table.get(src_loc);
   let nd = match nd {
     None => panic!(""),
     Some(nd) => nd
   } ;    
-  //debug!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
   for succ in nd.succs() {
     if (succ.effect == eff) && (&succ.loc == tgt_loc) {
-      //debug!("{} get_succ_mut:  resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
       return succ
     } else {}
   } ;
@@ -1216,12 +1085,9 @@ fn get_succ<'r>(st:&'r DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &
 // The succ edge is returned as a mutable borrow, to permit checking
 // and mutating the dirty bit.
 fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Loc>) -> &'r mut Succ {
-  //let stackLen = st.stack.len() ;
   let nd = lookup_abs( st, src_loc );
-  //debug!("{} get_succ_mut: resolving {:?} --{:?}--dirty:?--> {:?}", engineMsg(Some(stackLen)), &src_loc, &eff, &tgt_loc);
   for succ in nd.succs_mut().iter_mut() {
     if (succ.effect == eff) && (&succ.loc == tgt_loc) {
-      //debug!("{} get_succ_mut:  resolved {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &src_loc, &succ.effect, &succ.dirty, &tgt_loc);
       return succ
     } else {}
   } ;
@@ -1229,60 +1095,42 @@ fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Lo
 }
 
 fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
-  //debug!("{} dirty_pred_observers: {:?}", engineMsg!(st), loc);
-  //let stackLen = st.stack.len() ;
   let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs() ;
   let mut dirty_edge_count = 0;
   for pred_loc in pred_locs {
-    if st.root.eq (&pred_loc) { panic!("root in preds") } // Todo-Question: Dead code?
-    else {
-      let stop : bool = {
-        // The stop bit communicates information from st for use below.
-        //debug!("{} dirty_pred_observers: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);      
-        let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
-        if succ.dirty { true } else {
-          dirty_edge_count += 1 ;
-          dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
-          replace(&mut succ.dirty, true);
-          //debug!("{} dirty_pred_observers: edge marked dirty: {:?} --{:?}--dirty:{:?}--> {:?}", engineMsg(Some(stackLen)), &pred_loc, &succ.effect, &succ.dirty, &loc);
-          false
-        }} ;
-      if !stop {
-        dirty_pred_observers(st,&pred_loc);
-        dcg_effect_end!();
-      } else {
-        //debug!("{} dirty_pred_observers: already dirty", engineMsg(Some(stackLen)))
-      }
-    }
+    let stop : bool = {
+      // The stop bit communicates information from st for use below.
+      let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
+      if succ.dirty { true } else {
+        dirty_edge_count += 1 ;
+        dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
+        replace(&mut succ.dirty, true);
+        false
+      }} ;
+    if !stop {
+      dirty_pred_observers(st,&pred_loc);
+      dcg_effect_end!();
+    } else { }
   }
   st.cnt.dirty += dirty_edge_count ;
 }
 
 fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
-  //debug!("{} dirty_alloc: {:?}", engineMsg!(st), loc);
   dirty_pred_observers(st, loc);
-  //let stackLen = st.stack.len() ;
   let pred_locs : Vec<Rc<Loc>> = lookup_abs(st, loc).preds_alloc() ;
   for pred_loc in pred_locs {
-    if st.root.eq (&pred_loc) { panic!("root in preds") } // Todo-Question: Dead code?
-    else {
-      let stop : bool = {
-        // The stop bit communicates information from st for use below.
-        //debug!("{} dirty_alloc: edge {:?} --> {:?} ...", engineMsg(Some(stackLen)), &pred_loc, &loc);
-        let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
-        if succ.dirty { true } else {
-          //debug!("{} dirty_alloc: edge {:?} --> {:?} marked dirty", engineMsg(Some(stackLen)), &pred_loc, &loc);
-          replace(&mut succ.dirty, true);
-          dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
-          false
-        }} ;
-      if !stop {
-        dirty_pred_observers(st,&pred_loc);
-        dcg_effect_end!();
-      } else {
-        //debug!("{} dirty_alloc: early stop", engineMsg(Some(stackLen)))
-      }
-    }
+    let stop : bool = {
+      // The stop bit communicates information from st for use below.
+      let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
+      if succ.dirty { true } else {
+        replace(&mut succ.dirty, true);
+        dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
+        false
+      }} ;
+    if !stop {
+      dirty_pred_observers(st,&pred_loc);
+      dcg_effect_end!();
+    } else {  }
   }
   if false /* XXX Check make this better, as a statically/dynamically-set flag? */ {
     wf::check_stack_is_clean(st)
@@ -1305,6 +1153,10 @@ fn set_<T:Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
         _ => unreachable!(),
       }} ;
     if changed {
+      /// TODO: Dirtying isn't quite necessary for *all* allocations.
+      /// Only those that allocated a different value than the present
+      /// one--- we should check this, but we do not (we are *too*
+      /// conservative at present).
       dirty_alloc(st, loc);
     }
     else { }
@@ -1331,7 +1183,6 @@ enum AbsArt<T,Loc> {
 /// dependence-graph-building operations based on the core calculus
 /// described in ["Incremental Computation with Names", 2015](http://arxiv.org/abs/1503.07792)
 trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
-  //type Name : Debug+PartialEq+Eq+Hash+Clone;
   type Loc  : Debug+PartialEq+Eq+Hash+Clone;
   
   fn new () -> Self ;
@@ -1348,13 +1199,16 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> AbsArt<T,Self::Loc> ;
   
   /// Creates a mutable articulation.
-  fn cell<T:Eq+Debug+Clone+Hash> (self:&mut Self, Name, T) -> AbsArt<T,Self::Loc> ;
+  fn cell<T:Eq+Debug+Clone+Hash+'static> (self:&mut Self, Name, T) -> AbsArt<T,Self::Loc> ;
   
   /// Mutates a mutable articulation.
   fn set<T:Eq+Debug+Clone> (self:&mut Self, AbsArt<T,Self::Loc>, T) ;
   
   /// Creates an articulated computation.
-  fn thunk<Arg:Eq+Hash+Debug+Clone,Spurious:Clone,Res:Eq+Debug+Clone+Hash>
+  fn thunk <Arg:Eq+Hash+Debug+Clone+'static,
+            Spurious:Clone+'static,
+            Res:Eq+Debug+Clone+Hash+'static
+            >
     (self:&mut Self,
      id:ArtIdChoice,
      prog_pt:ProgPt,
@@ -1363,45 +1217,16 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
      -> AbsArt<Res,Self::Loc> ;
   
   /// Demand & observe arts (all kinds): force
-  // fn force<T:Eq+Debug+Clone+Hash+GMLog<Self>> (self:&mut Self, &Art<T,Self::Loc>) -> T ;
-  fn force<T:Eq+Debug+Clone+Hash> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>) -> T ;
+  fn force<T:Eq+Debug+Clone+Hash+'static> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>) -> T ;
 }
 
 impl Adapton for DCG {
-  //type Name = Name;
   type Loc  = Loc;
 
   fn new () -> DCG {
     let path = Rc::new(Path::Empty);
-    let root = { // Todo-Next: Kill this; new design tests for empty stacks to detect when current node is root node
-      let path   = path.clone();
-      let symbol = Rc::new(NameSym::Root);
-      let hash   = my_hash(&symbol);
-      let name   = Name{symbol:symbol,hash:hash};
-      let id     = Rc::new(ArtId::Nominal(name));
-      let hash   = my_hash(&(&path,&id));
-      let loc    = Rc::new(Loc{path:path.clone(),id:id,hash:hash});
-      loc
-    } ;
     let mut stack = Vec::new() ;
-    if false { // Todo-Minor: Kill this code once we are happy with new design.
-      stack.push( Frame{loc:root.clone(),
-                        //path:root.path.clone(),
-                        succs:Vec::new()} ) ;
-    }
     let table = HashMap::new ();
-    let outfile =
-      match env::var("ADAPTON_WRITE_GMLOG")  {
-        Ok(ref filename) if filename.len() > 0 => 
-          Some(OpenOptions::new()
-               .create(true)
-               .write(true)
-               .append(true)
-               .open(filename)
-               .unwrap()),
-        _ => None
-      } ;
-    drop(outfile) ; // Do something with this in the future
     DCG {
       flags : Flags {
         use_purity_optimization       : { match env::var("ADAPTON_NO_PURITY")  { Ok(_) => false, _ => true } },
@@ -1410,15 +1235,12 @@ impl Adapton for DCG {
         write_dcg                     : { match env::var("ADAPTON_WRITE_DCG")  { Ok(_) => true,  _ => false } },
         gmlog_dcg                     : { match env::var("ADAPTON_GMLOG_DCG")  { Ok(_) => true,  _ => false } },
       },
-      root  : root, // Todo-Next: Remove this
       table : table,
       stack : stack,
       path  : path,
       cnt   : Cnt::zero (),
       dcg_count : 0,
       dcg_hash : 0, // XXX This makes assumptions about hashing implementation
-      //gmfile : outfile,
-      //reflect : None,
     }
   }
                      
@@ -1443,7 +1265,6 @@ impl Adapton for DCG {
       let st = &mut *g.borrow_mut();
       let saved = st.path.clone();
       st.path = Rc::new(Path::Child(st.path.clone(), nm)) ; // Todo-Minor: Avoid this clone.
-      //println!("{:?}", st.path);
       saved
     };
     let x = body() ;
@@ -1472,7 +1293,7 @@ impl Adapton for DCG {
 
   fn put<T:Eq> (self:&mut DCG, x:T) -> AbsArt<T,Self::Loc> { AbsArt::Rc(Rc::new(x)) }
 
-  fn cell<T:Eq+Debug+Clone+Hash //+gm::GMLog<Self>
+  fn cell<T:Eq+Debug+Clone+Hash
     +'static // TODO-Later: Needed on T because of lifetime issues.
     >
     (self:&mut DCG, nm:Name, val:T) -> AbsArt<T,Self::Loc> {
@@ -1499,7 +1320,17 @@ impl Adapton for DCG {
             Node::Unused       => unreachable!()
           }} else                 { (false, false, None, true ) } 
       ;
-      
+      // - - - - - - - - - -
+      /// Begin an allocation.  Because this allocation may require
+      /// dirtying some allocation edges. (See value of bit
+      /// `do_dirty`, which is true when we are overwriting what was
+      /// once a computation with a value). This allocation may also
+      /// require dirtying some observers, when the new value is
+      /// different from the one that they last observed. (Similarly,
+      /// allocations that allocated a different value need to be
+      /// dirtied too).  Hence, this effect may contain other effects
+      /// to the DCG, namely, those dirtying steps.
+      // - - - - - - - 
       dcg_effect_begin!(
         reflect::trace::Effect::Alloc(
           if do_insert { reflect::trace::AllocCase::LocFresh } 
@@ -1525,10 +1356,8 @@ impl Adapton for DCG {
             val:val.clone(),
           })} ;
         self.cnt.create += 1;                    
-        //println!("create: {:?}", &loc);
         self.table.insert(loc.clone(), Box::new(node));
       } ;
-      //let stackLen = self.stack.len() ;
       if ! is_pure { match self.stack.last_mut() { 
         None => (),        
         Some(frame) => {
@@ -1537,7 +1366,6 @@ impl Adapton for DCG {
                  dep:Rc::new(Box::new(AllocDependency{val:val})),
                  effect:Effect::Allocate,
                  dirty:false};
-          //debug!("{} alloc cell: edge: {:?} --> {:?}", engineMsg(Some(stackLen)), &frame.loc, &loc);
           frame.succs.push(succ)
         }}} ;
       wf::check_dcg(self);
@@ -1576,12 +1404,6 @@ impl Adapton for DCG {
         let hash = my_hash (&(&prog_pt, &arg)) ;
         let loc = loc_of_id(current_path(self),
                             Rc::new(ArtId::Structural(hash)));
-        if false {
-          //debug!("{} alloc thunk: Structural {:?}\n{} ;; {:?}\n{} ;; {:?}",
-          // engineMsg!(self), &loc,
-          // engineMsg!(self), &prog_pt.symbol,
-          //engineMsg!(self), &arg);
-        } ;
         {   // If the node exists, return early.
           let node = self.table.get_mut(&loc);
           match node { None    => { },
@@ -1592,7 +1414,6 @@ impl Adapton for DCG {
         match self.stack.last_mut() {
           None => (),
           Some(frame) => {
-            //let pred = frame.loc.clone();
             let succ =
               Succ{loc:loc.clone(),
                    dep:Rc::new(Box::new(NoDependency)),
@@ -1600,17 +1421,12 @@ impl Adapton for DCG {
                    dirty:false};
             frame.succs.push(succ)
           }};
-        //println!("create: {:?} {:?} {:?}", &loc, &prog_pt, &arg);
         let producer : Box<Producer<Res>> =
           Box::new(App{prog_pt:prog_pt,
                        fn_box:fn_box,
                        arg:arg.clone(),
                        spurious:spurious.clone()})
           ;
-        if self.flags.gmlog_dcg {
-          // gm::startdframe(self, &format!("structural thunk {:?}", loc), None);
-          // gm::addnode(self, &format!("{:?}",loc), "structural-thunk", "", Some(&format!("thunk {:?}", &producer)));
-        } ;
         let node : CompNode<Res> = CompNode{
           preds:Vec::new(),
           succs:Vec::new(),
@@ -1628,10 +1444,6 @@ impl Adapton for DCG {
         wf::check_dcg(self);
         let loc = loc_of_id(current_path(self),
                             Rc::new(ArtId::Nominal(nm)));
-        //debug!("{} alloc thunk: Nominal {:?}\n{} ;; {:?}\n{} ;; {:?}",
-        //engineMsg!(self), &loc,
-        //engineMsg!(self), &prog_pt.symbol,
-        //engineMsg!(self), &arg);
         let producer : App<Arg,Spurious,Res> =
           App{prog_pt:prog_pt.clone(),
               fn_box:fn_box,
@@ -1639,7 +1451,6 @@ impl Adapton for DCG {
               spurious:spurious.clone(),
           }
         ;
-        //let stackLen = self.stack.len() ;
         let (do_dirty, do_insert) = { match self.table.get_mut( &loc ) {
           None => {
             // do_dirty=false; do_insert=true
@@ -1651,38 +1462,43 @@ impl Adapton for DCG {
             match ** res_nd {
               Node::Pure(_)=> unreachable!(),
               Node::Mut(_) => {
-                //panic!("TODO-Sometime: {:?}: Was mut, now a thunk: {:?} {:?}", &loc, prog_pt, &arg)
                 (true, true) // Todo: Do we need to preserve preds?
               },
               Node::Comp(ref mut comp_nd) => {
                 let equal_producer_prog_pts : bool =
                   comp_nd.producer.prog_pt().eq( producer.prog_pt() ) ;
-                //debug!("{} alloc thunk: Nominal match: equal_producer_prog_pts: {:?}",
-                // engineMsg(Some(stackLen)), equal_producer_prog_pts);
                 if equal_producer_prog_pts { // => safe cast to Box<Consumer<Arg>>
                   let app: &mut Box<App<Arg,Spurious,Res>> =
                     unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
                   ;
-                  //debug!("{} alloc thunk: Nominal match: app: {:?}", engineMsg(Some(stackLen)), app);
                   if app.get_arg() == arg {
                     // Case: Same argument; Nothing else to do:
                     // do_dirty=false; do_insert=false
                     (false, false)
                   }
                   else { // Case: Not the same argument:
-                    //debug!("{} alloc thunk: Nominal match: replacing {:?} ~~> {:?}",
-                    //       engineMsg(Some(stackLen)), app.get_arg(), arg);
                     app.consume(arg.clone()); // overwrite the old argument
                     comp_nd.res = None ; // clear the cache
                     // do_dirty=true; do_insert=false
                     (true, false)
                   }}
                 else {
-                  panic!("TODO-Sometime: Memozied functions not equal!\nFunction was: {:?} \tProducer: {:?}\nFunction now: {:?} \tProducer: {:?}\nCommon location: {:?}\nHint:Consider using distinct namespaces, via `Adapton::ns`\n",
+                  panic!("Memozied functions not equal!
+                            Function was: {:?}
+                           with Producer: {:?}
+
+                            Function now: {:?}
+                           with Producer: {:?}
+
+                        Common location: {:?}
+
+                        ** Hint: Consider using distinct namespaces, via `Adapton::ns`
+                           (See: http://adapton.org/rustdoc/adapton/engine/fn.ns.html)
+                        ",
                          comp_nd.producer.prog_pt(), &comp_nd.producer,
                          producer.prog_pt(), &producer,
                          &loc,
-                         )
+                  )
                 }
               },
               _ => unreachable!(),
@@ -1703,19 +1519,10 @@ impl Adapton for DCG {
             value:reflect::Val::ValTODO,
             dirty:false
           });
-
-        if do_dirty {
-          //debug!("{} alloc thunk: dirty_alloc {:?}.", engineMsg!(self), &loc);
-          dirty_alloc(self, &loc);
-        } else {
-          //debug!("{} alloc thunk: No dirtying.", engineMsg!(self))
-        } ;
-        
+        if do_dirty {dirty_alloc(self, &loc) };
         dcg_effect_end!();
 
         match self.stack.last_mut() { None => (), Some(frame) => {
-          //let pred = frame.loc.clone();
-          //debug!("{} alloc thunk: edge {:?} --> {:?}", engineMsg(Some(stackLen)), &pred, &loc);
           let succ =
             Succ{loc:loc.clone(),
                  dep:Rc::new(Box::new(AllocDependency{val:arg.clone()})),
@@ -1724,10 +1531,6 @@ impl Adapton for DCG {
           frame.succs.push(succ)
         }};
         if do_insert {
-          if self.flags.gmlog_dcg {
-            // gm::startdframe(self, &format!("nominal thunk {:?}", loc), None);
-            // gm::addnode(self, &format!("{:?}",loc), "nominal-thunk", "", Some(&format!("thunk {:?}", &producer)));
-          } ;
           let node : CompNode<Res> = CompNode{
             preds:Vec::new(),
             succs:Vec::new(),
@@ -1735,9 +1538,7 @@ impl Adapton for DCG {
             res:None,
           } ;
           self.cnt.create += 1;
-          //println!("create: {:?}", &loc);
-          self.table.insert(loc.clone(),
-                            Box::new(Node::Comp(node)));
+          self.table.insert(loc.clone(), Box::new(Node::Comp(node)));
           wf::check_dcg(self);
           AbsArt::Loc(loc)
         }
@@ -1777,9 +1578,7 @@ impl Adapton for DCG {
         } ;
         let result = match cached_result {
           None => {
-            //println!("force {:?}: cache empty", &loc);
             assert!(is_comp);
-            //drop(st);     
             dcg_effect_begin!(
               reflect::trace::Effect::Force(reflect::trace::ForceCase::CompCacheMiss),
               current_loc!(*g.borrow()),
@@ -1796,10 +1595,6 @@ impl Adapton for DCG {
           },
           Some(ref res) => {
             if is_comp {
-              ////debug!("{} force {:?}: cache holds {:?}.  Using change propagation.", engineMsg!(st), &loc, &res);
-              // ProducerDep change-propagation precondition:
-              // loc is a computational node:
-              //drop(st);
               dcg_effect_begin!(
                 reflect::trace::Effect::Force(reflect::trace::ForceCase::CompCacheHit),
                 current_loc!(*g.borrow()),
@@ -1812,7 +1607,6 @@ impl Adapton for DCG {
               );
               let _ = ProducerDep{res:res.clone()}.clean(g, &loc) ;
               dcg_effect_end!();
-              ////debug!("{} force {:?}: result changed?: {}", engineMsg!(self), &loc, res.changed) ;
               let st : &mut DCG = &mut *g.borrow_mut();
               let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
               match *node {
@@ -1825,7 +1619,6 @@ impl Adapton for DCG {
                 _ => unreachable!(),
               }}
             else {
-              ////debug!("{} force {:?}: not a computation. (no change prop necessary).", engineMsg!(self), &loc);
               dcg_effect!(
                 reflect::trace::Effect::Force(reflect::trace::ForceCase::RefGet),
                 current_loc!(*g.borrow()),
@@ -1849,10 +1642,6 @@ impl Adapton for DCG {
           frame.succs.push(succ);                  
         }}} ;
         wf::check_dcg(st);
-        // if self.flags.gmlog_dcg {
-        //gm::startdframe(self, &format!("force {:?}", loc), None);
-        //result.log_snapshot(self, &format!("{:?}",loc), None);
-        // }
         result
       }
     }}
@@ -1884,9 +1673,12 @@ pub struct Art<T> {
 
 #[derive(Clone)]
 enum EnumArt<T> {
-  Rc(Rc<T>),    // No entry in table. No dependency tracking.
-  Loc(Rc<Loc>), // Location in table.
-  Force(Rc<Force<T>>), // A closure that is 'force-able'
+  /// No entry in table. No dependency tracking.
+  Rc(Rc<T>),    
+  /// Location in table.
+  Loc(Rc<Loc>), 
+  /// A closure that is 'force-able'
+  Force(Rc<Force<T>>),
 }
 
 impl<T:Hash> Hash for EnumArt<T> {
@@ -2023,7 +1815,10 @@ pub fn name_pair (n1:Name, n2:Name) -> Name {
   Name{ hash:h, symbol:Rc::new(p) }
 }
 
-pub fn name_of_hash64(h:u64) -> Name {
+/// Do not call this function directly; we introduced it in order to
+/// get reflection to type-check.  We should think of ways to avoid
+/// using this in the future.
+fn name_of_hash64(h:u64) -> Name {
   // TODO: Get rid of need for Rc here; 
   // Rc should be optional in names?
   Name{ hash:h, symbol:Rc::new(NameSym::Hash64) }
@@ -2108,24 +1903,19 @@ pub fn structural<T,F> (body:F) -> T
     })    
   }
 
-/// Counts various engine cost metrics, returning a product of sums (`Cnt`)
-pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
-  where F:FnOnce() -> Res {
-    GLOBALS.with(|g| {
-      match g.borrow().engine {
-        Engine::DCG(ref dcg) => <DCG as Adapton>::cnt(dcg,body),
-        Engine::Naive => ((body)(), Cnt::zero())
-      }
-    })
-  }
-
-/// Creates immutable, eager articulation.
+/// Creates an unnamed, immutable reference cell (an eager `Art<_>`)
+/// whose content may not change over time.
 pub fn put<T:Eq+Debug+Clone> (val:T) -> Art<T> {
   Art{art:EnumArt::Rc(Rc::new(val))}
 }
 
-/// Creates a mutable articulation.
-pub fn cell<T:Hash+Eq+Debug+Clone> (n:Name, val:T) -> Art<T> {
+/// Creates a named reference cell (an eager `Art<_>`) whose content
+/// can change over time.
+///
+/// From the editor's perspective, this cell is mutable.  From the
+/// archivist's perspective, this cell is a "one-shot" reference cell:
+/// Once allocated, it is immutable.
+pub fn cell<T:Hash+Eq+Debug+Clone+'static> (n:Name, val:T) -> Art<T> {
   GLOBALS.with(|g| {
     match g.borrow().engine {
       Engine::DCG(ref dcg) => {
@@ -2156,7 +1946,42 @@ pub fn set<T:Eq+Debug+Clone> (a:&Art<T>, val:T) {
   }
 }
 
-/// Creates an articulated computation.
+/// Allocates a thunk, an `Art<T>` that consists of a suspended
+/// computation that produces a value of type `T`.
+///
+/// Use the macros `thunk!`, `memo!` and `eager!` to create and force
+/// thunks with less typing.
+///
+/// A full invocation of `thunk` consists of the following:
+///
+///  - It has an `id` of type `ArtIdChoice`, either giving a `Name`,
+///    requesting structural identity, or requesting no caching
+///    whatsoever.
+///
+///  - Its code resides at a _program point_, of type `ProgPt`.  This
+///    uniquely identifies the static elements of the suspended
+///    computation (the code, but not the closing environment).
+///
+///  - It has a function for this code, of type
+///    `Rc<Box<Fn(Art,Spurious) -> Res >>`.  The `Rc<_>` is required
+///    for cloning this function, which we generally want to do.  We
+///    divide the arguments into the ordinary arguments of type `Arg`,
+///    and additional "spurious" arguments.  When we judge whether a
+///    thunk's closing environment is equal to another, we use the
+///    type `Arg`.  When we judge whether the result of a thunk has
+///    changed or not, we use the type `Res`.
+///
+///  - Spurious arguments are not compared for equality, and are
+///    ignored during the memo-matching process.  They are, however,
+///    saved in the thunk and supplied to the suspended computation
+///    when it runs.  Typically, these arguments consist of
+///    higher-order functions that parameterize the thunk; we make
+///    them spurious because (1) we cannot, and do not wish to compare
+///    them for equality and (2) the triple of type (`ProgPt`,
+///    `ArtIdChoice`, `Arg`) should determine these spurious
+///    arguments, if any.  Because some arguments have no equality
+///    relation, the presence of these arguments is sometimes a
+///    necessary hack.
 pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+Debug+Clone+'static>
   (id:ArtIdChoice,
    prog_pt:ProgPt,
@@ -2181,8 +2006,8 @@ pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+
   })
 }
 
-/// Demand & observe arts (all kinds): force
-pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
+/// Demands and observes the value of an `&Art<T>`, returning a (cloned) value of type `T`.
+pub fn force<T:Hash+Eq+Debug+Clone+'static> (a:&Art<T>) -> T {
   match a.art {
     EnumArt::Force(ref f) => f.force(),
     EnumArt::Rc(ref rc) => (&**rc).clone(),
@@ -2197,20 +2022,665 @@ pub fn force<T:Hash+Eq+Debug+Clone> (a:&Art<T>) -> T {
   }
 }
 
-/// True iff the current engine is `Naive`
-pub fn engine_is_naive () -> bool {
-  GLOBALS.with(|g| {
-    match g.borrow().engine {
-      Engine::DCG(_) => false,
-      Engine::Naive  => true
-    }})    
+/// Operations that monitor and alter the active engine.  Incremental
+/// applications should not use these operations directly.
+pub mod manage {
+  use super::*;
+
+
+  /// Initializes global state with a fresh DCG-based engine; returns the old engine.
+  /// The DCG is the central implementation structure behind Adapton.
+  /// At a high level, it consists of a data dependence graph (the "demanded computation graph"), and an associated memoization table.
+  pub fn init_dcg () -> Engine { init_engine(Engine::DCG(RefCell::new(DCG::new()))) }
+  
+  /// Initializes global state with a ("fresh") Naive engine; returns the old engine.
+  /// The naive engine is stateless, and performs no memoization and builds no dependence graphs.
+  /// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
+  pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
+  
+  /// Initializes global state with a fresh DCG-based engine; returns the old engine
+  pub fn use_engine (engine: Engine) -> Engine {
+    use std::mem;
+    let mut engine = engine;
+    GLOBALS.with(|g| {
+      mem::swap(&mut g.borrow_mut().engine, &mut engine);
+    });
+    return engine
+  }
+  
+  /// alias for `use_engine`
+  pub fn init_engine (engine: Engine) -> Engine {
+    use_engine(engine)
+  }  
+  
+  /// Counts various engine cost metrics, returning a product of sums (`Cnt`)
+  pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
+    where F:FnOnce() -> Res {
+    GLOBALS.with(|g| {
+      match g.borrow().engine {
+        Engine::DCG(ref dcg) => <DCG as Adapton>::cnt(dcg,body),
+        Engine::Naive => ((body)(), Cnt::zero())
+      }
+    })
+  }
+
+  /// True iff the current engine is `Naive`
+  pub fn engine_is_naive () -> bool {
+    GLOBALS.with(|g| {
+      match g.borrow().engine {
+        Engine::DCG(_) => false,
+        Engine::Naive  => true
+      }})    
+  }
+  
+  /// True iff the current engine is a `DCG`
+  pub fn engine_is_dcg () -> bool {
+    GLOBALS.with(|g| {
+      match g.borrow().engine {
+        Engine::DCG(_) => true,
+        Engine::Naive  => false
+      }})
+  }
 }
 
-/// True iff the current engine is a `DCG`
-pub fn engine_is_dcg () -> bool {
-  GLOBALS.with(|g| {
-    match g.borrow().engine {
-      Engine::DCG(_) => true,
-      Engine::Naive  => false
-    }})
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+///
+/// Well-formedness tests; for documentation and for debugging.
+///
+mod wf {
+  use std::collections::HashMap;
+  use std::rc::Rc;
+  //use std::io;
+  use std::io::prelude::*;
+  use std::io::BufWriter;
+  use std::fs::File;
+  use macros::*;
+
+  use super::*;
+
+  #[derive(Eq,PartialEq,Clone)]
+  enum NodeStatus {
+    Dirty, Clean, Unknown
+  }
+
+  type Cs = HashMap<Rc<Loc>, NodeStatus> ;
+
+  fn add_constraint (cs:&mut Cs, loc:&Rc<Loc>, new_status: NodeStatus)
+  {
+    let old_status = match
+      cs.get(loc) { None => NodeStatus::Unknown,
+                    Some(x) => (*x).clone() } ;
+    match (old_status, new_status) {
+      (NodeStatus::Clean, NodeStatus::Dirty) |
+      (NodeStatus::Dirty, NodeStatus::Clean) => {
+        panic!("{:?}: Constrained to be both clean and dirty: Inconsistent status => DCG is not well-formed.")
+      },
+      (NodeStatus::Unknown, new_status) => { cs.insert(loc.clone(), new_status); () },
+      (old_status, NodeStatus::Unknown) => { cs.insert(loc.clone(), old_status); () },
+      (ref old_status, ref new_status) if old_status == new_status => { },
+      _ => unreachable!(),
+    }
+  }
+
+  // Constrains loc and all predecessors (transitive) to be dirty
+  fn dirty (st:&DCG, cs:&mut Cs, loc:&Rc<Loc>) {
+    add_constraint(cs, loc, NodeStatus::Dirty) ;
+    let node = match st.table.get(loc) { Some(x) => x, None => panic!("") } ;
+    for pred in node.preds_obs () {
+      // Todo: Assert that pred has a dirty succ edge that targets loc
+      let succ = super::get_succ(st, &pred, super::Effect::Observe, loc) ;
+      if succ.dirty {} else {
+        debug_dcg(st);
+        write_next_dcg(st, None);
+        panic!("Expected dirty edge, but found clean edge: {:?} --Observe--dirty:!--> {:?}", &pred, loc);
+      } ; // The edge is dirty.
+      dirty(st, cs, &pred)                
+    }
+  }
+
+  // Constrains loc and all successors (transitive) to be clean
+  fn clean (st:&DCG, cs:&mut Cs, loc:&Rc<Loc>) {
+    add_constraint(cs, loc, NodeStatus::Clean) ;
+    let node = match st.table.get(loc) {
+      Some(x) => x,
+      None => { panic!("dangling: {:?}", loc) }
+    } ;
+    if ! node.succs_def () { return } ;
+    for succ in node.succs () {
+      let succ = super::get_succ(st, loc, super::Effect::Observe, &succ.loc) ;
+      assert!( ! succ.dirty ); // The edge is clean.
+      clean(st, cs, &succ.loc)
+    }
+  }
+
+  pub fn check_dcg (st:&mut DCG) {
+    if st.flags.write_dcg {
+      let dcg_hash = my_hash(format!("{:?}",st.table)); // XXX: This assumes that the table's debugging string identifies it uniquely
+      if dcg_hash != st.dcg_hash {
+        println!("adapton: dcg #{} hash: {:?}", st.dcg_count, dcg_hash);
+        st.dcg_hash = dcg_hash;
+        let dcg_count = st.dcg_count;
+        st.dcg_count += 1;
+        write_next_dcg(st, Some(dcg_count));
+      }
+    } ;
+    if st.flags.check_dcg_is_wf {
+      let mut cs = HashMap::new() ;
+      for frame in st.stack.iter() {
+        clean(st, &mut cs, &frame.loc)
+      }
+      for (loc, node) in &st.table {
+        if ! node.succs_def () { continue } ;
+        for succ in node.succs () {
+          if succ.dirty {
+            dirty(st, &mut cs, loc)
+          }
+        }
+      }        
+    }}
+
+  pub fn write_next_dcg (st:&DCG, num:Option<usize>) {
+    let name = match num {
+      None => format!("adapton-dcg.dot"),
+      Some(n) => format!("adapton-dcg-{:08}.dot", n),
+    } ;
+    let mut file = File::create(name).unwrap() ;
+    write_dcg_file(st, &mut file);
+  }
+  
+  pub fn write_dcg_file (st:&DCG, file:&mut File) {
+    let mut writer = BufWriter::new(file);
+    writeln!(&mut writer, "digraph {{\n").unwrap();
+    writeln!(&mut writer, "ordering=out;").unwrap();
+    //let mut frame_num = 0;
+    for frame in st.stack.iter() {
+      writeln!(&mut writer, "\"{:?}\" [color=blue,penwidth=10];", frame.loc);
+      for succ in frame.succs.iter() {
+        writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=blue,weight=10,penwidth=10];", &frame.loc, &succ.loc).unwrap();
+      }
+      //frame_num += 1;
+    };
+    for (loc, node) in &st.table {
+      if ! node.succs_def () {
+        writeln!(&mut writer, "\"{:?}\" [shape=box];", loc).unwrap();
+        continue;
+      } ;
+      for succ in node.succs () {
+        if succ.dirty {
+          writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=red,weight=5,penwidth=5];", &loc, &succ.loc).unwrap();
+        } else {
+          let (weight, penwidth, color) =
+            match succ.effect {
+              super::Effect::Observe => (0.1, 1, "grey"),
+              super::Effect::Allocate => (2.0, 3, "darkgreen") } ;
+          writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [weight={},penwidth={},color={}];",
+                   &loc, &succ.loc, weight, penwidth, color).unwrap();
+        }
+      }
+    }
+    writeln!(&mut writer, "}}\n").unwrap();
+  }
+  
+  pub fn debug_dcg (st:&DCG) {
+    let prefix = "debug_dcg::stack: " ;
+    let mut frame_num = 0;
+    for frame in st.stack.iter() {
+      println!("{} frame {}: {:?}", prefix, frame_num, frame.loc);
+      for succ in frame.succs.iter() {
+        println!("{} frame {}: \t\t {:?}", prefix, frame_num, &succ);
+      }
+      frame_num += 1;
+    }
+    let prefix = "debug_dcg::table: " ;
+    for (loc, node) in &st.table {
+      println!("{} {:?} ==> {:?}", prefix, loc, node);
+      if ! node.succs_def () { continue } ;
+      for succ in node.succs () {
+        println!("{}\t\t{:?}", prefix, succ);
+      }
+    }      
+  }
+
+  // XXX Does not catch errors in IC_Edit that I expected it would
+  // XXX Not sure if it works as I expected
+  pub fn check_stack_is_clean (st:&DCG) {
+    let stack = st.stack.clone() ;
+    for frame in stack.iter() {
+      let node = match st.table.get(&frame.loc) {
+        Some(x) => x,
+        None => { panic!("dangling: {:?}", &frame.loc) }
+      } ;
+      if ! node.succs_def () { return } ;
+      for succ in node.succs () {
+        let succ = super::get_succ(st, &frame.loc, succ.effect.clone(), &succ.loc) ;
+        assert!( succ.dirty ); // The edge is clean.
+      }
+    }
+  }
+}
+
+/// Parses the output of Rust `Debug` strings into reflected `Val`
+/// values.  We use this parse as a non-intrusive mechanism for
+/// building the values in the reflected DCG, which consists of
+/// crawing user-defined data structures, and following their
+/// articulations. We use the values' `Debug` strings to do this
+/// traversal.
+mod parse_val {
+  use std::rc::Rc;
+  use adapton::engine::reflect::{Loc,Path,Val,ArtContent,Const};
+  use adapton::engine::{Name, name_of_str, name_of_string};
+
+  /// _Balanced tokens_: Tokens that must be balanced with a left and
+  /// right instance and well-nested balanced tokens between them.
+  #[derive(Debug, Eq, PartialEq)]
+  pub enum BalTok {
+    Paren, 
+    Bracket, 
+    Brace
+  }
+
+  // #[derive(Debug, Eq, PartialEq)]
+  // pub enum Const {
+  //   Nat(usize),
+  //   String(String),
+  // }
+
+  /// _Tokens_: The unit of input for parsing Rust `Debug` strings
+  /// into reflected `Val` values.
+  #[derive(Debug, Eq, PartialEq)]
+  pub enum Tok {
+    /// Left (and right) balanced tokens
+    Left(BalTok), 
+    /// Right (and left) balanced tokens
+    Right(BalTok),
+    /// Constant values that can immediately be injected into reflected `Val` type
+    Const(Const),
+    /// Identifers name fields of structs and constructors (of enums and structs)
+    Ident(String),
+    /// Colons separate field names from field values in structs.  Co
+    Colon,
+    /// Commas separate arguments to a constructor; for struct constructors, they separate fields
+    Comma, 
+  }
+
+  /// Tokenize the characters of input into lexical tokens of type `Tok`
+  pub fn lex (mut chars: Vec<u8>) -> Vec<Tok> {
+    let mut toks = vec![];
+    chars.reverse(); // TODO rewrite to avoid this
+    loop {
+      match chars.pop() {
+        None => return toks,
+        Some(c) => {
+          let c : char = c as char ;
+          if      c == ' ' { continue }
+          else if c == ':' { toks.push(Tok::Colon); continue }
+          else if c == ',' { toks.push(Tok::Comma); continue }
+          else if c == '{' { toks.push(Tok::Left (BalTok::Brace));   continue }
+          else if c == '[' { toks.push(Tok::Left (BalTok::Bracket)); continue }
+          else if c == '(' { toks.push(Tok::Left (BalTok::Paren));   continue }
+          else if c == '}' { toks.push(Tok::Right(BalTok::Brace));   continue }
+          else if c == ']' { toks.push(Tok::Right(BalTok::Bracket)); continue }
+          else if c == ')' { toks.push(Tok::Right(BalTok::Paren));   continue }
+          else if c == '"' {
+            let mut string_chars = vec![];
+            loop {
+              match chars.pop() {
+                None => break,
+                Some(c) => {
+                  let c : char = c as char ;
+                  if c == '"' { break } else { 
+                    string_chars.push(c);
+                    continue 
+                  }
+                }
+              }
+            };
+            toks.push(Tok::Const(Const::String( 
+              string_chars.into_iter().collect() 
+            )));
+            continue
+          }
+          else if c == '-' || (c >= '0' && c <= '9') {
+            let mut digs = vec![c];
+            loop {
+              match chars.pop() {
+                None    => break,
+                Some(c) => { 
+                  let c : char = c as char ;
+                  if c >= '0' && c <= '9' { 
+                    digs.push(c); 
+                    continue 
+                  } else { 
+                    chars.push(c as u8); 
+                    break 
+                  }
+                }
+              }
+            };
+            if c == '-' {
+              let s : String = digs.into_iter().collect();
+              toks.push(Tok::Const(Const::Num( 
+                isize::from_str_radix(s.as_str(), 10).unwrap()
+              )));              
+            } else {
+              let s : String = digs.into_iter().collect();
+              toks.push(Tok::Const(Const::Nat( 
+                usize::from_str_radix(s.as_str(), 10).unwrap()
+              )));
+            }
+            continue
+          }
+          else if (c >= 'a' && c <= 'z') ||
+            (c >= 'A' && c <= 'Z') ||
+            (c == '_') 
+          {
+            let mut ident = vec![c];
+            loop {
+              match chars.pop() {
+                None    => break,
+                Some(c) => { 
+                  let c : char = c as char ;
+                  if (c >= 'a' && c <= 'z') ||
+                    (c >= 'A' && c <= 'Z') ||
+                    (c >= '0' && c <= '9') ||
+                    (c == '_')  
+                  {
+                    ident.push(c); 
+                    continue 
+                  } else { 
+                    chars.push(c as u8); 
+                    break 
+                  }
+                }
+              }
+            };
+            toks.push(Tok::Ident( ident.into_iter().collect() ));
+            continue           
+          }
+        }
+      }
+    } ;
+    return toks
+  }
+
+  /// Parse a sequence of fields (appending to `fields`) until right
+  /// balanced token `bal`.  Return fields and remaining tokens.
+  pub fn parse_fields (mut toks:Vec<Tok>, mut fields:Vec<(Name, Val)>, bal:Tok) -> (Vec<(Name, Val)>, Vec<Tok>) {
+    match toks.pop() {
+      None => panic!("parse_vals: expected more vals, or end of sequence; but no more tokens"),
+      Some(t) => {
+        if t == bal { (fields, toks) } 
+        else if t == Tok::Comma { 
+          return parse_fields(toks, fields, bal)
+        } else {
+          match t {
+            Tok::Ident(i) => {
+              let toks = expect_tok(toks, Tok::Colon);
+              let (v, toks) = parse_val_rec(toks);
+              fields.push((name_of_string(i), v));
+              return parse_fields(toks, fields, bal)
+            }
+            t => {
+              panic!("parse_fields: expected identifier, but found {:?}", t)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /// Parse a sequence of values (appending to `vals`) until right
+  /// balanced token `bal`.  Return fields and remaining tokens.
+  pub fn parse_vals (mut toks:Vec<Tok>, mut vals:Vec<Val>, bal:Tok) -> (Vec<Val>, Vec<Tok>) {
+    match toks.pop() {
+      None => panic!("parse_vals: expected more vals, or end of sequence; but no more tokens"),
+      Some(t) => {
+        if t == bal { (vals, toks) } 
+        else if t == Tok::Comma { 
+          return parse_vals(toks, vals, bal)
+        } 
+        else {
+          toks.push(t);
+          let (v, toks) = parse_val_rec(toks);
+          vals.push(v);
+          return parse_vals(toks, vals, bal)
+        }
+      }
+    }
+  }
+
+  /// Expect next token to be `tok` and panic otherwise.
+  pub fn expect_tok (mut toks: Vec<Tok>, tok:Tok) -> Vec<Tok> {
+    match toks.pop() {
+      None => panic!("expected token `{:?}`, but, no more tokens", tok),
+      Some(t) => {
+        if t == tok { toks } 
+        else { panic!("expected token `{:?}`, but instead found token `{:?}`", tok, t) }
+      }
+    }
+  }
+
+  pub fn parse_val(mut toks:Vec<Tok>) -> Val {
+    toks.reverse();
+    let (v, toks) = parse_val_rec(toks);
+    assert!(toks.len() == 0);
+    v
+  }
+
+  pub fn path_of_val ( p:&Val ) -> Path {
+    match *p {
+      Val::Vec( ref vs ) => vs.iter().map( name_of_val ).collect(),
+      _ => panic!("expected a vector of values representing names"),
+    }
+  }
+
+  pub fn name_of_val ( n:&Val ) -> Name {
+    use engine::*;
+
+    match *n {
+      Val::Constr( ref cons_name, ref cons_args ) => {
+        if *cons_name == name_of_str("Root") {
+          name_unit()
+        }
+        else if *cons_name == name_of_str("Hash64") {
+          name_of_hash64( 0 ) // TODO/XXX
+        }
+        else if *cons_name == name_of_str("String") {
+          name_of_string( match cons_args[0] {
+            Val::Const( Const::String( ref s ) ) => s.clone(),
+            _ => panic!("expected a String"),
+          })
+        }
+        else if *cons_name == name_of_str("Usize") {
+          name_of_usize( match cons_args[0] {
+            Val::Const( Const::Nat( ref n ) ) => n.clone(),
+            _ => panic!("expected a Nat"),
+          })
+        }
+        else if *cons_name == name_of_str("Isize") {
+          panic!("")
+        }
+        else if *cons_name == name_of_str("Pair") {
+          let n1 = name_of_val( & cons_args[0] );
+          let n2 = name_of_val( & cons_args[1] );
+          name_pair(n1, n2)
+        }
+        else if *cons_name == name_of_str("ForkL") {
+          let n = name_of_val( & cons_args[0] );
+          name_fork(n).0
+        }
+        else if *cons_name == name_of_str("ForkR") {
+          let n = name_of_val( & cons_args[0] );
+          name_fork(n).1
+        }
+        else {
+          unreachable!()
+        }        
+      },
+      Val::Name(ref n) => n.clone(),
+      _ => panic!("expected a constructor for a NameSym")
+    }
+  }
+
+  pub fn name_option_of_val ( n:&Val ) -> Option<Name> {
+    use engine::*;
+    
+    match *n {
+      Val::Constr( ref cons_name, ref cons_args ) => {
+        if *cons_name == name_of_str("Root") {
+          Some(name_unit())
+        }
+        else if *cons_name == name_of_str("Hash64") {
+          Some(name_of_hash64( 0 )) // XXX \ TODO -- We are actually missing the hash here!
+        }
+        else if *cons_name == name_of_str("String") {
+          if cons_args.len() < 1 { None } else {
+            match cons_args[0] {            
+              Val::Const( Const::String( ref s ) ) => 
+                Some(name_of_string( s.clone() )),
+              _ => None,
+            }}
+        }
+        else if *cons_name == name_of_str("Usize") {
+          if cons_args.len() < 1 { None } else {
+            match cons_args[0] {          
+              Val::Const( Const::Nat( ref n ) ) => Some( name_of_usize( n.clone() ) ),
+              _ => None,
+            }}
+        }
+        else if *cons_name == name_of_str("Isize") {
+          panic!("TODO")
+        }
+        else if *cons_name == name_of_str("Pair") {          
+          if cons_args.len() < 2 { None } else {
+            let n1 = name_option_of_val( & cons_args[0] );
+            let n2 = name_option_of_val( & cons_args[1] );
+            if cons_args.len() < 2 { None } else {
+              match (n1,n2) {
+                (Some(n1),Some(n2)) => Some(name_pair(n1, n2)),
+                (_, _) => None,
+              }}}
+        }
+        else if *cons_name == name_of_str("ForkL") {
+          if cons_args.len() < 1 { None } else {
+            let n = name_option_of_val( & cons_args[0] );
+            match n {
+              None => None,
+              Some(n) => Some(name_fork(n).0)
+            }}
+        }
+        else if *cons_name == name_of_str("ForkR") {
+          if cons_args.len() < 1 { None } else {
+            let n = name_option_of_val( & cons_args[0] );
+            match n {
+              None => None,
+              Some(n) => Some(name_fork(n).1)
+            }}
+        }
+        else { None }
+      },
+      Val::Name(ref n) => Some(n.clone()),
+      _ => None,
+    }
+  }
+ 
+
+  /// Attempts to parse a reflected value into an `Art` value case,
+  /// which consists of parsing a location represented as a `Val`
+  /// structure into a `Loc` represented as a Rust data type (in the
+  /// `reflect` module).  If it fails to parse a value into an art, it
+  /// returns None.
+  pub fn parse_art_val ( i:&String, fields:&Vec<(Name, Val)> ) -> Option<Val> {
+    if i == "Art" && fields.len() == 1 { 
+      match fields[0] { 
+        (ref nf, ref vf) =>
+          if *nf == name_of_str("art") {
+            // OK: it's a struct called Art with exactly one field
+            // called art.  We are going to parse this into an Art.
+
+            match *vf { 
+              Val::Struct( ref j, ref ws ) => 
+                if *j == name_of_str("Loc") 
+                && ws.len() == 2
+                && ws[0].0 == name_of_str("path") 
+                && ws[1].0 == name_of_str("id")
+              {
+                // Now we are confident that the rest ought to parse.
+                // Any further parse errors are panics.
+                let path = path_of_val( & ws[0].1 );
+                let name = name_of_val( & ws[1].1 );
+                Some( Val::Art(Loc{path:path, name:name}, ArtContent::Unknown) )
+              } 
+
+
+              else { 
+                None 
+              },
+              _ => None,
+            }
+          } else { None }
+      }} else { None }           
+  }
+
+  /// Parse a value from the tokens `toks` and return it.  Panic if the next tokens do not parse into value.
+  pub fn parse_val_rec (mut toks:Vec<Tok>) -> (Val, Vec<Tok>) {
+    //println!("{:?}", toks);
+    let (v, toks) = match toks.pop() {
+      None => panic!("expected value; but, no more tokens"),
+      Some(Tok::Right(r)) => panic!("expected value, but found {:?} instead", Tok::Right(r)),
+      Some(Tok::Comma) => panic!("expected value, but found Comma instead"),
+      Some(Tok::Colon) => panic!("expected value, but found Colon instead"),
+      Some(Tok::Left(BalTok::Bracket)) => {
+        // Parse a vector: Begins with '[', then a list of comma-separated values, then ']'.
+        let (vs, toks) = parse_vals(toks, vec![], Tok::Right(BalTok::Bracket));
+        (Val::Vec(vs), toks)
+      },
+      Some(Tok::Left(BalTok::Paren)) => {
+        // Parse a tuple: Begins with '(', then a list of comma-separated values, then ')'.
+        let (vs, toks) = parse_vals(toks, vec![], Tok::Right(BalTok::Paren));
+        (Val::Tuple(vs), toks)
+      },
+      Some(Tok::Left(l)) => panic!("expected value, but found {:?} instead", Tok::Left(l)),     
+      Some(Tok::Ident(i)) => {
+        match toks.pop() {
+          None => {
+            // Constructors with no arguments (e.g., Nil)
+            (Val::Constr(name_of_string(i), vec![]), toks)
+          }
+          Some(Tok::Left(BalTok::Brace)) => {
+            //println!("parsing struct: {:?}", i);
+            let (fields, toks) = parse_fields(toks, vec![], Tok::Right(BalTok::Brace));
+            let art_op = parse_art_val(&i, &fields);
+            let mut v = match art_op {
+              Some(a) => a,
+              None => Val::Struct(name_of_string(i.clone()), fields.clone())
+            };    
+            (v, toks)
+          }
+          Some(Tok::Left(BalTok::Paren)) => {
+            //println!("parsing constructor: {:?}", i);
+            let (vs, toks) = parse_vals(toks, vec![], Tok::Right(BalTok::Paren));
+            let v = Val::Constr(name_of_string(i), vs);
+            match name_option_of_val(&v) {
+              Some(n) => (Val::Name(n), toks),
+              None => (v, toks)
+            }
+          },
+          Some(Tok::Comma) => {
+            toks.push(Tok::Comma);
+            (Val::Constr(name_of_string(i), vec![]), toks)
+          },
+          Some(Tok::Right(baltok)) => {
+            toks.push(Tok::Right(baltok));
+            (Val::Constr(name_of_string(i), vec![]), toks)
+          },
+          Some(t) => {
+            panic!("expected left balanced token, or comma, but instead found token {:?}", t)
+          }}},
+        Some(Tok::Const(Const::Nat(n)))    => (Val::Const(Const::Nat(n)), toks),
+        Some(Tok::Const(Const::Num(n)))    => (Val::Const(Const::Num(n)), toks),
+        Some(Tok::Const(Const::String(s))) => (Val::Const(Const::String(s)), toks)
+    };
+    (v,toks)
+  }
 }
