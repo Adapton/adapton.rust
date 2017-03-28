@@ -44,7 +44,7 @@ use std::fmt::Write;
 use macros::*;
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
-thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
+thread_local!(static UNIT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Unit) });
 
 struct TraceSt { stack:Vec<Box<Vec<reflect::trace::Trace>>>, }
 
@@ -409,7 +409,7 @@ impl Clone for     DCG { fn clone(&self) -> Self { unimplemented!() } }
 /// Edition. Harper 2016: http://www.cs.cmu.edu/~rwh/pfpl
 #[derive(Hash,PartialEq,Eq,Clone,Debug)]
 enum NameSym {
-  Root,           // Unit value for name symbols
+  Unit,           // Unit value for name symbols
   Hash64,        // Hashes (for structural names); hash stored in name struct
   String(String), // Strings encode globally-unique symbols.
   Usize(usize),   // USizes encode globally-unique symbols.
@@ -421,7 +421,7 @@ enum NameSym {
 
 fn write_namesym<W:Write>(w:&mut W, n:&NameSym) -> Result {
   match *n {
-    NameSym::Root => write!(w, "/"),
+    NameSym::Unit => write!(w, "▲"),
     NameSym::Hash64 => write!(w, "(Hash64)"),
     NameSym::String(ref s) => write!(w, "{}", s),
     NameSym::Usize(ref n) => write!(w, "{}", n),
@@ -1805,7 +1805,7 @@ impl<A:PartialEq,S,T> PartialEq for NaiveThunk<A,S,T> {
 
 /// Create a name from unit, that is, create a "leaf" name.
 pub fn name_unit () -> Name {
-  ROOT_NAME.with(|r|r.clone())
+  UNIT_NAME.with(|r|r.clone())
 }
 
 /// Create one name from two (binary name composition)
@@ -2479,7 +2479,7 @@ mod parse_val {
 
     match *n {
       Val::Constr( ref cons_name, ref cons_args ) => {
-        if *cons_name == name_of_str("Root") {
+        if *cons_name == name_of_str("Unit") {
           name_unit()
         }
         else if *cons_name == name_of_str("Hash64") {
@@ -2527,7 +2527,7 @@ mod parse_val {
     
     match *n {
       Val::Constr( ref cons_name, ref cons_args ) => {
-        if *cons_name == name_of_str("Root") {
+        if *cons_name == name_of_str("Unit") {
           Some(name_unit())
         }
         else if *cons_name == name_of_str("Hash64") {
