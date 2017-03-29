@@ -1103,6 +1103,7 @@ fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
       let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
       if succ.dirty { true } else {
         dirty_edge_count += 1 ;
+        assert!(&pred_loc != loc);
         dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
         replace(&mut succ.dirty, true);
         false
