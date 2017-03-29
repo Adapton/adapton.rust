@@ -1336,7 +1336,11 @@ impl Adapton for DCG {
       dcg_effect_begin!(
         reflect::trace::Effect::Alloc(
           if do_insert { reflect::trace::AllocCase::LocFresh } 
-          else { reflect::trace::AllocCase::LocExists },
+          else { 
+              let cf = 
+                  if do_dirty { reflect::trace::ChangeFlag::ContentDiff } 
+              else { reflect::trace::ChangeFlag::ContentSame };
+              reflect::trace::AllocCase::LocExists(cf) },
           reflect::trace::AllocKind::RefCell,
         ),
         current_loc!(self),
@@ -1510,9 +1514,13 @@ impl Adapton for DCG {
 
         dcg_effect_begin!(
           reflect::trace::Effect::Alloc(
-            if do_insert { reflect::trace::AllocCase::LocFresh }
-            else { reflect::trace::AllocCase::LocExists },
-            reflect::trace::AllocKind::Thunk
+            if do_insert { reflect::trace::AllocCase::LocFresh }              
+            else { 
+                let cf = 
+                    if do_dirty { reflect::trace::ChangeFlag::ContentDiff } 
+                    else { reflect::trace::ChangeFlag::ContentSame };
+                reflect::trace::AllocCase::LocExists(cf) },
+              reflect::trace::AllocKind::Thunk
           ),
           current_loc!(self),
           reflect::Succ{

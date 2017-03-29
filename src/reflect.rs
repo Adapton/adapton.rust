@@ -263,7 +263,13 @@ pub mod trace {
     /// The allocation matched the location of a prior allocation. its
     /// content may or may not also match.  The `bool` indicates the two
     /// cases: `true` means same content, `false` means changed content.
-    LocExists,
+    LocExists(ChangeFlag),      
+  }
+
+  #[derive(Clone,Debug)]
+  pub enum ChangeFlag {
+      ContentDiff,
+      ContentSame,
   }
 
   /// Distinguish ref cell allocations from thunk allocations
