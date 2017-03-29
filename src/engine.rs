@@ -1124,6 +1124,7 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
       let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
       if succ.dirty { true } else {
         replace(&mut succ.dirty, true);
+        assert!(&pred_loc != loc);
         dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
         false
       }} ;
