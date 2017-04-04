@@ -156,6 +156,15 @@ pub struct Succ {
   pub effect: Effect,
   /// The value either produced or consumed by this `Effect`
   pub value:  Val,
+  /// Duplicate edge invariant: If this edge is a duplicate according
+  /// to this flag, then it is preceded by an edge with the same
+  /// effect `effect`, targeting the same location `loc`.
+  /// Furthermore, because of the (precise naming) semantics of
+  /// Adapton and its programs, the observed value `value` and `dirty`
+  /// statuses are always the same across duplicated edges.  Hence,
+  /// the engine does not store these duplicate edges: They are
+  /// completely redundant.
+  pub is_dup: bool,
 }
 
 // Note: Can't implement Reflect<T> for T, since that conflicts with

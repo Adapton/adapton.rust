@@ -502,6 +502,7 @@ impl reflect::Reflect<reflect::Succ> for Succ {
       loc:self.loc.reflect(),
       effect:self.effect.reflect(),
       value:reflect::Val::ValTODO,
+      is_dup:false, // XXX -- Actually: Not checked here.
     }
   }
 }
@@ -1039,6 +1040,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
             dirty:true,
             effect:reflect::Effect::Force,
             value:reflect::Val::ValTODO,
+            is_dup:false, // XXX -- Actually: Not checked here.
           }
         );
         let res = loc_produce( g, loc );
@@ -1348,7 +1350,9 @@ impl Adapton for DCG {
           loc:loc.reflect(), 
           effect:reflect::Effect::Alloc, 
           value:reflect::Val::ValTODO, 
-          dirty:false}
+          dirty:false,
+          is_dup:false, // XXX -- Actually: Not checked here.
+        }
       );      
       if do_dirty { dirty_alloc(self, &loc) } ;
       if do_set { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } ;
@@ -1527,7 +1531,8 @@ impl Adapton for DCG {
             loc:loc.reflect(),
             effect:reflect::Effect::Alloc,
             value:reflect::Val::ValTODO,
-            dirty:false
+            dirty:false,
+            is_dup:false, // XXX -- Actually: Not checked here.
           });
         if do_dirty {dirty_alloc(self, &loc) };
         dcg_effect_end!();
@@ -1571,18 +1576,26 @@ impl Adapton for DCG {
     match *art {
       AbsArt::Rc(ref v) => (**v).clone(),
       AbsArt::Loc(ref loc) => {
-        let (is_comp, is_pure, cached_result) : (bool, bool, Option<T>) = {
+        let (is_comp, is_dup, is_pure, cached_result) : (bool, bool, bool, Option<T>) = {
           let st : &mut DCG = &mut *g.borrow_mut();
           let is_pure_opt : bool = st.flags.use_purity_optimization ;
+          let is_dup : bool = match st.stack.last_mut() { None => false, Some(frame) => {
+              let mut is_dup = false; // XXX -- Actually: unknown and does not matter.
+              for succ in frame.succs.iter() { 
+                  if &succ.loc == loc && succ.effect == Effect::Observe 
+                  { is_dup = true }
+              };
+              is_dup
+          }};
           let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
           match *node {
-            Node::Pure(ref mut nd) => (false, true, Some(nd.val.clone())),
-            Node::Mut(ref mut nd)  => (false, false, Some(nd.val.clone())),
+            Node::Pure(ref mut nd) => (false, is_dup, true, Some(nd.val.clone())),
+            Node::Mut(ref mut nd)  => (false, is_dup, false, Some(nd.val.clone())),
             Node::Comp(ref mut nd) => {
               let is_pure = match *loc.id {
                 ArtId::Structural(_) => nd.succs.len() == 0 && is_pure_opt,
                 ArtId::Nominal(_)    => false } ;
-              (true, is_pure, nd.res.clone()) },
+              (true, is_dup, is_pure, nd.res.clone()) },
             _ => panic!("undefined")
           }
         } ;
@@ -1596,9 +1609,11 @@ impl Adapton for DCG {
                 loc:loc.reflect(),
                 value:reflect::Val::ValTODO,
                 effect:reflect::Effect::Force,
-                dirty:false
+                dirty:false,
+                is_dup:is_dup,
               }
             );
+            assert_eq!(is_dup, false);
             let res = loc_produce(g, &loc);
             dcg_effect_end!();
             res
@@ -1612,7 +1627,8 @@ impl Adapton for DCG {
                   loc:loc.reflect(),
                   value:reflect::Val::ValTODO,
                   effect:reflect::Effect::Force,
-                  dirty:false
+                  dirty:false,
+                  is_dup:is_dup,
                 }
               );
               let _ = ProducerDep{res:res.clone()}.clean(g, &loc) ;
@@ -1636,14 +1652,15 @@ impl Adapton for DCG {
                   loc:loc.reflect(),
                   value:reflect::Val::ValTODO,
                   effect:reflect::Effect::Force,
-                  dirty:false
+                  dirty:false,
+                  is_dup:is_dup,
                 });
               res.clone()
             }
           }
         } ;
         let st : &mut DCG = &mut *g.borrow_mut() ;
-        if !is_pure { match st.stack.last_mut() { None => (), Some(frame) => {
+        if !is_dup && !is_pure { match st.stack.last_mut() { None => (), Some(frame) => {
           let succ =
             Succ{loc:loc.clone(),
                  dep:Rc::new(Box::new(ProducerDep{res:result.clone()})),
