@@ -2065,7 +2065,7 @@ pub mod manage {
   /// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
   pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
   
-  /// Initializes global state with a fresh DCG-based engine; returns the old engine
+  /// Switch to using the given `Engine`; returns the `Engine` that was in use.
   pub fn use_engine (engine: Engine) -> Engine {
     use std::mem;
     let mut engine = engine;
