@@ -45,7 +45,7 @@ use std::fmt::Write;
 use macros::*;
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
-thread_local!(static ROOT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Root) });
+thread_local!(static UNIT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Unit) });
 
 struct TraceSt { stack:Vec<Box<Vec<reflect::trace::Trace>>>, }
 
@@ -410,7 +410,7 @@ impl Clone for     DCG { fn clone(&self) -> Self { unimplemented!() } }
 /// Edition. Harper 2016: http://www.cs.cmu.edu/~rwh/pfpl
 #[derive(Hash,PartialEq,Eq,Clone,Debug)]
 enum NameSym {
-  Root,           // Unit value for name symbols
+  Unit,           // Unit value for name symbols
   Hash64,        // Hashes (for structural names); hash stored in name struct
   String(String), // Strings encode globally-unique symbols.
   Usize(usize),   // USizes encode globally-unique symbols.
@@ -422,7 +422,7 @@ enum NameSym {
 
 fn write_namesym<W:Write>(w:&mut W, n:&NameSym) -> Result {
   match *n {
-    NameSym::Root => write!(w, "/"),
+    NameSym::Unit => write!(w, "▲"),
     NameSym::Hash64 => write!(w, "(Hash64)"),
     NameSym::String(ref s) => write!(w, "{}", s),
     NameSym::Usize(ref n) => write!(w, "{}", n),
@@ -504,6 +504,7 @@ impl reflect::Reflect<reflect::Succ> for Succ {
       loc:self.loc.reflect(),
       effect:self.effect.reflect(),
       value:reflect::Val::ValTODO,
+      is_dup:false, // XXX -- Actually: Not checked here.
     }
   }
 }
@@ -1063,6 +1064,7 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
             dirty:true,
             effect:reflect::Effect::Force,
             value:reflect::Val::ValTODO,
+            is_dup:false, // XXX -- Actually: Not checked here.
           }
         );
         let res = loc_produce( g, loc );
@@ -1127,6 +1129,7 @@ fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
       let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
       if succ.dirty { true } else {
         dirty_edge_count += 1 ;
+        assert!(&pred_loc != loc);
         dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
         replace(&mut succ.dirty, true);
         false
@@ -1148,6 +1151,7 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
       let succ = get_succ_mut(st, &pred_loc, Effect::Allocate, &loc) ;
       if succ.dirty { true } else {
         replace(&mut succ.dirty, true);
+        assert!(&pred_loc != loc);
         dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
         false
       }} ;
@@ -1358,7 +1362,11 @@ impl Adapton for DCG {
       dcg_effect_begin!(
         reflect::trace::Effect::Alloc(
           if do_insert { reflect::trace::AllocCase::LocFresh } 
-          else { reflect::trace::AllocCase::LocExists },
+          else { 
+              let cf = 
+                  if do_dirty { reflect::trace::ChangeFlag::ContentDiff } 
+              else { reflect::trace::ChangeFlag::ContentSame };
+              reflect::trace::AllocCase::LocExists(cf) },
           reflect::trace::AllocKind::RefCell,
         ),
         current_loc!(self),
@@ -1366,7 +1374,9 @@ impl Adapton for DCG {
           loc:loc.reflect(), 
           effect:reflect::Effect::Alloc, 
           value:reflect::Val::ValTODO, 
-          dirty:false}
+          dirty:false,
+          is_dup:false, // XXX -- Actually: Not checked here.
+        }
       );      
       if do_dirty { dirty_alloc(self, &loc) } ;
       if do_set { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } ;
@@ -1534,16 +1544,21 @@ impl Adapton for DCG {
 
         dcg_effect_begin!(
           reflect::trace::Effect::Alloc(
-            if do_insert { reflect::trace::AllocCase::LocFresh }
-            else { reflect::trace::AllocCase::LocExists },
-            reflect::trace::AllocKind::Thunk
+            if do_insert { reflect::trace::AllocCase::LocFresh }              
+            else { 
+                let cf = 
+                    if do_dirty { reflect::trace::ChangeFlag::ContentDiff } 
+                    else { reflect::trace::ChangeFlag::ContentSame };
+                reflect::trace::AllocCase::LocExists(cf) },
+              reflect::trace::AllocKind::Thunk
           ),
           current_loc!(self),
           reflect::Succ{
             loc:loc.reflect(),
             effect:reflect::Effect::Alloc,
             value:reflect::Val::ValTODO,
-            dirty:false
+            dirty:false,
+            is_dup:false, // XXX -- Actually: Not checked here.
           });
         if do_dirty {dirty_alloc(self, &loc) };
         dcg_effect_end!();
@@ -1587,18 +1602,26 @@ impl Adapton for DCG {
     match *art {
       AbsArt::Rc(ref v) => (**v).clone(),
       AbsArt::Loc(ref loc) => {
-        let (is_comp, is_pure, cached_result) : (bool, bool, Option<T>) = {
+        let (is_comp, is_dup, is_pure, cached_result) : (bool, bool, bool, Option<T>) = {
           let st : &mut DCG = &mut *g.borrow_mut();
           let is_pure_opt : bool = st.flags.use_purity_optimization ;
+          let is_dup : bool = match st.stack.last_mut() { None => false, Some(frame) => {
+              let mut is_dup = false; // XXX -- Actually: unknown and does not matter.
+              for succ in frame.succs.iter() { 
+                  if &succ.loc == loc && succ.effect == Effect::Observe 
+                  { is_dup = true }
+              };
+              is_dup
+          }};
           let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
           match *node {
-            Node::Pure(ref mut nd) => (false, true, Some(nd.val.clone())),
-            Node::Mut(ref mut nd)  => (false, false, Some(nd.val.clone())),
+            Node::Pure(ref mut nd) => (false, is_dup, true, Some(nd.val.clone())),
+            Node::Mut(ref mut nd)  => (false, is_dup, false, Some(nd.val.clone())),
             Node::Comp(ref mut nd) => {
               let is_pure = match *loc.id {
                 ArtId::Structural(_) => nd.succs.len() == 0 && is_pure_opt,
                 ArtId::Nominal(_)    => false } ;
-              (true, is_pure, nd.res.clone()) },
+              (true, is_dup, is_pure, nd.res.clone()) },
             _ => panic!("undefined")
           }
         } ;
@@ -1612,9 +1635,11 @@ impl Adapton for DCG {
                 loc:loc.reflect(),
                 value:reflect::Val::ValTODO,
                 effect:reflect::Effect::Force,
-                dirty:false
+                dirty:false,
+                is_dup:is_dup,
               }
             );
+            assert_eq!(is_dup, false);
             let res = loc_produce(g, &loc);
             dcg_effect_end!();
             res
@@ -1628,7 +1653,8 @@ impl Adapton for DCG {
                   loc:loc.reflect(),
                   value:reflect::Val::ValTODO,
                   effect:reflect::Effect::Force,
-                  dirty:false
+                  dirty:false,
+                  is_dup:is_dup,
                 }
               );
               let _ = ProducerDep{res:res.clone()}.clean(g, &loc) ;
@@ -1652,14 +1678,15 @@ impl Adapton for DCG {
                   loc:loc.reflect(),
                   value:reflect::Val::ValTODO,
                   effect:reflect::Effect::Force,
-                  dirty:false
+                  dirty:false,
+                  is_dup:is_dup,
                 });
               res.clone()
             }
           }
         } ;
         let st : &mut DCG = &mut *g.borrow_mut() ;
-        if !is_pure { match st.stack.last_mut() { None => (), Some(frame) => {
+        if !is_dup && !is_pure { match st.stack.last_mut() { None => (), Some(frame) => {
           let succ =
             Succ{loc:loc.clone(),
                  dep:Rc::new(Box::new(ProducerDep{res:result.clone()})),
@@ -1832,7 +1859,7 @@ impl<A:PartialEq,S,T> PartialEq for NaiveThunk<A,S,T> {
 
 /// Create a name from unit, that is, create a "leaf" name.
 pub fn name_unit () -> Name {
-  ROOT_NAME.with(|r|r.clone())
+  UNIT_NAME.with(|r|r.clone())
 }
 
 /// Create one name from two (binary name composition)
@@ -2065,7 +2092,7 @@ pub mod manage {
   /// (Since the naive engine is stateless, every instance of the naive engine is equivalent to a "fresh" one).
   pub fn init_naive () -> Engine { init_engine(Engine::Naive) }
   
-  /// Initializes global state with a fresh DCG-based engine; returns the old engine
+  /// Switch to using the given `Engine`; returns the `Engine` that was in use.
   pub fn use_engine (engine: Engine) -> Engine {
     use std::mem;
     let mut engine = engine;
@@ -2506,7 +2533,7 @@ mod parse_val {
 
     match *n {
       Val::Constr( ref cons_name, ref cons_args ) => {
-        if *cons_name == name_of_str("Root") {
+        if *cons_name == name_of_str("Unit") {
           name_unit()
         }
         else if *cons_name == name_of_str("Hash64") {
@@ -2554,7 +2581,7 @@ mod parse_val {
     
     match *n {
       Val::Constr( ref cons_name, ref cons_args ) => {
-        if *cons_name == name_of_str("Root") {
+        if *cons_name == name_of_str("Unit") {
           Some(name_unit())
         }
         else if *cons_name == name_of_str("Hash64") {
