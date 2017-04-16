@@ -25,6 +25,8 @@
 // #[macro_use]
 // extern crate log;
 
+extern crate core;
+
 #[macro_use]
 pub mod macros ;
 pub mod engine ;

@@ -25,6 +25,7 @@
 //!     namespace concept is analogous to a directory in the UNIX
 //!     filesystem.
 
+use core::any::TypeId;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
@@ -462,6 +463,7 @@ impl Debug for Path {
 
 // The DCG structure consists of `GraphNode`s:
 trait GraphNode : Debug + reflect::Reflect<reflect::Node> {
+  fn res_typeid      (self:&Self) -> TypeId ;
   fn preds_alloc<'r> (self:&Self) -> Vec<Rc<Loc>> ;
   fn preds_obs<'r>   (self:&Self) -> Vec<Rc<Loc>> ;
   fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>) -> () ;
@@ -778,6 +780,7 @@ impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Deb
     if &self.prog_pt == other.prog_pt() {
       let other = Box::new(other) ;
       // This is safe if the prog_pt implies unique Arg and Res types.
+      // TODO-Soon: Program points should store argument + result types; we should check these dynamically here
       let other : &Box<App<Arg,Spurious,Res>> = unsafe { transmute::<_,_>( other ) } ;
       self.arg == other.arg
     } else {
@@ -802,16 +805,37 @@ fn lookup_abs<'r>(st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<GraphNode> {
   }
 }
 
-// This only is safe in contexts where the type of loc is known.
-// UNSAFE: Unintended double-uses of names and hashes will generally cause uncaught type errors.
-fn res_node_of_loc<'r,Res> (st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
+fn assert_graphnode_res_type<Res:'static> (loc:&Loc, node:&Box<GraphNode>) {
+    let res_typeid = TypeId::of::<Res>();
+    let node_res_typeid = node.res_typeid();
+    if node_res_typeid != res_typeid {
+        panic!("\
+Adapton engine: Detected a dynamic type error, possibly due to an ambiguous name:
+\t              at location: {:?}
+\t location has result type: {:?}
+\tbut context expected type: {:?}",
+               loc, node_res_typeid, res_typeid
+        );
+    }
+}
+
+// This function uses 'unsafe' to transmute pointer types. Unintended
+// double-uses of names and hashes will cause dynamic type errors, via
+// assert_graphnode_res_type.
+fn res_node_of_loc<'r,Res:'static> (st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
   let abs_node = lookup_abs(st, loc) ;
+  assert_graphnode_res_type::<Res>(&*loc, abs_node);
   unsafe { transmute::<_,_>(abs_node) }
 }
 
 // ---------- Node implementation:
 
-impl <Res:Debug+Hash> GraphNode for Node<Res> {
+impl <Res:'static+Debug+Hash> GraphNode for Node<Res> {
+
+  fn res_typeid(self:&Self) -> TypeId {
+      return TypeId::of::<Res>()
+  }
+    
   fn preds_alloc(self:&Self) -> Vec<Rc<Loc>> {
     match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
                   Node::Comp(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
@@ -1138,7 +1162,7 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
 }
 
 /// Returns true if changed, false if unchanged.
-fn set_<T:Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
+fn set_<T:'static+Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
   if let AbsArt::Loc(ref loc) = cell { 
     let changed : bool = {
       let node = res_node_of_loc( st, loc ) ;
@@ -1202,7 +1226,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   fn cell<T:Eq+Debug+Clone+Hash+'static> (self:&mut Self, Name, T) -> AbsArt<T,Self::Loc> ;
   
   /// Mutates a mutable articulation.
-  fn set<T:Eq+Debug+Clone> (self:&mut Self, AbsArt<T,Self::Loc>, T) ;
+  fn set<T:'static+Eq+Debug+Clone> (self:&mut Self, AbsArt<T,Self::Loc>, T) ;
   
   /// Creates an articulated computation.
   fn thunk <Arg:Eq+Hash+Debug+Clone+'static,
@@ -1372,7 +1396,7 @@ impl Adapton for DCG {
       AbsArt::Loc(loc)
     }
 
-  fn set<T:Eq+Debug> (self:&mut Self, cell:AbsArt<T,Self::Loc>, val:T) {
+  fn set<T:'static+Eq+Debug> (self:&mut Self, cell:AbsArt<T,Self::Loc>, val:T) {
     wf::check_dcg(self);
     assert!( self.stack.is_empty() ); // => outer layer has control.
     set_(self, cell, val);
@@ -1458,6 +1482,7 @@ impl Adapton for DCG {
           },
           Some(node) => {
             let node: &mut Box<GraphNode> = node ;
+            assert_graphnode_res_type::<Res>(&loc, node);
             let res_nd: &mut Box<Node<Res>> = unsafe { transmute::<_,_>( node ) } ;
             match ** res_nd {
               Node::Pure(_)=> unreachable!(),
@@ -1469,6 +1494,7 @@ impl Adapton for DCG {
                   comp_nd.producer.prog_pt().eq( producer.prog_pt() ) ;
                 if equal_producer_prog_pts { // => safe cast to Box<Consumer<Arg>>
                   let app: &mut Box<App<Arg,Spurious,Res>> =
+                    // TODO-Soon: Follow pattern above for assert_graphnode_res_type to dynamically check the safety of this cast
                     unsafe { transmute::<_,_>( &mut comp_nd.producer ) }
                   ;
                   if app.get_arg() == arg {
@@ -1768,6 +1794,7 @@ impl<A:Hash+Clone+Eq+Debug+'static,S:Clone+'static,T:'static>
     {
       let other = Box::new(other) ;
       // This is safe if the prog_pt implies unique Arg and Res types.
+      // TODO-Soon: Program points should store argument + result types; we should check these dynamically here
       let other : &Box<NaiveThunk<A,S,T>> = unsafe { transmute::<_,_>( other ) } ;
       self.arg == other.arg
     } else {
@@ -1929,7 +1956,7 @@ pub fn cell<T:Hash+Eq+Debug+Clone+'static> (n:Name, val:T) -> Art<T> {
 }
 
 /// Mutates a mutable articulation.
-pub fn set<T:Eq+Debug+Clone> (a:&Art<T>, val:T) {
+pub fn set<T:'static+Eq+Debug+Clone> (a:&Art<T>, val:T) {
   match (*a).art {
     EnumArt::Rc(_)    => { panic!("set: Cannot mutate immutable Rc articulation; use an DCG cell instead") },
     EnumArt::Force(_) => { panic!("set: Cannot mutate immutable Force articulation; use an DCG cell instead") },
