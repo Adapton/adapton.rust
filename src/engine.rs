@@ -466,7 +466,7 @@ trait GraphNode : Debug + reflect::Reflect<reflect::Node> {
   fn res_typeid      (self:&Self) -> TypeId ;
   fn preds_alloc<'r> (self:&Self) -> Vec<Rc<Loc>> ;
   fn preds_obs<'r>   (self:&Self) -> Vec<Rc<Loc>> ;
-  fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>) -> () ;
+  fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>, Option<Rc<Box<DCGDep>>>) -> () ;
   fn preds_remove<'r>(self:&'r mut Self, &Rc<Loc>) -> () ;
   fn succs_def<'r>   (self:&Self) -> bool ;
   fn succs_mut<'r>   (self:&'r mut Self) -> &'r mut Vec<Succ> ;
@@ -477,7 +477,7 @@ trait GraphNode : Debug + reflect::Reflect<reflect::Node> {
 #[derive(Debug,Clone)]
 struct Frame {
   loc   : Rc<Loc>,    // The currently-executing node
-  succs : Vec<Succ>,  // The currently-executing node's effects (viz., the nodes it demands)
+  succs : Vec<(Succ, Option<Rc<Box<DCGDep>>>)>,  // The currently-executing node's effects (viz., the nodes it demands)
 }
 
 impl reflect::Reflect<reflect::Frame> for Frame {
@@ -497,6 +497,20 @@ struct Succ {
   dep    : Rc<Box<DCGDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
 }
 
+#[derive(Debug,Clone)]
+struct Pred {
+  loc    : Rc<Loc>, // Source of the effect, aka, the predecessor, by this edge
+  effect : Effect,
+  /// This `dep` field is None when the predecessor (loc field) is
+  /// observing a thunk, and None when the predecessor is _fully_
+  /// observing a mutable cell.  When the predecessor partially
+  /// observes a mutable cell, this field is Some(dep), where
+  /// `dep.dirty(...)` permits the dirtying algorithm of the engine to
+  /// check whether the observed value has changed, and whether
+  /// dirtying should continue to the predecessors of `loc` .
+  dep    : Option<Rc<Box<DCGDep>>>,
+}
+
 impl reflect::Reflect<reflect::Succ> for Succ {
   fn reflect(&self) -> reflect::Succ {
     reflect::Succ {
@@ -512,6 +526,12 @@ impl reflect::Reflect<reflect::Succ> for Succ {
 impl reflect::Reflect<Vec<reflect::Succ>> for Vec<Succ> {
   fn reflect(&self) -> Vec<reflect::Succ> {
     self.iter().map(|ref x| x.reflect()).collect::<Vec<_>>()
+  }
+}
+
+impl reflect::Reflect<Vec<reflect::Succ>> for Vec<(Succ, Option<Rc<Box<DCGDep>>>)> {
+  fn reflect(&self) -> Vec<reflect::Succ> {
+    self.iter().map(|ref x| x.0.reflect()).collect::<Vec<_>>()
   }
 }
 
@@ -538,12 +558,20 @@ struct DCGRes {
 // DCGDep abstracts over the value produced by a dependency, as
 // well as mechanisms to update and/or re-produce it.
 trait DCGDep : Debug {
+  //fn dirty (self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes ;
   fn clean (self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes ;
 }
 
 impl Hash for Succ {
   fn hash<H>(&self, hasher: &mut H) where H: Hasher {
     self.dirty.hash( hasher );
+    self.loc.hash( hasher );
+    self.effect.hash( hasher );
+  }
+}
+
+impl Hash for Pred {
+  fn hash<H>(&self, hasher: &mut H) where H: Hasher {
     self.loc.hash( hasher );
     self.effect.hash( hasher );
   }
@@ -605,7 +633,7 @@ struct PureNode<T> {
 // They may indirectly mutate these nodes by performing nominal allocation; mutation is limited to "one-shot" changes.
 #[derive(Debug,Hash)]
 struct MutNode<T> {
-  preds : Vec<(Effect,Rc<Loc>)>,
+  preds : Vec<Pred>,
   val   : T,
 }
 
@@ -615,21 +643,19 @@ struct MutNode<T> {
 // values produced by the successors may change, indirectly
 // influencing how the producer produces its resulting value.
 struct CompNode<Res> {
-  preds    : Vec<(Effect, Rc<Loc>)>,
+  preds    : Vec<Pred>,
   succs    : Vec<Succ>,
   producer : Box<Producer<Res>>, // Producer can be App<Arg,Res>, where type Arg is hidden.
   res      : Option<Res>,
 }
 
-impl reflect::Reflect<Vec<reflect::Pred>> for Vec<(Effect,Rc<Loc>)> {
+impl reflect::Reflect<Vec<reflect::Pred>> for Vec<Pred> {
   fn reflect(&self) -> Vec<reflect::Pred> {
-    self.iter().map(|eff_loc| 
-                    match *eff_loc {
-                      (ref eff, ref loc) => {                    
-                        reflect::Pred{
-                          effect:eff.reflect(),
-                          loc:loc.reflect()
-                        }}}).collect::<Vec<_>>()
+    self.iter().map(|pred| 
+                    reflect::Pred{
+                        effect:pred.effect.reflect(),
+                        loc:pred.loc.reflect()
+                    }).collect::<Vec<_>>()
   }
 } 
 
@@ -838,27 +864,27 @@ impl <Res:'static+Debug+Hash> GraphNode for Node<Res> {
   }
     
   fn preds_alloc(self:&Self) -> Vec<Rc<Loc>> {
-    match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
-                  Node::Comp(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Allocate { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
+    match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|pred| if pred.effect == Effect::Allocate { Some(pred.loc.clone()) } else { None } ).collect::<Vec<_>>(),
+                  Node::Comp(ref nd) => nd.preds.iter().filter_map(|pred| if pred.effect == Effect::Allocate { Some(pred.loc.clone()) } else { None } ).collect::<Vec<_>>(),
                   Node::Pure(_) => unreachable!(),
                   _ => unreachable!(),
     }}
 
   fn preds_obs(self:&Self) -> Vec<Rc<Loc>> {
-    match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Observe { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
-                  Node::Comp(ref nd) => nd.preds.iter().filter_map(|&(ref effect,ref loc)| if effect == &Effect::Observe { Some(loc.clone()) } else { None } ).collect::<Vec<_>>(),
+    match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|pred| if pred.effect == Effect::Observe { Some(pred.loc.clone()) } else { None } ).collect::<Vec<_>>(),
+                  Node::Comp(ref nd) => nd.preds.iter().filter_map(|pred| if pred.effect == Effect::Observe { Some(pred.loc.clone()) } else { None } ).collect::<Vec<_>>(),
                   Node::Pure(_) => unreachable!(),
                   _ => unreachable!(),
     }}
-  fn preds_insert (self:&mut Self, eff:Effect, loc:&Rc<Loc>) -> () {
-    match *self { Node::Mut(ref mut nd) => nd.preds.push ((eff,loc.clone())),
-                  Node::Comp(ref mut nd) => nd.preds.push ((eff,loc.clone())),
+  fn preds_insert (self:&mut Self, eff:Effect, loc:&Rc<Loc>, dep:Option<Rc<Box<DCGDep>>>) -> () {
+    match *self { Node::Mut(ref mut nd) => nd.preds.push (Pred{effect:eff,loc:loc.clone(),dep:dep.clone()}),
+                  Node::Comp(ref mut nd) => nd.preds.push (Pred{effect:eff,loc:loc.clone(),dep:dep.clone()}),
                   Node::Pure(_) => unreachable!(),
                   _ => unreachable!(),
     }}
   fn preds_remove (self:&mut Self, loc:&Rc<Loc>) -> () {
-    match *self { Node::Mut(ref mut nd) => nd.preds.retain (|eff_pred|{ let (_,ref pred) = *eff_pred; *pred != *loc }),
-                  Node::Comp(ref mut nd) => nd.preds.retain (|eff_pred|{ let (_, ref pred) = *eff_pred; *pred != *loc}),
+    match *self { Node::Mut(ref mut nd) => nd.preds.retain (|pred|{ &pred.loc != loc}),
+                  Node::Comp(ref mut nd) => nd.preds.retain (|pred|{ &pred.loc != loc}),
                   Node::Pure(_) => unreachable!(),
                   _ => unreachable!(),
     }}
@@ -966,18 +992,18 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
   } ;
   assert!( &frame.loc == loc );
   for succ in &frame.succs {
-    if succ.dirty {
+    if succ.0.dirty {
       // This case witnesses an illegal use of nominal side effects
       panic!("invariants broken: newly-built DCG edge should be clean, but is dirty.")
     } ;
-    let succ_node = lookup_abs( st, &succ.loc );
-    succ_node.preds_insert( succ.effect.clone(), loc );
+    let succ_node = lookup_abs( st, &succ.0.loc );
+    succ_node.preds_insert( succ.0.effect.clone(), loc, succ.1.clone() );
   } ;
   {
     let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
     match *node {
       Node::Comp(ref mut node) => {
-        replace(&mut node.succs, frame.succs) ;
+        replace(&mut node.succs, frame.succs.into_iter().map(|(succ,_)|succ).collect() ) ;
         replace(&mut node.res, Some(res.clone()))
       },
       _ => panic!("internal error"),
@@ -1400,7 +1426,7 @@ impl Adapton for DCG {
                  dep:Rc::new(Box::new(AllocDependency{val:val})),
                  effect:Effect::Allocate,
                  dirty:false};
-          frame.succs.push(succ)
+          frame.succs.push((succ, None))
         }}} ;
       wf::check_dcg(self);
       AbsArt::Loc(loc)
@@ -1453,7 +1479,7 @@ impl Adapton for DCG {
                    dep:Rc::new(Box::new(NoDependency)),
                    effect:Effect::Allocate,
                    dirty:false};
-            frame.succs.push(succ)
+            frame.succs.push((succ, None))
           }};
         let producer : Box<Producer<Res>> =
           Box::new(App{prog_pt:prog_pt,
@@ -1569,7 +1595,7 @@ impl Adapton for DCG {
                  dep:Rc::new(Box::new(AllocDependency{val:arg.clone()})),
                  effect:Effect::Allocate,
                  dirty:false};
-          frame.succs.push(succ)
+          frame.succs.push((succ, None))
         }};
         if do_insert {
           let node : CompNode<Res> = CompNode{
@@ -1607,7 +1633,7 @@ impl Adapton for DCG {
           let is_pure_opt : bool = st.flags.use_purity_optimization ;
           let is_dup : bool = match st.stack.last_mut() { None => false, Some(frame) => {
               let mut is_dup = false; // XXX -- Actually: unknown and does not matter.
-              for succ in frame.succs.iter() { 
+              for &(ref succ, ref pred_dep) in frame.succs.iter() { 
                   if &succ.loc == loc && succ.effect == Effect::Observe 
                   { is_dup = true }
               };
@@ -1692,7 +1718,7 @@ impl Adapton for DCG {
                  dep:Rc::new(Box::new(ProducerDep{res:result.clone()})),
                  effect:Effect::Observe,
                  dirty:false};
-          frame.succs.push(succ);                  
+          frame.succs.push((succ, None));
         }}} ;
         wf::check_dcg(st);
         result
@@ -2250,7 +2276,7 @@ mod wf {
     for frame in st.stack.iter() {
       writeln!(&mut writer, "\"{:?}\" [color=blue,penwidth=10];", frame.loc);
       for succ in frame.succs.iter() {
-        writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=blue,weight=10,penwidth=10];", &frame.loc, &succ.loc).unwrap();
+        writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=blue,weight=10,penwidth=10];", &frame.loc, &succ.0.loc).unwrap();
       }
       //frame_num += 1;
     };
