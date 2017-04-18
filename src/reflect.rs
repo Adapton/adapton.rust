@@ -263,6 +263,8 @@ pub struct DCG {
 /// module (`reflect`) only gives reflected versions of the DCG
 /// itself, not changes that the engine makes to it.
 pub mod trace {
+  use std::fmt;
+
 
   /// Distinguish fresh allocations from those that reuse an existing location.
   #[derive(Clone,Debug)]
@@ -388,4 +390,170 @@ pub mod trace {
     /// this effect ends).
     pub extent:Box<Vec<Trace>>,
   }
+
+    
+    #[derive(Clone,Copy)]
+    pub enum Role { Editor, Archivist }
+    
+    #[derive(Clone)]
+    pub struct TraceCount {
+        total_updates:   usize,
+        reeval_nochange: usize,
+        reeval_change:   usize,
+        clean_rec:       usize,
+        dirty:           (usize, usize),
+        alloc_fresh:     (usize, usize),
+        alloc_nochange:  (usize, usize),
+        alloc_change:    (usize, usize),
+    }
+
+    impl fmt::Debug for TraceCount {
+        fn fmt(&self, f:&mut fmt::Formatter) -> fmt::Result {  
+            write!(f,"\
+                Trace counts:        {:>12} {:>12}
+------------------------------------------------
+editor:
+  alloc_fresh:       {:>12} {:>12.2}
+  alloc_nochange:    {:>12} {:>12.2}
+  alloc_change:      {:>12} {:>12.2}
+  dirty:             {:>12} {:>12.2} 
+archivist:
+  alloc_fresh:       {:>12} {:>12.2}
+  alloc_nochange:    {:>12} {:>12.2}
+  alloc_change:      {:>12} {:>12.2}
+  dirty:             {:>12} {:>12.2}
+  reeval:
+    clean_rec:       {:>12} {:>12.2}
+    reeval_nochange: {:>12} {:>12.2}
+    reeval_change:   {:>12} {:>12.2}
+",
+                   format!("sum"),        format!("ave"),
+                   // Editor
+                   self.alloc_fresh.0,    self.alloc_fresh.0    as f32 / self.total_updates as f32,
+                   self.alloc_nochange.0, self.alloc_nochange.0 as f32 / self.total_updates as f32,
+                   self.alloc_change.0,   self.alloc_change.0   as f32 / self.total_updates as f32,
+                   self.dirty.0,          self.dirty.0          as f32 / self.total_updates as f32,
+                   // Archivist
+                   self.alloc_fresh.1,    self.alloc_fresh.1    as f32 / self.total_updates as f32,
+                   self.alloc_nochange.1, self.alloc_nochange.1 as f32 / self.total_updates as f32,
+                   self.alloc_change.1,   self.alloc_change.1   as f32 / self.total_updates as f32,
+                   self.dirty.1,          self.dirty.1          as f32 / self.total_updates as f32,
+                   self.clean_rec,        self.clean_rec        as f32 / self.total_updates as f32,
+                   self.reeval_nochange,  self.reeval_nochange  as f32 / self.total_updates as f32, 
+                   self.reeval_change,    self.reeval_change    as f32 / self.total_updates as f32,
+            )
+        }
+    }
+
+
+    fn count_dirty(role:Role, tr:&Trace, c:&mut TraceCount) {
+        match tr.effect {
+            Effect::Dirty => match role { 
+                Role::Editor    => c.dirty.0 += 1,
+                Role::Archivist => c.dirty.1 += 1,
+            },
+            _ => panic!("unexpected effect: {:?}", tr),
+        }
+        for sub_tr in tr.extent.iter() {
+            count_dirty(role, sub_tr, c)
+        }
+    }
+
+
+    pub fn count_trace(role:Role, tr:&Trace, c:&mut TraceCount) {
+        match role {
+            Role::Editor =>
+                match tr.effect {
+                    Effect::Dirty => count_dirty(role, tr, c),
+                    Effect::Remove => unreachable!(),
+                    Effect::CleanEdge => unreachable!(),
+                    Effect::CleanEval => unreachable!(),
+                    Effect::CleanRec => unreachable!(),
+                    Effect::Alloc(AllocCase::LocFresh, _) => { 
+                        c.alloc_fresh.0 += 1; 
+                        assert!(tr.extent.len() == 0)  
+                    }
+                    Effect::Alloc(AllocCase::LocExists(ChangeFlag::ContentSame), _) => { 
+                        c.alloc_nochange.0 += 1;
+                        for sub_tr in tr.extent.iter() { count_dirty(role, sub_tr, c) }
+                    }
+                    Effect::Alloc(AllocCase::LocExists(ChangeFlag::ContentDiff), _) => {
+                        c.alloc_change.0 += 1;
+                        for sub_tr in tr.extent.iter() { count_dirty(role, sub_tr, c) }
+                    }
+                    Effect::Force(ForceCase::RefGet) => assert!(tr.extent.len() == 0),
+                    Effect::Force(ForceCase::CompCacheHit)  |
+                    Effect::Force(ForceCase::CompCacheMiss) => {
+                        c.total_updates += 1;
+                        for sub_tr in tr.extent.iter() { 
+                            count_trace(Role::Archivist, sub_tr, c);
+                        }
+                    }
+                },
+            Role::Archivist =>
+                match tr.effect {
+                    Effect::Dirty => count_dirty(role, tr, c),
+                    Effect::Remove => assert!(tr.extent.len() == 0),
+                    Effect::CleanEdge => assert!(tr.extent.len() == 0),
+                    Effect::CleanEval => {
+                        let mut change = false;
+                        for subtr in tr.extent.iter() {
+                            match subtr.effect {
+                                Effect::Remove => (),
+                                Effect::CleanEdge => (),
+                                Effect::CleanEval => (),
+                                Effect::CleanRec => (),
+                                Effect::Alloc(AllocCase::LocExists(ChangeFlag::ContentSame), _) => (),
+                                Effect::Alloc(AllocCase::LocFresh, _)                           => change = true,
+                                Effect::Alloc(AllocCase::LocExists(ChangeFlag::ContentDiff), _) => change = true,
+                                Effect::Force(ForceCase::RefGet)        => (), /* XXX/TODO: This is undercounting?; do we need to know if gotten value was different? */
+                                Effect::Force(ForceCase::CompCacheHit)  => (),
+                                Effect::Force(ForceCase::CompCacheMiss) => change = true,
+                                Effect::Dirty => change = true,
+                            }
+                        }
+                        if change { c.reeval_change   += 1 }
+                        else      { c.reeval_nochange += 1 };
+                        for sub_tr in tr.extent.iter() { 
+                            count_trace(Role::Archivist, sub_tr, c);
+                        }     
+                    },
+                    Effect::CleanRec => { 
+                        c.clean_rec += 1;
+                        for sub_tr in tr.extent.iter() { 
+                            count_trace(Role::Archivist, sub_tr, c);
+                        }
+                    }
+                    Effect::Alloc(AllocCase::LocFresh, _) => {
+                        c.alloc_fresh.1 += 1;
+                        assert!(tr.extent.len() == 0);
+                    }
+                    Effect::Alloc(AllocCase::LocExists(ChangeFlag::ContentSame), _) => {
+                        c.alloc_nochange.1 += 1;
+                        for sub_tr in tr.extent.iter() { 
+                            count_trace(Role::Archivist, sub_tr, c);
+                        }
+                    }
+                    Effect::Alloc(AllocCase::LocExists(ChangeFlag::ContentDiff), _) => {
+                        c.alloc_change.1 += 1;
+                        for sub_tr in tr.extent.iter() { 
+                            count_trace(Role::Archivist, sub_tr, c);
+                        }                  
+                    }
+                    Effect::Force(ForceCase::RefGet) => {
+                        assert!(tr.extent.len() == 0);
+                    },
+                    Effect::Force(ForceCase::CompCacheHit) => {
+                        for sub_tr in tr.extent.iter() { 
+                            count_trace(Role::Archivist, sub_tr, c);
+                        }
+                    }
+                    Effect::Force(ForceCase::CompCacheMiss) => {
+                        for sub_tr in tr.extent.iter() { 
+                            count_trace(Role::Archivist, sub_tr, c);
+                        }                  
+                    }
+                }
+        }
+    }
 }
