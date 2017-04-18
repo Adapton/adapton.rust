@@ -1364,15 +1364,15 @@ impl Adapton for DCG {
       let hash = my_hash(&(&path,&id));
       let loc  = Rc::new(Loc{path:path,id:id,hash:hash})
       ;
-      let (do_dirty, do_set, succs, do_insert) =
+      let (do_dirty, do_set, succs, do_insert, is_fresh) =
         if self.table.contains_key(&loc) {
           let node : &Box<Node<T>> = res_node_of_loc(self, &loc) ;
           match **node {
-            Node::Mut(_)       => { (false, true,  None, false) }
-            Node::Comp(ref nd) => { (true,  false, Some(nd.succs.clone()),  true ) }
-            Node::Pure(_)      => { (false, false, None, false) }
+            Node::Mut(_)       => { (false, true,  None, false, false) }
+            Node::Comp(ref nd) => { (true,  false, Some(nd.succs.clone()),  false, false ) }
+            Node::Pure(_)      => { (false, false, None, false, false) }
             Node::Unused       => unreachable!()
-          }} else                 { (false, false, None, true ) } 
+          }} else                 { (false, false, None, true, true ) } 
       ;
       // - - - - - - - - - -
       /// Begin an allocation.  Because this allocation may require
@@ -1387,7 +1387,7 @@ impl Adapton for DCG {
       // - - - - - - - 
       dcg_effect_begin!(
         reflect::trace::Effect::Alloc(
-          if do_insert { reflect::trace::AllocCase::LocFresh } 
+          if is_fresh { reflect::trace::AllocCase::LocFresh } 
           else { 
               let cf = 
                   if do_dirty { reflect::trace::ChangeFlag::ContentDiff } 
@@ -1511,10 +1511,10 @@ impl Adapton for DCG {
               spurious:spurious.clone(),
           }
         ;
-        let (do_dirty, do_insert) = { match self.table.get_mut( &loc ) {
+        let (do_dirty, do_insert, is_fresh) = { match self.table.get_mut( &loc ) {
           None => {
             // do_dirty=false; do_insert=true
-            (false, true)
+            (false, true, true)
           },
           Some(node) => {
             let node: &mut Box<GraphNode> = node ;
@@ -1523,7 +1523,7 @@ impl Adapton for DCG {
             match ** res_nd {
               Node::Pure(_)=> unreachable!(),
               Node::Mut(_) => {
-                (true, true) // Todo: Do we need to preserve preds?
+                (true, true, false) // Todo: Do we need to preserve preds?
               },
               Node::Comp(ref mut comp_nd) => {
                 let equal_producer_prog_pts : bool =
@@ -1536,13 +1536,13 @@ impl Adapton for DCG {
                   if app.get_arg() == arg {
                     // Case: Same argument; Nothing else to do:
                     // do_dirty=false; do_insert=false
-                    (false, false)
+                    (false, false, false)
                   }
                   else { // Case: Not the same argument:
                     app.consume(arg.clone()); // overwrite the old argument
                     comp_nd.res = None ; // clear the cache
                     // do_dirty=true; do_insert=false
-                    (true, false)
+                    (true, false, false)
                   }}
                 else {
                   panic!("Memozied functions not equal!
@@ -1570,7 +1570,7 @@ impl Adapton for DCG {
 
         dcg_effect_begin!(
           reflect::trace::Effect::Alloc(
-            if do_insert { reflect::trace::AllocCase::LocFresh }              
+            if is_fresh { reflect::trace::AllocCase::LocFresh }
             else { 
                 let cf = 
                     if do_dirty { reflect::trace::ChangeFlag::ContentDiff } 
@@ -2096,6 +2096,31 @@ pub fn force<T:Hash+Eq+Debug+Clone+'static> (a:&Art<T>) -> T {
         match g.borrow().engine {
           Engine::DCG(ref dcg_refcell) => 
             <DCG as Adapton>::force(dcg_refcell, &AbsArt::Loc(loc.clone())),
+          Engine::Naive => panic!("cannot force a non-naive location with the naive engine")
+      }})
+    }
+  }
+}
+
+/// Demands and observes the value of an `&Art<T>`, returning a (cloned) value of type `T`.
+pub fn force_map<T:Hash+Eq+Debug+Clone+'static,
+                 S:Hash+Eq+Debug+Clone+'static, 
+                 MapF> 
+    (a:&Art<T>, mapf:MapF) -> S 
+    where MapF:Fn(T) -> S
+{
+  match a.art {
+    EnumArt::Force(ref f) => mapf(f.force()),
+    EnumArt::Rc(ref rc) => mapf((&**rc).clone()),
+    EnumArt::Loc(ref loc) => {
+      GLOBALS.with(|g| {
+        match g.borrow().engine {
+          Engine::DCG(ref dcg_refcell) => 
+          // TODO: when loc locates a ref, store this view function in
+          // the DCG; have dirtying algorithm use it to proactively
+          // prune dirtied paths.
+          mapf(
+            <DCG as Adapton>::force(dcg_refcell, &AbsArt::Loc(loc.clone()))),
           Engine::Naive => panic!("cannot force a non-naive location with the naive engine")
       }})
     }
