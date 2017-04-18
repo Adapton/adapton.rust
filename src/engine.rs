@@ -1192,6 +1192,18 @@ fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
 }
 
 /// Returns true if changed, false if unchanged.
+fn check_cell_change<T:'static+Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:&T) -> bool {
+    if let AbsArt::Loc(ref loc) = cell { 
+        let node = res_node_of_loc::<T>( st, loc ) ;
+        match **node {
+            Node::Mut(ref mut nd) => { &nd.val != val }
+            _ => unreachable!(),
+        }
+    }
+    else { panic!("{:?} is not a cell", cell) }
+}
+
+/// Returns true if changed, false if unchanged.
 fn set_<T:'static+Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
   if let AbsArt::Loc(ref loc) = cell { 
     let changed : bool = {
@@ -1213,7 +1225,6 @@ fn set_<T:'static+Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
       /// conservative at present).
       dirty_alloc(st, loc);
     }
-    else { }
   }
   else { panic!("{:?} is not a cell", cell) }
 }
@@ -1387,13 +1398,17 @@ impl Adapton for DCG {
       // - - - - - - - 
       dcg_effect_begin!(
         reflect::trace::Effect::Alloc(
-          if is_fresh { reflect::trace::AllocCase::LocFresh } 
-          else { 
-              let cf = 
-                  if do_dirty { reflect::trace::ChangeFlag::ContentDiff } 
-              else { reflect::trace::ChangeFlag::ContentSame };
-              reflect::trace::AllocCase::LocExists(cf) },
-          reflect::trace::AllocKind::RefCell,
+            if is_fresh { reflect::trace::AllocCase::LocFresh } 
+            else { 
+                let changed = 
+                    if check_cell_change(self, AbsArt::Loc(loc.clone()), &val) { 
+                        reflect::trace::ChangeFlag::ContentDiff 
+                    } else { 
+                        reflect::trace::ChangeFlag::ContentSame 
+                    };
+                reflect::trace::AllocCase::LocExists(changed)
+            },
+            reflect::trace::AllocKind::RefCell,
         ),
         current_loc!(self),
         reflect::Succ{
@@ -1405,7 +1420,7 @@ impl Adapton for DCG {
         }
       );      
       if do_dirty { dirty_alloc(self, &loc) } ;
-      if do_set { set_(self, AbsArt::Loc(loc.clone()), val.clone()) } ;
+      if do_set { set_(self, AbsArt::Loc(loc.clone()), val.clone()) };
       match succs { Some(succs) => revoke_succs(self, &loc, &succs), None => () } ;
       dcg_effect_end!();
       
