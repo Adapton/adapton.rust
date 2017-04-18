@@ -400,6 +400,7 @@ pub mod trace {
     #[derive(Clone)]
     pub struct TraceCount {
         pub total_updates:   usize,
+        pub total_archivist: usize,
         pub reeval_nochange: usize,
         pub reeval_change:   usize,
         pub clean_rec:       usize,
@@ -418,6 +419,7 @@ pub mod trace {
                     dirty:(0,0), 
                     clean_rec:0,
                     total_updates:0,
+                    total_archivist:0,
         }
     }
 
@@ -460,8 +462,12 @@ archivist:
     }
 
     
-    pub fn trace_count(trs:&Vec<Trace>) -> TraceCount {
+    pub fn trace_count(trs:&Vec<Trace>, total_updates:Option<usize>) -> TraceCount {
         let mut trace_count = trace_count_zero();
+        match total_updates {
+            Some(x) => trace_count.total_updates = x,
+            None    => trace_count.total_updates = 1,
+        }
         for tr in trs {
             trace_count_rec(Role::Editor, tr, &mut trace_count)
         }
@@ -505,7 +511,7 @@ archivist:
                     Effect::Force(ForceCase::RefGet) => assert!(tr.extent.len() == 0),
                     Effect::Force(ForceCase::CompCacheHit)  |
                     Effect::Force(ForceCase::CompCacheMiss) => {
-                        c.total_updates += 1;
+                        c.total_archivist += 1;
                         for sub_tr in tr.extent.iter() { 
                             trace_count_rec(Role::Archivist, sub_tr, c);
                         }
