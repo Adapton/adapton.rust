@@ -2117,7 +2117,16 @@ pub fn force<T:Hash+Eq+Debug+Clone+'static> (a:&Art<T>) -> T {
   }
 }
 
-/// Demands and observes the value of an `&Art<T>`, returning a (cloned) value of type `T`.
+/// Demands and observes the value of an `&Art<T>`, returning a
+/// (cloned) value of type `S`, mapped by function `mapf`.
+///
+/// The _pure_ map function `mapf` transforms the value before
+/// `force_map` returns.  For correctness, it is critical that `mapf`
+/// does not itself allocate or observe any DCG nodes.  When the given
+/// `Art` is a cell, this mapping function enables the engine to prune
+/// otherwise-dirtied dependencies; consequently, the map function
+/// permits finer-grained dependency tracking without additional,
+/// fine-grained `Art`s.
 pub fn force_map<T:Hash+Eq+Debug+Clone+'static,
                  S:Hash+Eq+Debug+Clone+'static, 
                  MapF> 
