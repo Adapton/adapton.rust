@@ -265,7 +265,6 @@ pub struct DCG {
 pub mod trace {
   use std::fmt;
 
-
   /// Distinguish fresh allocations from those that reuse an existing location.
   #[derive(Clone,Debug)]
   pub enum AllocCase {
@@ -395,16 +394,31 @@ pub mod trace {
     #[derive(Clone,Copy)]
     pub enum Role { Editor, Archivist }
     
+    /// Count of effects and effect-patterns in trace.  For fields
+    /// with two numbers, the first and second projection give the
+    /// `Role::Editor` and `Role::Archivist` counts, respectively.
     #[derive(Clone)]
     pub struct TraceCount {
-        total_updates:   usize,
-        reeval_nochange: usize,
-        reeval_change:   usize,
-        clean_rec:       usize,
-        dirty:           (usize, usize),
-        alloc_fresh:     (usize, usize),
-        alloc_nochange:  (usize, usize),
-        alloc_change:    (usize, usize),
+        pub total_updates:   usize,
+        pub reeval_nochange: usize,
+        pub reeval_change:   usize,
+        pub clean_rec:       usize,
+        pub dirty:           (usize, usize),
+        pub alloc_fresh:     (usize, usize),
+        pub alloc_nochange:  (usize, usize),
+        pub alloc_change:    (usize, usize),
+    }
+    
+    pub fn trace_count_zero() -> TraceCount {
+        TraceCount{ alloc_fresh:(0,0), 
+                    alloc_change:(0,0), 
+                    alloc_nochange:(0,0),
+                    reeval_change:0, 
+                    reeval_nochange:0, 
+                    dirty:(0,0), 
+                    clean_rec:0,
+                    total_updates:0,
+        }
     }
 
     impl fmt::Debug for TraceCount {
@@ -445,8 +459,16 @@ archivist:
         }
     }
 
+    
+    pub fn trace_count(trs:&Vec<Trace>) -> TraceCount {
+        let mut trace_count = trace_count_zero();
+        for tr in trs {
+            trace_count_rec(Role::Editor, tr, &mut trace_count)
+        }
+        return trace_count
+    }
 
-    fn count_dirty(role:Role, tr:&Trace, c:&mut TraceCount) {
+    fn trace_count_dirty(role:Role, tr:&Trace, c:&mut TraceCount) {
         match tr.effect {
             Effect::Dirty => match role { 
                 Role::Editor    => c.dirty.0 += 1,
@@ -455,16 +477,15 @@ archivist:
             _ => panic!("unexpected effect: {:?}", tr),
         }
         for sub_tr in tr.extent.iter() {
-            count_dirty(role, sub_tr, c)
+            trace_count_dirty(role, sub_tr, c)
         }
     }
 
-
-    pub fn count_trace(role:Role, tr:&Trace, c:&mut TraceCount) {
+    pub fn trace_count_rec(role:Role, tr:&Trace, c:&mut TraceCount) {
         match role {
             Role::Editor =>
                 match tr.effect {
-                    Effect::Dirty => count_dirty(role, tr, c),
+                    Effect::Dirty => trace_count_dirty(role, tr, c),
                     Effect::Remove => unreachable!(),
                     Effect::CleanEdge => unreachable!(),
                     Effect::CleanEval => unreachable!(),
@@ -475,24 +496,24 @@ archivist:
                     }
                     Effect::Alloc(AllocCase::LocExists(ChangeFlag::ContentSame), _) => { 
                         c.alloc_nochange.0 += 1;
-                        for sub_tr in tr.extent.iter() { count_dirty(role, sub_tr, c) }
+                        for sub_tr in tr.extent.iter() { trace_count_dirty(role, sub_tr, c) }
                     }
                     Effect::Alloc(AllocCase::LocExists(ChangeFlag::ContentDiff), _) => {
                         c.alloc_change.0 += 1;
-                        for sub_tr in tr.extent.iter() { count_dirty(role, sub_tr, c) }
+                        for sub_tr in tr.extent.iter() { trace_count_dirty(role, sub_tr, c) }
                     }
                     Effect::Force(ForceCase::RefGet) => assert!(tr.extent.len() == 0),
                     Effect::Force(ForceCase::CompCacheHit)  |
                     Effect::Force(ForceCase::CompCacheMiss) => {
                         c.total_updates += 1;
                         for sub_tr in tr.extent.iter() { 
-                            count_trace(Role::Archivist, sub_tr, c);
+                            trace_count_rec(Role::Archivist, sub_tr, c);
                         }
                     }
                 },
             Role::Archivist =>
                 match tr.effect {
-                    Effect::Dirty => count_dirty(role, tr, c),
+                    Effect::Dirty => trace_count_dirty(role, tr, c),
                     Effect::Remove => assert!(tr.extent.len() == 0),
                     Effect::CleanEdge => assert!(tr.extent.len() == 0),
                     Effect::CleanEval => {
@@ -515,13 +536,13 @@ archivist:
                         if change { c.reeval_change   += 1 }
                         else      { c.reeval_nochange += 1 };
                         for sub_tr in tr.extent.iter() { 
-                            count_trace(Role::Archivist, sub_tr, c);
+                            trace_count_rec(Role::Archivist, sub_tr, c);
                         }     
                     },
                     Effect::CleanRec => { 
                         c.clean_rec += 1;
                         for sub_tr in tr.extent.iter() { 
-                            count_trace(Role::Archivist, sub_tr, c);
+                            trace_count_rec(Role::Archivist, sub_tr, c);
                         }
                     }
                     Effect::Alloc(AllocCase::LocFresh, _) => {
@@ -531,13 +552,13 @@ archivist:
                     Effect::Alloc(AllocCase::LocExists(ChangeFlag::ContentSame), _) => {
                         c.alloc_nochange.1 += 1;
                         for sub_tr in tr.extent.iter() { 
-                            count_trace(Role::Archivist, sub_tr, c);
+                            trace_count_rec(Role::Archivist, sub_tr, c);
                         }
                     }
                     Effect::Alloc(AllocCase::LocExists(ChangeFlag::ContentDiff), _) => {
                         c.alloc_change.1 += 1;
                         for sub_tr in tr.extent.iter() { 
-                            count_trace(Role::Archivist, sub_tr, c);
+                            trace_count_rec(Role::Archivist, sub_tr, c);
                         }                  
                     }
                     Effect::Force(ForceCase::RefGet) => {
@@ -545,12 +566,12 @@ archivist:
                     },
                     Effect::Force(ForceCase::CompCacheHit) => {
                         for sub_tr in tr.extent.iter() { 
-                            count_trace(Role::Archivist, sub_tr, c);
+                            trace_count_rec(Role::Archivist, sub_tr, c);
                         }
                     }
                     Effect::Force(ForceCase::CompCacheMiss) => {
                         for sub_tr in tr.extent.iter() { 
-                            count_trace(Role::Archivist, sub_tr, c);
+                            trace_count_rec(Role::Archivist, sub_tr, c);
                         }                  
                     }
                 }
