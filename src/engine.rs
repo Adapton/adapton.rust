@@ -26,6 +26,8 @@
 //!     filesystem.
 
 use core::any::TypeId;
+use core::marker::PhantomData;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
@@ -465,7 +467,7 @@ impl Debug for Path {
 trait GraphNode : Debug + reflect::Reflect<reflect::Node> {
   fn res_typeid      (self:&Self) -> TypeId ;
   fn preds_alloc<'r> (self:&Self) -> Vec<Rc<Loc>> ;
-  fn preds_obs<'r>   (self:&Self) -> Vec<Rc<Loc>> ;
+  fn preds_obs<'r>   (self:&Self) -> Vec<(Rc<Loc>, Option<Rc<Box<DCGDep>>>)> ;
   fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>, Option<Rc<Box<DCGDep>>>) -> () ;
   fn preds_remove<'r>(self:&'r mut Self, &Rc<Loc>) -> () ;
   fn succs_def<'r>   (self:&Self) -> bool ;
@@ -553,12 +555,15 @@ impl reflect::Reflect<reflect::Effect> for Effect {
 
 
 struct DCGRes {
-  changed : bool,
+    // It is always "sound" to set changed=true.  However, when
+    // changed=false, dirtying or cleaning can short-circuit further
+    // dirtying or reevaluation, respectively.
+    changed : bool,
 }
 // DCGDep abstracts over the value produced by a dependency, as
 // well as mechanisms to update and/or re-produce it.
 trait DCGDep : Debug {
-  //fn dirty (self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes ;
+  fn dirty (self:&Self, g:&mut DCG,      loc:&Rc<Loc>) -> DCGRes ;
   fn clean (self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes ;
 }
 
@@ -730,20 +735,7 @@ impl Zero for Cnt {
   }
 }
 
-// ----------------------------------------------------------------------------------------------------
-// Internal internals: Begin stuff that is not reflected in reflect module:
 
-#[derive(Debug)]
-struct NoDependency;
-impl DCGDep for NoDependency {
-  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:false} }
-}
-
-#[derive(Debug)]
-struct AllocDependency<T> { val:T }
-impl<T:Debug> DCGDep for AllocDependency<T> {
-  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
-}
 
 // Produce a value of type Res.
 trait Producer<Res> : Debug {
@@ -870,11 +862,24 @@ impl <Res:'static+Debug+Hash> GraphNode for Node<Res> {
                   _ => unreachable!(),
     }}
 
-  fn preds_obs(self:&Self) -> Vec<Rc<Loc>> {
-    match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|pred| if pred.effect == Effect::Observe { Some(pred.loc.clone()) } else { None } ).collect::<Vec<_>>(),
-                  Node::Comp(ref nd) => nd.preds.iter().filter_map(|pred| if pred.effect == Effect::Observe { Some(pred.loc.clone()) } else { None } ).collect::<Vec<_>>(),
-                  Node::Pure(_) => unreachable!(),
-                  _ => unreachable!(),
+  fn preds_obs(self:&Self) -> Vec<(Rc<Loc>, Option<Rc<Box<DCGDep>>>)> {
+      match *self { 
+          Node::Mut(ref nd) => 
+              nd.preds.iter().filter_map(
+                  |pred| 
+                  if pred.effect == Effect::Observe { Some((pred.loc.clone(), pred.dep.clone())) } 
+                  else { None } 
+              ).collect::<Vec<_>>(),
+          
+          Node::Comp(ref nd) => 
+              nd.preds.iter().filter_map(
+                  |pred| 
+                  if pred.effect == Effect::Observe { Some((pred.loc.clone(), None)) } 
+                  else { None } 
+              ).collect::<Vec<_>>(),
+          
+          Node::Pure(_) => unreachable!(),
+          _ => unreachable!(),
     }}
   fn preds_insert (self:&mut Self, eff:Effect, loc:&Rc<Loc>, dep:Option<Rc<Box<DCGDep>>>) -> () {
     match *self { Node::Mut(ref mut nd) => nd.preds.push (Pred{effect:eff,loc:loc.clone(),dep:dep.clone()}),
@@ -1014,7 +1019,7 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
 
 fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
   (g:&RefCell<DCG>,
-   this_dep:&ProducerDep<Res>,
+   this_dep:&ForceDep<Res>,
    loc:&Rc<Loc>, cache:Res, succs:Vec<Succ>) -> DCGRes
 {
   for succ in succs.iter() {
@@ -1047,14 +1052,83 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
   DCGRes{changed:changed}
 }
 
+#[derive(Debug)]
+struct AllocStructuralThunk;
+impl DCGDep for AllocStructuralThunk {
+  fn dirty (self:&Self, _g:&mut DCG,      _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} }
+  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:false} }
+}
+
+#[derive(Debug)]
+struct AllocNominalThunk<T> { val:T }
+impl<T:Debug> DCGDep for AllocNominalThunk<T> {
+  fn dirty (self:&Self, _g:&mut DCG,      _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} }
+  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
+}
+
+#[derive(Debug)]
+struct AllocCell<T> { val:T }
+impl<T:Debug> DCGDep for AllocCell<T> {
+  fn dirty (self:&Self, _g:&mut DCG,      _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} }
+  fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
+}
+
 /// The structure implements DCGDep, caching a value of type `T` to
 /// compare against future values.
 #[derive(Debug)]
-struct ProducerDep<T:Debug> { res:T }
+struct ForceDep<T:Debug> { res:T }
+
+/// The structure implements DCGDep, caching a value of type `T` to
+/// compare against future values.
+struct ForceMapDep<T,S,F:Fn(T)->S> { raw:PhantomData<T>, mapf:F, res:S }
+
+fn check_force_map_dep 
+    <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
+     S:'static+Sized+Debug+PartialEq+Eq+Clone+Hash, 
+     F:Fn(T)->S>
+    (st:&mut DCG, dep:&ForceMapDep<T,S,F>, loc:&Rc<Loc>) -> DCGRes 
+{
+    let node : &mut Node<T> = res_node_of_loc(st, loc) ;
+    match *node {
+        Node::Mut(ref nd) => 
+            DCGRes{changed:dep.res != (dep.mapf)(nd.val.clone())},
+        
+        Node::Comp(_) | Node::Pure(_) | Node::Unused => 
+            unreachable!()
+    }
+}
+
+impl <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
+      S:'static+Sized+Debug+PartialEq+Eq+Clone+Hash, F:Fn(T)->S>
+    DCGDep for ForceMapDep<T,S,F>
+{
+    fn dirty(self:&Self, g:&mut DCG, loc:&Rc<Loc>) -> DCGRes {
+        check_force_map_dep(g, self, loc)       
+    }    
+    fn clean(self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes {
+        check_force_map_dep(&mut *g.borrow_mut(), self, loc)
+    }
+}
+
+impl <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
+      S:'static+Sized+Debug+PartialEq+Eq+Clone+Hash, F:Fn(T)->S>
+    Debug for ForceMapDep<T,S,F> 
+{
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+      // TODO-Later: We dont print the mapping function here
+      write!(f, "ForceMapDep({:?})", self.res)
+  }    
+}
+
+
 
 impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
-  DCGDep for ProducerDep<Res>
+  DCGDep for ForceDep<Res>
 {
+  fn dirty(self:&Self, g:&mut DCG, loc:&Rc<Loc>) -> DCGRes {
+      DCGRes{changed:true}
+  }
+
   fn clean(self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes {
     //let stackLen = mut_dcg_of_globals.stack.len() ;
     ////debug!("{} change_prop begin: {:?}", engineMsg!(st), loc);
@@ -1147,25 +1221,30 @@ fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Lo
 }
 
 fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
-  let pred_locs : Vec<Rc<Loc>> = lookup_abs( st, loc ).preds_obs() ;
-  let mut dirty_edge_count = 0;
-  for pred_loc in pred_locs {
-    let stop : bool = {
-      // The stop bit communicates information from st for use below.
-      let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
-      if succ.dirty { true } else {
-        dirty_edge_count += 1 ;
-        assert!(&pred_loc != loc);
-        dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
-        replace(&mut succ.dirty, true);
-        false
-      }} ;
-    if !stop {
-      dirty_pred_observers(st,&pred_loc);
-      dcg_effect_end!();
-    } else { }
-  }
-  st.cnt.dirty += dirty_edge_count ;
+    let pred_locs : Vec<(Rc<Loc>, Option<Rc<Box<DCGDep>>>)> = lookup_abs( st, loc ).preds_obs() ;
+    let mut dirty_edge_count = 0;
+    for (pred_loc, dep) in pred_locs {
+        let stop : bool = match dep {
+            None => false,
+            Some(dep) => dep.dirty(st, loc).changed == false
+        };
+        let stop : bool = if stop { true } else {
+            // The stop bit communicates information from st for use below.
+            let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
+            if succ.dirty { true } else {
+                dirty_edge_count += 1 ;
+                assert!(&pred_loc != loc);
+                dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
+                replace(&mut succ.dirty, true);
+                false
+            }} 
+        ;
+        if !stop {
+            dirty_pred_observers(st,&pred_loc);
+            dcg_effect_end!();
+        } else { }
+    }
+    st.cnt.dirty += dirty_edge_count ;
 }
 
 fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
@@ -1286,7 +1365,8 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
 
   /// Demand & observe arts (all kinds): force
   fn force_map<T:Eq+Debug+Clone+Hash+'static,
-               S:Eq+Debug+Clone+Hash+'static, F>
+               S:Eq+Debug+Clone+Hash+'static, 
+               F:'static>
         (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>, F) -> S        
         where F:Fn(T) -> S
         ;
@@ -1426,8 +1506,8 @@ impl Adapton for DCG {
           is_dup:false, // XXX -- Actually: Not checked here.
         }
       );      
+      if do_set   { set_(self, AbsArt::Loc(loc.clone()), val.clone()) };
       if do_dirty { dirty_alloc(self, &loc) } ;
-      if do_set { set_(self, AbsArt::Loc(loc.clone()), val.clone()) };
       match succs { Some(succs) => revoke_succs(self, &loc, &succs), None => () } ;
       dcg_effect_end!();
       
@@ -1445,7 +1525,7 @@ impl Adapton for DCG {
         Some(frame) => {
           let succ =
             Succ{loc:loc.clone(),
-                 dep:Rc::new(Box::new(AllocDependency{val:val})),
+                 dep:Rc::new(Box::new(AllocCell{val:val})),
                  effect:Effect::Allocate,
                  dirty:false};
           frame.succs.push((succ, None))
@@ -1498,7 +1578,7 @@ impl Adapton for DCG {
           Some(frame) => {
             let succ =
               Succ{loc:loc.clone(),
-                   dep:Rc::new(Box::new(NoDependency)),
+                   dep:Rc::new(Box::new(AllocStructuralThunk)),
                    effect:Effect::Allocate,
                    dirty:false};
             frame.succs.push((succ, None))
@@ -1614,7 +1694,7 @@ impl Adapton for DCG {
         match self.stack.last_mut() { None => (), Some(frame) => {
           let succ =
             Succ{loc:loc.clone(),
-                 dep:Rc::new(Box::new(AllocDependency{val:arg.clone()})),
+                 dep:Rc::new(Box::new(AllocNominalThunk{val:arg.clone()})),
                  effect:Effect::Allocate,
                  dirty:false};
           frame.succs.push((succ, None))
@@ -1640,13 +1720,14 @@ impl Adapton for DCG {
   }
 
   fn force_map<T:'static+Eq+Debug+Clone+Hash, 
-               S:'static+Eq+Debug+Clone+Hash, F> 
+               S:'static+Eq+Debug+Clone+Hash, 
+               F:'static> 
         (g:&RefCell<DCG>,
          art:&AbsArt<T,Self::Loc>, mapf:F) -> S
         where F:Fn(T) -> S
     {      
-      let res = match *art {
-          AbsArt::Rc(ref v) => None,
+      match *art {
+          AbsArt::Rc(ref v) => mapf((**v).clone()),
           AbsArt::Loc(ref loc) => {
               let cell_val : Option<T> = {
                   let st : &mut DCG = &mut *g.borrow_mut();
@@ -1659,12 +1740,15 @@ impl Adapton for DCG {
                   }
               } ;
               match cell_val {
-                  None => None,
+                  None => {
+                      mapf(<DCG as Adapton>::force(g, art))
+                  },
                   Some(val) => { 
                       // Case: We _are_ forcing a cell; so, we record
                       // the mapped value, and the mapping function,
                       // in the DCG.
                       dcg_effect!(
+                          // TODO-Now: Reflect the fact that we are doing a mapping here
                           reflect::trace::Effect::Force(reflect::trace::ForceCase::RefGet),
                           current_loc!(*g.borrow()),
                           reflect::Succ{
@@ -1677,24 +1761,24 @@ impl Adapton for DCG {
                       let st : &mut DCG = &mut *g.borrow_mut() ;
                       let res = mapf(val.clone());
                       match st.stack.last_mut() { None => (), Some(frame) => {
-                          let succ =
+                          let dep : Rc<Box<DCGDep>> = Rc::new(Box::new(ForceMapDep{
+                              raw:PhantomData,
+                              mapf:mapf,
+                              res:res.clone()}));
+                          let succ =                              
                               // TODO: Record the mapping function
                               // here, for use when we decide whether
                               // or not to dirty.
                               Succ{loc:loc.clone(),
-                                   dep:Rc::new(Box::new(ProducerDep{res:res.clone()})),
+                                   dep:dep.clone(),
                                    effect:Effect::Observe,
                                    dirty:false};
-                          frame.succs.push((succ, None));
+                          frame.succs.push((succ, Some(dep.clone())));
                       }};
-                      Some(res)
+                      res
                   }
               }              
           }
-      };
-      match res {
-          None => mapf(<DCG as Adapton>::force(g, art)),
-          Some(res) => res,          
       }
   }
 
@@ -1764,7 +1848,7 @@ impl Adapton for DCG {
                   is_dup:is_dup,
                 }
               );
-              let _ = ProducerDep{res:res.clone()}.clean(g, &loc) ;
+              let _ = ForceDep{res:res.clone()}.clean(g, &loc) ;
               dcg_effect_end!();
               let st : &mut DCG = &mut *g.borrow_mut();
               let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
@@ -1796,7 +1880,7 @@ impl Adapton for DCG {
         if !is_dup && !is_pure { match st.stack.last_mut() { None => (), Some(frame) => {
           let succ =
             Succ{loc:loc.clone(),
-                 dep:Rc::new(Box::new(ProducerDep{res:result.clone()})),
+                 dep:Rc::new(Box::new(ForceDep{res:result.clone()})),
                  effect:Effect::Observe,
                  dirty:false};
           frame.succs.push((succ, None));
@@ -2195,7 +2279,7 @@ pub fn force<T:Hash+Eq+Debug+Clone+'static> (a:&Art<T>) -> T {
 /// fine-grained `Art`s.
 pub fn force_map<T:Hash+Eq+Debug+Clone+'static,
                  S:Hash+Eq+Debug+Clone+'static, 
-                 MapF> 
+                 MapF:'static> 
     (a:&Art<T>, mapf:MapF) -> S 
     where MapF:Fn(T) -> S
 {
@@ -2318,7 +2402,7 @@ mod wf {
   fn dirty (st:&DCG, cs:&mut Cs, loc:&Rc<Loc>) {
     add_constraint(cs, loc, NodeStatus::Dirty) ;
     let node = match st.table.get(loc) { Some(x) => x, None => panic!("") } ;
-    for pred in node.preds_obs () {
+    for (pred,_) in node.preds_obs () {
       // Todo: Assert that pred has a dirty succ edge that targets loc
       let succ = super::get_succ(st, &pred, super::Effect::Observe, loc) ;
       if succ.dirty {} else {
