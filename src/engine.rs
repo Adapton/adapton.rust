@@ -1283,6 +1283,13 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   
   /// Demand & observe arts (all kinds): force
   fn force<T:Eq+Debug+Clone+Hash+'static> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>) -> T ;
+
+  /// Demand & observe arts (all kinds): force
+  fn force_map<T:Eq+Debug+Clone+Hash+'static,
+               S:Eq+Debug+Clone+Hash+'static, F>
+        (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>, F) -> S        
+        where F:Fn(T) -> S
+        ;
 }
 
 impl Adapton for DCG {
@@ -1630,6 +1637,65 @@ impl Adapton for DCG {
         }
       }
     }
+  }
+
+  fn force_map<T:'static+Eq+Debug+Clone+Hash, 
+               S:'static+Eq+Debug+Clone+Hash, F> 
+        (g:&RefCell<DCG>,
+         art:&AbsArt<T,Self::Loc>, mapf:F) -> S
+        where F:Fn(T) -> S
+    {      
+      let res = match *art {
+          AbsArt::Rc(ref v) => None,
+          AbsArt::Loc(ref loc) => {
+              let cell_val : Option<T> = {
+                  let st : &mut DCG = &mut *g.borrow_mut();
+                  let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
+                  match *node {
+                      Node::Unused => unreachable!(),
+                      Node::Comp(ref mut nd) => { None }
+                      Node::Pure(ref mut nd) => { None }
+                      Node::Mut(ref mut nd)  => { Some(nd.val.clone()) }
+                  }
+              } ;
+              match cell_val {
+                  None => None,
+                  Some(val) => { 
+                      // Case: We _are_ forcing a cell; so, we record
+                      // the mapped value, and the mapping function,
+                      // in the DCG.
+                      dcg_effect!(
+                          reflect::trace::Effect::Force(reflect::trace::ForceCase::RefGet),
+                          current_loc!(*g.borrow()),
+                          reflect::Succ{
+                              loc:loc.reflect(),
+                              value:reflect::Val::ValTODO,
+                              effect:reflect::Effect::Force,
+                              dirty:false,
+                              is_dup:false,
+                          });
+                      let st : &mut DCG = &mut *g.borrow_mut() ;
+                      let res = mapf(val.clone());
+                      match st.stack.last_mut() { None => (), Some(frame) => {
+                          let succ =
+                              // TODO: Record the mapping function
+                              // here, for use when we decide whether
+                              // or not to dirty.
+                              Succ{loc:loc.clone(),
+                                   dep:Rc::new(Box::new(ProducerDep{res:res.clone()})),
+                                   effect:Effect::Observe,
+                                   dirty:false};
+                          frame.succs.push((succ, None));
+                      }};
+                      Some(res)
+                  }
+              }              
+          }
+      };
+      match res {
+          None => mapf(<DCG as Adapton>::force(g, art)),
+          Some(res) => res,          
+      }
   }
 
   fn force<T:'static+Eq+Debug+Clone+Hash> (g:&RefCell<DCG>,
@@ -2133,22 +2199,19 @@ pub fn force_map<T:Hash+Eq+Debug+Clone+'static,
     (a:&Art<T>, mapf:MapF) -> S 
     where MapF:Fn(T) -> S
 {
-  match a.art {
-    EnumArt::Force(ref f) => mapf(f.force()),
-    EnumArt::Rc(ref rc) => mapf((&**rc).clone()),
-    EnumArt::Loc(ref loc) => {
-      GLOBALS.with(|g| {
-        match g.borrow().engine {
-          Engine::DCG(ref dcg_refcell) => 
-          // TODO: when loc locates a ref, store this view function in
-          // the DCG; have dirtying algorithm use it to proactively
-          // prune dirtied paths.
-          mapf(
-            <DCG as Adapton>::force(dcg_refcell, &AbsArt::Loc(loc.clone()))),
-          Engine::Naive => panic!("cannot force a non-naive location with the naive engine")
-      }})
+    match a.art {
+        EnumArt::Force(ref f) => mapf(f.force()),
+        EnumArt::Rc(ref rc) => mapf((&**rc).clone()),
+        EnumArt::Loc(ref loc) => {
+            GLOBALS.with(|g| {
+                match g.borrow().engine {
+                    Engine::DCG(ref dcg_refcell) => 
+                        <DCG as Adapton>::force_map(dcg_refcell, &AbsArt::Loc(loc.clone()), mapf),
+                    Engine::Naive => panic!("cannot force a non-naive location with the naive engine")
+                }
+            })
+        }
     }
-  }
 }
 
 /// Operations that monitor and alter the active engine.  Incremental
