@@ -18,7 +18,7 @@ mod engine {
         manage::init_dcg();    
         let a : u32      = 1234;
         let b : Art<u32> = cell(name_of_usize(0), a);
-        let c : u64      = force_map(&b, |x| x as u64);    
+        let c : u64      = force_map(&b, |_,x| x as u64);    
         assert_eq!(a as u64, c);
     }
 
@@ -28,8 +28,8 @@ mod engine {
         manage::init_dcg();    
         let pair = (1234 as usize, 5678 as usize);
         let c    = cell(name_of_usize(0), pair);
-        let fst  = force_map(&c, |x| x.0);
-        let snd  = force_map(&c, |x| x.1);
+        let fst  = force_map(&c, |_,x| x.0);
+        let snd  = force_map(&c, |_,x| x.1);
         assert_eq!(pair.0, fst);
         assert_eq!(pair.1, snd);
     }
@@ -47,7 +47,7 @@ mod engine {
         let pair = (1234 as usize, 5678 as usize);
         let c    = cell(name_of_usize(0), pair);
         let t = thunk![ name_of_usize(1) =>> {    
-            let fst = force_map(&c, |x| x.0);
+            let fst = force_map(&c, |_,x| x.0);
             fst + 100
         }];
         assert_eq!(force(&t), 1334);
@@ -68,7 +68,7 @@ mod engine {
         manage::init_dcg();    
         let a : u32      = 1234;
         let b : Art<u32> = thunk![ name_of_usize(0) =>> a];
-        let c : u64      = force_map(&b, |x| x as u64);    
+        let c : u64      = force_map(&b, |_,x| x as u64);    
         assert_eq!(a as u64, c);
     }
 }

@@ -1080,18 +1080,20 @@ struct ForceDep<T:Debug> { res:T }
 
 /// The structure implements DCGDep, caching a value of type `T` to
 /// compare against future values.
-struct ForceMapDep<T,S,F:Fn(T)->S> { raw:PhantomData<T>, mapf:F, res:S }
+struct ForceMapDep<T,S,F:Fn(&Art<T>, T)->S> { raw:PhantomData<T>, mapf:F, res:S }
 
 fn check_force_map_dep 
     <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
      S:'static+Sized+Debug+PartialEq+Eq+Clone+Hash, 
-     F:Fn(T)->S>
+     F:Fn(&Art<T>, T)->S>
     (st:&mut DCG, dep:&ForceMapDep<T,S,F>, loc:&Rc<Loc>) -> DCGRes 
 {
     let node : &mut Node<T> = res_node_of_loc(st, loc) ;
     match *node {
         Node::Mut(ref nd) => 
-            DCGRes{changed:dep.res != (dep.mapf)(nd.val.clone())},
+            DCGRes{changed:dep.res != (dep.mapf)
+                   (&Art{art:EnumArt::Loc(loc.clone())},
+                    nd.val.clone())},
         
         Node::Comp(_) | Node::Pure(_) | Node::Unused => 
             unreachable!()
@@ -1099,7 +1101,7 @@ fn check_force_map_dep
 }
 
 impl <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
-      S:'static+Sized+Debug+PartialEq+Eq+Clone+Hash, F:Fn(T)->S>
+      S:'static+Sized+Debug+PartialEq+Eq+Clone+Hash, F:Fn(&Art<T>, T)->S>
     DCGDep for ForceMapDep<T,S,F>
 {
     fn dirty(self:&Self, g:&mut DCG, loc:&Rc<Loc>) -> DCGRes {
@@ -1111,7 +1113,7 @@ impl <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
 }
 
 impl <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
-      S:'static+Sized+Debug+PartialEq+Eq+Clone+Hash, F:Fn(T)->S>
+      S:'static+Sized+Debug+PartialEq+Eq+Clone+Hash, F:Fn(&Art<T>, T)->S>
     Debug for ForceMapDep<T,S,F> 
 {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1368,7 +1370,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
                S:Eq+Debug+Clone+Hash+'static, 
                F:'static>
         (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>, F) -> S        
-        where F:Fn(T) -> S
+        where F:Fn(&Art<T>, T) -> S
         ;
 }
 
@@ -1724,10 +1726,11 @@ impl Adapton for DCG {
                F:'static> 
         (g:&RefCell<DCG>,
          art:&AbsArt<T,Self::Loc>, mapf:F) -> S
-        where F:Fn(T) -> S
+        where F:Fn(&Art<T>, T) -> S
     {      
       match *art {
-          AbsArt::Rc(ref v) => mapf((**v).clone()),
+          AbsArt::Rc(ref v) => mapf(&Art{art:EnumArt::Rc(v.clone())}, 
+                                    (**v).clone()),
           AbsArt::Loc(ref loc) => {
               let cell_val : Option<T> = {
                   let st : &mut DCG = &mut *g.borrow_mut();
@@ -1738,10 +1741,11 @@ impl Adapton for DCG {
                       Node::Pure(ref mut nd) => { None }
                       Node::Mut(ref mut nd)  => { Some(nd.val.clone()) }
                   }
-              } ;
+              } ;              
               match cell_val {
                   None => {
-                      mapf(<DCG as Adapton>::force(g, art))
+                      mapf(&Art{art:EnumArt::Loc(loc.clone())},
+                           <DCG as Adapton>::force(g, art))
                   },
                   Some(val) => { 
                       // Case: We _are_ forcing a cell; so, we record
@@ -1759,7 +1763,7 @@ impl Adapton for DCG {
                               is_dup:false,
                           });
                       let st : &mut DCG = &mut *g.borrow_mut() ;
-                      let res = mapf(val.clone());
+                      let res = mapf(&Art{art:EnumArt::Loc(loc.clone())}, val.clone());
                       match st.stack.last_mut() { None => (), Some(frame) => {
                           let dep : Rc<Box<DCGDep>> = Rc::new(Box::new(ForceMapDep{
                               raw:PhantomData,
@@ -2281,11 +2285,11 @@ pub fn force_map<T:Hash+Eq+Debug+Clone+'static,
                  S:Hash+Eq+Debug+Clone+'static, 
                  MapF:'static> 
     (a:&Art<T>, mapf:MapF) -> S 
-    where MapF:Fn(T) -> S
+    where MapF:Fn(&Art<T>, T) -> S
 {
     match a.art {
-        EnumArt::Force(ref f) => mapf(f.force()),
-        EnumArt::Rc(ref rc) => mapf((&**rc).clone()),
+        EnumArt::Force(ref f) => mapf(a, f.force()),
+        EnumArt::Rc(ref rc) => mapf(a, (&**rc).clone()),
         EnumArt::Loc(ref loc) => {
             GLOBALS.with(|g| {
                 match g.borrow().engine {
