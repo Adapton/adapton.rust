@@ -1,7 +1,89 @@
 #[macro_use]
 extern crate adapton;
 
-mod engine {
+mod engine_is_from_scratch_consistent {
+    //! This module tests that change propagation is from-scratch consistent
+
+    /// Compare to this sound behavior to the unsound behavior from
+    /// JaneStreet 'Incremental' libary.  In particular, Yit's gist
+    /// shows the problematic change propagation behavior:
+    /// https://gist.github.com/khooyp/98abc0e64dc296deaa48
+    #[test]
+    fn test1 () {
+
+        use std::rc::Rc;
+        use adapton::macros::*;
+        use adapton::engine::*;
+        manage::init_dcg();
+
+        // Construct two mutable inputs, `nom` and `den`, a
+        // computation `div` that divides the nominator in `nom` by
+        // the denominator in `den`, and a root thunk `t` that first
+        // checks whether the denominator is zero (returning zero if
+        // so) and if non-zero, returns the value of the division.
+       
+        let nom  = cell(name_of_str("nom"), 0 as usize);
+        let den  = cell(name_of_str("den"), 1 as usize); 
+        
+        // In Rust, cloning is explicit:
+        let den2 = den.clone(); // here, we clone the _global reference_ to the cell.
+        let den3 = den.clone(); // here, we clone the _global reference_ to the cell, again.
+
+        let div  = thunk![ name_of_str("div") =>> get!(nom) / get!(den) ];
+        let root = thunk![ name_of_str("t")   =>> if get!(den2) == 0 { 0 } else { get!(div) } ];
+        
+        assert_eq!(get!(root), 0);
+        set(&den3, 0);
+        assert_eq!(get!(root), 0);
+    }
+
+    /// Compare to this sound behavior to the unsound behavior from
+    /// JaneStreet 'Incremental' libary.  In particular, Yit's gist
+    /// shows the problematic change propagation behavior:
+    /// https://gist.github.com/khooyp/98abc0e64dc296deaa48
+    #[test]
+    fn test1_short_macros () {
+
+        use std::rc::Rc;
+        use adapton::macros::*;
+        use adapton::engine::*;
+        manage::init_dcg();
+
+        // Construct two mutable inputs, `nom` and `den`, a
+        // computation `div` that divides the nominator in `nom` by
+        // the denominator in `den`, and a root thunk `t` that first
+        // checks whether the denominator is zero (returning zero if
+        // so) and if non-zero, returns the value of the division.
+       
+        let nom  = cell!(0);
+        let den  = cell!(1);
+        
+        // In Rust, cloning is explicit:
+        let den2 = den.clone(); // here, we clone the _global reference_ to the cell.
+        let den3 = den.clone(); // here, we clone the _global reference_ to the cell, again.
+
+        let div  = thunk![ get!(nom) / get!(den) ];
+        let root = thunk![ if get!(den2) == 0 { 0 } else { get!(div) } ];
+        
+        assert_eq!(get!(root), 0);
+        set(&den3, 0);
+        assert_eq!(get!(root), 0);
+    }
+}
+
+mod engine_is_demand_driven {
+
+    #[test]
+    fn test1() {
+        // TODO
+    }   
+
+}
+
+
+mod engine_api {
+    //! This module tests gives unit tests for the engine's core API
+
     #[test] 
     fn force_cell () {
         use adapton::engine::*;

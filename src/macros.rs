@@ -10,10 +10,13 @@
 // identifies the function pointer (i.e., two distinct functions will
 // always have two distinct identities).
 //
+use std::cell::RefCell;
 use std::hash::{Hash,Hasher};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Formatter,Result,Debug};
 //use std::mem::replace;
+
+thread_local!(static NAME_COUNTER: RefCell<usize> = RefCell::new(0));
 
 #[derive(PartialEq,Eq,Clone,Hash)]
 pub struct ProgPt {
@@ -49,6 +52,10 @@ pub fn my_hash_n<T>(obj: T, n:usize) -> u64
   hasher.finish()
 }
 
+pub fn bump_name_counter() -> usize {
+    NAME_COUNTER.with(|ctr|{let c = *ctr.borrow(); *ctr.borrow_mut() = c + 1; c})
+}
+
 #[macro_export]
 macro_rules! prog_pt {
   ($symbol:expr) => {{
@@ -62,7 +69,34 @@ macro_rules! prog_pt {
 }
 
 #[macro_export]
+macro_rules! get {
+  ($art:expr) => {{
+      force(&($art))
+  }}
+}
+
+#[macro_export]
+macro_rules! cell {
+  ($value:expr) => {{
+      cell(name_of_usize(bump_name_counter()), $value)
+  }}
+}
+
+#[macro_export]
 macro_rules! thunk {
+  [ $suspended_body:expr ] => {{
+    thunk
+      (ArtIdChoice::Nominal(name_of_usize(bump_name_counter())),
+       prog_pt!(stringify!("anonymous")),
+       Rc::new(Box::new(
+         move |(),()|{
+           $suspended_body
+         })),
+       (), 
+       ()
+      )
+  }}
+  ;
   [ $nm:expr =>> $suspended_body:expr ] => {{
     thunk
       (ArtIdChoice::Nominal($nm),
