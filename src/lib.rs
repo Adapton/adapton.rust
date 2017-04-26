@@ -3,7 +3,7 @@
 // #![feature(field_init_shorthand)]
 // #![feature(rustc_private)]
 
-#![feature(zero_one)]
+//#![feature(zero_one)]
 #![feature(associated_consts)]
 #![feature(box_patterns)]
 #![feature(box_syntax)]

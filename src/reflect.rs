@@ -1,13 +1,8 @@
-use std::hash::Hash;
 use engine::Name;
 use macros::ProgPt;
 use std::fmt::Debug;
-//use std::hash::Hash;
 use std::rc::Rc;
 use std::collections::HashMap;
-
-// /// Reflected primitive data
-//pub trait Data : Debug { }
 
 /// This trait consists of the ability for a reference to `Self` to
 /// produce a `T`.  Conceptually, that value of type T is the
@@ -39,12 +34,6 @@ impl<'a,S,T:Reflect<S>+Debug> Reflect<S> for Rc<T> {
     (**self).reflect()
   }
 }
-
-// impl<T> Reflect<T> for T {
-//  fn reflect(&self) -> T {
-//    self.clone()
-//  }
-// }
 
 /// Reflected value; Gives a syntax for inductive data type
 /// constructors (`Constr`), named articulations (`Art`) and primitive

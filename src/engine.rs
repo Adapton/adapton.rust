@@ -34,13 +34,12 @@ use std::env;
 use std::fmt::Debug;
 use std::fmt::{Formatter,Result};
 use std::fmt;
-use std::fs::{OpenOptions};
 use std::hash::{Hash,Hasher};
 use std::collections::hash_map::DefaultHasher;
 use std::mem::replace;
 use std::mem::transmute;
-use std::num::Zero;
-use std::ops::Add;
+//use std::num::Zero;
+//use std::ops::Add;
 use std::rc::Rc;
 use std::fmt::Write;
 
@@ -98,16 +97,16 @@ pub mod reflect {
   /// Write a concise human-readable version of the name (not the
   /// verbose, machine-parsable `Debug` version).
   pub fn write_name<W:Write> (w:&mut W, n:&Name) {
-    super::write_namesym(w, &n.symbol);
+    super::write_namesym(w, &n.symbol).unwrap();
   }
 
   /// Write a concise human-readable version of the path (not the
   /// verbose, machine-parsable `Debug` version).
   pub fn write_path<W:Write> (w:&mut W, p:&Path) {
-    write!(w, "__"); // Underscores are valid in CSS class names
+    write!(w, "__").unwrap(); // Underscores are valid in CSS class names
     for n in p.iter() {
       write_name(w, n);
-      write!(w, "__"); // Underscores are valid in CSS class names
+      write!(w, "__").unwrap(); // Underscores are valid in CSS class names
     }
   }
 
@@ -115,7 +114,7 @@ pub mod reflect {
   /// verbose, machine-parsable `Debug` version).  
   pub fn write_loc<W:Write> (w:&mut W, l:&Loc)  {
     write_path(w, &l.path);
-    write!(w, "_"); // Underscores are valid in CSS class names
+    write!(w, "_").unwrap(); // Underscores are valid in CSS class names
     write_name(w, &l.name);
   }
 
@@ -375,7 +374,7 @@ pub struct DCG {
   table : HashMap<Rc<Loc>, Box<GraphNode>>,
   stack : Vec<Frame>,
   path  : Rc<Path>,
-  cnt   : Cnt,
+  //cnt   : Cnt,
   dcg_count : usize,
   dcg_hash  : u64,  
 }
@@ -682,58 +681,58 @@ pub enum ArtIdChoice {
   Nominal(Name),
 }
 
-/// *Engine Counts*: Metrics that reflect the time and space costs of the engine.
-#[derive(Debug,Hash,PartialEq,Eq,Clone)]
-pub struct Cnt {
-  /// Number of DCG nodes created
-  pub create : usize, // Add trait performs sum
-  /// Number of DCG nodes evaluated
-  pub eval   : usize, // Add trait performs sum
-  /// Number of DCG nodes marked as dirty
-  pub dirty  : usize, // Add trait performs sum
-  /// Number of DCG nodes reverted from dirty to clean
-  pub clean  : usize, // Add trait performs sum
-  /// Maximum height of the DCG node stack.  This stack is pushed when DCG nodes are evaluated, and popped when they complete.
-  pub stack  : usize, // Add trait performs max
-}
+// /// *Engine Counts*: Metrics that reflect the time and space costs of the engine.
+// #[derive(Debug,Hash,PartialEq,Eq,Clone)]
+// pub struct Cnt {
+//   /// Number of DCG nodes created
+//   pub create : usize, // Add trait performs sum
+//   /// Number of DCG nodes evaluated
+//   pub eval   : usize, // Add trait performs sum
+//   /// Number of DCG nodes marked as dirty
+//   pub dirty  : usize, // Add trait performs sum
+//   /// Number of DCG nodes reverted from dirty to clean
+//   pub clean  : usize, // Add trait performs sum
+//   /// Maximum height of the DCG node stack.  This stack is pushed when DCG nodes are evaluated, and popped when they complete.
+//   pub stack  : usize, // Add trait performs max
+// }
 
-impl Add for Cnt {
-  type Output=Cnt;
-  fn add(self, rhs: Self) -> Self::Output {
-    Cnt {
-      create : self.create + rhs.create,
-      eval   : self.eval + rhs.eval,
-      dirty  : self.dirty + rhs.dirty,
-      clean  : self.clean + rhs.clean,
-      stack  : if self.stack > rhs.stack { self.stack } else { rhs.stack }
-    }
-  }
-}
+// impl Add for Cnt {
+//   type Output=Cnt;
+//   fn add(self, rhs: Self) -> Self::Output {
+//     Cnt {
+//       create : self.create + rhs.create,
+//       eval   : self.eval + rhs.eval,
+//       dirty  : self.dirty + rhs.dirty,
+//       clean  : self.clean + rhs.clean,
+//       stack  : if self.stack > rhs.stack { self.stack } else { rhs.stack }
+//     }
+//   }
+// }
 
-impl<'a> Add for &'a Cnt {
-  type Output=Cnt;
-  fn add(self, rhs: Self) -> Self::Output {
-    Cnt {
-      create : self.create + rhs.create,
-      eval   : self.eval + rhs.eval,
-      dirty  : self.dirty + rhs.dirty,
-      clean  : self.clean + rhs.clean,
-      stack  : if self.stack > rhs.stack { self.stack } else { rhs.stack }
-    }
-  }
-}
+// impl<'a> Add for &'a Cnt {
+//   type Output=Cnt;
+//   fn add(self, rhs: Self) -> Self::Output {
+//     Cnt {
+//       create : self.create + rhs.create,
+//       eval   : self.eval + rhs.eval,
+//       dirty  : self.dirty + rhs.dirty,
+//       clean  : self.clean + rhs.clean,
+//       stack  : if self.stack > rhs.stack { self.stack } else { rhs.stack }
+//     }
+//   }
+// }
 
-impl Zero for Cnt {
-  fn zero() -> Self {
-    Cnt {
-      create : 0 as usize,
-      eval   : 0 as usize,
-      dirty  : 0 as usize,
-      clean  : 0 as usize,
-      stack  : 0 as usize,
-    }
-  }
-}
+// impl Zero for Cnt {
+//   fn zero() -> Self {
+//     Cnt {
+//       create : 0 as usize,
+//       eval   : 0 as usize,
+//       dirty  : 0 as usize,
+//       clean  : 0 as usize,
+//       stack  : 0 as usize,
+//     }
+//   }
+// }
 
 
 
@@ -967,7 +966,7 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
     } ;
     revoke_succs( st, loc, &succs );
     st.stack.push ( Frame{loc:loc.clone(), succs:Vec::new(), } );
-    st.cnt.stack = if st.cnt.stack > st.stack.len() { st.cnt.stack } else { st.stack.len() } ;
+    //st.cnt.stack = if st.cnt.stack > st.stack.len() { st.cnt.stack } else { st.stack.len() } ;
     let prev_path = st.path.clone () ;
     st.path = loc.path.clone() ;
     let producer : Box<Producer<Res>> = {
@@ -977,7 +976,7 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
         _ => panic!("internal error"),
       }
     } ;
-    st.cnt.eval += 1 ; 
+    //st.cnt.eval += 1 ; 
     drop(st);  // End mutable borrow of global RefCell
     (producer, prev_path)
   };   
@@ -1041,7 +1040,7 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
       }
       else {
         let mut st : &mut DCG = &mut *g.borrow_mut();
-        st.cnt.clean += 1 ;
+        //st.cnt.clean += 1 ;
         get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty = false ;
         dcg_effect!(reflect::trace::Effect::CleanEdge, Some(loc), succ);
       }
@@ -1127,7 +1126,7 @@ impl <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
 impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
   DCGDep for ForceDep<Res>
 {
-  fn dirty(self:&Self, g:&mut DCG, loc:&Rc<Loc>) -> DCGRes {
+  fn dirty(self:&Self, _g:&mut DCG, _loc:&Rc<Loc>) -> DCGRes {
       DCGRes{changed:true}
   }
 
@@ -1224,7 +1223,6 @@ fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Lo
 
 fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
     let pred_locs : Vec<(Rc<Loc>, Option<Rc<Box<DCGDep>>>)> = lookup_abs( st, loc ).preds_obs() ;
-    let mut dirty_edge_count = 0;
     for (pred_loc, dep) in pred_locs {
         let stop : bool = match dep {
             None => false,
@@ -1234,7 +1232,6 @@ fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
             // The stop bit communicates information from st for use below.
             let succ = get_succ_mut(st, &pred_loc, Effect::Observe, &loc) ;
             if succ.dirty { true } else {
-                dirty_edge_count += 1 ;
                 assert!(&pred_loc != loc);
                 dcg_effect_begin!(reflect::trace::Effect::Dirty, Some(&pred_loc), succ);
                 replace(&mut succ.dirty, true);
@@ -1246,7 +1243,6 @@ fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
             dcg_effect_end!();
         } else { }
     }
-    st.cnt.dirty += dirty_edge_count ;
 }
 
 fn dirty_alloc(st:&mut DCG, loc:&Rc<Loc>) {
@@ -1339,7 +1335,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
   /// Enters a special "namespace" where all name uses are ignored; instead, Adapton uses structural identity.
   fn structural<T,F> (g: &RefCell<DCG>, body:F) -> T where F:FnOnce() -> T;
   
-  fn cnt<Res,F> (g: &RefCell<DCG>, body:F) -> (Res, Cnt) where F:FnOnce() -> Res;
+ //fn cnt<Res,F> (g: &RefCell<DCG>, body:F) -> (Res, Cnt) where F:FnOnce() -> Res;
   
   /// Creates immutable, eager articulation.
   fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> AbsArt<T,Self::Loc> ;
@@ -1379,7 +1375,7 @@ impl Adapton for DCG {
 
   fn new () -> DCG {
     let path = Rc::new(Path::Empty);
-    let mut stack = Vec::new() ;
+    let stack = Vec::new() ;
     let table = HashMap::new ();
     DCG {
       flags : Flags {
@@ -1392,7 +1388,7 @@ impl Adapton for DCG {
       table : table,
       stack : stack,
       path  : path,
-      cnt   : Cnt::zero (),
+//      cnt   : Cnt::zero (),
       dcg_count : 0,
       dcg_hash : 0, // XXX This makes assumptions about hashing implementation
     }
@@ -1426,24 +1422,24 @@ impl Adapton for DCG {
     x
   }
 
-  fn cnt<Res,F> (g: &RefCell<DCG>, body:F) -> (Res,Cnt)
-    where F:FnOnce() -> Res
-  {    
-    let c : Cnt = {
-      let st = &mut *g.borrow_mut();
-      let c = st.cnt.clone() ;
-      st.cnt = Zero::zero();
-      c
-    };
-    let x = body() ;
-    let d : Cnt = {
-      let st = &mut *g.borrow_mut();      
-      let d : Cnt = st.cnt.clone() ;
-      st.cnt = c + d.clone();
-      d
-    };
-    (x, d)
-  }
+  // fn cnt<Res,F> (g: &RefCell<DCG>, body:F) -> (Res,Cnt)
+  //   where F:FnOnce() -> Res
+  // {    
+  //   let c : Cnt = {
+  //     let st = &mut *g.borrow_mut();
+  //     let c = st.cnt.clone() ;
+  //     st.cnt = Zero::zero();
+  //     c
+  //   };
+  //   let x = body() ;
+  //   let d : Cnt = {
+  //     let st = &mut *g.borrow_mut();      
+  //     let d : Cnt = st.cnt.clone() ;
+  //     st.cnt = c + d.clone();
+  //     d
+  //   };
+  //   (x, d)
+  // }
 
   fn put<T:Eq> (self:&mut DCG, x:T) -> AbsArt<T,Self::Loc> { AbsArt::Rc(Rc::new(x)) }
 
@@ -1519,7 +1515,7 @@ impl Adapton for DCG {
             preds:Vec::new(),
             val:val.clone(),
           })} ;
-        self.cnt.create += 1;                    
+        //self.cnt.create += 1;                    
         self.table.insert(loc.clone(), Box::new(node));
       } ;
       if ! is_pure { match self.stack.last_mut() { 
@@ -1597,7 +1593,7 @@ impl Adapton for DCG {
           producer:producer,
           res:None,
         } ;
-        self.cnt.create += 1;
+        //self.cnt.create += 1;
         self.table.insert(loc.clone(),
                           Box::new(Node::Comp(node)));
         wf::check_dcg(self);
@@ -1708,7 +1704,7 @@ impl Adapton for DCG {
             producer:Box::new(producer),
             res:None,
           } ;
-          self.cnt.create += 1;
+          //self.cnt.create += 1;
           self.table.insert(loc.clone(), Box::new(Node::Comp(node)));
           wf::check_dcg(self);
           AbsArt::Loc(loc)
@@ -1737,9 +1733,9 @@ impl Adapton for DCG {
                   let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
                   match *node {
                       Node::Unused => unreachable!(),
-                      Node::Comp(ref mut nd) => { None }
-                      Node::Pure(ref mut nd) => { None }
-                      Node::Mut(ref mut nd)  => { Some(nd.val.clone()) }
+                      Node::Comp(_) => { None }
+                      Node::Pure(_) => { None }
+                      Node::Mut(ref nd)  => { Some(nd.val.clone()) }
                   }
               } ;              
               match cell_val {
@@ -1802,7 +1798,7 @@ impl Adapton for DCG {
           let is_pure_opt : bool = st.flags.use_purity_optimization ;
           let is_dup : bool = match st.stack.last_mut() { None => false, Some(frame) => {
               let mut is_dup = false; // XXX -- Actually: unknown and does not matter.
-              for &(ref succ, ref pred_dep) in frame.succs.iter() { 
+              for &(ref succ, ref _pred_dep) in frame.succs.iter() { 
                   if &succ.loc == loc && succ.effect == Effect::Observe 
                   { is_dup = true }
               };
@@ -2333,16 +2329,16 @@ pub mod manage {
     use_engine(engine)
   }  
   
-  /// Counts various engine cost metrics, returning a product of sums (`Cnt`)
-  pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
-    where F:FnOnce() -> Res {
-    GLOBALS.with(|g| {
-      match g.borrow().engine {
-        Engine::DCG(ref dcg) => <DCG as Adapton>::cnt(dcg,body),
-        Engine::Naive => ((body)(), Cnt::zero())
-      }
-    })
-  }
+  // /// Counts various engine cost metrics, returning a product of sums (`Cnt`)
+  // pub fn cnt<Res,F> (body:F) -> (Res, Cnt)
+  //   where F:FnOnce() -> Res {
+  //   GLOBALS.with(|g| {
+  //     match g.borrow().engine {
+  //       Engine::DCG(ref dcg) => <DCG as Adapton>::cnt(dcg,body),
+  //       Engine::Naive => ((body)(), Cnt::zero())
+  //     }
+  //   })
+  // }
 
   /// True iff the current engine is `Naive`
   pub fn engine_is_naive () -> bool {
@@ -2370,9 +2366,8 @@ pub mod manage {
 mod wf {
   use std::collections::HashMap;
   use std::rc::Rc;
-  //use std::io;
-  use std::io::prelude::*;
   use std::io::BufWriter;
+  use std::io::Write;
   use std::fs::File;
   use macros::*;
 
@@ -2474,7 +2469,7 @@ mod wf {
     writeln!(&mut writer, "ordering=out;").unwrap();
     //let mut frame_num = 0;
     for frame in st.stack.iter() {
-      writeln!(&mut writer, "\"{:?}\" [color=blue,penwidth=10];", frame.loc);
+      writeln!(&mut writer, "\"{:?}\" [color=blue,penwidth=10];", frame.loc).unwrap();
       for succ in frame.succs.iter() {
         writeln!(&mut writer, "\"{:?}\" -> \"{:?}\" [color=blue,weight=10,penwidth=10];", &frame.loc, &succ.0.loc).unwrap();
       }
@@ -2545,8 +2540,7 @@ mod wf {
 /// crawing user-defined data structures, and following their
 /// articulations. We use the values' `Debug` strings to do this
 /// traversal.
-mod parse_val {
-  use std::rc::Rc;
+mod parse_val { 
   use adapton::engine::reflect::{Loc,Path,Val,ArtContent,Const};
   use adapton::engine::{Name, name_of_str, name_of_string};
 
@@ -2680,7 +2674,6 @@ mod parse_val {
         }
       }
     } ;
-    return toks
   }
 
   /// Parse a sequence of fields (appending to `fields`) until right
@@ -2931,7 +2924,7 @@ mod parse_val {
             //println!("parsing struct: {:?}", i);
             let (fields, toks) = parse_fields(toks, vec![], Tok::Right(BalTok::Brace));
             let art_op = parse_art_val(&i, &fields);
-            let mut v = match art_op {
+            let v = match art_op {
               Some(a) => a,
               None => Val::Struct(name_of_string(i.clone()), fields.clone())
             };    

@@ -44,7 +44,8 @@ mod engine_is_from_scratch_consistent {
         use std::rc::Rc;
         use adapton::macros::*;
         use adapton::engine::*;
-        use std::hash::{Hash, SipHasher, Hasher};
+        use std::hash::{Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
 
         manage::init_dcg();
       
@@ -59,7 +60,7 @@ mod engine_is_from_scratch_consistent {
 
         let iter_hash = thunk![{
             let inp_val = get!(inp); // value to hash iteratively
-            let mut hash_state = SipHasher::new();
+            let mut hash_state = DefaultHasher::new();
             for _ in 0..get!(iter) { // hash iteratively, `iter` number of times
                 inp_val.hash(&mut hash_state);
             };
@@ -83,7 +84,6 @@ mod engine_api {
 
     #[test] 
     fn force_cell () {
-        use std::rc::Rc;
         use adapton::macros::*;
         use adapton::engine::*;
         manage::init_dcg();   
@@ -95,7 +95,6 @@ mod engine_api {
 
     #[test] 
     fn force_map_cell () {
-        use std::rc::Rc;
         use adapton::macros::*;
         use adapton::engine::*;
         manage::init_dcg();    
@@ -107,7 +106,6 @@ mod engine_api {
 
     #[test] 
     fn force_map_cell_project () {
-        use std::rc::Rc;
         use adapton::macros::*;
         use adapton::engine::*;
         manage::init_dcg();    
