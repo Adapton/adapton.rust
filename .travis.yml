@@ -1,4 +1,5 @@
 language: rust
 rust: nightly
 script: ./travis.sh
-
+notifications:
+  slack: adapton-public:Ls0ANZ6MCLuKEUVnVL8bCFFt
