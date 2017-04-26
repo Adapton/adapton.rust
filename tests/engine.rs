@@ -6,43 +6,11 @@ mod engine_is_from_scratch_consistent {
 
     /// Compare to this sound behavior to the unsound behavior from
     /// JaneStreet 'Incremental' libary.  In particular, Yit's gist
-    /// shows the problematic change propagation behavior:
+    /// shows the problematic change propagation behavior for a
+    /// similar example program (dividing by zero when it should not):
     /// https://gist.github.com/khooyp/98abc0e64dc296deaa48
     #[test]
-    fn test1 () {
-
-        use std::rc::Rc;
-        use adapton::macros::*;
-        use adapton::engine::*;
-        manage::init_dcg();
-
-        // Construct two mutable inputs, `nom` and `den`, a
-        // computation `div` that divides the nominator in `nom` by
-        // the denominator in `den`, and a root thunk `t` that first
-        // checks whether the denominator is zero (returning zero if
-        // so) and if non-zero, returns the value of the division.
-       
-        let nom  = cell(name_of_str("nom"), 0 as usize);
-        let den  = cell(name_of_str("den"), 1 as usize); 
-        
-        // In Rust, cloning is explicit:
-        let den2 = den.clone(); // here, we clone the _global reference_ to the cell.
-        let den3 = den.clone(); // here, we clone the _global reference_ to the cell, again.
-
-        let div  = thunk![ name_of_str("div") =>> get!(nom) / get!(den) ];
-        let root = thunk![ name_of_str("t")   =>> if get!(den2) == 0 { 0 } else { get!(div) } ];
-        
-        assert_eq!(get!(root), 0);
-        set(&den3, 0);
-        assert_eq!(get!(root), 0);
-    }
-
-    /// Compare to this sound behavior to the unsound behavior from
-    /// JaneStreet 'Incremental' libary.  In particular, Yit's gist
-    /// shows the problematic change propagation behavior:
-    /// https://gist.github.com/khooyp/98abc0e64dc296deaa48
-    #[test]
-    fn test1_short_macros () {
+    fn avoid_divide_by_zero () {
 
         use std::rc::Rc;
         use adapton::macros::*;
@@ -68,6 +36,45 @@ mod engine_is_from_scratch_consistent {
         assert_eq!(get!(root), 0);
         set(&den3, 0);
         assert_eq!(get!(root), 0);
+    }
+
+    #[test]
+    fn avoid_expensive_subcomp () {
+
+        use std::rc::Rc;
+        use adapton::macros::*;
+        use adapton::engine::*;
+        use std::hash::{Hash, SipHasher, Hasher};
+
+        manage::init_dcg();
+      
+        let flag = cell!(true); // flag: whether or not to do "iterative hash"
+        let iter = cell!(3);    // iter: iterations for hashing
+        let inp  = cell!(42);   // inp1: input value to hash        
+
+        let inp1  = inp.clone();  // we use inp non-linearly below
+        let inp2  = inp.clone();  // we use inp non-linearly below
+        let flag1 = flag.clone(); // we use flag non-linearly below
+        let iter1 = iter.clone(); // we use iter non-linearly below
+
+        let iter_hash = thunk![{
+            let inp_val = get!(inp); // value to hash iteratively
+            let mut hash_state = SipHasher::new();
+            for _ in 0..get!(iter) { // hash iteratively, `iter` number of times
+                inp_val.hash(&mut hash_state);
+            };
+            assert!(get!(iter) < 100); // For Testing: Too many iters is an error!
+            hash_state.finish() // returns final hash value
+        }];
+        let root = thunk![ // switches between hashing iteratively, or not
+            if get!(flag) { get!(iter_hash) }
+            else { get!(inp1) }
+        ];
+
+        assert!(get!(root) != get!(inp2));
+        set(&flag1, false);
+        set(&iter1, 999999999);
+        assert!(get!(root) == get!(inp2));
     }
 }
 
