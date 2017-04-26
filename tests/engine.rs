@@ -78,45 +78,41 @@ mod engine_is_from_scratch_consistent {
     }
 }
 
-mod engine_is_demand_driven {
-
-    #[test]
-    fn test1() {
-        // TODO
-    }   
-
-}
-
-
 mod engine_api {
     //! This module tests gives unit tests for the engine's core API
 
     #[test] 
     fn force_cell () {
+        use std::rc::Rc;
+        use adapton::macros::*;
         use adapton::engine::*;
         manage::init_dcg();   
         let a : u32      = 1234;
-        let b : Art<u32> = cell(name_of_usize(0), a);
+        let b : Art<u32> = cell!(a);
         let c : u32      = force(&b);    
         assert_eq!(a, c);
     }
 
     #[test] 
     fn force_map_cell () {
+        use std::rc::Rc;
+        use adapton::macros::*;
         use adapton::engine::*;
         manage::init_dcg();    
         let a : u32      = 1234;
-        let b : Art<u32> = cell(name_of_usize(0), a);
+        let b : Art<u32> = cell!(a);
         let c : u64      = force_map(&b, |_,x| x as u64);    
         assert_eq!(a as u64, c);
     }
 
     #[test] 
     fn force_map_cell_project () {
+        use std::rc::Rc;
+        use adapton::macros::*;
         use adapton::engine::*;
         manage::init_dcg();    
         let pair = (1234 as usize, 5678 as usize);
-        let c    = cell(name_of_usize(0), pair);
+        let c    = cell!(pair);
         let fst  = force_map(&c, |_,x| x.0);
         let snd  = force_map(&c, |_,x| x.1);
         assert_eq!(pair.0, fst);
@@ -134,14 +130,14 @@ mod engine_api {
         manage::init_dcg();    
         reflect::dcg_reflect_begin();
         let pair = (1234 as usize, 5678 as usize);
-        let c    = cell(name_of_usize(0), pair);
-        let t = thunk![ name_of_usize(1) =>> {    
+        let c    = cell!(pair);
+        let t = thunk![{    
             let fst = force_map(&c, |_,x| x.0);
             fst + 100
         }];
         assert_eq!(force(&t), 1334);
         let pair = (1234 as usize, 8765 as usize);
-        let _    = cell(name_of_usize(0), pair);      
+        let _    = cell!(pair);
         assert_eq!(force(&t), 1334);        
         let traces = reflect::dcg_reflect_end();
         let counts = reflect::trace::trace_count(&traces, Some(1));
@@ -156,7 +152,7 @@ mod engine_api {
         use adapton::engine::*;
         manage::init_dcg();    
         let a : u32      = 1234;
-        let b : Art<u32> = thunk![ name_of_usize(0) =>> a];
+        let b : Art<u32> = thunk![a];
         let c : u64      = force_map(&b, |_,x| x as u64);    
         assert_eq!(a as u64, c);
     }
