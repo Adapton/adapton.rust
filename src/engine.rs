@@ -43,7 +43,7 @@ use std::mem::transmute;
 use std::rc::Rc;
 use std::fmt::Write;
 
-use macros::*;
+use macros::{ProgPt};
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static UNIT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Unit) });
@@ -53,6 +53,23 @@ struct TraceSt { stack:Vec<Box<Vec<reflect::trace::Trace>>>, }
 /// When this option is set to some, the engine will record a trace of its DCG effects.
 thread_local!(static TRACES: RefCell<Option<TraceSt>> = RefCell::new( None ));
 
+fn my_hash<T>(obj: T) -> u64
+  where T: Hash
+{
+  let mut hasher = DefaultHasher::new();
+  obj.hash(&mut hasher);
+  hasher.finish()
+}
+
+fn my_hash_n<T>(obj: T, n:usize) -> u64
+  where T: Hash
+{
+  let mut hasher = DefaultHasher::new();
+  for _ in 0..n {
+    obj.hash(&mut hasher);
+  }
+  hasher.finish()
+}
 
 /// Reflects the DCG engine, including both the effects of the
 /// programs running in it, and the internal effects of the engine
@@ -2369,7 +2386,7 @@ mod wf {
   use std::io::BufWriter;
   use std::io::Write;
   use std::fs::File;
-  use macros::*;
+  //use macros::{ProgPt};
 
   use super::*;
 

@@ -1,3 +1,23 @@
+//! Macros to make using the `engine` module's interface more
+//! ergonomic.
+//!
+//! Examples:
+//! ---------
+//!
+//!  To memoize a function call to `foo`, named by `name` (of type
+//!  `Name`) that receives two arguments, `arg1` and `arg2`, use the
+//!  following macro invocation:
+//!
+//!  `let res = memo!( name =>> foo =>> x:arg1, y:arg2 ); ...`
+//!
+//!  The same syntax works for creating (unforced) thunks, too:
+//!
+//!  `let t = thunk!( name =>> foo =>> x:arg1, y:arg2 ); ...`
+//!
+//!  The `memo!` macro differs from `thunk!` only in that it `force`s
+//!  the thunk too (e.g., by doing `force(&t)`, above, after creating
+//!  the thunk).
+
 // Adapton uses memoization under the covers, which needs an efficient
 // mechanism to search for function pointers and compare them for
 // equality.
@@ -10,14 +30,13 @@
 // identifies the function pointer (i.e., two distinct functions will
 // always have two distinct identities).
 //
+
 use std::cell::RefCell;
-use std::hash::{Hash,Hasher};
-use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Formatter,Result,Debug};
-//use std::mem::replace;
 
 thread_local!(static NAME_COUNTER: RefCell<usize> = RefCell::new(0));
 
+/// Program points: used by the Adapton engine to distinguish different memoized functions.
 #[derive(PartialEq,Eq,Clone,Hash)]
 pub struct ProgPt {
   // Symbolic identity, in Rust semantics:
@@ -34,28 +53,13 @@ impl Debug for ProgPt {
   fn fmt(&self, f: &mut Formatter) -> Result { self.symbol.fmt(f) }
 }
 
-pub fn my_hash<T>(obj: T) -> u64
-  where T: Hash
-{
-  let mut hasher = DefaultHasher::new();
-  obj.hash(&mut hasher);
-  hasher.finish()
-}
-
-pub fn my_hash_n<T>(obj: T, n:usize) -> u64
-  where T: Hash
-{
-  let mut hasher = DefaultHasher::new();
-  for _ in 0..n {
-    obj.hash(&mut hasher);
-  }
-  hasher.finish()
-}
-
+/// Convenience function: A global counter for creating unique names,
+/// e.g., in unit tests. Avoid using this outside of unit tests.
 pub fn bump_name_counter() -> usize {
     NAME_COUNTER.with(|ctr|{let c = *ctr.borrow(); *ctr.borrow_mut() = c + 1; c})
 }
 
+/// Generate a "program point", used as a unique ID for memoized functions.
 #[macro_export]
 macro_rules! prog_pt {
   ($symbol:expr) => {{
@@ -68,6 +72,7 @@ macro_rules! prog_pt {
   }}
 }
 
+/// Convenience wrapper for `engine::force`
 #[macro_export]
 macro_rules! get {
   ($art:expr) => {{
@@ -75,6 +80,11 @@ macro_rules! get {
   }}
 }
 
+/// Convenience wrapper for `engine::cell`
+///
+/// Warning: Uses a global counter to choose a unique name. This _may_
+/// be appopriate for the Editor role, but is never appropriate for
+/// the Archivist role.
 #[macro_export]
 macro_rules! cell {
   ($value:expr) => {{
@@ -82,6 +92,11 @@ macro_rules! cell {
   }}
 }
 
+/// Convenience wrapper for `engine::thunk`
+///
+/// Warning: When not given a name, this macro uses a global counter
+/// to choose a unique name. This _may_ be appopriate for the Editor
+/// role, but is never appropriate for the Archivist role.
 #[macro_export]
 macro_rules! thunk {
   [ $suspended_body:expr ] => {{
@@ -184,66 +199,8 @@ macro_rules! thunk {
   ;
 }
 
-// #[macro_export]
-// macro_rules! thunkic {
-//   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-//     thunk
-//       (ArtIdChoice::Nominal($nm),
-//        prog_pt!(stringify!($f)),
-//        Rc::new(Box::new(
-//          |args, _|{
-//            let ($( $lab ),*, _) = args ;
-//            $f :: < $( $ty ),* >( $( $lab ),* )
-//          })),
-//        ( $( $arg ),*, ()),
-//        ()
-//        )
-//   }}
-//   ;
-//   ( $nm:expr =>> $f:ident , $( $lab:ident : $arg:expr ),* ) => {{
-//     thunk
-//       (ArtIdChoice::Nominal($nm),
-//        prog_pt!(stringify!($f)),
-//        Rc::new(Box::new(
-//          |args, _|{
-//            let ($( $lab ),*, _) = args ;
-//            $f ( $( $lab ),* )
-//          })),
-//        ( $( $arg ),*, () ),
-//        ()
-//        )
-//   }}
-//   ;
-//   ( $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-//     thunk
-//       (ArtIdChoice::Structural,
-//        prog_pt!(stringify!($f)),
-//        Rc::new(Box::new(
-//          |args, _|{
-//            let ($( $lab ),*, _) = args ;
-//            $f :: < $( $ty ),* >( $( $lab ),* )
-//          })),
-//        ( $( $arg ),*, () ),
-//        ()
-//        )
-//   }}
-//   ;
-//   ( $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-//     thunk
-//       (ArtIdChoice::Structural,
-//        prog_pt!(stringify!($f)),
-//        Rc::new(Box::new(
-//          |args, _|{
-//            let ($( $lab ),*, _) = args ;
-//            $f ( $( $lab ),* )
-//          })),
-//        ( $( $arg ),*, () ),
-//        ()
-//        )        
-//   }}
-//   ;
-// }
-
+/// Convenience wrapper for `engine::thunk` and `engine::force`:
+/// creates a thunk and immediately forces it.
 #[macro_export]
 macro_rules! memo {
   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
@@ -340,6 +297,7 @@ macro_rules! memo {
   ;
 }
 
+/// Similar to `memo!`, except return both the thunk and its observed (`force`d) value.
 #[macro_export]
 macro_rules! eager {
   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
@@ -425,91 +383,7 @@ macro_rules! eager {
   ;
 }
 
-// #[macro_export]
-// macro_rules! eageric {
-//   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-//     let t = thunk
-//       (ArtIdChoice::Nominal($nm),
-//        prog_pt!(stringify!($f)),
-//        Rc::new(Box::new(
-//          |args, _|{
-//            let ($( $lab ),*) = args ;
-//            $f :: < $( $ty ),* >( $( $lab ),* )
-//          })),
-//        ( $( $arg ),*, ),
-//        ()
-//        );
-//     let res = force(&t) ;
-//     (t, res)
-//   }}
-//   ;
-//   ( $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-//     let t = thunk
-//       (ArtIdChoice::Nominal($nm),
-//        prog_pt!(stringify!($f)),
-//        Rc::new(Box::new(
-//          |args, _|{
-//            let ($( $lab ),*) = args ;
-//            $f ( $( $lab ),* )
-//          })),
-//        ( $( $arg ),* ),
-//        ()
-//        );
-//     let res = force(&t) ;
-//     (t, res)
-//   }}
-//   ;
-//   ( $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-//     let t = thunk
-//       (ArtIdChoice::Structural,
-//        prog_pt!(stringify!($f)),
-//        Rc::new(Box::new(
-//          |args, _|{
-//            let ($( $lab ),*) = args ;
-//            $f :: < $( $ty ),* >( $( $lab ),* )
-//          })),
-//        ( $( $arg ),* ),
-//        ()
-//        );
-//     let res = force(&t) ;
-//     (t, res)
-//   }}
-//   ;
-//   ( $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-//     let t = thunk
-//       (ArtIdChoice::Structural,
-//        prog_pt!(stringify!($f)),
-//        Rc::new(Box::new(
-//          |args, _|{
-//            let ($( $lab ),*, _) = args ;
-//            $f ( $( $lab ),* )
-//          })),
-//        ( $( $arg ),*, () ),
-//        ()
-//        );
-//     let res = force(&t) ;
-//     (t, res)
-//   }}
-//   ;
-//   ( expr , $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
-//     let t = thunk
-//       (ArtIdChoice::Nominal($nm),
-//        prog_pt!(stringify!($f)),
-//        Rc::new(Box::new(
-//          |args1, args2|{
-//            let ($( $lab1 ),*, _) = args1 ;
-//            let ($( $lab2 ),*, _) = args2 ;
-//            $f ( $( $lab1 ),* , $( $lab2 ),* )
-//          })),
-//        ( $( $arg1 ),*, () ),
-//        ( $( $arg2 ),*, () ),
-//        );
-//     let res = force(&t) ;
-//     (t, res)
-//   }}
-//   ;
-// }
-
+/// Convenience wrapper: Call a function and place the result into an `engine::cell`.
 #[macro_export]
 macro_rules! cell_call {
   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
@@ -527,38 +401,4 @@ macro_rules! cell_call {
     let cell = cell($nm, res) ;
     cell
   }}
-
 }
-
-
-// https://doc.rust-lang.org/book/macros.html
-//
-// macro_rules! o_O {
-//     (
-//         $(
-//             $x:expr; [ $( $y:expr ),* ]
-//          );*
-//     ) => {
-//         &[ $($( $x + $y ),*),* ]
-//     }
-// }
-//
-// fn main() {
-//     let a: &[i32]
-//         = o_O!(10; [1, 2, 3];
-//                20; [4, 5, 6]);
-//
-//     assert_eq!(a, [11, 12, 13, 24, 25, 26]);
-// }
-
-// TODO: Need to gensym a variable for each argument below:
-//
-// macro_rules! thunk {
-//     ( $f:ident , $st:expr , $( $arg:expr ),* ) => {
-//         let fval = Rc::new(Box::new(
-//             |st, args|{
-//                 let ($( $arg ),*) = args ;
-//                 f( st, $( $arg ),* )
-//             })) ;
-//         ($st).thunk (ArtId::Eager, prog_pt!($f), fval, $( $arg ),* )
-//     }}
