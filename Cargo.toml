@@ -1,6 +1,6 @@
 [package]
 name = "adapton"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Matthew A. Hammer <Matthew.Hammer@Colorado.Edu>"]
 
 # A short blurb about the package. This is not rendered in any format when
@@ -18,7 +18,7 @@ readme = "README.md"
 
 # This is a small list of keywords used to categorize and search for this
 # package.
-keywords = ["Incremental", "Memoization", "Dependency-Graph", "Self-Adjusting",]
+keywords = ["Adapton", "Demand-driven", "Incremental", "Memoization", "Dependency-Graph", "Self-Adjusting",]
 
 # This is a string description of the license for this package. Currently
 # crates.io will validate the license provided against a whitelist of known
@@ -30,12 +30,3 @@ license = "MPL-2.0"
 # lieu of the above key and must point to a file relative to this manifest
 # (similar to the readme key)
 # license-file = "LICENSE-MPL2.0"
-
-#[dependencies.quickcheck]
-#git = "https://github.com/ebfull/quickcheck.git"
-
-#[dependencies.quickcheck_macros]
-#git = "https://github.com/ebfull/quickcheck.git"
-
-# [dependencies.heapsize]
-# git = "https://github.com/servo/heapsize"
