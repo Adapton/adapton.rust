@@ -2,8 +2,8 @@
 extern crate adapton;
 extern crate test;
 use self::test::Bencher;
-use adapton::collections::{Dir2, List, ListIntro, Tree, monoid_of_tree, tree_of_list};
-use adapton::collections::trie::*;
+use adapton::catalog::collections::{Dir2, List, ListIntro, Tree, monoid_of_tree, tree_of_list};
+use adapton::catalog::collections::trie::*;
 use adapton::engine::*;
 use adapton::engine::manage::*;
 use std::rc::Rc;

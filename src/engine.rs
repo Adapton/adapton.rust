@@ -61,16 +61,6 @@ fn my_hash<T>(obj: T) -> u64
   hasher.finish()
 }
 
-fn my_hash_n<T>(obj: T, n:usize) -> u64
-  where T: Hash
-{
-  let mut hasher = DefaultHasher::new();
-  for _ in 0..n {
-    obj.hash(&mut hasher);
-  }
-  hasher.finish()
-}
-
 /// Reflects the DCG engine, including both the effects of the
 /// programs running in it, and the internal effects of the engine
 /// cleaning and dirtying the DCG.  For the latter effects, see the

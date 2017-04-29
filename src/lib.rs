@@ -12,6 +12,7 @@ extern crate core;
 #[macro_use]
 pub mod macros ;
 pub mod engine ;
+pub mod catalog ;
 mod reflect;
 
 mod adapton {

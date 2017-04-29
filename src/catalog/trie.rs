@@ -4,8 +4,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::rc::Rc;
 use std::cmp::min;
 
-use adapton::collections::{ListIntro, ListElim, list_fold};
-use adapton::bitstring::*;
+use adapton::catalog::collections::{ListIntro, ListElim, list_fold};
+use adapton::catalog::bitstring::*;
 use adapton::engine::*;
 use macros::*;
 

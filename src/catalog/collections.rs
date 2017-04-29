@@ -1,12 +1,13 @@
 use std::fmt::Debug;
-use std::hash::Hash;
+use std::hash::{Hash,Hasher};
+use std::collections::hash_map::DefaultHasher;
 use std::rc::Rc;
 
 use macros::* ;
 use adapton::engine::* ;
 
 pub mod trie {
-  pub use trie::*;
+  pub use catalog::trie::*;
 }
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
@@ -18,6 +19,16 @@ impl Invert for Dir2 {
     match *self { Dir2::Left => Dir2::Right,
                   Dir2::Right => Dir2::Left }
   }
+}
+
+fn my_hash_n<T>(obj: T, n:usize) -> u64
+  where T: Hash
+{
+  let mut hasher = DefaultHasher::new();
+  for _ in 0..n {
+    obj.hash(&mut hasher);
+  }
+  hasher.finish()
 }
 
 /// Types that can be created like a list of `X` are `ListIntro<X>`
