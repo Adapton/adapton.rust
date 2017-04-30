@@ -3,7 +3,7 @@
 //!
 //! We use this parse as a non-intrusive mechanism for
 //! building the values in the reflected DCG, which consists of
-//! crawing user-defined data structures, and following their
+//! crawling user-defined data structures, and following their
 //! articulations. We use the values' `Debug` strings to do this
 //! traversal.
 
