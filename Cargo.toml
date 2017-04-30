@@ -1,6 +1,6 @@
 [package]
 name = "adapton"
-version = "0.2.5"
+version = "0.2.6"
 authors = ["Matthew A. Hammer <Matthew.Hammer@Colorado.Edu>"]
 
 # A short blurb about the package. This is not rendered in any format when
@@ -8,7 +8,7 @@ authors = ["Matthew A. Hammer <Matthew.Hammer@Colorado.Edu>"]
 description = "programming abstractions for general-purpose incremental computations"
 
 # These URLs point to more information about the repository
-documentation = "https://github.com/cuplv/adapton.rust/"
+documentation = "https://docs.rs/adapton"
 homepage = "http://adapton.org"
 repository = "https://github.com/cuplv/adapton.rust/"
 

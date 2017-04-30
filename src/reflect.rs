@@ -247,6 +247,14 @@ pub struct DCG {
   pub path:  Vec<Name>,
 }
 
+
+/// Wrapper for `parse_val::parse_val`. Transforms most Rust data
+/// that derives `Debug` into a reflected `Val`.
+pub fn reflect_val <V:Debug> (v:&V) -> Val { 
+    use parse_val::parse_val;
+    parse_val(v)
+}
+
 /// Gives effects and traces for cleaning and dirtying, the engine's
 /// internal DCG traversal/processing.  By contrast, the enclosing
 /// module (`reflect`) only gives reflected versions of the DCG
