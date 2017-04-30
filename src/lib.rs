@@ -13,7 +13,10 @@ extern crate core;
 pub mod macros ;
 pub mod engine ;
 pub mod catalog ;
+pub mod parse_val;
+
 mod reflect;
+
 
 mod adapton {
     pub use super::*;
