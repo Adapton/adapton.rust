@@ -1,22 +1,88 @@
-//! Macros to make using the `engine` module's interface more
-//! ergonomic.
-//!
-//! Examples:
-//! ---------
-//!
-//!  To memoize a function call to `foo`, named by `name` (of type
-//!  `Name`) that receives two arguments, `arg1` and `arg2`, use the
-//!  following macro invocation:
-//!
-//!  `let res = memo!( name =>> foo =>> x:arg1, y:arg2 ); ...`
-//!
-//!  The same syntax works for creating (unforced) thunks, too:
-//!
-//!  `let t = thunk!( name =>> foo =>> x:arg1, y:arg2 ); ...`
-//!
-//!  The `memo!` macro differs from `thunk!` only in that it `force`s
-//!  the thunk too (e.g., by doing `force(&t)`, above, after creating
-//!  the thunk).
+/*! Macros to make using the `engine` module's interface more
+ ergonomic.
+
+Nominal memoization: Toy Examples
+------------------------------------
+
+Below, we memoize several function calls to `sum` with different names
+and arguments.  In real applications, the memoized function typically
+performs more work than summing two machine words. :)
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+use adapton::macros::*;
+use adapton::engine::*;
+
+// create an empty DCG (demanded computation graph)
+manage::init_dcg();
+
+// a simple function (memoized below for illustration purposes;
+// probably actually not worth it!)
+fn sum(x:usize, y:usize) -> usize {
+    x + y
+}
+
+// Optional: Traces what the engine does below (for diagnostics, testing, illustration)
+reflect::dcg_reflect_begin();
+
+let nm_a_0 : Name = name_of_str("a"); // name "a"
+let nm_a_1 : Name = name_of_str("a"); // name "a" (another copy)
+let nm_b_0 : Name = name_of_str("b"); // name "b"
+let nm_b_1 : Name = name_of_str("b"); // name "b" (another copy)
+
+// create a memo entry, named "a", that remembers that `sum(42,43) = 85`
+let res1 : usize = memo!(nm_a_0 =>> sum, x:42, y:43);
+
+// same name "a", same arguments (42, 43) => reuses the memo entry above for `res1`
+let res2 : usize = memo!(nm_a_1 =>> sum, x:42, y:43);
+
+// different name "b", same arguments (42, 43) => will *not* match `res1`; creates a new entry
+let res3 : usize = memo!(nm_b_0 =>> sum, x:42, y:43);
+
+// same name "b", different arguments; will *overwrite* entry named "b" with new args & result
+let res4 : usize = memo!(nm_b_1 =>> sum, x:55, y:66);
+
+// Optional: Assert what happened above, in terms of analytical counts
+let traces = reflect::dcg_reflect_end();
+let counts = reflect::trace::trace_count(&traces, None);
+
+// Editor allocated two thunks ("a" and "b")
+assert_eq!(counts.alloc_fresh.0, 2);
+
+// Editor allocated one thunk without changing it ("a", with same args)
+assert_eq!(counts.alloc_nochange.0, 1);
+
+// Editor allocated one thunk by changing it ("b", different args)
+assert_eq!(counts.alloc_change.0, 1);
+
+// Archivist allocated nothing
+assert_eq!(counts.alloc_fresh.1, 0);
+# drop((res1,res2,res3,res4));
+# }
+```
+Some notes about the code above:
+
+ - **Callsite argument names**: The macro `memo!` relies on
+   programmer-supplied variable names in its macro expansion of these
+   call sites, shown as `x` and `y` in the uses above.  These can be
+   chosen arbitrarily: So long as these symbols are distinct from one
+   another, they can be _any_ symbols, and need not actually match the
+   formal argument names.
+
+ - **Type arguments**: If the function call expects type arguments,
+   `memo!` accomodates these calls with alternative syntax.
+
+ - **Spurious arguments**: If the function call expects some later
+   arguments that do not implement `Eq`, but are _functionally
+   determined_ by earlier ones that do (including the supplied
+   `Name`), `memo!` accomodates these calls with alternative syntax.
+   We call these arguments "spurious", since the Adapton engine does
+   _not check_ their identity when performing change
+   propagation. Common examples include function values (e.g.,
+   anonymous closures).
+
+*/
 
 // Adapton uses memoization under the covers, which needs an efficient
 // mechanism to search for function pointers and compare them for
@@ -33,6 +99,8 @@
 
 use std::cell::RefCell;
 use std::fmt::{Formatter,Result,Debug};
+
+pub use std::rc::Rc;
 
 thread_local!(static NAME_COUNTER: RefCell<usize> = RefCell::new(0));
 
