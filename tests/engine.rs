@@ -122,15 +122,13 @@ mod engine_api {
         use adapton::engine::*;
         manage::init_dcg();    
         reflect::dcg_reflect_begin();
-        let pair = (1234 as usize, 5678 as usize);
-        let c    = cell!(pair);
-        let t = thunk![{    
+        let c : Art<(usize,usize)> = cell(name_of_str("pair"), (1234, 5678));
+        let t : Art<usize> = thunk![{    
             let fst = force_map(&c, |_,x| x.0);
             fst + 100
         }];
         assert_eq!(force(&t), 1334);
-        let pair = (1234 as usize, 8765 as usize);
-        let _    = cell!(pair);
+        let _ : Art<(usize,usize)> = cell(name_of_str("pair"), (1234, 8765));
         assert_eq!(force(&t), 1334);        
         let traces = reflect::dcg_reflect_end();
         let counts = reflect::trace::trace_count(&traces, Some(1));

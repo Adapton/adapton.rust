@@ -86,11 +86,57 @@ ordering).  These algorithms may also have undesirable behavior.  In
 particular, they may re-execute the division in step 2, though it is
 not presently in demand.  For an example, see this gist.
 
+Use `force_map` for finer-grained dependence tracking
+----------------------------------------------------
+
+Below, we show that using `force_map` prunes the dirtying phase of
+change propagation; this test traces the engine, counts the number of
+dirtying steps, and ensures that this count is zero, as expected.
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+use adapton::macros::*;
+use adapton::engine::*;
+manage::init_dcg();    
+
+// Trace the behavior of change propagation; ensure dirtying works as expected
+reflect::dcg_reflect_begin();
+
+let pair  = cell!((1234, 5678));
+let pair1 = pair.clone();
+
+let t = thunk![{
+  // Project the first component of pair:
+  let fst = force_map(&pair, |_,x| x.0); 
+  fst + 100
+}];
+
+// The output is `1234 + 100` = `1334`
+assert_eq!(force(&t), 1334);
+
+// Update the second component of the pair; the first is still 1234
+set(&pair1, (1234, 8765));
+
+// The output is still `1234 + 100` = `1334`
+assert_eq!(force(&t), 1334);
+
+// Assert that nothing was dirtied (due to using `force_map`)
+let traces = reflect::dcg_reflect_end();
+let counts = reflect::trace::trace_count(&traces, None);
+assert_eq!(counts.dirty.0, 0);
+assert_eq!(counts.dirty.1, 0);
+# }
+```
+
 Nominal memoization: Toy Examples
 ------------------------------------
 
 Adapton offers nominal memoization, which uses first-class _names_
-(each of type `Name`) to identify cached computations and data.
+(each of type `Name`) to identify cached computations and data. Behind
+the scenes, these names control how and when the engine _overwrites_
+cached data and computations.  As such, they permit patterns of
+programmatic _cache eviction_.
 
 For a simple illustration, we memoize several function calls to `sum`
 with different names and arguments.  In real applications, the
