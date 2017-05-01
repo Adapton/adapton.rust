@@ -1,12 +1,101 @@
 /*! Macros to make using the `engine` module's interface more
  ergonomic.
 
+Demand-driven change propagation
+---------------------------------
+
+The example below demonstrates _demand-driven change propagation_,
+which is unique to Adapton's approach to incremental computation.  The
+example constructs two mutable inputs, `nom` and `den`, an
+intermediate subcomputation `div` that divides the nominator in `nom`
+by the denominator in `den`, and a thunk `root` that first checks
+whether the denominator is zero (returning zero if so) and if
+non-zero, returns the value of the division.
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+use adapton::macros::*;
+use adapton::engine::*;
+manage::init_dcg();
+
+// Two mutable inputs, for nominator and denominator of division
+let nom  = cell!(42);
+let den  = cell!(1);
+
+// In Rust, cloning is explicit:
+let den2 = den.clone(); // clone _global reference_ to cell.
+let den3 = den.clone(); // clone _global reference_ to cell, again.
+
+// Two subcomputations: The division, and a root thunk with a conditional expression
+let div  = thunk![ get!(nom) / get!(den) ];
+let root = thunk![ if get!(den2) == 0 { 0 } else { get!(div) } ];
+
+// Observe output of `root` while we change the input `den`
+// Step 1: (Explained in detail, below)
+assert_eq!(get!(root), 42);
+
+// Step 2: (Explained in detail, below)
+set(&den3, 0);
+assert_eq!(get!(root), 0);
+
+// Step 3: (Explained in detail, below)
+set(&den3, 1);
+assert_eq!(get!(root), 42);  // division is reused
+# }
+```
+
+The programmer's changes and observations in the last lines induce the
+following change propagation behavior:
+
+1. When the `root` is demanded the first time, it executes the
+   condition, and `den` holds `1`, which is non-zero.  Hence, the
+   `else` branch executes `get!(div)`, which demands the output of the
+   division, `42`.
+
+2. After this first observation of `root`, the programmer changes
+   `den` to `0`, and re-demands the output of `root`.  In response,
+   change propagation first re-executes the condition (not the
+   division), and the condition branches to the `then` branch,
+   resulting in `0`; in particular, it does _not_ re-demand the `div`
+   node, though this node still exists in the DCG.
+
+3. Next, the programmer changes `den` back to its original value, `1`,
+   and re-demands the output of `root`.  In response, change
+   propagation re-executes the condition, which re-demands the output
+   of `div`.  Change propagation attempts to "clean" the `div` node
+   before re-executing it.  To do so, it compares its _last
+   observations_ of `nom` and `den` to their current values, of `42`
+   and `1`, respectively.  In so doing, it finds that these earlier
+   observations match the current values.  Consequently, it _reuses_
+   the output of the division (`42`) _without_ having to re-execute
+   the division.
+
+In the academic literature on Adapton, we refer to this three-step
+pattern as _switching_: The demand of `div` switches from being
+present (in step 1) to absent (in step 2) to present (in step 3).
+
+Past work on self-adjusting computation does not support this
+switching pattern directly: Because of its change propagation
+semantics, it would "forget" the division in step 2, and rerun it
+_from-scratch_ in step 3.
+
+Furthermore, some other change propagation algorithms base their
+re-execution schedule on "node height" (of the graph's topological
+ordering).  These algorithms may also have undesirable behavior.  In
+particular, they may re-execute the division in step 2, though it is
+not presently in demand.  For an example, see this gist.
+
 Nominal memoization: Toy Examples
 ------------------------------------
 
-Below, we memoize several function calls to `sum` with different names
-and arguments.  In real applications, the memoized function typically
-performs more work than summing two machine words. :)
+Adapton offers nominal memoization, which uses first-class _names_
+(each of type `Name`) to identify cached computations and data.
+
+For a simple illustration, we memoize several function calls to `sum`
+with different names and arguments.  In real applications, the
+memoized function typically performs more work than summing two
+machine words. :)
 
 ```
 # #[macro_use] extern crate adapton;

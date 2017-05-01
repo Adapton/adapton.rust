@@ -11,15 +11,13 @@ mod engine_is_from_scratch_consistent {
     /// https://gist.github.com/khooyp/98abc0e64dc296deaa48
     #[test]
     fn avoid_divide_by_zero () {
-
-        use std::rc::Rc;
         use adapton::macros::*;
         use adapton::engine::*;
         manage::init_dcg();
 
         // Construct two mutable inputs, `nom` and `den`, a
         // computation `div` that divides the nominator in `nom` by
-        // the denominator in `den`, and a root thunk `t` that first
+        // the denominator in `den`, and a thunk `root` that first
         // checks whether the denominator is zero (returning zero if
         // so) and if non-zero, returns the value of the division.
        
@@ -40,8 +38,6 @@ mod engine_is_from_scratch_consistent {
 
     #[test]
     fn avoid_expensive_subcomp () {
-
-        use std::rc::Rc;
         use adapton::macros::*;
         use adapton::engine::*;
         use std::hash::{Hash, Hasher};
@@ -122,7 +118,6 @@ mod engine_api {
         // Test whether using force_map correctly prunes dirtying;
         // this test traces the engine, counts the number of dirtying
         // steps, and ensures that this count is zero, as expected.
-        use std::rc::Rc;
         use adapton::macros::*;
         use adapton::engine::*;
         manage::init_dcg();    
@@ -145,7 +140,6 @@ mod engine_api {
 
     #[test] 
     fn force_map_thunk () {
-        use std::rc::Rc;
         use adapton::macros::*;
         use adapton::engine::*;
         manage::init_dcg();    
