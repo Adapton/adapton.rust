@@ -120,6 +120,7 @@ mod engine_api {
         // steps, and ensures that this count is zero, as expected.
         use adapton::macros::*;
         use adapton::engine::*;
+        use adapton::reflect;
         manage::init_dcg();    
         reflect::dcg_reflect_begin();
         let c : Art<(usize,usize)> = cell(name_of_str("pair"), (1234, 5678));

@@ -8,7 +8,7 @@
 //! traversal.
 
 use std::fmt::Debug;
-use adapton::engine::reflect::{Loc,Path,Val,ArtContent,Const};
+use adapton::reflect::{Loc,Path,Val,ArtContent,Const};
 use adapton::engine::{Name, name_of_str, name_of_string};
 
 /// _Balanced tokens_: Tokens that must be balanced with a left and

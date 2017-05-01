@@ -61,8 +61,7 @@ pub mod macros ;
 pub mod engine ;
 pub mod catalog ;
 pub mod parse_val;
-
-mod reflect;
+pub mod reflect;
 
 
 mod adapton {

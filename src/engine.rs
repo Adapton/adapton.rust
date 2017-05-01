@@ -42,6 +42,7 @@ use std::rc::Rc;
 use std::fmt::Write;
 
 use macros::{ProgPt};
+use reflect;
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static UNIT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Unit) });
@@ -79,8 +80,8 @@ fn my_hash<T>(obj: T) -> u64
 /// version of values to "walk" them, finding their articulations, and
 /// walking their values, recursively.
 
-pub mod reflect {
-  pub use reflect::*;
+pub mod reflect_dcg {
+  use reflect::*;
   pub use parse_val;
 
   use std::fmt::{Write};

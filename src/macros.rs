@@ -7,7 +7,7 @@ Demand-driven change propagation
 The example below demonstrates _demand-driven change propagation_,
 which is unique to Adapton's approach to incremental computation.  The
 example constructs two mutable inputs, `nom` and `den`, an
-intermediate subcomputation `div` that divides the nominator in `nom`
+intermediate subcomputation `div` that divides the numerator in `nom`
 by the denominator in `den`, and a thunk `root` that first checks
 whether the denominator is zero (returning zero if so) and if
 non-zero, returns the value of the division.
@@ -19,8 +19,8 @@ use adapton::macros::*;
 use adapton::engine::*;
 manage::init_dcg();
 
-// Two mutable inputs, for nominator and denominator of division
-let nom  = cell!(42);
+// Two mutable inputs, for numerator and denominator of division
+let num  = cell!(42);
 let den  = cell!(1);
 
 // In Rust, cloning is explicit:
@@ -28,7 +28,7 @@ let den2 = den.clone(); // clone _global reference_ to cell.
 let den3 = den.clone(); // clone _global reference_ to cell, again.
 
 // Two subcomputations: The division, and a root thunk with a conditional expression
-let div  = thunk![ get!(nom) / get!(den) ];
+let div  = thunk![ get!(num) / get!(den) ];
 let root = thunk![ if get!(den2) == 0 { 0 } else { get!(div) } ];
 
 // Observe output of `root` while we change the input `den`
@@ -65,7 +65,7 @@ following change propagation behavior:
    propagation re-executes the condition, which re-demands the output
    of `div`.  Change propagation attempts to "clean" the `div` node
    before re-executing it.  To do so, it compares its _last
-   observations_ of `nom` and `den` to their current values, of `42`
+   observations_ of `num` and `den` to their current values, of `42`
    and `1`, respectively.  In so doing, it finds that these earlier
    observations match the current values.  Consequently, it _reuses_
    the output of the division (`42`) _without_ having to re-execute
@@ -99,6 +99,7 @@ dirtying steps, and ensures that this count is zero, as expected.
 # fn main() {
 use adapton::macros::*;
 use adapton::engine::*;
+use adapton::reflect;
 manage::init_dcg();    
 
 // Trace the behavior of change propagation; ensure dirtying works as expected
@@ -149,6 +150,7 @@ machine words. :)
 # fn main() {
 use adapton::macros::*;
 use adapton::engine::*;
+use adapton::reflect;
 
 // create an empty DCG (demanded computation graph)
 manage::init_dcg();
