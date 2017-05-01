@@ -84,7 +84,8 @@ Furthermore, some other change propagation algorithms base their
 re-execution schedule on "node height" (of the graph's topological
 ordering).  These algorithms may also have undesirable behavior.  In
 particular, they may re-execute the division in step 2, though it is
-not presently in demand.  For an example, see this gist.
+not presently in demand. For an example, see 
+[this gist](https://gist.github.com/khooyp/98abc0e64dc296deaa48).
 
 Use `force_map` for finer-grained dependence tracking
 ----------------------------------------------------
