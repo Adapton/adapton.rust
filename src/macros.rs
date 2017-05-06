@@ -21,55 +21,57 @@ manage::init_dcg();
 
 // Two mutable inputs, for numerator and denominator of division
 let num  = cell!(42);
-let den  = cell!(1);
+let den  = cell!(2);
 
 // In Rust, cloning is explicit:
 let den2 = den.clone(); // clone _global reference_ to cell.
 let den3 = den.clone(); // clone _global reference_ to cell, again.
 
-// Two subcomputations: The division, and a root thunk with a conditional expression
-let div  = thunk![ get!(num) / get!(den) ];
-let root = thunk![ if get!(den2) == 0 { None } else { Some(get!(div)) } ];
+// Two subcomputations: The division, and a check thunk with a conditional expression
+let div   = thunk![ get!(num) / get!(den) ];
+let check = thunk![ if get!(den2) == 0 { None } else { Some(get!(div)) } ];
 
-// Observe output of `root` while we change the input `den`
+// Observe output of `check` while we change the input `den`
 // Step 1: (Explained in detail, below)
-assert_eq!(get!(root), Some(42));
+assert_eq!(get!(check), Some(21));
 
 // Step 2: (Explained in detail, below)
 set(&den3, 0);
-assert_eq!(get!(root), None);
+assert_eq!(get!(check), None);
 
 // Step 3: (Explained in detail, below)
-set(&den3, 1);
-assert_eq!(get!(root), Some(42));  // division is reused
+set(&den3, 2);
+assert_eq!(get!(check), Some(21));  // division is reused
 # }
 ```
 
 The programmer's changes and observations in the last lines induce the
 following change propagation behavior:
 
-1. When the `root` is demanded the first time, it executes the
-   condition, and `den` holds `1`, which is non-zero.  Hence, the
+1. When the `check` is demanded the first time, it executes the
+   condition, and `den` holds `2`, which is non-zero.  Hence, the
    `else` branch executes `get!(div)`, which demands the output of the
-   division, `42`.
+   division, `21`.
 
-2. After this first observation of `root`, the programmer changes
-   `den` to `0`, and re-demands the output of `root`.  In response,
+2. After this first observation of `check`, the programmer changes
+   `den` to `0`, and re-demands the output of `check`.  In response,
    change propagation first re-executes the condition (not the
    division), and the condition branches to the `then` branch,
-   resulting in `0`; in particular, it does _not_ re-demand the `div`
+   resulting in `None`; in particular, it does _not_ re-demand the `div`
    node, though this node still exists in the DCG.
 
-3. Next, the programmer changes `den` back to its original value, `1`,
-   and re-demands the output of `root`.  In response, change
+3. Next, the programmer changes `den` back to its original value, `2`,
+   and re-demands the output of `check`.  In response, change
    propagation re-executes the condition, which re-demands the output
    of `div`.  Change propagation attempts to "clean" the `div` node
    before re-executing it.  To do so, it compares its _last
    observations_ of `num` and `den` to their current values, of `42`
-   and `1`, respectively.  In so doing, it finds that these earlier
+   and `2`, respectively.  In so doing, it finds that these earlier
    observations match the current values.  Consequently, it _reuses_
-   the output of the division (`42`) _without_ having to re-execute
+   the output of the division (`21`) _without_ having to re-execute
    the division.
+
+For a graphical illustration of this behavior, see [these slides](https://github.com/cuplv/adapton-talk/blob/master/2017-05-06--dcg-example--div-by-zero/Adapton_DCG--Avoid_div-by-zero.pdf).
 
 In the academic literature on Adapton, we refer to this three-step
 pattern as _switching_: The demand of `div` switches from being
