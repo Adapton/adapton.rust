@@ -16,20 +16,20 @@ mod engine_is_from_scratch_consistent {
         use adapton::engine::*;
         manage::init_dcg();
 
-        // Construct two mutable inputs, `nom` and `den`, a
-        // computation `div` that divides the nominator in `nom` by
-        // the denominator in `den`, and a thunk `root` that first
-        // checks whether the denominator is zero (returning zero if
+        // Construct two mutable inputs, `num` and `den`, a
+        // computation `div` that divides the numerator in `num` by
+        // the denominator in `den`, and a thunk `check` that first
+        // checks whether the denominator is zero (returning None if
         // so) and if non-zero, returns the value of the division.
        
-        let nom  = cell!(42);
+        let num  = cell!(42);
         let den  = cell!(2);
         
         // In Rust, cloning is explicit:
         let den2 = den.clone(); // here, we clone the _global reference_ to the cell.
         let den3 = den.clone(); // here, we clone the _global reference_ to the cell, again.
 
-        let div   = thunk![ get!(nom) / get!(den) ];
+        let div   = thunk![ get!(num) / get!(den) ];
         let check = thunk![ if get!(den2) == 0 { None } else { Some(get!(div)) } ];
         
         assert_eq!(get!(check), Some(21));

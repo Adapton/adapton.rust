@@ -29,19 +29,19 @@ let den3 = den.clone(); // clone _global reference_ to cell, again.
 
 // Two subcomputations: The division, and a root thunk with a conditional expression
 let div  = thunk![ get!(num) / get!(den) ];
-let root = thunk![ if get!(den2) == 0 { 0 } else { get!(div) } ];
+let root = thunk![ if get!(den2) == 0 { None } else { Some(get!(div)) } ];
 
 // Observe output of `root` while we change the input `den`
 // Step 1: (Explained in detail, below)
-assert_eq!(get!(root), 42);
+assert_eq!(get!(root), Some(42));
 
 // Step 2: (Explained in detail, below)
 set(&den3, 0);
-assert_eq!(get!(root), 0);
+assert_eq!(get!(root), None);
 
 // Step 3: (Explained in detail, below)
 set(&den3, 1);
-assert_eq!(get!(root), 42);  // division is reused
+assert_eq!(get!(root), Some(42));  // division is reused
 # }
 ```
 
