@@ -8,7 +8,7 @@ The example below demonstrates _demand-driven change propagation_,
 which is unique to Adapton's approach to incremental computation.  The
 example constructs two mutable inputs, `nom` and `den`, an
 intermediate subcomputation `div` that divides the numerator in `nom`
-by the denominator in `den`, and a thunk `root` that first checks
+by the denominator in `den`, and a thunk `check` that first checks
 whether the denominator is zero (returning zero if so) and if
 non-zero, returns the value of the division.
 
