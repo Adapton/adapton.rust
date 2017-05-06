@@ -646,6 +646,13 @@ impl reflect::Reflect<Vec<reflect::Pred>> for Vec<Pred> {
   }
 } 
 
+impl reflect::Reflect<Vec<reflect::Loc>> for Vec<Rc<Loc>> {
+    fn reflect(&self) -> Vec<reflect::Loc> {
+        self.iter().map(|loc| loc.reflect()).collect::<Vec<_>>()
+    }
+}
+
+
 /// An `ArtIdChoice` choses between `Eager`, `Structural` and
 /// `Nominal` identities for articulation points introduced by
 /// `thunk`.
@@ -751,16 +758,28 @@ fn lookup_abs<'r>(st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<GraphNode> {
   }
 }
 
-fn assert_graphnode_res_type<Res:'static> (loc:&Loc, node:&Box<GraphNode>) {
+fn get_top_stack_loc(st:&DCG) -> Option<Rc<Loc>> {
+    if st.stack.len() > 0 {
+        Some(st.stack.get(st.stack.len() - 1).unwrap().loc.clone())
+    } else {
+        None
+    }
+}
+
+fn assert_graphnode_res_type<Res:'static> (loc:&Loc, node:&Box<GraphNode>, top_stack:Option<Rc<Loc>>) {
     let res_typeid = TypeId::of::<Res>();
     let node_res_typeid = node.res_typeid();
     if node_res_typeid != res_typeid {
+        let alloc_preds = node.preds_alloc().reflect();
         panic!("\
 Adapton engine: Detected a dynamic type error, possibly due to an ambiguous name:
 \t              at location: {:?}
+\t    existing allocator(s): {:?}
+\tcontext/current allocator: {:?}
+
 \t location has result type: {:?}
 \tbut context expected type: {:?}",
-               loc, node_res_typeid, res_typeid
+               loc, alloc_preds, top_stack.reflect(), node_res_typeid, res_typeid
         );
     }
 }
@@ -769,8 +788,9 @@ Adapton engine: Detected a dynamic type error, possibly due to an ambiguous name
 // double-uses of names and hashes will cause dynamic type errors, via
 // assert_graphnode_res_type.
 fn res_node_of_loc<'r,Res:'static> (st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<Node<Res>> {
+  let top_loc = get_top_stack_loc(st) ;
   let abs_node = lookup_abs(st, loc) ;
-  assert_graphnode_res_type::<Res>(&*loc, abs_node);
+  assert_graphnode_res_type::<Res>(&*loc, abs_node, top_loc);
   unsafe { transmute::<_,_>(abs_node) }
 }
 
@@ -1512,6 +1532,7 @@ impl Adapton for DCG {
               spurious:spurious.clone(),
           }
         ;
+        let top_loc = get_top_stack_loc( self );
         let (do_dirty, do_insert, is_fresh) = { match self.table.get_mut( &loc ) {
           None => {
             // do_dirty=false; do_insert=true
@@ -1519,7 +1540,7 @@ impl Adapton for DCG {
           },
           Some(node) => {
             let node: &mut Box<GraphNode> = node ;
-            assert_graphnode_res_type::<Res>(&loc, node);
+            assert_graphnode_res_type::<Res>(&loc, node, top_loc);
             let res_nd: &mut Box<Node<Res>> = unsafe { transmute::<_,_>( node ) } ;
             match ** res_nd {
               Node::Pure(_)=> unreachable!(),

@@ -1,6 +1,42 @@
 #[macro_use]
 extern crate adapton;
 
+mod engine_is_typesafe {
+
+
+    #[test]
+    #[should_panic]
+    fn engine_dynamic_type_error_as_editor () {
+        //use adapton::macros::*;
+        use adapton::engine::*;
+        manage::init_dcg();
+        let n = name_of_str("cell");
+        let _x : Art<usize> = cell(n.clone(), 1);
+        let _y : Art<(usize,usize)> = cell(n, (2,3));
+    }
+
+    #[test]
+    #[should_panic]
+    fn engine_dynamic_type_error_as_archivist () {
+        use adapton::macros::*;
+        use adapton::engine::*;
+        manage::init_dcg();
+        let t = thunk![{
+            let t1 = thunk![ name_of_str("t1") =>> { 
+                let n = name_of_str("cell");
+                let _x : Art<usize> = cell(n, 1);
+            }];
+            let t2 = thunk![ name_of_str("t2") =>> {
+                let n = name_of_str("cell");
+                let _y : Art<(usize,usize)> = cell(n, (2,3));
+            }];
+            get!(t1);
+            get!(t2);
+        }];
+        let _ = get!(t);
+    }
+}
+
 mod engine_is_from_scratch_consistent {
     //! This module tests that change propagation is from-scratch consistent
 
