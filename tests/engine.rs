@@ -9,6 +9,7 @@ mod engine_is_from_scratch_consistent {
     /// shows the problematic change propagation behavior for a
     /// similar example program (dividing by zero when it should not):
     /// https://gist.github.com/khooyp/98abc0e64dc296deaa48
+
     #[test]
     fn avoid_divide_by_zero () {
         use adapton::macros::*;
@@ -21,19 +22,19 @@ mod engine_is_from_scratch_consistent {
         // checks whether the denominator is zero (returning zero if
         // so) and if non-zero, returns the value of the division.
        
-        let nom  = cell!(0);
-        let den  = cell!(1);
+        let nom  = cell!(42);
+        let den  = cell!(2);
         
         // In Rust, cloning is explicit:
         let den2 = den.clone(); // here, we clone the _global reference_ to the cell.
         let den3 = den.clone(); // here, we clone the _global reference_ to the cell, again.
 
-        let div  = thunk![ get!(nom) / get!(den) ];
-        let root = thunk![ if get!(den2) == 0 { 0 } else { get!(div) } ];
+        let div   = thunk![ get!(nom) / get!(den) ];
+        let check = thunk![ if get!(den2) == 0 { None } else { Some(get!(div)) } ];
         
-        assert_eq!(get!(root), 0);
-        set(&den3, 0);
-        assert_eq!(get!(root), 0);
+        assert_eq!(get!(check), Some(21));
+        set(&den3, 0); assert_eq!(get!(check), None);
+        set(&den3, 2); assert_eq!(get!(check), Some(21));
     }
 
     #[test]
