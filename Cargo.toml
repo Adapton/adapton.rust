@@ -1,6 +1,6 @@
 [package]
 name = "adapton"
-version = "0.3.4"
+version = "0.3.5"
 authors = ["Matthew A. Hammer <Matthew.Hammer@Colorado.Edu>"]
 
 # A short blurb about the package. This is not rendered in any format when
@@ -10,7 +10,7 @@ description = "programming abstractions for general-purpose incremental computat
 # These URLs point to more information about the repository
 documentation = "https://docs.rs/adapton"
 homepage = "http://adapton.org"
-repository = "https://github.com/cuplv/adapton.rust/"
+repository = "https://github.com/Adapton/adapton.rust/"
 
 # This points to a file in the repository (relative to this Cargo.toml). The
 # contents of this file are stored and indexed in the registry.
