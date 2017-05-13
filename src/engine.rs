@@ -1218,7 +1218,7 @@ fn check_cell_change<T:'static+Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:&
         let node = res_node_of_loc::<T>( st, loc ) ;
         match **node {
             Node::Mut(ref mut nd) => { &nd.val != val }
-            _ => unreachable!(),
+            _ => { /* the location was previously _not_ a cell, so yes */ true }
         }
     }
     else { panic!("{:?} is not a cell", cell) }
@@ -1577,7 +1577,7 @@ impl Adapton for DCG {
                         Common location: {:?}
 
                         ** Hint: Consider using distinct namespaces, via `Adapton::ns`
-                           (See: http://adapton.org/rustdoc/adapton/engine/fn.ns.html)
+                           (See: https://docs.rs/adapton/0.3/adapton/engine/fn.ns.html)
                         ",
                          comp_nd.producer.prog_pt(), &comp_nd.producer,
                          producer.prog_pt(), &producer,
