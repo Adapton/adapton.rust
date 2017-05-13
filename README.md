@@ -1,16 +1,16 @@
-[Adapton](http://adapton.org) in Rust  [![Travis](https://api.travis-ci.org/cuplv/adapton.rust.svg?branch=master)](https://travis-ci.org/cuplv/adapton.rust)
+[Adapton](http://adapton.org) in Rust  [![Travis](https://api.travis-ci.org/Adapton/adapton.rust.svg?branch=master)](https://travis-ci.org/Adapton/adapton.rust)
 ====================================================================================
 
 A general-purpose **Incremental Computation** (IC) library for Rust.  
 
-**Quickstart:** See **[Adapton Lab](https://github.com/cuplv/adapton-lab.rust)**
+**Quickstart:** See **[Adapton Lab](https://github.com/Adapton/adapton-lab.rust)**
 
 Versions:
 ---------
 
-- The repo [https://github.com/cuplv/adapton.rust](https://github.com/cuplv/adapton.rust) has the latest, in `dev` and `master` branches.
+- The repo [https://github.com/Adapton/adapton.rust](https://github.com/Adapton/adapton.rust) has the latest, in `dev` and `master` branches.
 - (The `master` branch is intended to be "stable", e.g., for external libraries).  
-- The **latest development** is always in branch [dev](https://github.com/cuplv/adapton.rust/tree/dev).  
+- The **latest development** is always in branch [dev](https://github.com/Adapton/adapton.rust/tree/dev).  
 - Older Rust versions are [available on crates.io](https://crates.io/crates/adapton).  
 - See also: A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).  
 
@@ -29,5 +29,5 @@ Theory and Foundations:
 - The paper [_Adapton: Composable, demand-driven incremental computation_, **PLDI 2014**](http://matthewhammer.org/adapton/).
 
 
-More info: **[Adapton Lab](https://github.com/cuplv/adapton-lab.rust)**
+More info: **[Adapton Lab](https://github.com/Adapton/adapton-lab.rust)**
 -------------------------------------------------------------------------
