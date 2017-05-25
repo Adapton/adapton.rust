@@ -2,7 +2,7 @@
  ergonomic.
 
 Demand-driven change propagation
----------------------------------
+=================================
 
 The example below demonstrates _demand-driven change propagation_,
 which is unique to Adapton's approach to incremental computation.  The
@@ -90,7 +90,7 @@ not presently in demand. For an example, see
 [this gist](https://gist.github.com/khooyp/98abc0e64dc296deaa48).
 
 Use `force_map` for finer-grained dependence tracking
-----------------------------------------------------
+======================================================
 
 Below, we show that using `force_map` prunes the dirtying phase of
 change propagation; this test traces the engine, counts the number of
@@ -134,7 +134,7 @@ assert_eq!(counts.dirty.1, 0);
 ```
 
 Nominal memoization: Toy Examples
-------------------------------------
+===================================
 
 Adapton offers nominal memoization, which uses first-class _names_
 (each of type `Name`) to identify cached computations and data. Behind
@@ -221,6 +221,137 @@ Some notes about the code above:
    _not check_ their identity when performing change
    propagation. Common examples include function values (e.g.,
    anonymous closures).
+
+
+Nominal Firewalls
+===================
+
+This example demonstrates how nominal allocation mixes dirtying and
+cleaning behind the scenes: when the input changes, dirtying proceeds
+incrementally through the edges of the DCG, _during cleaning_.  In
+some situations (Run 2, below), nominal allocation prevents dirtying
+from cascading, leading to finer-grained dependency tracking, and more
+incremental reuse.  One might call this design pattern _"nominal
+firewalls"_ (thanks to @nikomatsakis for suggesting the term
+"firewall" in this context).
+
+First, consider this DCG:
+
+```                                 
+//   cell                           +---- Legend ------------------+
+//   a                              | [ 2 ]   ref cell holding 2   |
+//   [ 2 ]                          |  (g)    thunk named 'g'      |
+//     ^                            | ---->   force/observe edge   |
+//     | force                      | --->>   allocation edge      |              
+//     | 2                          +------------------------------+
+//     |
+//     |                 cell                                   cell
+//     |    alloc 4       b      force 4           alloc 4       c
+//    (g)------------->>[ 4 ]<--------------(h)-------------->>[ 4 ]
+//     ^                                     ^
+//     | force                               | force h,
+//     | returns b                           | returns c
+//     |                                     |
+//    (f)------------------------------------+
+//     ^
+//     | force f,
+//     | returns cell c
+//     |
+//  (root of demand)
+```
+
+In this graph, the ref cell `b` acts as the "firewall".
+
+Below, we show a particular input change for cell `a` where a
+subcomputation `h` is never dirtied nor cleaned by change propagation
+(input change 2 to -2). We show another change to the same input where
+this subcomputation `h` *is* _eventually_ dirtied and cleaned by
+Adapton, though not immediately (input change -2 to 3).
+
+Here's the Rust code for generating this DCG, and these changes to its
+input cell, named `"a"`:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+use adapton::macros::*;
+use adapton::engine::*;
+
+fn demand_graph(a: Art<i32>) -> Art<i32> {
+  let c : Art<i32> = force 
+   (& thunk![ name_of_str("f") =>> {
+      let a = a.clone();
+      let b : Art<i32> = force 
+          (& thunk![ name_of_str("g") =>> {
+            let x = get!(a);
+            cell(name_of_str("b"), x * x)       
+          }]);                
+        let c : Art<i32> = force 
+          (& thunk![ name_of_str("h") =>> {
+            let x = get!(b);
+            cell(name_of_str("c"), if x < 100 { x } else { 100 })
+          }]);                
+        c
+      }]);
+    return c
+  };
+
+manage::init_dcg();
+
+// 1. Initialize input cell "a" to hold 2, and do the computation illustrated above:
+let _ = demand_graph(cell(name_of_str("a"), 2));
+
+// 2. Change input cell "a" to hold -2, and do the computation illustrated above:
+let _ = demand_graph(cell(name_of_str("a"), -2));
+
+// 3. Change input cell "a" to hold 3, and do the computation illustrated above:
+let _ = demand_graph(cell(name_of_str("a"), 3));
+# }
+```
+
+In this example DCG, thunk `f` allocates and forces two
+sub-computations, thunks `g` and `h`.  The first observes the input
+`a` and produces an intermediate result (ref cell `b`); the second
+observes this intermediate result and produces a final result (ref
+cell `c`), which both thunks `h` and `f` return as their final result.
+
+**Run 1.** In the first computation, the input cell `a` holds 2, and
+the final resulting cell `c` holds `4`.
+
+**Run 2.** When the input cell `a` changes, e.g., from 2 to -2, thunks
+`f` and `g` are dirtied.  Thunk `g` is dirty because it observes the
+changed input.  Thunk `f` is dirty because it demanded (observed) the
+output of thunk `g` in the extent of its own computation.
+
+_Importantly, thunk `h` is *not* immediately dirtied when cell `a`
+changes._ In a sense, cell `a` is an indirect ("transitive") input to
+thunk `h`.  This fact may suggest that when cell `a` is changed from 2
+to -2, we should dirty thunk `h` immediately.  However, thunk `h` is
+related to this input only by reading a *different* ref cell (ref cell
+b) that depends, indirectly, on cell `a`, via the behavior of thunk
+`g`, on which thunk `h` does *not* directly depend: thunk `h` does not
+force thunk `g`.
+
+Rather, when thunk `f` is re-demanded, Adapton will necessarily
+perform a cleaning process (aka, "change propagation"), re-executing
+`g`, its immediate dependent, which is dirty.  Since thunk `g` merely
+squares its input, and 2 and -2 both square to 4, the output of thunk
+`g` will not change in this case.  Consequently, the observers of cell
+`b`, which holds this output, will not be dirtied or re-executed.  In
+this case, thunk `h` is this observer.  In situations like these,
+Adapton's dirtying + cleaning algorithms do not dirty nor clean thunk
+`h`.
+
+In sum, under this change, after `f` is re-demanded, the cleaning
+process will first re-execute `g`, the immediate observer of cell `a`.
+Thunk `g` will again allocate cell `b` to hold 4, the same value as
+before.  It also yields this same cell pointer (to cell `b`).
+Consequently, thunk `f` is not re-executed, and is cleaned.
+Meanwhile, the outgoing (dependency) edges thunk of `h` are never
+dirtied.
+
+**Run 3.** For some other change, e.g., from 2 to 3, thunk `h` would
+_eventually_ be dirtied and cleaned.  
 
 */
 
