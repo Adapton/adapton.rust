@@ -279,6 +279,14 @@ input cell, named `"a"`:
 use adapton::macros::*;
 use adapton::engine::*;
 
+fn demand_graph_version0(a: Art<i32>) -> Art<i32> {
+    let c = get!(let_thunk!{f = {
+        let a = a.clone();
+        let b = get!(let_thunk!{g = {let x = get!(a); let_cell!{b = x * x; b}}; g});
+        let c = get!(let_thunk!{h = {let x = get!(b); let_cell!{c = if x < 100 { x } else { 100 }; c}}; h});
+        c}; f}); c
+};
+
 fn demand_graph(a: Art<i32>) -> Art<i32> {
     let_memo!{
       c =(f)= { let a = a.clone();
