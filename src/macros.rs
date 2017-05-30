@@ -313,7 +313,7 @@ The `let_memo!` macro above expands as follows:
 # fn main() {
 # use adapton::macros::*;
 # use adapton::engine::*;
-fn demand_graph_version0(a: Art<i32>) -> Art<i32> {
+fn demand_graph__post_macro_expansion(a: Art<i32>) -> Art<i32> {
     let f = let_thunk!{f = {
              let a = a.clone();
              let g = let_thunk!{g = {let x = get!(a);
