@@ -280,24 +280,29 @@ use adapton::macros::*;
 use adapton::engine::*;
 
 fn demand_graph(a: Art<i32>) -> Art<i32> {
-    let_memo!{c =(f)= {
-        let a = a.clone();
-        let_memo!{b =(g)= {let x = get!(a); let_cell!{b = x * x; b}};
-                  c =(h)= {let x = get!(b); let_cell!{c = if x < 100 { x } else { 100 }; c}};
-                  c}};
-              c}
+    let_memo!{
+      c =(f)= { let a = a.clone();
+        let_memo!{
+          b =(g)={ let x = get!(a);
+                   let_cell!{b = x * x; 
+                             b }};
+          c =(h)={ let x = get!(b); 
+                   let_cell!{c = if x < 100 { x } else { 100 }; 
+                             c }};
+          c }};
+      c }
 }
 
 manage::init_dcg();
 
 // 1. Initialize input cell "a" to hold 2, and do the computation illustrated above:
-let _ = demand_graph(cell(name_of_str("a"), 2));
+let _ = demand_graph(let_cell!{a = 2; a});
 
 // 2. Change input cell "a" to hold -2, and do the computation illustrated above:
-let _ = demand_graph(cell(name_of_str("a"), -2));
+let _ = demand_graph(let_cell!{a = -2; a});
 
 // 3. Change input cell "a" to hold 3, and do the computation illustrated above:
-let _ = demand_graph(cell(name_of_str("a"), 3));
+let _ = demand_graph(let_cell!{a = 3; a});
 # }
 ```
 
