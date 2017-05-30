@@ -20,8 +20,9 @@ use adapton::engine::*;
 manage::init_dcg();
 
 // Two mutable inputs, for numerator and denominator of division
-let num  = cell!(42);
-let den  = cell!(2);
+//let num  = cell!(42);
+//let den  = cell!(2);
+let_cell!{num = 42; den = 2; {
 
 // In Rust, cloning is explicit:
 let den2 = den.clone(); // clone _global reference_ to cell.
@@ -42,6 +43,7 @@ assert_eq!(get!(check), None);
 // Step 3: (Explained in detail, below)
 set(&den3, 2);
 assert_eq!(get!(check), Some(21));  // division is reused
+}}
 # }
 ```
 
@@ -71,7 +73,7 @@ following change propagation behavior:
    the output of the division (`21`) _without_ having to re-execute
    the division.
 
-For a graphical illustration of this behavior, see [these slides](https://github.com/cuplv/adapton-talk/blob/master/2017-05-06--dcg-example--div-by-zero/Adapton_DCG--Avoid_div-by-zero.pdf).
+For a graphical illustration of this behavior, see [these slides](https://github.com/cuplv/adapton-talk/blob/master/adapton-example--div-by-zero/).
 
 In the academic literature on Adapton, we refer to this three-step
 pattern as _switching_: The demand of `div` switches from being
@@ -278,23 +280,13 @@ use adapton::macros::*;
 use adapton::engine::*;
 
 fn demand_graph(a: Art<i32>) -> Art<i32> {
-  let c : Art<i32> = force 
-   (& thunk![ name_of_str("f") =>> {
-      let a = a.clone();
-      let b : Art<i32> = force 
-          (& thunk![ name_of_str("g") =>> {
-            let x = get!(a);
-            cell(name_of_str("b"), x * x)       
-          }]);                
-        let c : Art<i32> = force 
-          (& thunk![ name_of_str("h") =>> {
-            let x = get!(b);
-            cell(name_of_str("c"), if x < 100 { x } else { 100 })
-          }]);                
-        c
-      }]);
-    return c
-  };
+    let_memo!{c =(f)= {
+        let a = a.clone();
+        let_memo!{b =(g)= {let x = get!(a); let_cell!{b = x * x; b}};
+                  c =(h)= {let x = get!(b); let_cell!{c = if x < 100 { x } else { 100 }; c}};
+                  c}};
+              c}
+}
 
 manage::init_dcg();
 
@@ -429,6 +421,10 @@ macro_rules! cell {
   ($value:expr) => {{
       cell(name_of_usize(bump_name_counter()), $value)
   }}
+  ;
+  ($nm:ident =>>> $value:expr) => {{
+      cell(name_of_str(stringify($ident)), $value)
+  }}
 }
 
 /// Convenience wrapper for `engine::thunk`
@@ -449,6 +445,10 @@ macro_rules! thunk {
        (), 
        ()
       )
+  }}
+  ;
+  [ $nm:ident =>>> $suspended_body:expr ] => {{
+      thunk!(name_of_str(stringify!($nm)), $suspended_body)
   }}
   ;
   [ $nm:expr =>> $suspended_body:expr ] => {{
@@ -740,4 +740,109 @@ macro_rules! cell_call {
     let cell = cell($nm, res) ;
     cell
   }}
+}
+
+/**
+Let-bind a nominal ref cell via `cell`, using the let-bound variable identifier as its name.  Permits sequences of bindings.
+
+Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/adapton/macros/index.html#nominal-firewalls).
+*/
+#[macro_export]
+macro_rules! let_cell {
+  { $var:ident = $rhs:expr; $body:expr } => {{ {
+    let name = name_of_str(stringify!($var));
+    let value = $rhs;
+    let $var = cell(name, value); $body }
+  }};
+  { $var1:ident = $rhs1:expr ; $( $var2:ident = $rhs2:expr ),+ ; $body:expr} => {{
+    let_cell!($var1 = $rhs1;
+              let_cell!( $( $var2 = $rhs2 ),+ ; $body ))
+  }};
+}
+
+/**
+Let-bind a nominal thunk via `thunk!`, without forcing it.  Permits sequences of bindings.
+
+*/
+#[macro_export]
+macro_rules! let_thunk {
+  { $var:ident = $rhs:expr; $body:expr } => {{
+    let name = name_of_str(stringify!($var));
+    let $var = thunk![name =>> $rhs]; $body
+  }};
+  { $var1:ident = $rhs1:expr ; $( $var2:ident = $rhs2:expr ),+ ; $body:expr} => {{
+    let_thunk!($var1 = $rhs1;
+               let_thunk!( $( $var2 = $rhs2 ),+ ; $body ))
+  }};
+}
+
+/**
+Let-bind a nominal thunk, force it, and let-bind its result.  Permits sequences of bindings.
+
+Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/adapton/macros/index.html#nominal-firewalls).
+*/
+#[macro_export]
+macro_rules! let_memo {
+  { $var:ident = ( $thkvar1:ident ) = $rhs:expr; $body:expr } => {{
+    let name = name_of_str(stringify!($thkvar1));
+    let $thkvar1 = thunk![name =>> $rhs];
+    let $var = get!($thkvar1);
+    $body
+  }};
+  { $var1:ident = ( $thkvar1:ident ) = $rhs1:expr ; $( $var2:ident = ( $thkvar2:ident ) = $rhs2:expr ),+ ; $body:expr} => {{
+    let_memo!($var1 = ( $thkvar1 ) = $rhs1;
+     let_memo!( $( $var2 = ( $thkvar2 ) = $rhs2 ),+ ; $body ))
+  }};
+}
+
+#[test]
+fn test_let_macros() {
+    use adapton::macros::*;
+    use adapton::engine::*;
+    
+    fn demand_graph(a: Art<i32>) -> Art<i32> {
+        let c : Art<i32> = get!(let_thunk!{f = {
+            let a = a.clone();
+            let b : Art<i32> = get!(let_thunk!{g = {let x = get!(a); let_cell!{b = x * x; b}}; g});
+            let c : Art<i32> = get!(let_thunk!{h = {let x = get!(b); let_cell!{c = if x < 100 { x } else { 100 }; c}}; h});
+            c}; f});
+        return c
+    };
+    
+    manage::init_dcg();
+    
+    // 1. Initialize input cell "a" to hold 2, and do the computation illustrated above:
+    let _ = demand_graph(cell(name_of_str("a"), 2));
+    
+    // 2. Change input cell "a" to hold -2, and do the computation illustrated above:
+    let _ = demand_graph(cell(name_of_str("a"), -2));
+    
+    // 3. Change input cell "a" to hold 3, and do the computation illustrated above:
+    let _ = demand_graph(cell(name_of_str("a"), 3));
+}
+
+#[test]
+fn test_memo_macros() {
+    use adapton::macros::*;
+    use adapton::engine::*;
+    
+    fn demand_graph(a: Art<i32>) -> Art<i32> {
+        let_memo!{c =(f)= {
+            let a = a.clone();
+            let_memo!{b =(g)= {let x = get!(a); let_cell!{b = x * x; b}};
+                      c =(h)= {let x = get!(b); let_cell!{c = if x < 100 { x } else { 100 }; c}};
+                      c}};
+                  c}
+    }
+    
+    manage::init_dcg();
+    
+    // 1. Initialize input cell "a" to hold 2, and do the computation illustrated above:
+    let _ = demand_graph(cell(name_of_str("a"), 2));
+    
+    // 2. Change input cell "a" to hold -2, and do the computation illustrated above:
+    let _ = demand_graph(cell(name_of_str("a"), -2));
+    
+    // 3. Change input cell "a" to hold 3, and do the computation illustrated above:
+    let _ = demand_graph(cell(name_of_str("a"), 3));
 }
