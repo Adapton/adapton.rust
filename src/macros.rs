@@ -279,14 +279,6 @@ input cell, named `"a"`:
 use adapton::macros::*;
 use adapton::engine::*;
 
-fn demand_graph_version0(a: Art<i32>) -> Art<i32> {
-    let c = get!(let_thunk!{f = {
-        let a = a.clone();
-        let b = get!(let_thunk!{g = {let x = get!(a); let_cell!{b = x * x; b}}; g});
-        let c = get!(let_thunk!{h = {let x = get!(b); let_cell!{c = if x < 100 { x } else { 100 }; c}}; h});
-        c}; f}); c
-};
-
 fn demand_graph(a: Art<i32>) -> Art<i32> {
     let_memo!{
       c =(f)= { let a = a.clone();
@@ -313,6 +305,36 @@ let _ = demand_graph(let_cell!{a = -2; a});
 let _ = demand_graph(let_cell!{a = 3; a});
 # }
 ```
+
+The `let_memo!` macro above expands as follows:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+fn demand_graph_version0(a: Art<i32>) -> Art<i32> {
+    let f = let_thunk!{f = {
+             let a = a.clone();
+             let g = let_thunk!{g = {let x = get!(a);
+                                     let_cell!{b = x * x; 
+                                               b }};
+                                g };
+             let b = force(&g);
+             let h = let_thunk!{h = {let x = get!(b); 
+                                     let_cell!{c = if x < 100 { x } 
+                                                   else { 100 };
+                                               c }};
+                                h };
+             let c = force(&h);
+        c};
+       f};
+    let c = force(&f);
+    c
+};
+# }
+```
+
 
 In this example DCG, thunk `f` allocates and forces two
 sub-computations, thunks `g` and `h`.  The first observes the input
@@ -776,6 +798,7 @@ macro_rules! let_cell {
 /**
 Let-bind a nominal thunk via `thunk!`, without forcing it.  Permits sequences of bindings.
 
+Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/adapton/macros/index.html#nominal-firewalls).
 */
 #[macro_export]
 macro_rules! let_thunk {
