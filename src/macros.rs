@@ -3,11 +3,13 @@
 
 # Adapton core primitives, by category:
 
- - Cell allocation: `cell`, `cell!`, `let_cell!`
- - Thunk allocation: `thunk`, `let_thunk!`
- - Demand / observation: `force`, `get!`, `force_map`
+ - **Cell allocation**: `cell`, `cell!`, `let_cell!`
+ - **Observation/demand**: `get!`, `force`, `force_map`
+ - **Thunk Allocation**:
+   - Thunk allocation, **_without_ demand**: `thunk`, `let_thunk!`
+   - Thunk allocation, **_with_ demand**: `memo!`, `eager!`, `let_memo!`
 
-## Global counter for `cell`s:
+## Implicit counter for naming `cell`s
 
 `cell!(123)` uses a global counter to choose a unique name to hold
 `123`. Important note: This _may_ be appopriate for the Editor role,
@@ -26,10 +28,11 @@ assert_eq!( get!(c), force(&c) );
 # }
 ```
 
-## Explicit-names for `cell`s:
+## Explicitly-named `cell`s
 
-Sometimes we name a cell using a Rust identifier `[ name ]` to specify
-the cell's name is a string, constructed from the symbol `name`:
+Sometimes we name a cell using a Rust identifier.  We specify this
+case using the notation `[ name ]`, which specifies that the cell's
+name is a string, constructed from the Rust identifer `name`:
 
 ```
 # #[macro_use] extern crate adapton;
@@ -44,7 +47,7 @@ assert_eq!(get!(c), force(&c));
 # }
 ```
 
-## Optional-name version
+## Optionally-named `cell`s
 
 Most generally, we supply an expression `optional_name` of type
 `Option<Name>` to specify the name for the `Art`.  This `Art` is
@@ -351,11 +354,9 @@ fn demand_graph(a: Art<i32>) -> Art<i32> {
       c =(f)= { let a = a.clone();
         let_memo!{
           b =(g)={ let x = get!(a);
-                   let_cell!{b = x * x; 
-                             b }};
+                   cell!([b] x * x) };
           c =(h)={ let x = get!(b); 
-                   let_cell!{c = if x < 100 { x } else { 100 }; 
-                             c }};
+                   cell!([c] if x < 100 { x } else { 100 }) };
           c }};
       c }
 }
@@ -363,13 +364,15 @@ fn demand_graph(a: Art<i32>) -> Art<i32> {
 manage::init_dcg();
 
 // 1. Initialize input cell "a" to hold 2, and do the computation illustrated above:
-let _ = demand_graph(let_cell!{a = 2; a});
+let c = demand_graph(let_cell!{a = 2; a});
 
 // 2. Change input cell "a" to hold -2, and do the computation illustrated above:
-let _ = demand_graph(let_cell!{a = -2; a});
+let c = demand_graph(let_cell!{a = -2; a});
 
 // 3. Change input cell "a" to hold 3, and do the computation illustrated above:
-let _ = demand_graph(let_cell!{a = 3; a});
+let c = demand_graph(let_cell!{a = 3; a});
+
+# drop(c)
 # }
 ```
 
@@ -384,13 +387,11 @@ fn demand_graph__mid_macro_expansion(a: Art<i32>) -> Art<i32> {
     let f = let_thunk!{f = {
               let a = a.clone();
               let g = let_thunk!{g = {let x = get!(a);
-                                      let_cell!{b = x * x; 
-                                                b }};
+                                      cell!([b] x * x)};
                                  g };
               let b = force(&g);
               let h = let_thunk!{h = {let x = get!(b); 
-                                      let_cell!{c = if x < 100 { x } else { 100 };
-                                                c }};
+                                      cell!([c] if x < 100 { x } else { 100 })};
                                  h };
               let c = force(&h);
               c };
@@ -507,6 +508,7 @@ macro_rules! prog_pt {
 Convenience wrapper for `engine::force`
 
 Example usage:
+
 ```
 # #[macro_use] extern crate adapton;
 # fn main() {
