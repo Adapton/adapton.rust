@@ -7,20 +7,27 @@ This Rust implementation embodies the latest implementation
 [Adapton](http://adapton.org), which offers a foundational,
 language-based semantics for general-purpose incremental computation.
 
-**Programming interface in Rust:**
-For an overview of its Rust programming interface, see the
-documentation for the `adapton::macros` module, which wraps the
-`adapton::engine` module with some convenient macros.
+Programming model
+--------------------
+See the Rust documentation for the following modules:
 
-**See also**:
+- The [`macros` module](https://docs.rs/adapton/0/adapton/macros/index.html),
+  introduces convenience macros that wrap the core interface.  
+
+  Its documentation gives many illustrative examples.
+
+- The [`engine` module](https://docs.rs/adapton/0/adapton/engine/index.html)
+  gives the core programming interface.
+
+Resources
+---------------
 
 - [Presentations and benchmark results](https://github.com/cuplv/adapton-talk#benchmark-results)
 - [IODyn: Adapton collections, for algorithms with dynamic input and output](https://github.com/cuplv/iodyn.rust)
 - [Adapton Lab: Evaluation and testing](https://github.com/cuplv/adapton-lab.rust)
 
-
-Background:
------------
+Background
+---------------
 
 Adapton proposes the _demanded computation graph_ (or **DCG**), and a
 demand-driven _change propagation_ algorithm. Further, it proposes

@@ -1,6 +1,75 @@
 /*! Macros to make using the `engine` module's interface more
  ergonomic.
 
+# Adapton core primitives, by category:
+
+ - Cell allocation: `cell`, `cell!`, `let_cell!`
+ - Thunk allocation: `thunk`, `let_thunk!`
+ - Demand / observation: `force`, `get!`, `force_map`
+
+## Global counter for `cell`s:
+
+`cell!(123)` uses a global counter to choose a unique name to hold
+`123`. Important note: This _may_ be appopriate for the Editor role,
+but is _never appropriate for the Archivist role_.
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let c = cell!( 123 );
+
+assert_eq!( get!(c), 123 );
+assert_eq!( get!(c), force(&c) );
+# }
+```
+
+## Explicit-names for `cell`s:
+
+Sometimes we name a cell using a Rust identifier `[ name ]` to specify
+the cell's name is a string, constructed from the symbol `name`:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let c = cell!([c] 123);
+
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+# }
+```
+
+## Optional-name version
+
+Most generally, we supply an expression `optional_name` of type
+`Option<Name>` to specify the name for the `Art`.  This `Art` is
+created by either `cell` or `put`, in the case that `optional_name` is
+`Some(name)` or `None`, respectively:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let n = name_of_str(stringify!(c));
+let c = cell!([Some(n)]? 123);
+
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+
+let c = cell!([None]? 123);
+
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+# }
+```
+
 Demand-driven change propagation
 =================================
 
@@ -20,9 +89,8 @@ use adapton::engine::*;
 manage::init_dcg();
 
 // Two mutable inputs, for numerator and denominator of division
-//let num  = cell!(42);
-//let den  = cell!(2);
-let_cell!{num = 42; den = 2; {
+let num = cell!(42); 
+let den = cell!(2);
 
 // In Rust, cloning is explicit:
 let den2 = den.clone(); // clone _global reference_ to cell.
@@ -43,7 +111,6 @@ assert_eq!(get!(check), None);
 // Step 3: (Explained in detail, below)
 set(&den3, 2);
 assert_eq!(get!(check), Some(21));  // division is reused
-}}
 # }
 ```
 
@@ -315,26 +382,24 @@ The `let_memo!` macro above expands as follows:
 # use adapton::engine::*;
 fn demand_graph__mid_macro_expansion(a: Art<i32>) -> Art<i32> {
     let f = let_thunk!{f = {
-             let a = a.clone();
-             let g = let_thunk!{g = {let x = get!(a);
-                                     let_cell!{b = x * x; 
-                                               b }};
-                                g };
-             let b = force(&g);
-             let h = let_thunk!{h = {let x = get!(b); 
-                                     let_cell!{c = if x < 100 { x } 
-                                                   else { 100 };
-                                               c }};
-                                h };
-             let c = force(&h);
-        c};
-       f};
+              let a = a.clone();
+              let g = let_thunk!{g = {let x = get!(a);
+                                      let_cell!{b = x * x; 
+                                                b }};
+                                 g };
+              let b = force(&g);
+              let h = let_thunk!{h = {let x = get!(b); 
+                                      let_cell!{c = if x < 100 { x } else { 100 };
+                                                c }};
+                                 h };
+              let c = force(&h);
+              c };
+            f };
     let c = force(&f);
     c
 };
 # }
 ```
-
 
 In this example DCG, thunk `f` allocates and forces two
 sub-computations, thunks `g` and `h`.  The first observes the input
@@ -438,7 +503,23 @@ macro_rules! prog_pt {
   }}
 }
 
-/// Convenience wrapper for `engine::force`
+/**
+Convenience wrapper for `engine::force`
+
+Example usage:
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let c = cell!(123);
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+# }
+```
+
+*/
 #[macro_export]
 macro_rules! get {
   ($art:expr) => {{
@@ -446,19 +527,85 @@ macro_rules! get {
   }}
 }
 
-/// Convenience wrapper for `engine::cell`
-///
-/// Warning: Uses a global counter to choose a unique name. This _may_
-/// be appopriate for the Editor role, but is never appropriate for
-/// the Archivist role.
+/**
+Convenience wrapper for `engine::cell`
+
+## Global counter version:
+
+Uses a global counter to choose a unique name. Important note: This
+_may_ be appopriate for the Editor role, but is _never appropriate for
+the Archivist role_.
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let c = cell!( 123 );
+
+assert_eq!( get!(c), 123 );
+assert_eq!( get!(c), force(&c) );
+# }
+```
+
+## Explicit-names version:
+
+In this verion, use `[ name ]` to specify the cell's name is `name`:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let c = cell!([c] 123);
+
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+# }
+```
+
+## Optional-name version
+
+In this verion, in this version, supply an expression `optional_name`
+of type `Option<Name>` to specify the name for the cell, created by
+either `cell` or `put`, in the case that `optional_name` is
+`Some(name)` or `None`, respectively:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let n = name_of_str(stringify!(c));
+let c = cell!([Some(n)]? 123);
+
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+
+let c = cell!([None]? 123);
+
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+# }
+```
+
+*/
+
 #[macro_export]
 macro_rules! cell {
-  ($value:expr) => {{
+  ( $value:expr ) => {{
       cell(name_of_usize(bump_name_counter()), $value)
   }}
   ;
-  ($nm:ident =>>> $value:expr) => {{
-      cell(name_of_str(stringify($ident)), $value)
+  ( [ $nm:expr ] ? $value:expr ) => {{
+      match $nm { Some(n) => cell(n, $value), None => put($value) }
+  }}
+  ;
+  ( [ $nm:ident ] $value:expr ) => {{
+      cell(name_of_str(stringify!($nm)), $value)
   }}
 }
 
@@ -776,7 +923,6 @@ macro_rules! cell_call {
     cell
   }}
 }
-
 /**
 Let-bind a nominal ref cell via `cell`, using the let-bound variable identifier as its name.  Permits sequences of bindings.
 
@@ -812,27 +958,9 @@ macro_rules! let_thunk {
   }};
 }
 
-/**
-Let-bind a nominal thunk, force it, and let-bind its result.  Permits sequences of bindings.
-
-Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/adapton/macros/index.html#nominal-firewalls).
-*/
-#[macro_export]
-macro_rules! let_memo {
-  { $var:ident = ( $thkvar1:ident ) = $rhs:expr; $body:expr } => {{
-    let name = name_of_str(stringify!($thkvar1));
-    let $thkvar1 = thunk![name =>> $rhs];
-    let $var = get!($thkvar1);
-    $body
-  }};
-  { $var1:ident = ( $thkvar1:ident ) = $rhs1:expr ; $( $var2:ident = ( $thkvar2:ident ) = $rhs2:expr ),+ ; $body:expr} => {{
-    let_memo!($var1 = ( $thkvar1 ) = $rhs1;
-     let_memo!( $( $var2 = ( $thkvar2 ) = $rhs2 ),+ ; $body ))
-  }};
-}
 
 #[test]
-fn test_let_macros() {
+fn test_let_cell_let_thunk_macros() {
     use adapton::macros::*;
     use adapton::engine::*;
     
@@ -856,6 +984,26 @@ fn test_let_macros() {
     // 3. Change input cell "a" to hold 3, and do the computation illustrated above:
     let _ = demand_graph(cell(name_of_str("a"), 3));
 }
+
+/**
+Let-bind a nominal thunk, force it, and let-bind its result.  Permits sequences of bindings.
+
+Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/adapton/macros/index.html#nominal-firewalls).
+*/
+#[macro_export]
+macro_rules! let_memo {
+  { $var:ident = ( $thkvar1:ident ) = $rhs:expr; $body:expr } => {{
+    let name = name_of_str(stringify!($thkvar1));
+    let $thkvar1 = thunk![name =>> $rhs];
+    let $var = get!($thkvar1);
+    $body
+  }};
+  { $var1:ident = ( $thkvar1:ident ) = $rhs1:expr ; $( $var2:ident = ( $thkvar2:ident ) = $rhs2:expr ),+ ; $body:expr} => {{
+    let_memo!($var1 = ( $thkvar1 ) = $rhs1;
+     let_memo!( $( $var2 = ( $thkvar2 ) = $rhs2 ),+ ; $body ))
+  }};
+}
+
 
 #[test]
 fn test_memo_macros() {
@@ -882,3 +1030,4 @@ fn test_memo_macros() {
     // 3. Change input cell "a" to hold 3, and do the computation illustrated above:
     let _ = demand_graph(cell(name_of_str("a"), 3));
 }
+
