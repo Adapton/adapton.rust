@@ -3,12 +3,26 @@
 
 # Adapton programming model
 
-**Adapton roles**: Adapton proposes editor and achivist roles:  
+**Adapton roles**: Adapton proposes _editor_ and _achivist roles_:  
 
- - **Editor** role: Creates and mutates input, observes (demands) output of incremental computations.  
- - **Archivist** role: Performs cached computations that consume incremental input and produce incremental output.  
+ - The **Editor role** creates and mutates input, and demands the
+   output of incremental computations.
 
-The examples below illustrate these roles, in increasing complexity.
+ - The **Archivist role** consists of the computation of Adapton
+   thunks: they each perform a cached computation that consumes
+   incremental input and produce incremental output.
+
+The examples below illustrate these roles, in increasing complexity:
+
+ - [Start the DCG engine](#start-the-dcg-engine)
+ - [Create incremental cells](#create-incremental-cells)
+ - [Mutate input cells](#mutate-input-cells)
+ - [Demand-driven change propagation](#demand-driven-change-propagation)
+ - [Memoization](#memoization)
+ - [Thunks](#memoization)
+ - [Use `force_map` for more precise dependencies](#use-force_map-for-more-precise-dependencies)
+ - [Nominal memoization](#nominal-memoization)
+ - [Nominal Firewalls](#nominal-firewalls)
 
 **Programming primitives:** The following list of primitives covers
 the core features of the Adapton engine.  Each primitive below is
@@ -42,12 +56,20 @@ use adapton::macros::*;
 use adapton::engine::*;
 
 fn main() {
-  manage::init_dcg();
+    manage::init_dcg();
+
+    // Put example code below here
 # let c : Art<usize> = cell!( 123 );
 # assert_eq!( get!(c), 123 );
 # assert_eq!( get!(c), force(&c) );
 }
 ```
+
+Create incremental cells
+========================
+
+Commonly, the input and intermediate data of Adapton computations
+consists of named reference `cell`s.
 
 ## Implicit counter for naming `cell`s
 
@@ -113,8 +135,8 @@ assert_eq!(get!(c), force(&c));
 # }
 ```
 
-Mutating cells
-===============
+Mutate input cells
+=========================
 
 One may mutate cells explicitly, or _implicitly_, which is common in Nominal Adapton.
 
@@ -264,7 +286,27 @@ following change propagation behavior:
    the output of the division (`21`) _without_ having to re-execute
    the division.
 
-For a graphical illustration of this behavior, see [these slides](https://github.com/cuplv/adapton-talk/blob/master/adapton-example--div-by-zero/).
+[Slides with illustrations](https://github.com/cuplv/adapton-talk/blob/master/adapton-example--div-by-zero/)
+of the graph structure and the code side-by-side may help:
+
+**Step 1**
+
+<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_10.png" 
+   alt="Drawing" style="width: 800px;"/>
+
+**Step 2**
+
+<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_12.png" 
+   alt="Drawing" style="width: 200px;"/>
+<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_16.png" 
+   alt="Drawing" style="width: 200px;"/>
+
+**Step 3**
+
+<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_17.png" 
+   alt="Drawing" style="width: 200px;"/>
+<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_23.png" 
+   alt="Drawing" style="width: 200px;"/>
 
 In the academic literature on Adapton, we refer to this three-step
 pattern as _switching_: The demand of `div` switches from being
@@ -388,7 +430,7 @@ assert_eq!(force(&t), 20);
 ```
 
 
-Mapping observations makes them more precise
+Use `force_map` for more precise dependencies
 ==============================================
 
 Suppose that we want to project only one field of type `A` from a pair
@@ -441,8 +483,8 @@ assert_eq!(counts.dirty.1, 0);
 ```
 
 
-Nominal memoization: Warm-up examples
-======================================
+Nominal memoization
+=========================
 
 Adapton offers nominal memoization, which uses first-class _names_
 (each of type `Name`) to identify cached computations and data. Behind
@@ -466,7 +508,7 @@ machine words. :)
 # manage::init_dcg();
 # 
 // a simple function (memoized below for illustration purposes;
-// probably actually not worth it!)
+//                    probably actually not worth it!)
 fn sum(x:usize, y:usize) -> usize {
     x + y
 }
@@ -474,29 +516,29 @@ fn sum(x:usize, y:usize) -> usize {
 // Optional: Traces what the engine does below (for diagnostics, testing, illustration)
 reflect::dcg_reflect_begin();
 
-// create a memo entry, named "a", that remembers that `sum(42,43) = 85`
+// create a memo entry, named `a`, that remembers that `sum(42,43) = 85`
 let res1 : usize = get!(thunk!([a] sum; x:42, y:43));
 
-// same name "a", same arguments (42, 43) => reuses the memo entry above for `res1`
+// same name `a`, same arguments (42, 43) => reuse cached result
 let res2 : usize = get!(thunk!([a] sum; x:42, y:43));
 
-// different name "b", same arguments (42, 43) => will *not* match `res1`; creates a new entry
+// different name `b`, same arguments (42, 43) => recomputes `sum` for `b`
 let res3 : usize = get!(thunk!([b] sum; x:42, y:43));
 
-// same name "b", different arguments; will *overwrite* entry named "b" with new args & result
+// same name `b`, different arguments; *overwrite* `b` with new args & result
 let res4 : usize = get!(thunk!([b] sum; x:55, y:66));
 
 // Optional: Assert what happened above, in terms of analytical counts
 let traces = reflect::dcg_reflect_end();
 let counts = reflect::trace::trace_count(&traces, None);
 
-// Editor allocated two thunks ("a" and "b")
+// Editor allocated two thunks (`a` and `b`)
 assert_eq!(counts.alloc_fresh.0, 2);
 
-// Editor allocated one thunk without changing it ("a", with same args)
+// Editor allocated one thunk without changing it (`a`, with same args)
 assert_eq!(counts.alloc_nochange.0, 1);
 
-// Editor allocated one thunk by changing it ("b", different args)
+// Editor allocated one thunk by changing it (`b`, different args)
 assert_eq!(counts.alloc_change.0, 1);
 
 // Archivist allocated nothing
