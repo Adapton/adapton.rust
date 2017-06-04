@@ -1,13 +1,35 @@
 /*! Macros to make using the `engine` module's interface more
  ergonomic.
 
-# Adapton core primitives, by category:
+# Adapton programming model
 
- - **Cell allocation**: `cell`, `cell!`, `let_cell!`
- - **Observation/demand**: `get!`, `force`, `force_map`
- - **Thunk Allocation**:
-   - Thunk allocation, **_without_ demand**: `thunk`, `let_thunk!`
-   - Thunk allocation, **_with_ demand**: `memo!`, `eager!`, `let_memo!`
+**Adapton roles**: Adapton proposes editor and achivist roles:  
+ - **Editor** role: Creates and mutates input, observes (demands) output of incremental computations.  
+ - **Archivist** role: Performs cached computations that consume incremental input and produce incremental output.  
+
+The examples below illustrate these roles, in increasing complexity.
+
+**Programming primitives:** The following list of primitives covers
+the core features of the Adapton engine.  Each primitive below is
+meaningful in each of the two, editor and archivist, roles:  
+
+ - **Ref cell allocation**: Mutable input (editor role), and cached data structures that change across runs (archivist role).
+   - [`cell!`](https://docs.rs/adapton/0/adapton/macro.cell.html) -- Preferred version  
+   - [`let_cell!`](https://docs.rs/adapton/0/adapton/macro.let_cell.html)  -- Useful in simple examples  
+   - [`engine::cell`](https://docs.rs/adapton/0/adapton/engine/fn.cell.html) -- Engine's raw interface  
+ - **Observation** and **demand**: Both editor and archivist role.  
+   - [`get!`](https://docs.rs/adapton/0/adapton/macro.get.html) -- Preferred version  
+   - [`engine::force`](https://docs.rs/adapton/0/adapton/engine/fn.force.html) -- Engine's raw interface  
+   - [`engine::force_map`](https://docs.rs/adapton/0/adapton/engine/fn.force_map.html) -- A variant for observations that compose before projections  
+ - **Thunk Allocation**: Both editor and archivist role.  
+   - Thunk allocation, **_without_ demand**:  
+     - [`thunk!`](https://docs.rs/adapton/0/adapton/macro.thunk.html) -- Preferred version  
+     - [`let_thunk!`](https://docs.rs/adapton/0/adapton/macro.let_thunk.html) -- Useful in simple examples  
+     - [`engine::thunk`](https://docs.rs/adapton/0/adapton/engine/fn.thunk.html) -- Engine's raw interface (can be cumbersome)  
+   - Thunk allocation, **_with_ demand**:  
+     - [`memo!`](https://docs.rs/adapton/0/adapton/macro.memo.html) -- Preferred version  
+     - [`let_memo!`](https://docs.rs/adapton/0/adapton/macro.let_memo.html) -- Useful in simple examples  
+     - [`eager!`](https://docs.rs/adapton/0/adapton/macro.eager.html) -- Deprecated; use `memo!` instead.  
 
 ## Implicit counter for naming `cell`s
 
@@ -21,7 +43,7 @@ but is _never appropriate for the Archivist role_.
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let c = cell!( 123 );
+let c : Art<usize> = cell!( 123 );
 
 assert_eq!( get!(c), 123 );
 assert_eq!( get!(c), force(&c) );
@@ -40,7 +62,7 @@ name is a string, constructed from the Rust identifer `name`:
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let c = cell!([c] 123);
+let c : Art<usize> = cell!([c] 123);
 
 assert_eq!(get!(c), 123);
 assert_eq!(get!(c), force(&c));
@@ -60,8 +82,8 @@ created by either `cell` or `put`, in the case that `optional_name` is
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let n = name_of_str(stringify!(c));
-let c = cell!([Some(n)]? 123);
+let n : Name = name_of_str(stringify!(c));
+let c : Art<usize> = cell!([Some(n)]? 123);
 
 assert_eq!(get!(c), 123);
 assert_eq!(get!(c), force(&c));
@@ -161,12 +183,118 @@ particular, they may re-execute the division in step 2, though it is
 not presently in demand. For an example, see 
 [this gist](https://gist.github.com/khooyp/98abc0e64dc296deaa48).
 
-Use `force_map` for finer-grained dependence tracking
-======================================================
+Memoization
+============
+
+Memoization provides a mechanism for caching the results of
+subcomputations; it is a crtical feature of Adapton's approach to
+incremental computation.
+
+In Adapton, each _memoization point_ has three ingredients:
+
+- A function expression (of type `Fn`)
+
+- Zero or more arguments.  Each argument type must have an
+  implementation for the traits `Eq + Clone + Hash + Debug`.  The
+  traits `Eq` and `Clone` are both critical to Adapton's caching and
+  change propagation engine.  The trait `Hash` is required when
+  Adapton's naming strategy is _structural_ (e.g., where function
+  names are based on the hashes of their arguments).  The trait
+  `Debug` is useful for debugging, and reflection.
+
+- An optional _name_, which identifies the function call for reuse later. 
+
+    - When this optional name is `None`, the memoization point may be
+      treated in one of two ways: either as just an ordinary, uncached
+      function call, or as a cached function call that is identified
+      _structurally_, by its function pointer and arguments.  Adapton
+      permits structural subcomputations via the engine's
+      [structural](https://docs.rs/adapton/0/adapton/engine/fn.structural.html)
+      function.
+
+    - When this is `Some(name)`, the memoization point uses `name` to
+      identify the work performed by the function call, and its
+      result.  Critically, in future incremental runs, it is possible
+      for `name` to associate with different functions and/or argument
+      values.
+
+
+Optional name version
+----------------------
+
+The following form is preferred:
+
+`memo!( [ optional_name ]? fnexp ; lab1 : arg1, ..., labk : argk )`
+
+It accepts an optional name, of type `Option<Name>`, and an arbitrary
+function expression `fnexp` (closure or function pointer).  Like the
+other forms, it requires that the programmer label each argument.
+
+Example
+-------
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let opnm  : Option<Name> = Some(name_unit());
+let (t,z) : (Art<usize>, usize) = 
+  memo!([opnm]?
+    |x:usize,y:usize|{ if x > y { x } else { y }};
+     x:10,   y:20   );
+
+assert_eq!(z, 20);
+assert_eq!(force(&t), 20);
+# }
+```
+
+Thunks
+-------------------------------
+
+The following form is preferred:
+
+`thunk!( [ optional_name ]? fnexp ; lab1 : arg1, ..., labk : argk )`
+
+It accepts an optional name, of type `Option<Name>`, and an arbitrary
+function expression `fnexp` (closure or function pointer).  Like the
+other forms, it requires that the programmer label each argument.
+
+Example
+-------
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let opnm  : Option<Name> = Some(name_unit());
+let t : Art<usize> =
+  thunk!([opnm]?
+    |x:usize,y:usize|{ if x > y { x } else { y }};
+     x:10,   y:20   );
+
+assert_eq!(force(&t), 20);
+# }
+```
+
+
+Mapping observations makes them more precise
+==============================================
+
+Suppose that we want to project only one field of type `A` from a pair
+within an `Art<(A,B)>`.  If the field of type `B` changes, our
+observation of the `A` field will not be affected.
 
 Below, we show that using `force_map` prunes the dirtying phase of
-change propagation; this test traces the engine, counts the number of
-dirtying steps, and ensures that this count is zero, as expected.
+change propagation.  Doing so means that computations that would
+otherwise be dirty and cleaned via re-execution are never diritied in
+the first place.  We show a simple example of projecting a pair.
+
+To observe this fact, this test traces the engine, counts the number
+of dirtying steps, and ensures that this count is zero, as expected.
 
 ```
 # #[macro_use] extern crate adapton;
@@ -204,6 +332,7 @@ assert_eq!(counts.dirty.0, 0);
 assert_eq!(counts.dirty.1, 0);
 # }
 ```
+
 
 Nominal memoization: Toy Examples
 ===================================
@@ -464,10 +593,12 @@ _eventually_ be dirtied and cleaned.
 use std::cell::RefCell;
 use std::fmt::{Formatter,Result,Debug};
 
+#[doc(hidden)]
 pub use std::rc::Rc;
 
 thread_local!(static NAME_COUNTER: RefCell<usize> = RefCell::new(0));
 
+#[doc(hidden)]
 /// Program points: used by the Adapton engine to distinguish different memoized functions.
 #[derive(PartialEq,Eq,Clone,Hash)]
 pub struct ProgPt {
@@ -485,12 +616,14 @@ impl Debug for ProgPt {
   fn fmt(&self, f: &mut Formatter) -> Result { self.symbol.fmt(f) }
 }
 
+#[doc(hidden)]
 /// Convenience function: A global counter for creating unique names,
 /// e.g., in unit tests. Avoid using this outside of unit tests.
 pub fn bump_name_counter() -> usize {
     NAME_COUNTER.with(|ctr|{let c = *ctr.borrow(); *ctr.borrow_mut() = c + 1; c})
 }
 
+#[doc(hidden)]
 /// Generate a "program point", used as a unique ID for memoized functions.
 #[macro_export]
 macro_rules! prog_pt {
@@ -530,50 +663,14 @@ macro_rules! get {
 }
 
 /**
-Convenience wrapper for `engine::cell`
-
-## Global counter version:
-
-Uses a global counter to choose a unique name. Important note: This
-_may_ be appopriate for the Editor role, but is _never appropriate for
-the Archivist role_.
-
-```
-# #[macro_use] extern crate adapton;
-# fn main() {
-# use adapton::macros::*;
-# use adapton::engine::*;
-# manage::init_dcg();
-let c = cell!( 123 );
-
-assert_eq!( get!(c), 123 );
-assert_eq!( get!(c), force(&c) );
-# }
-```
-
-## Explicit-names version:
-
-In this verion, use `[ name ]` to specify the cell's name is `name`:
-
-```
-# #[macro_use] extern crate adapton;
-# fn main() {
-# use adapton::macros::*;
-# use adapton::engine::*;
-# manage::init_dcg();
-let c = cell!([c] 123);
-
-assert_eq!(get!(c), 123);
-assert_eq!(get!(c), force(&c));
-# }
-```
+Convenience wrappers for `engine::cell`.
 
 ## Optional-name version
 
-In this verion, in this version, supply an expression `optional_name`
-of type `Option<Name>` to specify the name for the cell, created by
-either `cell` or `put`, in the case that `optional_name` is
-`Some(name)` or `None`, respectively:
+In this verion, supply an expression `optional_name` of type
+`Option<Name>` to specify the name for the cell, created by either
+`cell` or `put`, in the case that `optional_name` is `Some(name)` or
+`None`, respectively:
 
 ```
 # #[macro_use] extern crate adapton;
@@ -594,6 +691,42 @@ assert_eq!(get!(c), force(&c));
 # }
 ```
 
+## Explicit-names version:
+
+In this verion, use `[ name ]` to specify the cell's name is `name`:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let c = cell!([c] 123);
+
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+# }
+```
+
+## Global counter version:
+
+Uses a global counter to choose a unique name. Important note: This
+_may_ be appopriate for the Editor role, but is _never appropriate for
+the Archivist role_.
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let c = cell!( 123 );
+
+assert_eq!( get!(c), 123 );
+assert_eq!( get!(c), force(&c) );
+# }
+```
+
 */
 
 #[macro_export]
@@ -611,13 +744,55 @@ macro_rules! cell {
   }}
 }
 
-/// Convenience wrapper for `engine::thunk`
-///
-/// Warning: When not given a name, this macro uses a global counter
-/// to choose a unique name. This _may_ be appopriate for the Editor
-/// role, but is never appropriate for the Archivist role.
+
+/**
+
+Thunks
+=======================
+
+The following form is preferred:
+
+`thunk!( [ optional_name ]? fnexp ; lab1 : arg1, ..., labk : argk )`
+
+It accepts an optional name, of type `Option<Name>`, and an arbitrary
+function expression `fnexp` (closure or function pointer).  Like the
+other forms, it requires that the programmer label each argument.
+
+Example
+-------
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let opnm  : Option<Name> = Some(name_unit());
+let t : Art<usize> =
+  thunk!([opnm]?
+    |x:usize,y:usize|{ if x > y { x } else { y }};
+     x:10,   y:20   );
+
+assert_eq!(force(&t), 20);
+# }
+```
+
+*/
 #[macro_export]
 macro_rules! thunk {
+  ( [ $nmop:expr ] ? $fun:expr ; $( $lab:ident :$arg:expr ),* ) => {{
+      thunk(
+          match $nmop {
+              None => { ArtIdChoice::Eager },
+              Some(n) => { ArtIdChoice::Nominal(n) }},
+          prog_pt!(stringify!($fun)),
+          Rc::new(Box::new(
+              |($($lab),*),()| $fun ( $($lab),* )
+          )),
+          ( $( $arg ),* ),
+          () )
+  }}
+  ;
   [ $suspended_body:expr ] => {{
     thunk
       (ArtIdChoice::Nominal(name_of_usize(bump_name_counter())),
@@ -722,10 +897,112 @@ macro_rules! thunk {
   ;
 }
 
-/// Convenience wrapper for `engine::thunk` and `engine::force`:
-/// creates a thunk and immediately forces it.
+#[macro_export]
+macro_rules! fork {
+    { $nmop:expr } => {{ 
+        match $nmop { 
+            None => (None,None),
+            Some(n) => { 
+                let (l,r) = name_fork(n);
+                (Some(l),Some(r))
+            }
+        } 
+    }}
+    ;
+    [ $nm:expr ] => {{ 
+        name_fork($nm)
+    }};
+}
+
+
+/** 
+
+Memoization
+============
+
+Memoization provides a mechanism for caching the results of
+subcomputations; it is a crtical feature of Adapton's approach to
+incremental computation.
+
+In Adapton, each _memoization point_ has three ingredients:
+
+- A function expression (of type `Fn`)
+
+- Zero or more arguments.  Each argument type must have an
+  implementation for the traits `Eq + Clone + Hash + Debug`.  The
+  traits `Eq` and `Clone` are both critical to Adapton's caching and
+  change propagation engine.  The trait `Hash` is required when
+  Adapton's naming strategy is _structural_ (e.g., where function
+  names are based on the hashes of their arguments).  The trait
+  `Debug` is useful for debugging, and reflection.
+
+- An optional _name_, which identifies the function call for reuse later. 
+
+    - When this optional name is `None`, the memoization point may be
+      treated in one of two ways: either as just an ordinary, uncached
+      function call, or as a cached function call that is identified
+      _structurally_, by its function pointer and arguments.  Adapton
+      permits structural subcomputations via the engine's
+      [structural](https://docs.rs/adapton/0/adapton/engine/fn.structural.html)
+      function.
+
+    - When this is `Some(name)`, the memoization point uses `name` to
+      identify the work performed by the function call, and its
+      result.  Critically, in future incremental runs, it is possible
+      for `name` to associate with different functions and/or argument
+      values.
+
+
+Optional name version
+----------------------
+
+The following form is preferred:
+
+`memo!( [ optional_name ]? fnexp ; lab1 : arg1, ..., labk : argk )`
+
+It accepts an optional name, of type `Option<Name>`, and an arbitrary
+function expression `fnexp` (closure or function pointer).  Like the
+other forms, it requires that the programmer label each argument.
+
+Example
+-------
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let opnm  : Option<Name> = Some(name_unit());
+let (t,z) : (Art<usize>, usize) = 
+  memo!([opnm]?
+    |x:usize,y:usize|{ if x > y { x } else { y }};
+     x:10,   y:20   );
+
+assert_eq!(z, 20);
+assert_eq!(force(&t), 20);
+# }
+```
+
+
+*/
 #[macro_export]
 macro_rules! memo {
+  ( [ $nmop:expr ] ? $fun:expr ; $( $lab:ident :$arg:expr ),* ) => {{
+      match $nmop {
+          None => {
+              let x = put( $fun ( $( $arg ),* ) );
+              let y = force(&x);
+              (x, y)
+          }
+          Some(n) => { 
+              let t = thunk!( [ Some(n) ]? $fun ; $( $lab : $arg ),* );
+              let x = force(&t);
+              (t, x)
+          }
+      }
+  }}
+  ;
   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
     let t = thunk
       (ArtIdChoice::Nominal($nm),
