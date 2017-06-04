@@ -249,7 +249,7 @@ pub fn list_map_eager2<X:'static, Le:'static+ListElim<X>,
      |n, tl, body| {
        // We only memoize when we encounter a name in the input
        let (nm1, nm2, nm3) = name_fork3(n.clone());
-       let t = memo!( nm2 =>> list_map_eager2 =>> <X, Le, Y, Li, F>, l:tl ;; body:body.clone() );
+       let t = memo!( nm2 =>> list_map_eager2::<X, Le, Y, Li, F>, l:tl ;; body:body.clone() );
        list_name(nm1, list_art( cell( nm3 , t) ) )
      })
 }

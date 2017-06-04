@@ -299,6 +299,13 @@ In Adapton, each _memoization point_ has three ingredients:
       for `name` to associate with different functions and/or argument
       values.
 
+A memoization yields two results:
+
+- An articulation, of type `Art<Res>`, where `Res` is the result type
+  of the function expression.
+
+- A result value of type `Res`, which is also cached at the articulation.
+
 
 Optional name version
 ----------------------
@@ -332,6 +339,9 @@ assert_eq!(force(&t), 20);
 
 Thunks
 -------------------------------
+
+Each _memoization point_ is merely a _forced thunk_.  We can also
+create thunks without demanding them.
 
 The following form is preferred:
 
@@ -396,13 +406,13 @@ let t = thunk![{
 }];
 
 // The output is `1234 + 100` = `1334`
-assert_eq!(force(&t), 1334);
+assert_eq!(get!(t), 1334);
 
 // Update the second component of the pair; the first is still 1234
 set(&pair1, (1234, 8765));
 
 // The output is still `1234 + 100` = `1334`
-assert_eq!(force(&t), 1334);
+assert_eq!(get!(t), 1334);
 
 // Assert that nothing was dirtied (due to using `force_map`)
 let traces = reflect::dcg_reflect_end();
@@ -413,8 +423,8 @@ assert_eq!(counts.dirty.1, 0);
 ```
 
 
-Nominal memoization: Toy Examples
-===================================
+Nominal memoization: Warm-up examples
+======================================
 
 Adapton offers nominal memoization, which uses first-class _names_
 (each of type `Name`) to identify cached computations and data. Behind
@@ -446,22 +456,17 @@ fn sum(x:usize, y:usize) -> usize {
 // Optional: Traces what the engine does below (for diagnostics, testing, illustration)
 reflect::dcg_reflect_begin();
 
-let nm_a_0 : Name = name_of_str("a"); // name "a"
-let nm_a_1 : Name = name_of_str("a"); // name "a" (another copy)
-let nm_b_0 : Name = name_of_str("b"); // name "b"
-let nm_b_1 : Name = name_of_str("b"); // name "b" (another copy)
-
 // create a memo entry, named "a", that remembers that `sum(42,43) = 85`
-let res1 : usize = memo!(nm_a_0 =>> sum, x:42, y:43);
+let res1 : usize = get!(thunk!([a] sum; x:42, y:43));
 
 // same name "a", same arguments (42, 43) => reuses the memo entry above for `res1`
-let res2 : usize = memo!(nm_a_1 =>> sum, x:42, y:43);
+let res2 : usize = get!(thunk!([a] sum; x:42, y:43));
 
 // different name "b", same arguments (42, 43) => will *not* match `res1`; creates a new entry
-let res3 : usize = memo!(nm_b_0 =>> sum, x:42, y:43);
+let res3 : usize = get!(thunk!([b] sum; x:42, y:43));
 
 // same name "b", different arguments; will *overwrite* entry named "b" with new args & result
-let res4 : usize = memo!(nm_b_1 =>> sum, x:55, y:66);
+let res4 : usize = get!(thunk!([b] sum; x:55, y:66));
 
 // Optional: Assert what happened above, in terms of analytical counts
 let traces = reflect::dcg_reflect_end();
@@ -843,14 +848,17 @@ provide a label `labi` for each argument `argi`.
 Example 1
 ----------
 
+The programmer specifies the optional name `opnm`, function expression
+`max`, and two labeled arguments `x` and `y`:
+
 ```
 # #[macro_use] extern crate adapton;
 # fn main() {
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-fn max(x:usize,y:usize) -> usize { 
-  if x > y { x } else { y } 
+fn max(a:usize,b:usize) -> usize { 
+  if a > b { a } else { b } 
 };
 let opnm : Option<Name> = Some(name_unit());
 let t : Art<usize> = thunk!([opnm]? max ; x:10, y:20 );
@@ -860,6 +868,8 @@ assert_eq!(get!(t), 20);
 
 Example 2
 ----------
+
+The function expression need not be pre-declared:
 
 ```
 # #[macro_use] extern crate adapton;
@@ -877,6 +887,7 @@ assert_eq!(get!(t), 20);
 
 Example 3
 ----------
+Sometimes thunks just consist of a body expression, without separated arguments:
 
 ```
 # #[macro_use] extern crate adapton;
@@ -884,14 +895,21 @@ Example 3
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let t : Art<usize> = thunk![[Some(name_unit())]?
-                            if 10 > 20 { 10 } else { 20 } ];
+let x : Art<usize> = cell!([x] 10);
+let y : Art<usize> = cell!([y] 20);
+let t : Art<usize> = thunk![[Some(name_unit())]? 
+                            if get!(x) > get!(y) { get!(x) } else { get!(y) } ];
 assert_eq!(get!(t), 20);
 # }
 ```
 
-Example 4
-----------
+Convenience forms, for examples
+================================
+
+**Example 4**:
+
+We can use the Rust symbol `t` as the name to repeat Example 2
+above, as follows:
 
 ```
 # #[macro_use] extern crate adapton;
@@ -899,13 +917,17 @@ Example 4
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let t : Art<usize> = thunk![[t] if 10 > 20 { 10 } else { 20 } ];
+let t : Art<usize> = thunk!([t]
+                            |x,y| if x > y { x } else { y }; 
+                            x:10, y:20 );
 assert_eq!(get!(t), 20);
 # }
 ```
 
-Example 5
-----------
+**Example 5**
+
+We can use the Rust symbol `t` as the name to repeat Example 3
+above, as follows:
 
 ```
 # #[macro_use] extern crate adapton;
@@ -913,7 +935,61 @@ Example 5
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let t : Art<usize> = thunk![ if 10 > 20 { 10 } else { 20 } ];
+let x : Art<usize> = cell!([x] 10);
+let y : Art<usize> = cell!([y] 20);
+let t : Art<usize> = thunk![[t] if get!(x) > get!(y) { get!(x) } else { get!(y) } ];
+assert_eq!(get!(t), 20);
+# }
+```
+
+**Example 6**
+
+Implicit name-counter version (not suitable for archivist role):
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let x : Art<usize> = cell!(10);
+let y : Art<usize> = cell!(20);
+let t : Art<usize> = thunk![ if get!(x) > get!(y) { get!(x) } else { get!(y) } ];
+assert_eq!(get!(t), 20);
+# }
+```
+
+Spurious arguments
+======================
+
+Sometimes, we need to pass arguments that do not admit the traits
+required by Adapton thunks `Eq + Hash + Debug + Clone`.
+
+For instance, suppose that we want to pass `Fn`s around, which are not
+`Debug`, `Eq` or `Hash`.  Though generally unsound, we can use the
+`;;` syntax below to append arguments to thunks that do not admit
+these traits.  For soundness, it is critical that the name and/or
+other arguments (before the `;;`) [functionally
+determine](https://en.wikipedia.org/wiki/Functional_dependency) the
+arguments that follow the `;;`, which are stored and never updated,
+nor tested for changes.
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let t : Art<usize> = thunk!(
+  [Some(name_unit())]?
+    |x:usize,y:usize,
+      choose:Rc<Fn(usize,usize)->bool>|{ 
+        if choose(x,y) { x } else { y }
+    };
+    x:10, y:20 ;; 
+    f:Rc::new(|x,y| if x > y { true } else { false })
+  );
+
 assert_eq!(get!(t), 20);
 # }
 ```
@@ -957,7 +1033,7 @@ macro_rules! thunk {
       thunk!([Some(name_of_str(stringify!($name)))]? 
              $fun ; 
              $( $lab:$arg ),* 
-      );
+      )
   }}
   ;
   ( $nm:expr =>> $fun:expr , $( $lab:ident : $arg:expr ),* ) => {{
@@ -1183,8 +1259,10 @@ It accepts an optional name, of type `Option<Name>`, and an arbitrary
 function expression `fnexp` (closure or function pointer).  Like the
 other forms, it requires that the programmer label each argument.
 
-Example
--------
+Example 1
+---------
+
+**Optional name:**
 
 ```
 # #[macro_use] extern crate adapton;
@@ -1192,7 +1270,9 @@ Example
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let opnm  : Option<Name> = Some(name_unit());
+// Choose an optional name:
+let opnm : Option<Name> = Some(name_unit());
+
 let (t,z) : (Art<usize>, usize) = 
   memo!([opnm]?
     |x:usize,y:usize|{ if x > y { x } else { y }};
@@ -1203,118 +1283,89 @@ assert_eq!(force(&t), 20);
 # }
 ```
 
+Example 2
+---------------
+
+**Function pointers as arguments:**
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+fn max(x:usize,y:usize) -> bool { 
+  if x > y { true } else { false } 
+};
+
+let (t,z) : (Art<usize>, usize) = 
+  memo!([Some(name_unit())]?
+    |x:usize,y:usize,choose:fn(usize,usize)->bool|{ 
+       if choose(x,y) { x } else { y }
+    }; x:10, y:20, f:max );
+
+assert_eq!(z, 20);
+assert_eq!(force(&t), 20);
+# }
+```
+
+Spurious arguments
+===================
+
+Sometimes, we need to pass arguments that do not admit the traits
+required by Adapton thunks `Eq + Hash + Debug + Clone`.
+
+For instance, suppose that we want to pass `Fn`s around, which are not
+`Debug`, `Eq` or `Hash`.  Though generally unsound, we can use the
+`;;` syntax below to append arguments to thunks that do not admit
+these traits.  For soundness, it is critical that the name and/or
+other arguments (before the `;;`) [functionally
+determine](https://en.wikipedia.org/wiki/Functional_dependency) the
+arguments that follow the `;;`, which are stored and never updated,
+nor tested for changes.
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let (t,z) : (Art<usize>, usize) = memo!(
+  [Some(name_unit())]?
+    |x:usize,y:usize,
+      choose:Rc<Fn(usize,usize)->bool>|{ 
+        if choose(x,y) { x } else { y }
+    };
+    x:10, y:20 ;; 
+    f:Rc::new(|x,y| if x > y { true } else { false })
+  );
+
+assert_eq!(z, 20);
+assert_eq!(get!(t), 20);
+# }
+```
+
 
 */
 #[macro_export]
 macro_rules! memo {
   ( [ $nmop:expr ] ? $fun:expr ; $( $lab:ident :$arg:expr ),* ) => {{
-      match $nmop {
-          None => {
-              let x = put( $fun ( $( $arg ),* ) );
-              let y = force(&x);
-              (x, y)
-          }
-          Some(n) => { 
-              let t = thunk!( [ Some(n) ]? $fun ; $( $lab : $arg ),* );
-              let x = force(&t);
-              (t, x)
-          }
-      }
+      { let t = thunk!( [$nmop]? $fun ; $( $lab:$arg ),* ); let x = get!(t); (t, x) }
   }}
   ;
-  ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-    let t = thunk
-      (ArtIdChoice::Nominal($nm),
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args, _|{
-           let ($( $lab ),*) = args ;
-           $f :: < $( $ty ),* >( $( $lab ),* )
-         })),
-       ( $( $arg ),*, ),
-       ()
-       );
-    force(&t)
+  ( [ $nmop:expr ] ? $fun:expr ; $( $lab:ident :$arg:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+      { let t = thunk!( [$nmop]? $fun ; $( $lab:$arg ),* ;; $( $lab2:$arg2 ),* ); let x = get!(t); (t, x) }
   }}
   ;
-  ( $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-    let t = thunk
-      (ArtIdChoice::Nominal($nm),
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args, _|{
-           let ($( $lab ),*) = args ;
-           $f ( $( $lab ),* )
-         })),
-       ( $( $arg ),* ),
-       ()
-       );
-    force(&t)
+  ( $nm:expr =>> $fun:expr , $( $lab:ident : $arg:expr ),* ) => {{ 
+      get!(thunk!( [Some($nm)]? $fun ; $( $lab:$arg ),* ))
   }}
   ;
-  ( $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-    let t = thunk
-      (ArtIdChoice::Structural,
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args, _|{
-           let ($( $lab ),*) = args ;
-           $f :: < $( $ty ),* >( $( $lab ),* )
-         })),
-       ( $( $arg ),* ),
-       ()
-       );
-    force(&t)
+  ( $nm:expr =>> $fun:expr , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+      get!(thunk!( [Some($nm)]? $fun ; $( $lab1:$arg1 ),* ;; $( $lab2:$arg2 ),* ))
   }}
-  ;
-  ( $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-    let t = thunk
-      (ArtIdChoice::Structural,
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args, _|{
-           let ($( $lab ),*, _) = args ;
-           $f ( $( $lab ),* )
-         })),
-       ( $( $arg ),*, () ),
-       ()
-       );
-    force(&t)
-  }}
-  ;
-  ( $nm:expr =>> $f:path , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
-    let t = thunk
-      (ArtIdChoice::Nominal($nm),
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args1, args2|{
-           let ($( $lab1 ),*, _) = args1 ;
-           let ($( $lab2 ),*, _) = args2 ;
-           $f ( $( $lab1 ),* , $( $lab2 ),* )
-         })),
-       ( $( $arg1 ),*, () ),
-       ( $( $arg2 ),*, () ),
-       );
-    force(&t)
-  }}
-  ;
-  ( $nm:expr =>> $f:ident =>> < $( $ty:ty ),* > , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
-    let t = thunk
-      (ArtIdChoice::Nominal($nm),
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args1, args2|{
-           let ($( $lab1 ),*, _) = args1 ;
-           let ($( $lab2 ),*, _) = args2 ;
-           $f :: < $( $ty ),* > ( $( $lab1 ),* , $( $lab2 ),* )
-         })),
-       ( $( $arg1 ),*, () ),
-       ( $( $arg2 ),*, () ),
-       );
-    force(&t)
-  }}
-  ;
 }
+
 
 /// Similar to `memo!`, except return both the thunk and its observed (`force`d) value.
 #[macro_export]
@@ -1423,6 +1474,8 @@ macro_rules! cell_call {
     cell
   }}
 }
+
+
 /**
 Let-bind a nominal ref cell via `cell`, using the let-bound variable identifier as its name.  Permits sequences of bindings.
 

@@ -54,6 +54,7 @@ both predictable and scalable.
 
 */
 
+#![feature(closure_to_fn_coercion)]
 #![feature(associated_consts)]
 #![feature(box_patterns)]
 #![feature(box_syntax)]
