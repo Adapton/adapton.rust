@@ -15,22 +15,21 @@ the core features of the Adapton engine.  Each primitive below is
 meaningful in each of the two, editor and archivist, roles:  
 
  - **Ref cell allocation**: Mutable input (editor role), and cached data structures that change across runs (archivist role).
-   - [`cell!`](https://docs.rs/adapton/0/adapton/macro.cell.html) -- Preferred version  
+   - [**`cell!`**](https://docs.rs/adapton/0/adapton/macro.cell.html) -- Preferred version  
    - [`let_cell!`](https://docs.rs/adapton/0/adapton/macro.let_cell.html)  -- Useful in simple examples  
    - [`engine::cell`](https://docs.rs/adapton/0/adapton/engine/fn.cell.html) -- Engine's raw interface  
  - **Observation** and **demand**: Both editor and archivist role.  
-   - [`get!`](https://docs.rs/adapton/0/adapton/macro.get.html) -- Preferred version  
+   - [**`get!`**](https://docs.rs/adapton/0/adapton/macro.get.html) -- Preferred version  
    - [`engine::force`](https://docs.rs/adapton/0/adapton/engine/fn.force.html) -- Engine's raw interface  
    - [`engine::force_map`](https://docs.rs/adapton/0/adapton/engine/fn.force_map.html) -- A variant for observations that compose before projections  
  - **Thunk Allocation**: Both editor and archivist role.  
    - Thunk allocation, **_without_ demand**:  
-     - [`thunk!`](https://docs.rs/adapton/0/adapton/macro.thunk.html) -- Preferred version  
+     - [**`thunk!`**](https://docs.rs/adapton/0/adapton/macro.thunk.html) -- Preferred version  
      - [`let_thunk!`](https://docs.rs/adapton/0/adapton/macro.let_thunk.html) -- Useful in simple examples  
      - [`engine::thunk`](https://docs.rs/adapton/0/adapton/engine/fn.thunk.html) -- Engine's raw interface (can be cumbersome)  
    - Thunk allocation, **_with_ demand**:  
-     - [`memo!`](https://docs.rs/adapton/0/adapton/macro.memo.html) -- Preferred version  
+     - [**`memo!`**](https://docs.rs/adapton/0/adapton/macro.memo.html) -- Preferred version  
      - [`let_memo!`](https://docs.rs/adapton/0/adapton/macro.let_memo.html) -- Useful in simple examples  
-     - [`eager!`](https://docs.rs/adapton/0/adapton/macro.eager.html) -- Deprecated; use `memo!` instead.  
 
 ## Implicit counter for naming `cell`s
 
@@ -95,6 +94,87 @@ assert_eq!(get!(c), 123);
 assert_eq!(get!(c), force(&c));
 # }
 ```
+
+Mutating cells
+===============
+
+One may mutate cells explicitly, or _implicitly_, which is common in Nominal Adapton.
+
+The editor (implicitly or explicitly) mutates cells that hold input
+and they re-demand the output of the archivist's computations.  During
+change propagation, the archivist mutates cells with implicit
+mutation.
+
+**Implicit mutation uses nominal allocation**: By allocating a cell
+with the same name, one may _overwrite_ cells with new content:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let n : Name = name_of_str(stringify!(c));
+let c : Art<usize> = cell!([Some(n.clone())]? 123);
+
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+
+// Implicit mutation (re-use cell by name `n`):
+let d : Art<usize> = cell!([Some(n)]? 321);
+
+assert_eq!(d, c);
+assert_eq!(get!(c), 321);
+assert_eq!(get!(c), force(&d));
+assert_eq!(get!(d), 321);
+assert_eq!(get!(d), force(&d));
+# }
+```
+
+**No names implies no effects**: Using `None` to allocate cells always
+**gives distinct cells, with no overwriting:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+
+let c = cell!([None]? 123);
+let d = cell!([None]? 321);
+
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+
+assert_eq!(get!(d), 321);
+assert_eq!(get!(d), force(&d));
+# }
+```
+
+**Explicit mutation, via `set`**: If one wants mutation to be totally
+explicit, one may use `set`:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let n : Name = name_of_str(stringify!(c));
+let c : Art<usize> = cell!([Some(n)]? 123);
+
+assert_eq!(get!(c), 123);
+assert_eq!(get!(c), force(&c));
+
+// Explicit mutation (overwrites cell `c`):
+set(&c, 321);
+
+assert_eq!(get!(c), 321);
+assert_eq!(get!(c), force(&c));
+# }
+```
+
 
 Demand-driven change propagation
 =================================
@@ -241,9 +321,8 @@ Example
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let opnm  : Option<Name> = Some(name_unit());
 let (t,z) : (Art<usize>, usize) = 
-  memo!([opnm]?
+  memo!([Some(name_unit())]?
     |x:usize,y:usize|{ if x > y { x } else { y }};
      x:10,   y:20   );
 
@@ -272,9 +351,8 @@ Example
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let opnm  : Option<Name> = Some(name_unit());
 let t : Art<usize> =
-  thunk!([opnm]?
+  thunk!([ Some(name_unit()) ]?
     |x:usize,y:usize|{ if x > y { x } else { y }};
      x:10,   y:20   );
 
