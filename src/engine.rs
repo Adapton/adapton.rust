@@ -1,29 +1,13 @@
-//! Adapton's core calculus, implemented as a runtime library.  We
-//! implement two versions of this interface, which we refer to as
-//! _engines_: The **naive engine** and the **DCG engine**,
-//! implemented based on the algorithms from the Adapton papers.
-//!
-//! To program algorithms that use this interface, consider the
-//! following functions and macros:
-//! 
-//!  - `fn force`, which observes/consumes/demands the value of an
-//!     `Art`.
-//!
-//!  - `fn cell`, which allocates/produces an `Art` to hold a given
-//!     value.  See also, the macro `cell_call!`, which places the
-//!     result of a function call into a (named) cell.
-//!
-//!  - `fn thunk`, and the macros `thunk!` and `eager!`, which
-//!     introduce `Art`s that hold suspended computations and produce
-//!     their results, when `force`d.  The macro `eager!` forces this
-//!     suspended computation eagerly.
-//! 
-//!  - `fn ns`, which manages a monadic _naming policy_ for
-//!     allocations by `cell` and `thunk` (and macros that use these).
-//!     This function extends the current path (a sequence of names)
-//!     by one name, which we refer to as a _namespace_.  This
-//!     namespace concept is analogous to a directory in the UNIX
-//!     filesystem.
+/*! Adapton's core calculus, implemented as a runtime library.  We
+implement two versions of this interface, which we refer to as
+_engines_: The **naive engine** and the **DCG engine**,
+implemented based on the algorithms from the Adapton papers.
+
+**See also:** 
+The [`macros` module](https://docs.rs/adapton/0/adapton/macros/index.html)
+demonstrates the [Adapton programming model](file:///Users/hammer/homedir/work/umd/adapton.rust/target/doc/adapton/macros/index.html#adapton-programming-model) with examples.
+
+*/
 
 use core::any::TypeId;
 use core::marker::PhantomData;

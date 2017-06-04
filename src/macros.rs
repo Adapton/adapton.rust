@@ -31,6 +31,24 @@ meaningful in each of the two, editor and archivist, roles:
      - [**`memo!`**](https://docs.rs/adapton/0/adapton/macro.memo.html) -- Preferred version  
      - [`let_memo!`](https://docs.rs/adapton/0/adapton/macro.let_memo.html) -- Useful in simple examples  
 
+## Start the DCG engine
+
+The call `init_dcg()` below initializes a DCG-based engine, replacing
+the `Naive` default engine.
+
+```
+#[macro_use] extern crate adapton;
+use adapton::macros::*;
+use adapton::engine::*;
+
+fn main() {
+  manage::init_dcg();
+# let c : Art<usize> = cell!( 123 );
+# assert_eq!( get!(c), 123 );
+# assert_eq!( get!(c), force(&c) );
+}
+```
+
 ## Implicit counter for naming `cell`s
 
 `cell!(123)` uses a global counter to choose a unique name to hold
@@ -190,10 +208,10 @@ non-zero, returns the value of the division.
 ```
 # #[macro_use] extern crate adapton;
 # fn main() {
-use adapton::macros::*;
-use adapton::engine::*;
-manage::init_dcg();
-
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+# 
 // Two mutable inputs, for numerator and denominator of division
 let num = cell!(42); 
 let den = cell!(2);
@@ -388,11 +406,11 @@ of dirtying steps, and ensures that this count is zero, as expected.
 ```
 # #[macro_use] extern crate adapton;
 # fn main() {
-use adapton::macros::*;
-use adapton::engine::*;
-use adapton::reflect;
-manage::init_dcg();
-
+# use adapton::macros::*;
+# use adapton::engine::*;
+# use adapton::reflect;
+# manage::init_dcg();
+# 
 // Trace the behavior of change propagation; ensure dirtying works as expected
 reflect::dcg_reflect_begin();
 
@@ -440,13 +458,13 @@ machine words. :)
 ```
 # #[macro_use] extern crate adapton;
 # fn main() {
-use adapton::macros::*;
-use adapton::engine::*;
-use adapton::reflect;
-
-// create an empty DCG (demanded computation graph)
-manage::init_dcg();
-
+# use adapton::macros::*;
+# use adapton::engine::*;
+# use adapton::reflect;
+# 
+# // create an empty DCG (demanded computation graph)
+# manage::init_dcg();
+# 
 // a simple function (memoized below for illustration purposes;
 // probably actually not worth it!)
 fn sum(x:usize, y:usize) -> usize {
