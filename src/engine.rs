@@ -5,7 +5,7 @@ implemented based on the algorithms from the Adapton papers.
 
 **See also:** 
 The [`macros` module](https://docs.rs/adapton/0/adapton/macros/index.html)
-demonstrates the [Adapton programming model](https://docs.rs/adapton/0/macros/index.html#adapton-programming-model) with examples.
+demonstrates the [Adapton programming model](https://docs.rs/adapton/0/adapton/macros/index.html#adapton-programming-model) with examples.
 
 */
 
