@@ -1002,10 +1002,127 @@ macro_rules! thunk {
 }
 
 /** Wrappers for `engine::fork_name`.
+
+Name forking
+-----------------
+
+Sometimes one has a single name but wants more _that are determined by
+it, deterministically_:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+use adapton::macros::*;
+use adapton::engine::*;
+manage::init_dcg();
+
+// Run 1, start with `name_unit()`:
+let u : Name = name_unit();
+let (u1,u2) = fork!( u );
+let (u3,u4) = fork!( u1 );
+
+// Run 2, start with the same name, `name_unit()`:
+let w : Name = name_unit();
+let (w1,w2) = fork!( w );
+let (w3,w4) = fork!( w1 );
+
+// The name forks consist of the same names between runs 1 and 2:
+assert_eq!(u2, w2);
+assert_eq!(u3, w3);
+assert_eq!(u4, w4);
+# }
+```
+
+In the context of incremental computation, the archivist names the
+output of their computation by the names of its input.
+
+
 */
 #[macro_export]
 macro_rules! fork {
-    { $nmop:expr } => {{ 
+    ( $nm:expr ) => {{ 
+        name_fork($nm)
+    }}
+}
+
+
+/** Optional name forking.
+
+Name forking
+=============
+
+Sometimes one has a single name but wants more _that are determined by
+it, deterministically_:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+use adapton::macros::*;
+use adapton::engine::*;
+manage::init_dcg();
+
+// Run 1, start with `name_unit()`:
+let u : Name = name_unit();
+let (u1,u2) = fork!( u );
+let (u3,u4) = fork!( u1 );
+
+// Run 2, start with the same name, `name_unit()`:
+let w : Name = name_unit();
+let (w1,w2) = fork!( w );
+let (w3,w4) = fork!( w1 );
+
+// The name forks consist of the same names between runs 1 and 2:
+assert_eq!(u2, w2);
+assert_eq!(u3, w3);
+assert_eq!(u4, w4);
+# }
+```
+
+In the context of incremental computation, the archivist names the
+output of their computation by the names of its input.
+
+
+Optional-name forking
+------------------------
+
+Sometimes it's natural to work with _optional_ names, and in these
+contexts, one may want to fork optional names:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+use adapton::macros::*;
+use adapton::engine::*;
+manage::init_dcg();
+
+let u : Option<Name> = Some(name_unit());
+let (u1,u2) = forko!(u);
+let (w1,w2) = forko!(u1);
+# }
+```
+
+When the name is `None`, one gets more `None`s, as expected:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+# 
+let u : Option<Name> = None;
+let (u1,u2) = forko!(u);
+let (w1,w2) = forko!(u1);
+
+assert_eq!(w1, None);
+assert_eq!(w2, None);
+# }
+```
+
+*/
+#[macro_export]
+macro_rules! forko {
+    ( $nmop:expr ) => {{ 
         match $nmop { 
             None => (None,None),
             Some(n) => { 
@@ -1014,10 +1131,6 @@ macro_rules! fork {
             }
         } 
     }}
-    ;
-    [ $nm:expr ] => {{ 
-        name_fork($nm)
-    }};
 }
 
 
