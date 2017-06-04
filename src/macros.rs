@@ -203,9 +203,8 @@ let den2 = den.clone(); // clone _global reference_ to cell.
 let den3 = den.clone(); // clone _global reference_ to cell, again.
 
 // Two subcomputations: The division, and a check thunk with a conditional expression
-let div   = thunk!(  [div]{ get!(num) / get!(den) });
-let check = thunk!([check]{ if get!(den2) == 0 { None } 
-                            else { Some(get!(div)) } });
+let div   = thunk![ get!(num) / get!(den) ];
+let check = thunk![ if get!(den2) == 0 { None } else { Some(get!(div)) } ];
 
 // Observe output of `check` while we change the input `den`
 // Step 1: (Explained in detail, below)
