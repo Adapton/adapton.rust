@@ -157,7 +157,7 @@ pub fn list_map_lazy<X:'static, Le:'static+ListElim<X>,
        // The name n is written with a recursive call to list_map_lazy, using argument tl, and additionally, passing body.
        // Note the `;;`. This means that the DCG does not check body for equality when dirtying the DCG. 
        // (We have no equality test for functions, anyway).
-       list_art(thunk!( n =>> list_map_lazy =>> <X, Le, Y, Li, F>, l:tl ;; body:body.clone() ))
+       list_art(thunk!( n =>> list_map_lazy::<X, Le, Y, Li, F>, l:tl ;; body:body.clone() ))
      })
 }
 
@@ -178,7 +178,7 @@ pub fn list_filter_lazy<X:'static, Le:'static+ListElim<X>, Li:'static+ListIntro<
        }
      },
      |n, tl, body| {
-       list_art(thunk!( n =>> list_filter_lazy =>> <X, Le, Li, F>, l:tl ;; body:body.clone() ))
+       list_art(thunk!( n =>> list_filter_lazy::<X, Le, Li, F>, l:tl ;; body:body.clone() ))
      })
 }
 

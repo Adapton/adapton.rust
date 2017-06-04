@@ -4,6 +4,7 @@
 # Adapton programming model
 
 **Adapton roles**: Adapton proposes editor and achivist roles:  
+
  - **Editor** role: Creates and mutates input, observes (demands) output of incremental computations.  
  - **Archivist** role: Performs cached computations that consume incremental input and produce incremental output.  
 
@@ -100,8 +101,8 @@ Demand-driven change propagation
 
 The example below demonstrates _demand-driven change propagation_,
 which is unique to Adapton's approach to incremental computation.  The
-example constructs two mutable inputs, `nom` and `den`, an
-intermediate subcomputation `div` that divides the numerator in `nom`
+example constructs two mutable inputs, `num` and `den`, an
+intermediate subcomputation `div` that divides the numerator in `num`
 by the denominator in `den`, and a thunk `check` that first checks
 whether the denominator is zero (returning zero if so) and if
 non-zero, returns the value of the division.
@@ -122,8 +123,9 @@ let den2 = den.clone(); // clone _global reference_ to cell.
 let den3 = den.clone(); // clone _global reference_ to cell, again.
 
 // Two subcomputations: The division, and a check thunk with a conditional expression
-let div   = thunk![ get!(num) / get!(den) ];
-let check = thunk![ if get!(den2) == 0 { None } else { Some(get!(div)) } ];
+let div   = thunk!(  [div]{ get!(num) / get!(den) });
+let check = thunk!([check]{ if get!(den2) == 0 { None } 
+                            else { Some(get!(div)) } });
 
 // Observe output of `check` while we change the input `den`
 // Step 1: (Explained in detail, below)
@@ -302,7 +304,7 @@ of dirtying steps, and ensures that this count is zero, as expected.
 use adapton::macros::*;
 use adapton::engine::*;
 use adapton::reflect;
-manage::init_dcg();    
+manage::init_dcg();
 
 // Trace the behavior of change propagation; ensure dirtying works as expected
 reflect::dcg_reflect_begin();
@@ -745,21 +747,24 @@ macro_rules! cell {
 }
 
 
-/**
+/**  Wrappers for `engine::thunk`.
 
 Thunks
 =======================
 
 The following form is preferred:
 
-`thunk!( [ optional_name ]? fnexp ; lab1 : arg1, ..., labk : argk )`
+`thunk!( [ optional_name ]? fnexpr ; lab1 : arg1, ..., labk : argk )`
 
-It accepts an optional name, of type `Option<Name>`, and an arbitrary
-function expression `fnexp` (closure or function pointer).  Like the
-other forms, it requires that the programmer label each argument.
+It accepts an optional name, of type `Option<Name>`, and a function
+`fnexpr`, of type `Fn(A1,...,Ak) -> B`.  
 
-Example
--------
+The arguments `arg1,...,argk` have types `A1,...,Ak`.  Like the other
+thunk and memoization forms, this form requires that the programmer
+provide a label `labi` for each argument `argi`.
+
+Example 1
+----------
 
 ```
 # #[macro_use] extern crate adapton;
@@ -767,136 +772,160 @@ Example
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let opnm  : Option<Name> = Some(name_unit());
-let t : Art<usize> =
-  thunk!([opnm]?
-    |x:usize,y:usize|{ if x > y { x } else { y }};
-     x:10,   y:20   );
-
-assert_eq!(force(&t), 20);
+fn max(x:usize,y:usize) -> usize { 
+  if x > y { x } else { y } 
+};
+let opnm : Option<Name> = Some(name_unit());
+let t : Art<usize> = thunk!([opnm]? max ; x:10, y:20 );
+assert_eq!(get!(t), 20);
 # }
 ```
+
+Example 2
+----------
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let opnm : Option<Name> = Some(name_unit());
+let t : Art<usize> = thunk!([opnm]? 
+                            |x,y| if x > y { x } else { y }; 
+                            x:10, y:20 );
+assert_eq!(get!(t), 20);
+# }
+```
+
+Example 3
+----------
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let t : Art<usize> = thunk![[Some(name_unit())]?
+                            if 10 > 20 { 10 } else { 20 } ];
+assert_eq!(get!(t), 20);
+# }
+```
+
+Example 4
+----------
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let t : Art<usize> = thunk![[t] if 10 > 20 { 10 } else { 20 } ];
+assert_eq!(get!(t), 20);
+# }
+```
+
+Example 5
+----------
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let t : Art<usize> = thunk![ if 10 > 20 { 10 } else { 20 } ];
+assert_eq!(get!(t), 20);
+# }
+```
+
 
 */
 #[macro_export]
 macro_rules! thunk {
-  ( [ $nmop:expr ] ? $fun:expr ; $( $lab:ident :$arg:expr ),* ) => {{
+  ([ $nmop:expr ] ? $fun:expr ; $( $lab:ident :$arg:expr ),* ) => {{
       thunk(
           match $nmop {
               None => { ArtIdChoice::Eager },
               Some(n) => { ArtIdChoice::Nominal(n) }},
           prog_pt!(stringify!($fun)),
           Rc::new(Box::new(
-              |($($lab),*),()| $fun ( $($lab),* )
+              move |($($lab),*,()),()| $fun ( $($lab),* )
           )),
-          ( $( $arg ),* ),
+          ( $( $arg ),*,()),
           () )
   }}
   ;
-  [ $suspended_body:expr ] => {{
-    thunk
-      (ArtIdChoice::Nominal(name_of_usize(bump_name_counter())),
-       prog_pt!(stringify!("anonymous")),
-       Rc::new(Box::new(
-         move |(),()|{
-           $suspended_body
-         })),
-       (), 
-       ()
+  ([ $nmop:expr ] ? $fun:expr ; $( $lab:ident :$arg:expr ),* ;; $( $lab2:ident :$arg2:expr ),* ) => {{
+      thunk(
+          match $nmop {
+              None => { ArtIdChoice::Eager },
+              Some(n) => { ArtIdChoice::Nominal(n) }},
+          prog_pt!(stringify!($fun)),
+          Rc::new(Box::new(
+              move | arg1 , arg2 | {
+              let ( $( $lab  ),*, () ) = arg1 ;
+              let ( $( $lab2 ),*, () ) = arg2 ;
+              $fun ( $( $lab ),*, $( $lab2 ),* )
+              }
+          )),
+          ( $( $arg ),*, () ),
+          ( $( $arg2 ),*, () )
       )
   }}
   ;
-  [ $nm:ident =>>> $suspended_body:expr ] => {{
-      thunk!(name_of_str(stringify!($nm)), $suspended_body)
+  ( [ $name:ident ] $fun:expr ; $( $lab:ident :$arg:expr ),* ) => {{
+      thunk!([Some(name_of_str(stringify!($name)))]? 
+             $fun ; 
+             $( $lab:$arg ),* 
+      );
   }}
   ;
-  [ $nm:expr =>> $suspended_body:expr ] => {{
-    thunk
-      (ArtIdChoice::Nominal($nm),
-       prog_pt!(stringify!("anonymous")),
-       Rc::new(Box::new(
-         move |(),()|{
-           $suspended_body
-         })),
-       (), 
-       ()
+  ( $nm:expr =>> $fun:expr , $( $lab:ident : $arg:expr ),* ) => {{
+      thunk!([Some($nm)]? 
+             $fun ; 
+             $( $lab:$arg ),* 
       )
   }}
   ;
-  ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-    thunk
-      (ArtIdChoice::Nominal($nm),
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args, _|{
-           let ($( $lab ),*, _) = args ;
-           $f :: < $( $ty ),* >( $( $lab ),* )
-         })),
-       ( $( $arg ),*, ()),
-       ()
-       )
+  ( $nm:expr =>> $fun:expr , $( $lab:ident : $arg:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
+      thunk!([Some($nm)]? 
+             $fun ; 
+             $( $lab:$arg ),* ;;
+             $( $lab2:$arg2 ),* 
+      )
   }}
   ;
-  ( $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-    thunk
-      (ArtIdChoice::Nominal($nm),
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args, _|{
-           let ($( $lab ),*, _) = args ;
-           $f ( $( $lab ),* )
-         })),
-       ( $( $arg ),*, () ),
-       ()
-       )
+  [ [ $nmop:expr ] ? $body:expr ] => {{
+      thunk(
+          match $nmop {
+              None => { ArtIdChoice::Eager },
+              Some(n) => { ArtIdChoice::Nominal(n) }},
+          prog_pt!(stringify!($body)),
+          Rc::new(Box::new( move |(),()| { $body } )),
+          () ,
+          () )
   }}
   ;
-  ( $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
-    thunk
-      (ArtIdChoice::Structural,
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args, _|{
-           let ($( $lab ),*, _) = args ;
-           $f :: < $( $ty ),* >( $( $lab ),* )
-         })),
-       ( $( $arg ),*, () ),
-       ()
-       )
+  [ [ $name:ident ] $body:expr ] => {{
+      thunk(
+          ArtIdChoice::Nominal(name_of_str(stringify!($name))),
+          prog_pt!(stringify!($fun)),
+          Rc::new(Box::new( move |(),()| { $body } )),
+          () ,
+          () )
   }}
   ;
-  ( $f:path , $( $lab:ident : $arg:expr ),* ) => {{
-    thunk
-      (ArtIdChoice::Structural,
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args, _|{
-           let ($( $lab ),*, _) = args ;
-           $f ( $( $lab ),* )
-         })),
-       ( $( $arg ),*, () ),
-       ()
-       )        
+  [ $body:expr ] => {{
+      thunk![ [Some(name_of_usize(bump_name_counter()))]? 
+               $body ]
   }}
-  ;
-  ( $nm:expr =>> $f:ident =>> < $( $ty:ty ),* > , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
-    let t = thunk
-      (ArtIdChoice::Nominal($nm),
-       prog_pt!(stringify!($f)),
-       Rc::new(Box::new(
-         |args1, args2|{
-           let ($( $lab1 ),*, _) = args1 ;
-           let ($( $lab2 ),*, _) = args2 ;
-           $f :: < $( $ty ),* > ( $( $lab1 ),* , $( $lab2 ),* )
-         })),
-       ( $( $arg1 ),*, () ),
-       ( $( $arg2 ),*, () ),
-       );
-    t
-  }}
-  ;
 }
 
+/** Wrappers for `engine::fork_name`.
+*/
 #[macro_export]
 macro_rules! fork {
     { $nmop:expr } => {{ 
@@ -915,7 +944,7 @@ macro_rules! fork {
 }
 
 
-/** 
+/** Wrappers for creating and forcing thunks (`engine::thunk` and `engine::force`).
 
 Memoization
 ============
@@ -1099,6 +1128,7 @@ macro_rules! memo {
 
 /// Similar to `memo!`, except return both the thunk and its observed (`force`d) value.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! eager {
   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
     let t = thunk
@@ -1184,6 +1214,7 @@ macro_rules! eager {
 }
 
 /// Convenience wrapper: Call a function and place the result into an `engine::cell`.
+#[doc(hidden)]
 #[macro_export]
 macro_rules! cell_call {
   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
@@ -1229,7 +1260,7 @@ Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/ad
 macro_rules! let_thunk {
   { $var:ident = $rhs:expr; $body:expr } => {{
     let name = name_of_str(stringify!($var));
-    let $var = thunk![name =>> $rhs]; $body
+    let $var = thunk!([Some(name)]?{$rhs}); $body
   }};
   { $var1:ident = $rhs1:expr ; $( $var2:ident = $rhs2:expr ),+ ; $body:expr} => {{
     let_thunk!($var1 = $rhs1;
@@ -1272,8 +1303,7 @@ Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/ad
 #[macro_export]
 macro_rules! let_memo {
   { $var:ident = ( $thkvar1:ident ) = $rhs:expr; $body:expr } => {{
-    let name = name_of_str(stringify!($thkvar1));
-    let $thkvar1 = thunk![name =>> $rhs];
+    let $thkvar1 = thunk!([$thkvar1]{$rhs});
     let $var = get!($thkvar1);
     $body
   }};

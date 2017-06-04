@@ -21,18 +21,18 @@ mod engine_is_typesafe {
         use adapton::macros::*;
         use adapton::engine::*;
         manage::init_dcg();
-        let t = thunk![{
-            let t1 = thunk![ name_of_str("t1") =>> { 
+        let t = thunk!([t]{
+            let t1 = thunk!([t1]{
                 let n = name_of_str("cell");
                 let _x : Art<usize> = cell(n, 1);
-            }];
-            let t2 = thunk![ name_of_str("t2") =>> {
+            });
+            let t2 = thunk!([t2]{
                 let n = name_of_str("cell");
                 let _y : Art<(usize,usize)> = cell(n, (2,3));
-            }];
+            });
             get!(t1);
             get!(t2);
-        }];
+        });
         let _ = get!(t);
     }
 }
@@ -91,7 +91,7 @@ mod engine_is_from_scratch_consistent {
         let flag1 = flag.clone(); // we use flag non-linearly below
         let iter1 = iter.clone(); // we use iter non-linearly below
 
-        let iter_hash = thunk![{
+        let iter_hash = thunk!([iter_hash]{
             let inp_val = get!(inp); // value to hash iteratively
             let mut hash_state = DefaultHasher::new();
             for _ in 0..get!(iter) { // hash iteratively, `iter` number of times
@@ -99,11 +99,11 @@ mod engine_is_from_scratch_consistent {
             };
             assert!(get!(iter) < 100); // For Testing: Too many iters is an error!
             hash_state.finish() // returns final hash value
-        }];
-        let root = thunk![ // switches between hashing iteratively, or not
+        });
+        let root = thunk!([root]{ // switches between hashing iteratively, or not
             if get!(flag) { get!(iter_hash) }
             else { get!(inp1) }
-        ];
+        });
 
         assert!(get!(root) != get!(inp2));
         set(&flag1, false);
@@ -161,7 +161,7 @@ mod engine_api {
         manage::init_dcg();    
         reflect::dcg_reflect_begin();
         let c : Art<(usize,usize)> = cell(name_of_str("pair"), (1234, 5678));
-        let t : Art<usize> = thunk![{    
+        let t : Art<usize> = thunk![{
             let fst = force_map(&c, |_,x| x.0);
             fst + 100
         }];
