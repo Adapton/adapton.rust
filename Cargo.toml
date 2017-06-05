@@ -1,6 +1,6 @@
 [package]
 name = "adapton"
-version = "0.3.13"
+version = "0.3.14"
 authors = ["Matthew A. Hammer <Matthew.Hammer@Colorado.Edu>"]
 
 # A short blurb about the package. This is not rendered in any format when
