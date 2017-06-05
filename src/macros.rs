@@ -146,6 +146,7 @@ introduction operation `&`:
 let c : Art<usize> = cell!(123);
 
 assert_eq!( get!(c), force(&c) ); 
+# }
 ```
 
 Since the type `Art<T>` classifies both `cell`s and
