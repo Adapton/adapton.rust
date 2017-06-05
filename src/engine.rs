@@ -4,8 +4,8 @@ _engines_: The **naive engine** and the **DCG engine**,
 implemented based on the algorithms from the Adapton papers.
 
 **See also:** 
-The [`macros` module](https://docs.rs/adapton/0/adapton/macros/index.html)
-demonstrates the [Adapton programming model](https://docs.rs/adapton/0/adapton/macros/index.html#adapton-programming-model) with examples.
+The [main module](https://docs.rs/adapton/0/adapton/index.html)
+demonstrates the [Adapton programming model](https://docs.rs/adapton/0/adapton/index.html#adapton-programming-model) with examples.
 
 */
 
