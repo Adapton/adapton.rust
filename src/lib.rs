@@ -1,3 +1,5 @@
+#![doc(html_logo_url = "https://raw.githubusercontent.com/cuplv/adapton-talk/master/logos/adapton-logo-bonsai.png",       
+       html_root_url = "https://docs.rs/adapton/")]
 /*! 
 
 Adapton for Rust
@@ -662,27 +664,27 @@ firewalls"_ (thanks to @nikomatsakis for suggesting the term
 
 First, consider this DCG:
 
-```                                 
-//   cell                           +---- Legend ------------------+
-//   a                              | [ 2 ]   ref cell holding 2   |
-//   [ 2 ]                          |  (g)    thunk named 'g'      |
-//     ^                            | ---->   force/observe edge   |
-//     | force                      | --->>   allocation edge      |              
-//     | 2                          +------------------------------+
-//     |
-//     |                 cell                                   cell
-//     |    alloc 4       b      force 4           alloc 4       c
-//    (g)------------->>[ 4 ]<--------------(h)-------------->>[ 4 ]
-//     ^                                     ^
-//     | force                               | force h,
-//     | returns b                           | returns c
-//     |                                     |
-//    (f)------------------------------------+
-//     ^
-//     | force f,
-//     | returns cell c
-//     |
-//  (root of demand)
+``` 
+/*                                             +---- Legend ------------------+
+cell a                                         | [ 2 ]   ref cell holding 2   |
+[ 2 ]            "Nominal                      |  (g)    thunk named 'g'      |
+  ^               firewall"                    | ---->   force/observe edge   |
+  | force            |                         | --->>   allocation edge      |              
+  | 2               \|/                        +------------------------------+
+  |                  `
+  |   g allocs b    cell    g forces b          When cell a changes, g is dirty, h is not;
+  |   to hold 4      b      observes 4          in this sense, cell b _firewalls_ h from g:
+ (g)------------->>[ 4 ]<--------------(h)  <~~ note that h does not observe cell a, or g.
+  ^                                     ^ 
+  | f forces g                          | f forces h,
+  | g returns cell b                    | returns String "4"
+  |                                     |
+ (f)------------------------------------+
+  ^
+  | force f,
+  | returns String "4"
+  |
+(root of demand)                                                                         */
 ```
 
 In this graph, the ref cell `b` acts as the "firewall".
@@ -699,33 +701,29 @@ input cell, named `"a"`:
 ```
 # #[macro_use] extern crate adapton;
 # fn main() {
-use adapton::macros::*;
-use adapton::engine::*;
-
-fn demand_graph(a: Art<i32>) -> Art<i32> {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# 
+fn demand_graph(a: Art<i32>) -> String {
     let_memo!{
-      c =(f)= { let a = a.clone();
-        let_memo!{
-          b =(g)={ let x = get!(a);
-                   cell!([b] x * x) };
-          c =(h)={ let x = get!(b); 
-                   cell!([c] if x < 100 { x } else { 100 }) };
-          c }};
-      c }
+      d =(f)= { 
+        let a = a.clone();
+        let_memo!{ b =(g)={ let x = get!(a); cell!([b] x * x) };
+                   c =(h)={ format!("{:?}", get!(b)) };
+                   c }};
+      d }
 }
 
 manage::init_dcg();
 
 // 1. Initialize input cell "a" to hold 2, and do the computation illustrated above:
-let c = demand_graph(let_cell!{a = 2; a});
+assert_eq!(demand_graph(let_cell!{a = 2; a}), "4".to_string());
 
 // 2. Change input cell "a" to hold -2, and do the computation illustrated above:
-let c = demand_graph(let_cell!{a = -2; a});
+assert_eq!(demand_graph(let_cell!{a = -2; a}), "4".to_string());
 
 // 3. Change input cell "a" to hold 3, and do the computation illustrated above:
-let c = demand_graph(let_cell!{a = 3; a});
-
-# drop(c)
+assert_eq!(demand_graph(let_cell!{a = 3; a}),  "9".to_string());
 # }
 ```
 
@@ -736,19 +734,19 @@ The `let_memo!` macro above expands as follows:
 # fn main() {
 # use adapton::macros::*;
 # use adapton::engine::*;
-fn demand_graph__mid_macro_expansion(a: Art<i32>) -> Art<i32> {
+fn demand_graph__mid_macro_expansion(a: Art<i32>) -> String {
     let f = let_thunk!{f = {
               let a = a.clone();
               let g = thunk!([g]{ let x = get!(a);
                                   cell!([b] x * x) });
               let b = force(&g);
               let h = thunk!([h]{ let x = get!(b); 
-                                  cell!([c] if x < 100 { x } else { 100 })});
+                                  format!("{:?}", x) });
               let c = force(&h);
               c };
             f };
-    let c = force(&f);
-    c
+    let d = force(&f);
+    d
 };
 # }
 ```
