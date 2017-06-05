@@ -821,7 +821,7 @@ macro_rules! cell_call {
 /**
 Let-bind a nominal ref cell via `cell`, using the let-bound variable identifier as its name.  Permits sequences of bindings.
 
-Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/adapton/macros/index.html#nominal-firewalls).
+Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/adapton/index.html#nominal-firewalls).
 */
 #[macro_export]
 macro_rules! let_cell {
@@ -839,7 +839,7 @@ macro_rules! let_cell {
 /**
 Let-bind a nominal thunk via `thunk!`, without forcing it.  Permits sequences of bindings.
 
-Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/adapton/macros/index.html#nominal-firewalls).
+Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/adapton/index.html#nominal-firewalls).
 */
 #[macro_export]
 macro_rules! let_thunk {
@@ -883,7 +883,10 @@ fn test_let_cell_let_thunk_macros() {
 /**
 Let-bind a nominal thunk, force it, and let-bind its result.  Permits sequences of bindings.
 
-Example usage: [Adapton Example: Nominal firewalls](https://docs.rs/adapton/0/adapton/macros/index.html#nominal-firewalls).
+Example usage and expansion:
+
+- [Nominal firewall, example usage](https://docs.rs/adapton/0/adapton/index.html#example-nominal-firewall).
+- [Nominal firewall, expanded](https://docs.rs/adapton/0/adapton/index.html#let_memo-example).
 */
 #[macro_export]
 macro_rules! let_memo {
