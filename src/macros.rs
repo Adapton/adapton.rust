@@ -20,7 +20,7 @@
  - [Mutate input cells](#mutate-input-cells)
  - [Demand-driven change propagation](#demand-driven-change-propagation)
  - [Memoization](#memoization)
- - [Create thunks](#thunks)
+ - [Create thunks](#create-thunks)
  - [Use `force_map` for more precise dependencies](#use-force_map-for-more-precise-dependencies)
  - [Nominal memoization](#nominal-memoization)
  - [Nominal firewalls](#nominal-firewalls)
@@ -229,8 +229,13 @@ Demand-driven change propagation
 =================================
 
 The example below demonstrates _demand-driven change propagation_,
-which is unique to Adapton's approach to incremental computation.  The
-example constructs two mutable inputs, `num` and `den`, an
+which is unique to Adapton's approach to incremental computation.  It
+employs two mutable input `cell`s, and two `thunk`s.
+
+[Thunks](#create-thunks) consist of computations whose observations
+and results are cached in the DCG.
+
+The example's two mutable inputs, `num` and `den`, feed into an
 intermediate subcomputation `div` that divides the numerator in `num`
 by the denominator in `den`, and a thunk `check` that first checks
 whether the denominator is zero (returning zero if so) and if
@@ -368,10 +373,10 @@ In Adapton, each _memoization point_ has three ingredients:
       for `name` to associate with different functions and/or argument
       values.
 
-A memoization yields two results:
+Each memoization point yields two results:
 
-- An articulation, of type `Art<Res>`, where `Res` is the result type
-  of the function expression.
+- A [thunk](#create-thunks) articulation, of type `Art<Res>`, where
+  `Res` is the result type of the function expression.
 
 - A result value of type `Res`, which is also cached at the articulation.
 
@@ -410,6 +415,11 @@ assert_eq!(z, 20);
 Create thunks
 ===============
 
+**Thunks** consist of suspended computations whose observations,
+allocations and results are cached in the DCG, when `force`d.  Each
+thunk has type `Art<Res>`, where `Res` is the return type of the thunk's
+suspended computation.
+
 Each [_memoization point_](#memoization) is merely a _forced thunk_.
 We can also create thunks without demanding them.
 
@@ -420,9 +430,6 @@ The following form is preferred:
 It accepts an optional name, of type `Option<Name>`, and an arbitrary
 function expression `fnexp` (closure or function pointer).  Like the
 other forms, it requires that the programmer label each argument.
-
-Each thunk is an `Art<Res>`, where `Res` is the return type of
-function expression `fnexp`.
 
 Example
 -------
