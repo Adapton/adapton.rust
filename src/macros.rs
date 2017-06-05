@@ -5,24 +5,25 @@
 
 **Adapton roles**: Adapton proposes _editor_ and _achivist roles_:  
 
- - The **Editor role** creates and mutates input, and demands the
-   output of incremental computations.
+ - The **Editor role** _creates_ and _mutates_ input, and _demands_ the
+   output of incremental computations in the **Archivist role**.
 
- - The **Archivist role** consists of the computation of Adapton
-   thunks: they each perform a cached computation that consumes
-   incremental input and produce incremental output.
+ - The **Archivist role** consists of **Adapton thunks**, where each is
+   cached computation that consumes incremental input and produces
+   incremental output.
 
-The examples below illustrate these roles, in increasing complexity:
+**Examples:** The examples below illustrate these roles, in increasing complexity:
 
  - [Start the DCG engine](#start-the-dcg-engine)
  - [Create incremental cells](#create-incremental-cells)
+ - [Observe `Art`s](#observe-arts)
  - [Mutate input cells](#mutate-input-cells)
  - [Demand-driven change propagation](#demand-driven-change-propagation)
  - [Memoization](#memoization)
- - [Thunks](#memoization)
+ - [Create thunks](#thunks)
  - [Use `force_map` for more precise dependencies](#use-force_map-for-more-precise-dependencies)
  - [Nominal memoization](#nominal-memoization)
- - [Nominal Firewalls](#nominal-firewalls)
+ - [Nominal firewalls](#nominal-firewalls)
 
 **Programming primitives:** The following list of primitives covers
 the core features of the Adapton engine.  Each primitive below is
@@ -61,7 +62,6 @@ fn main() {
     // Put example code below here
 # let c : Art<usize> = cell!( 123 );
 # assert_eq!( get!(c), 123 );
-# assert_eq!( get!(c), force(&c) );
 }
 ```
 
@@ -69,7 +69,8 @@ Create incremental cells
 ========================
 
 Commonly, the input and intermediate data of Adapton computations
-consists of named reference `cell`s.
+consists of named reference `cell`s.  A reference `cell` is one
+variety of `Art`s; another are [`thunk`s](#create-thunks).
 
 ## Implicit counter for naming `cell`s
 
@@ -86,7 +87,6 @@ but is _never appropriate for the Archivist role_.
 let c : Art<usize> = cell!( 123 );
 
 assert_eq!( get!(c), 123 );
-assert_eq!( get!(c), force(&c) );
 # }
 ```
 
@@ -105,7 +105,6 @@ name is a string, constructed from the Rust identifer `name`:
 let c : Art<usize> = cell!([c] 123);
 
 assert_eq!(get!(c), 123);
-assert_eq!(get!(c), force(&c));
 # }
 ```
 
@@ -126,14 +125,32 @@ let n : Name = name_of_str(stringify!(c));
 let c : Art<usize> = cell!([Some(n)]? 123);
 
 assert_eq!(get!(c), 123);
-assert_eq!(get!(c), force(&c));
 
 let c = cell!([None]? 123);
 
 assert_eq!(get!(c), 123);
-assert_eq!(get!(c), force(&c));
 # }
 ```
+Observe `Art`s
+======================
+
+The macro `get!` is sugar for `engine::force!`, with reference
+introduction operation `&`:
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+# manage::init_dcg();
+let c : Art<usize> = cell!(123);
+
+assert_eq!( get!(c), force(&c) ); 
+```
+
+Since the type `Art<T>` classifies both `cell`s and
+[`thunk`s](#create-thunks), the operations `force` and `get!` can be
+used interchangeably on `Art<T>`s that arise as `cell`s or `thunk`s.
 
 Mutate input cells
 =========================
@@ -158,16 +175,13 @@ let n : Name = name_of_str(stringify!(c));
 let c : Art<usize> = cell!([Some(n.clone())]? 123);
 
 assert_eq!(get!(c), 123);
-assert_eq!(get!(c), force(&c));
 
 // Implicit mutation (re-use cell by name `n`):
 let d : Art<usize> = cell!([Some(n)]? 321);
 
 assert_eq!(d, c);
 assert_eq!(get!(c), 321);
-assert_eq!(get!(c), force(&d));
 assert_eq!(get!(d), 321);
-assert_eq!(get!(d), force(&d));
 # }
 ```
 
@@ -185,10 +199,7 @@ let c = cell!([None]? 123);
 let d = cell!([None]? 321);
 
 assert_eq!(get!(c), 123);
-assert_eq!(get!(c), force(&c));
-
 assert_eq!(get!(d), 321);
-assert_eq!(get!(d), force(&d));
 # }
 ```
 
@@ -205,13 +216,11 @@ let n : Name = name_of_str(stringify!(c));
 let c : Art<usize> = cell!([Some(n)]? 123);
 
 assert_eq!(get!(c), 123);
-assert_eq!(get!(c), force(&c));
 
 // Explicit mutation (overwrites cell `c`):
 set(&c, 321);
 
 assert_eq!(get!(c), 321);
-assert_eq!(get!(c), force(&c));
 # }
 ```
 
@@ -292,25 +301,25 @@ of the graph structure and the code side-by-side may help:
 **Step 1**
 
 <img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_10.png" 
-   alt="Drawing" style="width: 800px;"/>
+   alt="Slide-10" style="width: 800px;"/>
 
-**Step 2**
+**Steps 2 and 3**
 
 <img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_12.png" 
-   alt="Drawing" style="width: 200px;"/>
+   alt="Slide_12" style="width: 200px;"/>
 <img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_16.png" 
-   alt="Drawing" style="width: 200px;"/>
-
-**Step 3**
-
+   alt="Slide_16" style="width: 200px;"/>
 <img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_17.png" 
-   alt="Drawing" style="width: 200px;"/>
+   alt="Slide-17" style="width: 200px;"/>
 <img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_23.png" 
-   alt="Drawing" style="width: 200px;"/>
+   alt="Slide-23" style="width: 200px;"/>
 
 In the academic literature on Adapton, we refer to this three-step
-pattern as _switching_: The demand of `div` switches from being
-present (in step 1) to absent (in step 2) to present (in step 3).
+pattern as _switching_:  
+
+- The demand of `div` switches from being present (in step 1),
+- to absent (in step 2),
+- to present (in step 3).
 
 Past work on self-adjusting computation does not support this
 switching pattern directly: Because of its change propagation
@@ -393,15 +402,16 @@ let (t,z) : (Art<usize>, usize) =
      x:10,   y:20   );
 
 assert_eq!(z, 20);
-assert_eq!(force(&t), 20);
 # }
 ```
 
-Thunks
--------------------------------
+[More examples of `memo!` macro](https://docs.rs/adapton/0/adapton/macro.memo.html#memoization)
 
-Each _memoization point_ is merely a _forced thunk_.  We can also
-create thunks without demanding them.
+Create thunks
+===============
+
+Each [_memoization point_](#memoization) is merely a _forced thunk_.
+We can also create thunks without demanding them.
 
 The following form is preferred:
 
@@ -410,6 +420,9 @@ The following form is preferred:
 It accepts an optional name, of type `Option<Name>`, and an arbitrary
 function expression `fnexp` (closure or function pointer).  Like the
 other forms, it requires that the programmer label each argument.
+
+Each thunk is an `Art<Res>`, where `Res` is the return type of
+function expression `fnexp`.
 
 Example
 -------
@@ -425,10 +438,11 @@ let t : Art<usize> =
     |x:usize,y:usize|{ if x > y { x } else { y }};
      x:10,   y:20   );
 
-assert_eq!(force(&t), 20);
+assert_eq!(get!(t), 20);
 # }
 ```
 
+[More examples of `thunk!` macro](https://docs.rs/adapton/0/adapton/macro.thunk.html#thunks)
 
 Use `force_map` for more precise dependencies
 ==============================================
@@ -659,13 +673,11 @@ The `let_memo!` macro above expands as follows:
 fn demand_graph__mid_macro_expansion(a: Art<i32>) -> Art<i32> {
     let f = let_thunk!{f = {
               let a = a.clone();
-              let g = let_thunk!{g = {let x = get!(a);
-                                      cell!([b] x * x)};
-                                 g };
+              let g = thunk!([g]{ let x = get!(a);
+                                  cell!([b] x * x) });
               let b = force(&g);
-              let h = let_thunk!{h = {let x = get!(b); 
-                                      cell!([c] if x < 100 { x } else { 100 })};
-                                 h };
+              let h = thunk!([h]{ let x = get!(b); 
+                                  cell!([c] if x < 100 { x } else { 100 })});
               let c = force(&h);
               c };
             f };
