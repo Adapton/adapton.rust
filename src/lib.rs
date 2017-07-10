@@ -30,7 +30,8 @@ Background
 Adapton proposes the _demanded computation graph_ (or **DCG**), and a
 demand-driven _change propagation_ algorithm. Further, it proposes
 first-class _names_ for identifying cached data structures and
-computations. 
+computations. For a quick overview of the role of names in incremental
+computing, we give [background on incremental computing with names](#background-incremental-computing-with-names), below.
 
 The following academic papers detail these technical proposals:
 
@@ -49,7 +50,6 @@ computation](http://dl.acm.org/citation.cfm?doid=1375634.1375642).  By
 liberating Adapton from traversal-based collection, [our empirical
 results](https://github.com/cuplv/adapton-talk#benchmark-results) are
 both predictable and scalable.
-
 
 Adapton programming model
 ==========================
@@ -1105,6 +1105,154 @@ fn fold_up_namebin
 }
 # }}
 ```
+
+
+Background: Incremental Computing with Names
+=============================================
+
+We explain the role of names in incremental computing.
+
+## Pointer locations in incremental computing
+
+Suppose that we have a program that we wish to run repeatedly on
+similar (but changing) inputs, and that this program constructs a
+dynamic data structure as output.  To cache this computation,
+including its output, we generally require caching some of its
+function calls, their results, and whatever allocations are relevant
+to represent these results, including the final output structure.
+Furthermore, to quickly test for input and output changes (in `O(1)`
+time per "change") we would like to _store allocate_ input and output,
+and use allocated _pointer locations_ (globally-unique "names") to
+compare structures, giving a cheap, conservative approximation of
+structural equality.
+
+## Deterministic allocation
+
+The first role of explicit names for incremental computing concerns
+_deterministic pointer allocation_, which permits us to give a
+meaningful definition to _cached_ allocation.  To understand this
+role, consider these two evaluation rules:
+
+```
+// l ∉ dom(σ)                                    n ∉ dom(σ)
+// ---------------------------- :: alloc_1       ------------------------------- :: alloc_2
+// σ; cell(v) ⇓ σ{l↦v}; ref l                    σ; cell[n](v) ⇓ σ{n↦v}; ref n
+```
+
+Each rule is of the judgement form `σ1; e ⇓ σ2; v`, where `σ1` and
+`σ2` are stores that map pointers to thunks and values, and `e` is an
+expression to evaluate, and `v` is its valuation.
+
+The left rule is conventional: it allocates a value `v` at a store
+location `l`; because the program does not determine `l`, the
+implementor of this rule has the freedom to choose `l` any way that
+they wish.  Consequently, this program is not deterministic, and not a
+function.  Hence, it is not immediately obvious what it means to
+_cache_ this kind of dynamic allocation using a technique like
+_function caching_, or techniques based on it.
+
+To address this question, the programmer can determine a name `n`
+for the value `v` as in the right rule.  The point of this version is
+to expose the naming choice directly to the programmer.
+
+### Structural names
+
+In some systems, the programmer chooses this name as the hash value of
+value `v`.  This naming style is often called "hash-consing".  We
+refer to it as _structural naming_, since by using it, the name of
+each ref cell reflects the _entire structure_ of that cell's
+content. (Structural hashing approach is closely related to Merkle
+trees, the basis for revision-control systems like `git`.)  
+
+### Independent names
+
+By contrast, in a _nominal_ incremental system, the programmer
+generally chooses `n` to be related to the _evaluation context of
+using `v`_, and often, to be _independent_ of the value `v` itself.
+We give one example of such a naming strategy below.
+
+## Nominal independence
+
+Names augment programs to permit memoization and change propagation to
+exploit independence among dynamic dependencies.  Specifically, the
+name value `n` is (generally) unrelated to the content value `v`.
+In many incremental applications, its role is analogous to that of
+location `l` in the left rule, where `l` is only related to `v` by the
+final store.  When pointer name `n` is independent of pointer
+content `v`, we say this name, via the store, affords the program
+_nominal independence_.
+
+Suppose that in a subsequent incremental run, value `v` changes to
+`v2` at name `n`.  The pointer name `n` localizes this change,
+preventing any larger structure that contains cell `n` from itself
+having a changed identity.  By contrast, consider the case of
+structural naming, which lacks nominal indirection: by virtue of being
+determined by the value `v`, the allocated name `n` must change to
+`n2` when `v` changes to `v2`.  Structural naming is deterministic,
+but lacks nominal independence, by definition.
+
+## Simple example of nominal independence
+
+The independence afforded by nominal indirection is critical in many
+incremental programs.
+As a simple illustrative example, consider `rev`, which
+recursively reverses a list that, after being reversed, undergoes
+incremental insertions and removals.
+
+```
+// rev : List -> List -> List
+// rev l r = match l with
+//  | Nil       => r
+//  | Cons(h,t) => 
+//     memo(rev !t (Cons(h,r)))
+```
+
+The function `rev` reverses a list of `Cons` cells, using an
+accumulator value `r`.
+To incrementalize the code for `rev`, in the `Cons` case, we
+memoize the recursive call to `rev`, which involves matching its
+arguments with those of cached calls.
+
+Problematically, if we do not introduce any indirection for it, the
+accumulator `Cons(h,r)` will contain any incremental changes to head
+value `h`, as well as any changes in the prefix of the input list (now
+reversed in the previous accumulator value `r`).  This is a problem
+for memoization because, without indirection in this accumulator list,
+such changes will repeatedly prevent us from `memo`-matching the
+recursive call.  Consequently, change propagation will re-evaluate all
+the calls that follow the position of an insertion or removal: This
+change is recorded in the accumulator, which has changed structurally.
+
+To address this issue, which is an example of a general pattern
+(c.f. the output accumulators of quicksort and quickhull), past
+researchers suggest that we introduce nominal `cell`s into the
+accumulator, each allocated with a name associated with their
+corresponding input `Cons` cell.  In place of "names", prior work
+variously used the terms _(allocation)
+keys_~\cite{AcarThesis,Hammer08,AcarLeyWild09} and
+_indices_~\cite{Acar06,Acar06ML}, but the core idea is the same.
+
+```
+// | Cons(n,h,t) => 
+//    let rr = ref[n](r) in 
+//    memo(rev !t (Cons(h,rr)))
+```
+
+In this updated version, each name `n` localizes any change to the
+accumulator argument `r` via nominal indirection.
+When and if a later part of the program consumes the output in ref
+cell `rr`, the system will process any changes associated with
+this accumulator; they may be relevant later, but they are not
+_directly_ relevant for reversing the tail `!t` in
+cell `t`: The body of `rev` never inspects `r`, it
+merely uses it to construct its output, for the `Nil` base case.
+
+In summary, this example illustrate a general principle: Nominal
+indirection augments programs to permit memoization and change
+propagation to exploit dynamic independence.  Specifically, we exploit
+the independence of the steps that reverse the pointers of a linked
+list.
+
 */
 
 #![feature(closure_to_fn_coercion)]
