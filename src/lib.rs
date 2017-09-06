@@ -7,7 +7,7 @@ Adapton for Rust
 
 This Rust implementation embodies the latest implementation
 [Adapton](http://adapton.org), which offers a foundational,
-language-based semantics for general-purpose incremental computation.
+language-based semantics for [general-purpose incremental computation](wikipedia.org/en/Incremental_computing).
 
 Programming model
 --------------------
@@ -1255,7 +1255,6 @@ list.
 
 */
 
-#![feature(closure_to_fn_coercion)]
 #![feature(associated_consts)]
 #![feature(box_patterns)]
 #![feature(box_syntax)]
