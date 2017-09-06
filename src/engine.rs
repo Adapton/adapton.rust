@@ -1014,15 +1014,43 @@ struct ForceDep<T:Debug> { res:T }
 /// typically have less information than their preimages of type `T`).
 struct ForceMapDep<T,S,F:Fn(&Art<T>, T)->S> { raw:PhantomData<T>, mapf:F, res:S }
 
-pub trait AbsMap<Arg,Abs,T,DiffT,S> {
+/// A family of mappings, with a notion of member subsets via abstract
+/// mappings.  These abstractions _compress_ sequences of observations
+/// into a single DCG force edge. See also: `force_abs`.
+/// 
+/// Specifically, we abstract sets of edges when the source thunk and
+/// target cell are the same two nodes, and the same abstract mapping
+/// family is used throughout.
+/// 
+/// Each mapping family uses several type parameters in its definition:
+///
+///  - The family maps values of type `T` to values of type `S`
+///  - Each mapping in the family is identified by a distinct `Arg` value.
+///  - Each _abstract_ mapping in the family is identified by a
+///    distinct `Abs` value; this `Abs` value represents _a set of_
+///    `Arg` values, and likewise, a set of mappings in the family.
+///  - The family represents (possibly abstracted) _differences_ in
+///    type `T` as values of type `DiffT`.
+/// 
+/// Based on these types, the family defines mappings (`fn map` and
+/// `fn map_abs`), mapping abstraction (`fn abs`), joins over abstract
+/// mappings (`fn join`), differencing mapping inputs (`fn diff`), and
+/// intersecting differenced inputs and abstracted mappings (`fn
+/// is_dirty`).
+///
+///
+/// TODO: What conditions should hold for an implementation of AbsMap to be sound?
+///
+pub trait AbsMapFam<Arg,Abs,T,DiffT,S> {
     /// using an `Arg`, map a value of type `T` into one of type `S`
     fn map (&self, arg:Arg, inp:T) -> S;
+    fn map_abs (&self, abs:Abs, inp:T) -> S;
 
     /// make a concrete mapping argument of type `Arg` into an abstracted one of type `Abs`
     fn abs (&self, arg:Arg) -> Abs;
     /// lattice join operation over two abstracted mappings (intersect `fst` and `snd`)
     fn join (&self, fst:Abs, snd:Abs) -> Abs;
-    /// represent the difference between two values of type `T`, perhaps abstractly
+    /// represent the difference between two values of type `T`, perhaps abstractly, as a value of type `DiffT`.
     fn diff(&self, fst:&T, snd:&T) -> DiffT;
     /// intersect the difference in `T` values (of type `DiffT`) with the abstract mapping; return true if non-empty.
     fn is_dirty(&self, diff:DiffT, abs:Abs) -> bool;
@@ -1032,10 +1060,10 @@ pub trait AbsMap<Arg,Abs,T,DiffT,S> {
 /// result of applying a (possibly merged, and thus abstracted)
 /// mapping function `abs`.
 struct ForceAbsDep<Arg,Abs,T,DiffT,S> {
-    /// types that we do not instantiate here
+    /// types that we do not instantiate here; we only store an `Abs` here
     phm:PhantomData<(Arg,T,DiffT,S)>,
     /// abstract mapping, so we can re-map via `map.1.map(map.0,_)`
-    map:(Abs,Box<AbsMap<Arg,Abs,T,DiffT,S>>),
+    map:(Abs, Box<AbsMapFam<Arg,Abs,T,DiffT,S>>),
 }
 
 fn check_force_map_dep 
@@ -1309,16 +1337,30 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
      arg:Arg, spurious:Spurious)
      -> AbsArt<Res,Self::Loc> ;
   
-  /// Demand & observe arts (all kinds): force
+  /// Demand and observe arts (both thunks and cells)
   fn force<T:Eq+Debug+Clone+Hash+'static> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>) -> T ;
 
-  /// Demand & observe arts (all kinds): force
+  /// Demand & observe arts, through a mapping function (e.g., for projections)
   fn force_map<T:Eq+Debug+Clone+Hash+'static,
                S:Eq+Debug+Clone+Hash+'static, 
                F:'static>
         (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>, F) -> S        
         where F:Fn(&Art<T>, T) -> S
         ;
+    
+    /// Demand & observe arts through a family of mappings whose abstractions _compress_ DCG edges.
+    ///
+    /// (e.g., interval-based projections, using the abstract domain of intervals)
+    fn force_abs
+        <Arg:'static+Eq+Debug+Clone+Hash,
+         Abs:'static+Eq+Debug+Clone+Hash,
+         T:'static+Eq+Debug+Clone+Hash,
+         DiffT:'static+Eq+Debug+Clone+Hash,
+         S:'static+Eq+Debug+Clone+Hash>
+        (g:&RefCell<DCG>, 
+         absmapfam:Box<AbsMapFam<Arg,Abs,T,DiffT,S>>, 
+         arg:Arg, art:&AbsArt<T,Self::Loc>) -> S ;
+
 }
 
 impl Adapton for DCG {
@@ -1709,6 +1751,21 @@ impl Adapton for DCG {
           }
       }
   }
+
+    /// Demand & observe arts, through an abstracted mapping function (See `AbsMapFam` trait)
+    ///
+    /// (e.g., interval-based projections, using the abstract domain of intervals)
+    fn force_abs
+        <Arg:'static+Eq+Debug+Clone+Hash,
+         Abs:'static+Eq+Debug+Clone+Hash,
+         T:'static+Eq+Debug+Clone+Hash,
+         DiffT:'static+Eq+Debug+Clone+Hash,
+         S:'static+Eq+Debug+Clone+Hash>
+        (g:&RefCell<DCG>, absmapfam:Box<AbsMapFam<Arg,Abs,T,DiffT,S>>, 
+         arg:Arg, art:&AbsArt<T,Self::Loc>) -> S 
+    {
+        unimplemented!()
+    }
 
   fn force<T:'static+Eq+Debug+Clone+Hash> (g:&RefCell<DCG>,
                                            art:&AbsArt<T,Self::Loc>) -> T
@@ -2221,6 +2278,32 @@ pub fn force_map<T:Hash+Eq+Debug+Clone+'static,
                 match g.borrow().engine {
                     Engine::DCG(ref dcg_refcell) => 
                         <DCG as Adapton>::force_map(dcg_refcell, &AbsArt::Loc(loc.clone()), mapf),
+                    Engine::Naive => panic!("cannot force a non-naive location with the naive engine")
+                }
+            })
+        }
+    }
+}
+
+/// Demand & observe arts, through an abstracted mapping function (See `AbsMapFam` trait)
+///
+/// (e.g., interval-based projections, using the abstract domain of intervals)
+pub fn force_abs
+    <Arg:'static+Eq+Debug+Clone+Hash,
+     Abs:'static+Eq+Debug+Clone+Hash,
+     T:'static+Eq+Debug+Clone+Hash,
+     DiffT:'static+Eq+Debug+Clone+Hash,
+     S:'static+Eq+Debug+Clone+Hash>
+    (absmapfam:Box<AbsMapFam<Arg,Abs,T,DiffT,S>>, arg:Arg, a:Art<T>) -> S
+{
+    match a.art {
+        EnumArt::Force(ref f) => absmapfam.map(arg, f.force()),
+        EnumArt::Rc(ref rc) => absmapfam.map(arg, (&**rc).clone()),
+        EnumArt::Loc(ref loc) => {
+            GLOBALS.with(|g| {
+                match g.borrow().engine {
+                    Engine::DCG(ref dcg_refcell) => 
+                        <DCG as Adapton>::force_abs(dcg_refcell, absmapfam, arg, &AbsArt::Loc(loc.clone())),
                     Engine::Naive => panic!("cannot force a non-naive location with the naive engine")
                 }
             })
