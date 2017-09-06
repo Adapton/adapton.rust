@@ -1009,9 +1009,34 @@ impl<T:Debug> DCGDep for AllocCell<T> {
 #[derive(Debug)]
 struct ForceDep<T:Debug> { res:T }
 
-/// The structure implements DCGDep, caching a value of type `T` to
-/// compare against future values.
+/// The structure implements DCGDep, caching a value of type `S` to
+/// compare against future values (note that values of type `S`
+/// typically have less information than their preimages of type `T`).
 struct ForceMapDep<T,S,F:Fn(&Art<T>, T)->S> { raw:PhantomData<T>, mapf:F, res:S }
+
+pub trait AbsMap<Arg,Abs,T,DiffT,S> {
+    /// using an `Arg`, map a value of type `T` into one of type `S`
+    fn map (&self, arg:Arg, inp:T) -> S;
+
+    /// make a concrete mapping argument of type `Arg` into an abstracted one of type `Abs`
+    fn abs (&self, arg:Arg) -> Abs;
+    /// lattice join operation over two abstracted mappings (intersect `fst` and `snd`)
+    fn join (&self, fst:Abs, snd:Abs) -> Abs;
+    /// represent the difference between two values of type `T`, perhaps abstractly
+    fn diff(&self, fst:&T, snd:&T) -> DiffT;
+    /// intersect the difference in `T` values (of type `DiffT`) with the abstract mapping; return true if non-empty.
+    fn is_dirty(&self, diff:DiffT, abs:Abs) -> bool;
+}
+
+/// The structure implements DCGDep, caching a value of type `S`, the
+/// result of applying a (possibly merged, and thus abstracted)
+/// mapping function `abs`.
+struct ForceAbsDep<Arg,Abs,T,DiffT,S> {
+    /// types that we do not instantiate here
+    phm:PhantomData<(Arg,T,DiffT,S)>,
+    /// abstract mapping, so we can re-map via `map.1.map(map.0,_)`
+    map:(Abs,Box<AbsMap<Arg,Abs,T,DiffT,S>>),
+}
 
 fn check_force_map_dep 
     <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
@@ -1653,7 +1678,7 @@ impl Adapton for DCG {
                       // the mapped value, and the mapping function,
                       // in the DCG.
                       dcg_effect!(
-                          // TODO-Now: Reflect the fact that we are doing a mapping here
+                          // TODO-Someday: Reflect the fact that we are doing a mapping here
                           reflect::trace::Effect::Force(reflect::trace::ForceCase::RefGet),
                           current_loc!(*g.borrow()),
                           reflect::Succ{
@@ -1666,14 +1691,12 @@ impl Adapton for DCG {
                       let st : &mut DCG = &mut *g.borrow_mut() ;
                       let res = mapf(&Art{art:EnumArt::Loc(loc.clone())}, val.clone());
                       match st.stack.last_mut() { None => (), Some(frame) => {
+                          // `dep` records the mapping function
                           let dep : Rc<Box<DCGDep>> = Rc::new(Box::new(ForceMapDep{
                               raw:PhantomData,
                               mapf:mapf,
                               res:res.clone()}));
                           let succ =                              
-                              // TODO: Record the mapping function
-                              // here, for use when we decide whether
-                              // or not to dirty.
                               Succ{loc:loc.clone(),
                                    dep:dep.clone(),
                                    effect:Effect::Observe,
