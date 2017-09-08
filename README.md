@@ -24,4 +24,4 @@ Theory and Foundations:
 
 - The draft [_Refinement types for precisely named cache locations_](https://arxiv.org/abs/1610.00097).  
 - The paper [_Incremental computation with names_, **OOPSLA 2015**](http://arxiv.org/abs/1503.07792).  
-- The paper [_Adapton: Composable, demand-driven incremental computation_, **PLDI 2014**](http://matthewhammer.org/adapton/).
+- The paper [_Adapton: Composable, demand-driven incremental computation_, **PLDI 2014**](http://matthewhammer.org/adapton/).  
