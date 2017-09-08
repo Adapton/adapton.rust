@@ -3,8 +3,6 @@
 
 A general-purpose **Incremental Computation** (IC) library for Rust.  
 
-**Quickstart:** See **[Adapton Lab](https://github.com/Adapton/adapton-lab.rust)**
-
 Versions:
 ---------
 
@@ -24,10 +22,6 @@ Research and Development Community:
 Theory and Foundations:
 -----------------------
 
-- The draft [_Typed Adapton: Refinement types for nominal memoization_, Submitted.](https://arxiv.org/abs/1610.00097).  
+- The draft [_Refinement types for precisely named cache locations_](https://arxiv.org/abs/1610.00097).  
 - The paper [_Incremental computation with names_, **OOPSLA 2015**](http://arxiv.org/abs/1503.07792).  
 - The paper [_Adapton: Composable, demand-driven incremental computation_, **PLDI 2014**](http://matthewhammer.org/adapton/).
-
-
-More info: **[Adapton Lab](https://github.com/Adapton/adapton-lab.rust)**
--------------------------------------------------------------------------
