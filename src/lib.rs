@@ -74,6 +74,7 @@ Adapton programming model
  - [Create thunks](#create-thunks)
  - [Use `force_map` for more precise dependencies](#use-force_map-for-more-precise-dependencies)
  - [Nominal memoization](#nominal-memoization)
+ - [Nominal cycles](#nominal-cycles)
  - [Nominal firewalls](#nominal-firewalls)
 
 **Programming primitives:** The following list of primitives covers
@@ -721,6 +722,117 @@ assert_eq!(counts.alloc_change.0, 1);
 // Archivist allocated nothing
 assert_eq!(counts.alloc_fresh.1, 0);
 # drop((res1,res2,res3,res4));
+# }
+```
+
+Nominal Cycles
+===================
+
+In many settings, we explore structures that contain cycles, and it is
+useful to use Adapton's DCG mechanism to detect such cycles.
+
+As a tiny example, consider the following graph, defined as a table of
+adjacencies:
+
+```
+// Node | Outgoing edges to two other nodes:
+// -----+-----------------------------------
+// 0    | (1, 0)
+// 1    | (2, 3)
+// 2    | (3, 0)
+// 3    | (3, 1)
+```
+
+This is a small arbitrary directed graph, and it has several cycles.
+
+**Problem statement** Suppose that we wish to explore this graph, to
+build a list (or `Vec`) of all of the nodes that it contains.
+
+**Desired solution** 
+Consider the simple (naive) recursive exploration logic, defined
+as `explore_rec` below.  The problem with this logic is that it
+diverges on graphs with cycles, and for graphs that are DAGs, it
+re-explores some sub-graphs multiple times.
+
+### DCG cycles: Detection and valuation
+
+To address the second problem, exploring the same sub-graph multiple
+times, we can leverage the DCG, which performs function caching.
+
+To address the first problem, diverging on cycles, the algorithm needs
+a mechanism to remember and check whether it is "currently" visiting
+the node (on the recursive call stack) each time it encounters it
+recursively.
+
+Rather than implement this mechanism directly, we can again use the
+DCG. Specifically, we can use the engine operation `force_cycle` to
+specify a "cycle value" for the result of a thunk `t` when `t` is
+forcing itself, or when `t` is forcing another thunk `s` that
+transitively forces `t`.
+
+In either case, the force operation that forms the cycle in the DCG
+evaluates to this programmer-specified cycle value, rather than
+diverging, or using the cached value at the thunk, which generally is
+not sound (e.g., it may be stale, from a prior run).
+
+### Example cycle valuation
+
+Notice that in `explore` below, we use `get!(_, vec![])` on `at` and
+`bt` instead of `get!(_)`.  This macro uses `force_cycle` in its
+expansion.  The empty vector gives the cycle value for when this force
+forms a cycle in the DCG.
+
+```
+# #[macro_use] extern crate adapton;
+# fn main() {
+# use adapton::macros::*;
+# use adapton::engine::*;
+// Define the graph, following the table above
+fn adjs (n:usize) -> (usize, usize) {
+    match n {
+        0 => (1, 0),
+        1 => (2, 3),
+        2 => (3, 0),
+        3 => (3, 1),
+        _ => unimplemented!()
+    }
+}
+
+// This version will diverge on all of the cycles (e.g., 3 --> 3)
+#[warn(unconditional_recursion)]
+fn explore_rec(cur_n:usize) -> Vec<usize> {
+    let (a,b) = adjs(cur_n);
+    let mut av = explore_rec(a);
+    let mut bv = explore_rec(b);
+    let mut res = vec![cur_n];
+    res.append(&mut av);
+    res.append(&mut bv);
+    res
+}
+
+// This version will not diverge; it gives an empty vector value
+// as "cycle output" when it performs each `get!`.  Hence, when
+// Adapton detects a cycle, it will not re-force this thunk
+// cyclicly, but rather return this predetermined "cycle output"
+// value. For non-cyclic calls, the `get!` ignores this value, and
+// works in the usual way.
+fn explore(cur_n:usize) -> Vec<usize> {
+    let (a,b) = adjs(cur_n);
+    let at = explore_thunk(a);
+    let bt = explore_thunk(b);
+    let mut av = get!(at, vec![]);
+    let mut bv = get!(bt, vec![]);
+    let mut res = vec![cur_n];
+    res.append(&mut av);
+    res.append(&mut bv);
+    res
+}
+fn explore_thunk(cur_n:usize) -> Art<Vec<usize>> {
+    thunk!([Some(name_of_usize(cur_n))]? explore ; n:cur_n)
+}
+
+adapton::engine::manage::init_dcg();
+assert_eq!(get!(explore_thunk(0)), vec![0,1,2,3,3])
 # }
 ```
 

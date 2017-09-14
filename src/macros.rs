@@ -86,6 +86,10 @@ macro_rules! get {
   ($art:expr) => {{
       force(&($art))
   }}
+ ;
+  ($art:expr, $cycle_out:expr) => {{
+      force_cycle(&($art), Some($cycle_out))
+  }}
 }
 
 /**

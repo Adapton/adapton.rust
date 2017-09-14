@@ -528,8 +528,9 @@ struct DCGRes {
 // DCGDep abstracts over the value produced by a dependency, as
 // well as mechanisms to update and/or re-produce it.
 trait DCGDep : Debug {
-  fn dirty (self:&Self, g:&mut DCG,      loc:&Rc<Loc>) -> DCGRes ;
-  fn clean (self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes ;
+    fn is_absmap(self:&Self) -> Option<TypeId> ;
+    fn dirty (self:&Self, g:&mut DCG,      loc:&Rc<Loc>) -> DCGRes ;
+    fn clean (self:&Self, g:&RefCell<DCG>, loc:&Rc<Loc>) -> DCGRes ;
 }
 
 impl Hash for Succ {
@@ -555,7 +556,6 @@ enum Node<Res> {
   Comp(CompNode<Res>),
   Pure(PureNode<Res>),
   Mut(MutNode<Res>),
-  Unused,
 }
 impl<X:Debug> reflect::Reflect<reflect::Node> for Node<X> {
   fn reflect(&self) -> reflect::Node {
@@ -586,7 +586,6 @@ impl<X:Debug> reflect::Reflect<reflect::Node> for Node<X> {
             value:parse_val( &n.val ),
           })        
       },
-      Node::Unused => panic!(""),
     }
   }
 }
@@ -790,7 +789,6 @@ impl <Res:'static+Debug+Hash> GraphNode for Node<Res> {
     match *self { Node::Mut(ref nd) => nd.preds.iter().filter_map(|pred| if pred.effect == Effect::Allocate { Some(pred.loc.clone()) } else { None } ).collect::<Vec<_>>(),
                   Node::Comp(ref nd) => nd.preds.iter().filter_map(|pred| if pred.effect == Effect::Allocate { Some(pred.loc.clone()) } else { None } ).collect::<Vec<_>>(),
                   Node::Pure(_) => unreachable!(),
-                  _ => unreachable!(),
     }}
 
   fn preds_obs(self:&Self) -> Vec<(Rc<Loc>, Option<Rc<Box<DCGDep>>>)> {
@@ -810,19 +808,16 @@ impl <Res:'static+Debug+Hash> GraphNode for Node<Res> {
               ).collect::<Vec<_>>(),
           
           Node::Pure(_) => unreachable!(),
-          _ => unreachable!(),
     }}
   fn preds_insert (self:&mut Self, eff:Effect, loc:&Rc<Loc>, dep:Option<Rc<Box<DCGDep>>>) -> () {
     match *self { Node::Mut(ref mut nd) => nd.preds.push (Pred{effect:eff,loc:loc.clone(),dep:dep.clone()}),
                   Node::Comp(ref mut nd) => nd.preds.push (Pred{effect:eff,loc:loc.clone(),dep:dep.clone()}),
                   Node::Pure(_) => unreachable!(),
-                  _ => unreachable!(),
     }}
   fn preds_remove (self:&mut Self, loc:&Rc<Loc>) -> () {
     match *self { Node::Mut(ref mut nd) => nd.preds.retain (|pred|{ &pred.loc != loc}),
                   Node::Comp(ref mut nd) => nd.preds.retain (|pred|{ &pred.loc != loc}),
                   Node::Pure(_) => unreachable!(),
-                  _ => unreachable!(),
     }}
   fn succs_def(self:&Self) -> bool {
     match *self { Node::Comp(_) => true, _ => false
@@ -986,6 +981,7 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
 #[derive(Debug)]
 struct AllocStructuralThunk;
 impl DCGDep for AllocStructuralThunk {
+  fn is_absmap (&self) -> Option<TypeId> { None }
   fn dirty (self:&Self, _g:&mut DCG,      _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} }
   fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:false} }
 }
@@ -993,6 +989,7 @@ impl DCGDep for AllocStructuralThunk {
 #[derive(Debug)]
 struct AllocNominalThunk<T> { val:T }
 impl<T:Debug> DCGDep for AllocNominalThunk<T> {
+  fn is_absmap (&self) -> Option<TypeId> { None }
   fn dirty (self:&Self, _g:&mut DCG,      _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} }
   fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
 }
@@ -1000,6 +997,7 @@ impl<T:Debug> DCGDep for AllocNominalThunk<T> {
 #[derive(Debug)]
 struct AllocCell<T> { val:T }
 impl<T:Debug> DCGDep for AllocCell<T> {
+  fn is_absmap (&self) -> Option<TypeId> { None }
   fn dirty (self:&Self, _g:&mut DCG,      _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} }
   fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes { DCGRes{changed:true} } // TODO-Later: Make this a little better.
 }
@@ -1024,19 +1022,21 @@ struct ForceMapDep<T,S,F:Fn(&Art<T>, T)->S> { raw:PhantomData<T>, mapf:F, res:S 
 /// 
 /// Each mapping family uses several type parameters in its definition:
 ///
-///  - The family maps values of type `T` to values of type `S`
-///  - Each mapping in the family is identified by a distinct `Arg` value.
-///  - Each _abstract_ mapping in the family is identified by a
-///    distinct `Abs` value; this `Abs` value represents _a set of_
-///    `Arg` values, and likewise, a set of mappings in the family.
-///  - The family represents (possibly abstracted) _differences_ in
-///    type `T` as values of type `DiffT`.
+///   - The family maps values of type `T` to values of type `S`
+///   - Each mapping in the family is identified by a distinct `Arg` value.
+///   - Each _abstract_ mapping in the family is identified by a
+///     distinct `Abs` value; this `Abs` value represents _a set of_
+///     `Arg` values, and likewise, a set of mappings in the family.
+///   - The family represents (possibly abstracted) _differences_ in
+///     type `T` as values of type `DiffT`.
 /// 
-/// Based on these types, the family defines mappings (`fn map` and
-/// `fn map_abs`), mapping abstraction (`fn abs`), joins over abstract
-/// mappings (`fn join`), differencing mapping inputs (`fn diff`), and
-/// intersecting differenced inputs and abstracted mappings (`fn
-/// is_dirty`).
+/// Based on these types, the family defines:
+///
+///   - mappings (`fn map`),
+///   - mapping abstraction (`fn abs`), 
+///   - joins over abstract mappings (`fn join`), 
+///   - differencing mapping inputs (`fn diff`), 
+///   - and intersecting differenced inputs and abstracted mappings (`fn is_dirty`).
 ///
 ///
 /// TODO: What conditions should hold for an implementation of AbsMap to be sound?
@@ -1044,7 +1044,6 @@ struct ForceMapDep<T,S,F:Fn(&Art<T>, T)->S> { raw:PhantomData<T>, mapf:F, res:S 
 pub trait AbsMapFam<Arg,Abs,T,DiffT,S> {
     /// using an `Arg`, map a value of type `T` into one of type `S`
     fn map (&self, arg:Arg, inp:T) -> S;
-    fn map_abs (&self, abs:Abs, inp:T) -> S;
 
     /// make a concrete mapping argument of type `Arg` into an abstracted one of type `Abs`
     fn abs (&self, arg:Arg) -> Abs;
@@ -1053,7 +1052,14 @@ pub trait AbsMapFam<Arg,Abs,T,DiffT,S> {
     /// represent the difference between two values of type `T`, perhaps abstractly, as a value of type `DiffT`.
     fn diff(&self, fst:&T, snd:&T) -> DiffT;
     /// intersect the difference in `T` values (of type `DiffT`) with the abstract mapping; return true if non-empty.
-    fn is_dirty(&self, diff:DiffT, abs:Abs) -> bool;
+    fn is_dirty(&self, diff:DiffT, abs:&Abs) -> bool;
+}
+
+/// The engine uses trait `AbsDiff` to hide the type arguments of
+/// AbsMapFam, except for the input type, `T`, which we expose to
+/// define a notion of differences.
+trait AbsDiff<T> {
+    fn is_diff_dirty(&self, fst:&T, snd:&T) -> bool ;
 }
 
 /// The structure implements DCGDep, caching a value of type `S`, the
@@ -1065,6 +1071,47 @@ struct ForceAbsDep<Arg,Abs,T,DiffT,S> {
     /// abstract mapping, so we can re-map via `map.1.map(map.0,_)`
     map:(Abs, Box<AbsMapFam<Arg,Abs,T,DiffT,S>>),
 }
+
+impl<Arg,Abs,T:'static,DiffT,S> AbsDiff<T> for ForceAbsDep<Arg,Abs,T,DiffT,S> {
+    fn is_diff_dirty(self:&Self, fst:&T, snd:&T) -> bool {
+        let diff = self.map.1.diff(fst, snd);
+        self.map.1.is_dirty(diff, &self.map.0)
+    }
+}
+
+impl<Arg:'static,   // identifies a concrete mapping in the family
+     Abs:'static,   // identifies an abstract mapping: a _set_ of concrete mappings 
+     T:'static,     // the mapping input 
+     DiffT:'static, // differences in the mapping input
+     S:'static      // the mapping output
+     > 
+    DCGDep for 
+    ForceAbsDep<Arg,Abs,T,DiffT,S> 
+{
+    fn is_absmap(self:&Self) -> Option<TypeId> {
+        Some(TypeId::of::<Self>())
+    }
+    fn dirty (self:&Self, _g:&mut DCG, _loc:&Rc<Loc>) -> DCGRes {
+        unimplemented!()
+    }
+    fn clean (self:&Self, _g:&RefCell<DCG>, _loc:&Rc<Loc>) -> DCGRes {
+        // the edge is dirty because we've already determined it
+        // should be, via an abstract test (`fn is_dirty` on the
+        // AbsMapFam trait).  We could try to re-run this test _now_,
+        // but we don't have the old value of the observation in hand,
+        // and would like to avoid storing it on the edge.
+        DCGRes{ changed: true }
+    }
+}
+
+impl <Arg,Abs,T,DiffT,S> Debug for ForceAbsDep<Arg,Abs,T,DiffT,S>
+{
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+      // TODO-Later: We dont print the mapping function here
+      write!(f, "ForceAbsDep(?)")
+  }    
+}
+
 
 fn check_force_map_dep 
     <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
@@ -1079,7 +1126,7 @@ fn check_force_map_dep
                    (&Art{art:EnumArt::Loc(loc.clone())},
                     nd.val.clone())},
         
-        Node::Comp(_) | Node::Pure(_) | Node::Unused => 
+        Node::Comp(_) | Node::Pure(_) => 
             unreachable!()
     }
 }
@@ -1088,6 +1135,9 @@ impl <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
       S:'static+Sized+Debug+PartialEq+Eq+Clone+Hash, F:Fn(&Art<T>, T)->S>
     DCGDep for ForceMapDep<T,S,F>
 {
+    fn is_absmap(self:&Self) -> Option<TypeId> {
+        None 
+    }
     fn dirty(self:&Self, g:&mut DCG, loc:&Rc<Loc>) -> DCGRes {
         check_force_map_dep(g, self, loc)       
     }    
@@ -1111,6 +1161,10 @@ impl <T:'static+Sized+Debug+PartialEq+Eq+Clone+Hash,
 impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
   DCGDep for ForceDep<Res>
 {
+    fn is_absmap(self:&Self) -> Option<TypeId> {
+        None
+    }
+
   fn dirty(self:&Self, _g:&mut DCG, _loc:&Rc<Loc>) -> DCGRes {
       DCGRes{changed:true}
   }
@@ -1131,7 +1185,6 @@ impl <Res:'static+Sized+Debug+PartialEq+Eq+Clone+Hash>
         Node::Mut(ref nd) => {
           return DCGRes{changed:nd.val != self.res}
         },
-        _ => panic!("undefined")
       }
     } ;
     let none : Option<Loc> = None ;
@@ -1204,10 +1257,10 @@ fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Lo
 
 fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
     let pred_locs : Vec<(Rc<Loc>, Option<Rc<Box<DCGDep>>>)> = lookup_abs( st, loc ).preds_obs() ;
-    for (pred_loc, dep) in pred_locs {
+    for (pred_loc, dep) in pred_locs {        
         let stop : bool = match dep {
             None => false,
-            Some(dep) => dep.dirty(st, loc).changed == false
+            Some(dep) => dep.is_absmap() != None || dep.dirty(st, loc).changed == false
         };
         let stop : bool = if stop { true } else {
             // The stop bit communicates information from st for use below.
@@ -1272,6 +1325,16 @@ fn set_<T:'static+Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
             false
           } else {
             replace(&mut nd.val, val) ;
+              // know types: T.  
+              // Don't know: Arg, Abs, DiffT, S
+              // ==> need a new dep operation
+              //
+              // XXX: For each predecessor that is an abstract map,
+              // diff nd.val and val using its diff function, and call
+              // is_dirty to determine a boolean.  If true, mark the
+              // edge dirty and call dirty_pred_observers on the
+              // source. Otherwise, if false, mark the edge clean (not
+              // dirty).
             true
           }},
         _ => unreachable!(),
@@ -1337,8 +1400,10 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
      arg:Arg, spurious:Spurious)
      -> AbsArt<Res,Self::Loc> ;
   
-  /// Demand and observe arts (both thunks and cells)
-  fn force<T:Eq+Debug+Clone+Hash+'static> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>) -> T ;
+    /// Demand and observe arts (both thunks and cells)
+    /// 
+    /// cycle_out gives an optional return value for cycles; None means no cycles are permitted
+  fn force<T:Eq+Debug+Clone+Hash+'static> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>, Option<T>) -> T ;
 
   /// Demand & observe arts, through a mapping function (e.g., for projections)
   fn force_map<T:Eq+Debug+Clone+Hash+'static,
@@ -1440,7 +1505,6 @@ impl Adapton for DCG {
             Node::Mut(_)       => { (false, true,  None, false, false) }
             Node::Comp(ref nd) => { (true,  false, Some(nd.succs.clone()),  false, false ) }
             Node::Pure(_)      => { (false, false, None, false, false) }
-            Node::Unused       => unreachable!()
           }} else                 { (false, false, None, true, true ) } 
       ;
       // - - - - - - - - - -
@@ -1636,7 +1700,6 @@ impl Adapton for DCG {
                   )
                 }
               },
-              _ => unreachable!(),
             }
           }
         } } ;
@@ -1704,7 +1767,6 @@ impl Adapton for DCG {
                   let st : &mut DCG = &mut *g.borrow_mut();
                   let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
                   match *node {
-                      Node::Unused => unreachable!(),
                       Node::Comp(_) => { None }
                       Node::Pure(_) => { None }
                       Node::Mut(ref nd)  => { Some(nd.val.clone()) }
@@ -1713,7 +1775,7 @@ impl Adapton for DCG {
               match cell_val {
                   None => {
                       mapf(&Art{art:EnumArt::Loc(loc.clone())},
-                           <DCG as Adapton>::force(g, art))
+                           <DCG as Adapton>::force(g, art, None))
                   },
                   Some(val) => { 
                       // Case: We _are_ forcing a cell; so, we record
@@ -1764,11 +1826,64 @@ impl Adapton for DCG {
         (g:&RefCell<DCG>, absmapfam:Box<AbsMapFam<Arg,Abs,T,DiffT,S>>, 
          arg:Arg, art:&AbsArt<T,Self::Loc>) -> S 
     {
-        unimplemented!()
+        match *art {
+            AbsArt::Rc(ref v) => absmapfam.map(arg, /*(&Art{art:EnumArt::Rc(v.clone())}),*/ (**v).clone()),
+            AbsArt::Loc(ref loc) => {
+                let cell_val : Option<T> = {
+                    let st : &mut DCG = &mut *g.borrow_mut();
+                    let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
+                    match *node {
+                        Node::Comp(_) => { None }
+                        Node::Pure(_) => { None }
+                        Node::Mut(ref nd)  => { Some(nd.val.clone()) }
+                    }
+                } ;              
+                match cell_val {
+                    None => {
+                        /* &Art{art:EnumArt::Loc(loc.clone())} */
+                        absmapfam.map(arg, /*(&Art{art:EnumArt::Rc(v.clone())}),*/ 
+                                      <DCG as Adapton>::force(g, art, None))
+                    },
+                    Some(val) => { 
+                        // Case: We _are_ forcing a cell; so, we record
+                        // the mapped value, and the mapping function,
+                        // in the DCG.
+                        dcg_effect!(
+                            // TODO-Someday: Reflect the fact that we are doing a mapping here
+                            reflect::trace::Effect::Force(reflect::trace::ForceCase::RefGet),
+                            current_loc!(*g.borrow()),
+                            reflect::Succ{
+                                loc:loc.reflect(),
+                                value:reflect::Val::ValTODO,
+                                effect:reflect::Effect::Force,
+                                dirty:false,
+                                is_dup:false,
+                            });
+                        let st : &mut DCG = &mut *g.borrow_mut() ;
+                        let res = absmapfam.map(arg.clone(),/*&Art{art:EnumArt::Loc(loc.clone())},*/val.clone());
+                        match st.stack.last_mut() { None => (), Some(frame) => {
+                            // `dep` records the mapping function
+                            let dep : Rc<Box<DCGDep>> = Rc::new(Box::new(ForceAbsDep{
+                                phm:PhantomData,
+                                map:(absmapfam.abs(arg), absmapfam),
+                                
+                            }));
+                            let succ =
+                                Succ{loc:loc.clone(),
+                                     dep:dep.clone(),
+                                     effect:Effect::Observe,
+                                     dirty:false};
+                            frame.succs.push((succ, Some(dep.clone())));
+                        }};
+                        res
+                    }
+                }              
+            }
+        }
     }
 
   fn force<T:'static+Eq+Debug+Clone+Hash> (g:&RefCell<DCG>,
-                                           art:&AbsArt<T,Self::Loc>) -> T
+                                           art:&AbsArt<T,Self::Loc>, cycle_out:Option<T>) -> T
   {
     {
       let st : &mut DCG = &mut *g.borrow_mut();
@@ -1778,100 +1893,132 @@ impl Adapton for DCG {
     match *art {
       AbsArt::Rc(ref v) => (**v).clone(),
       AbsArt::Loc(ref loc) => {
-        let (is_comp, is_dup, is_pure, cached_result) : (bool, bool, bool, Option<T>) = {
-          let st : &mut DCG = &mut *g.borrow_mut();
-          let is_pure_opt : bool = st.flags.use_purity_optimization ;
-          let is_dup : bool = match st.stack.last_mut() { None => false, Some(frame) => {
-              let mut is_dup = false; // XXX -- Actually: unknown and does not matter.
-              for &(ref succ, ref _pred_dep) in frame.succs.iter() { 
-                  if &succ.loc == loc && succ.effect == Effect::Observe 
-                  { is_dup = true }
-              };
-              is_dup
-          }};
-          let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
-          match *node {
-            Node::Pure(ref mut nd) => (false, is_dup, true, Some(nd.val.clone())),
-            Node::Mut(ref mut nd)  => (false, is_dup, false, Some(nd.val.clone())),
-            Node::Comp(ref mut nd) => {
-              let is_pure = match *loc.id {
-                ArtId::Structural(_) => nd.succs.len() == 0 && is_pure_opt,
-                ArtId::Nominal(_)    => false } ;
-              (true, is_dup, is_pure, nd.res.clone()) },
-            _ => panic!("undefined")
-          }
-        } ;
-        let result = match cached_result {
-          None => {
-            assert!(is_comp);
-            dcg_effect_begin!(
-              reflect::trace::Effect::Force(reflect::trace::ForceCase::CompCacheMiss),
-              current_loc!(*g.borrow()),
-              reflect::Succ{
-                loc:loc.reflect(),
-                value:reflect::Val::ValTODO,
-                effect:reflect::Effect::Force,
-                dirty:false,
-                is_dup:is_dup,
-              }
-            );
-            assert_eq!(is_dup, false);
-            let res = loc_produce(g, &loc);
-            dcg_effect_end!();
-            res
-          },
-          Some(ref res) => {
-            if is_comp {
-              dcg_effect_begin!(
-                reflect::trace::Effect::Force(reflect::trace::ForceCase::CompCacheHit),
-                current_loc!(*g.borrow()),
-                reflect::Succ{
-                  loc:loc.reflect(),
-                  value:reflect::Val::ValTODO,
-                  effect:reflect::Effect::Force,
-                  dirty:false,
-                  is_dup:is_dup,
-                }
-              );
-              let _ = ForceDep{res:res.clone()}.clean(g, &loc) ;
-              dcg_effect_end!();
+          let (is_comp, is_dup, is_pure, is_cycle, cached_result) : (bool, bool, bool, bool, Option<T>) = {
               let st : &mut DCG = &mut *g.borrow_mut();
+              let is_pure_opt : bool = st.flags.use_purity_optimization ;
+              let is_cycle = { let mut is_cycle = false;
+                               for frame in st.stack.iter() { 
+                                   if &frame.loc == loc { 
+                                       is_cycle = true ; break
+                                   } else {  } }
+                               is_cycle
+              };
+              let is_dup : bool = match st.stack.last_mut() { None => false, Some(frame) => {
+                  let mut is_dup = false;
+                  for &(ref succ, ref _pred_dep) in frame.succs.iter() { 
+                      if &succ.loc == loc && succ.effect == Effect::Observe 
+                      { is_dup = true }
+                  };
+                  is_dup
+              }};
               let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
               match *node {
-                Node::Comp(ref nd) => match nd.res {
-                  None => unreachable!(),
-                  Some(ref res) =>
-                    // Testing: Reached by `pure_caching` tests
-                    res.clone()
-                },
-                _ => unreachable!(),
-              }}
-            else {
-              dcg_effect!(
-                reflect::trace::Effect::Force(reflect::trace::ForceCase::RefGet),
-                current_loc!(*g.borrow()),
-                reflect::Succ{
-                  loc:loc.reflect(),
-                  value:reflect::Val::ValTODO,
-                  effect:reflect::Effect::Force,
-                  dirty:false,
-                  is_dup:is_dup,
-                });
-              res.clone()
-            }
-          }
-        } ;
-        let st : &mut DCG = &mut *g.borrow_mut() ;
-        if !is_dup && !is_pure { match st.stack.last_mut() { None => (), Some(frame) => {
-          let succ =
-            Succ{loc:loc.clone(),
-                 dep:Rc::new(Box::new(ForceDep{res:result.clone()})),
-                 effect:Effect::Observe,
-                 dirty:false};
-          frame.succs.push((succ, None));
-        }}} ;
-        wf::check_dcg(st);
-        result
+                  Node::Pure(ref mut nd) => (false, is_dup, true, false, Some(nd.val.clone())),
+                  Node::Mut(ref mut nd)  => (false, is_dup, false, false, Some(nd.val.clone())),
+                  Node::Comp(ref mut nd) => {
+                      let is_pure = match *loc.id {
+                          ArtId::Structural(_) => nd.succs.len() == 0 && is_pure_opt,
+                          ArtId::Nominal(_)    => false } ;
+                      if is_cycle {
+                          // Cycle detected; check cycle_out to see if the caller expected this
+                          match cycle_out {
+                              // Caller did not expect a cycle; cycle is an error
+                              None => { panic!("unexpected cycle detected in DCG") }
+                              // Caller expected that there _could_ be a
+                              // cycle, use this special output value now
+                              // (in particular, in the case of a cycle,
+                              // we do not use the thunk's cached result)
+                              Some(out) => (true, is_dup, is_pure, true, Some(out)),
+                          }
+                      }
+                      else { 
+                          // "Ordinary case": No cycle, so clone the result we have cached, if any.
+                          (true, is_dup, is_pure, false, nd.res.clone())
+                      }
+                  }
+              }
+          };        
+          let result = match cached_result {
+              None => {
+                  assert!(is_comp);
+                  assert!(!is_cycle);
+                  dcg_effect_begin!(
+                      reflect::trace::Effect::Force(reflect::trace::ForceCase::CompCacheMiss),
+                      current_loc!(*g.borrow()),
+                      reflect::Succ{
+                          loc:loc.reflect(),
+                          value:reflect::Val::ValTODO,
+                          effect:reflect::Effect::Force,
+                          dirty:false,
+                          is_dup:is_dup,
+                      }
+                  );
+                  assert_eq!(is_dup, false);
+                  println!("produce {:?}", loc);
+                  let res = loc_produce(g, &loc);
+                  dcg_effect_end!();
+                  res
+              },
+              Some(res) => {
+                  if is_comp {
+                      dcg_effect_begin!(
+                          reflect::trace::Effect::Force(reflect::trace::ForceCase::CompCacheHit),
+                          current_loc!(*g.borrow()),
+                          reflect::Succ{
+                              loc:loc.reflect(),
+                              value:reflect::Val::ValTODO,
+                              effect:reflect::Effect::Force,
+                              dirty:false,
+                              is_dup:is_dup,
+                          }
+                      );
+                      if is_cycle {
+                          // Todo-someday: Put something special in the reflected trace?
+                          dcg_effect_end!();
+                          // return the result that is special for cycles
+                          res
+                      }
+                      else {
+                          let _ = ForceDep{res:res.clone()}.clean(g, &loc) ;
+                          dcg_effect_end!();
+                          let st : &mut DCG = &mut *g.borrow_mut();
+                          let node : &mut Node<T> = res_node_of_loc(st, &loc) ;
+                          match *node {
+                              Node::Comp(ref nd) => match nd.res {
+                                  None => unreachable!(),
+                                  Some(ref res) =>
+                                  // Testing: Reached by `pure_caching` tests
+                                      res.clone()
+                              },
+                              _ => unreachable!(),
+                          }}
+                  }
+                  else {
+                      dcg_effect!(
+                          reflect::trace::Effect::Force(reflect::trace::ForceCase::RefGet),
+                          current_loc!(*g.borrow()),
+                          reflect::Succ{
+                              loc:loc.reflect(),
+                              value:reflect::Val::ValTODO,
+                              effect:reflect::Effect::Force,
+                              dirty:false,
+                              is_dup:is_dup,
+                          });
+                      res.clone()
+                  }
+              }
+          } ;
+          let st : &mut DCG = &mut *g.borrow_mut() ;
+          if !is_dup && !is_pure { match st.stack.last_mut() { None => (), Some(frame) => {
+              let succ =
+                  Succ{loc:loc.clone(),
+                       dep:Rc::new(Box::new(ForceDep{res:result.clone()})),
+                       effect:Effect::Observe,
+                       dirty:false};
+              frame.succs.push((succ, None));
+          }}} ;
+          wf::check_dcg(st);
+          result
       }
     }}
 }
@@ -2247,7 +2394,29 @@ pub fn force<T:Hash+Eq+Debug+Clone+'static> (a:&Art<T>) -> T {
       GLOBALS.with(|g| {
         match g.borrow().engine {
           Engine::DCG(ref dcg_refcell) => 
-            <DCG as Adapton>::force(dcg_refcell, &AbsArt::Loc(loc.clone())),
+            <DCG as Adapton>::force(dcg_refcell, &AbsArt::Loc(loc.clone()), None),
+          Engine::Naive => panic!("cannot force a non-naive location with the naive engine")
+      }})
+    }
+  }
+}
+
+/// Demands and observes the value of an `&Art<T>`, returning a
+/// (cloned) value of type `T`, or the value of `cycle_out` if the
+/// force edge forms a cycle in the DCG.
+///
+/// Note that if the articulation `a` is not a thunk, then `cycle_out`
+/// will not be used (cycles in the DCG are formed by thunks forcing
+/// one another, not by reference cells).
+pub fn force_cycle<T:Hash+Eq+Debug+Clone+'static> (a:&Art<T>, cycle_out:Option<T>) -> T {
+  match a.art {
+    EnumArt::Force(ref f) => f.force(),
+    EnumArt::Rc(ref rc) => (&**rc).clone(),
+    EnumArt::Loc(ref loc) => {
+      GLOBALS.with(|g| {
+        match g.borrow().engine {
+          Engine::DCG(ref dcg_refcell) => 
+            <DCG as Adapton>::force(dcg_refcell, &AbsArt::Loc(loc.clone()), cycle_out),
           Engine::Naive => panic!("cannot force a non-naive location with the naive engine")
       }})
     }
@@ -2532,4 +2701,57 @@ mod wf {
       }
     }
   }
+}
+
+
+#[test]
+fn test_cycles () -> () {
+    fn adjs (n:usize) -> (usize, usize) {
+        match n {
+            0 => (1, 0),
+            1 => (2, 3),
+            2 => (3, 0),
+            3 => (3, 1),
+            _ => unimplemented!()
+        }
+    }
+
+    // This version will diverge on all of the cycles (e.g., 3 --> 3)
+    #[warn(unconditional_recursion)]
+    fn explore_rec(cur_n:usize) -> Vec<usize> {
+        println!("explore {}", cur_n);
+        let (a,b) = adjs(cur_n);
+        let mut av = explore_rec(a);
+        let mut bv = explore_rec(b);
+        let mut res = vec![cur_n];
+        res.append(&mut av);
+        res.append(&mut bv);
+        res
+    }
+
+    // This version will not diverge; it gives an empty vector value
+    // as "cycle output" when it performs each `get!`.  Hence, when
+    // Adapton detects a cycle, it will not re-force this thunk
+    // cyclicly, but rather return this predetermined "cycle output"
+    // value. For non-cyclic calls, the `get!` ignores this value, and
+    // works in the usual way.
+    fn explore_thunk(cur_n:usize) -> Art<Vec<usize>> {
+        thunk!([Some(name_of_usize(cur_n))]? explore ; n:cur_n)
+    }
+    fn explore(cur_n:usize) -> Vec<usize> {
+        println!("explore {}", cur_n);
+        let (a,b) = adjs(cur_n);
+        let at = explore_thunk(a);
+        let bt = explore_thunk(b);
+        println!("  explore {} goes to {:?} and {:?}", cur_n, at, bt);
+        let mut av = get!(at, vec![]);
+        let mut bv = get!(bt, vec![]);
+        let mut res = vec![cur_n];
+        res.append(&mut av);
+        res.append(&mut bv);
+        println!("  res={:?}", res);
+        res
+    }
+    super::engine::manage::init_dcg();
+    assert_eq!(get!(explore_thunk(0)), vec![0,1,2,3,3])
 }
