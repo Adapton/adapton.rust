@@ -1,6 +1,6 @@
-#![doc(html_logo_url = "https://raw.githubusercontent.com/cuplv/adapton-talk/master/logos/adapton-logo-bonsai.png",       
+#![doc(html_logo_url = "https://raw.githubusercontent.com/cuplv/adapton-talk/master/logos/adapton-logo-bonsai.png",
        html_root_url = "https://docs.rs/adapton/")]
-/*! 
+/*!
 
 Adapton for Rust
 ================
@@ -35,7 +35,7 @@ computing, we give [background on incremental computing with names](#background-
 
 The following academic papers detail these technical proposals:
 
-- **DCG, and change propagation**: [_Adapton: Composable, demand-driven incremental computation_, **PLDI 2014**](http://www.cs.umd.edu/~hammer/adapton/).  
+- **DCG, and change propagation**: [_Adapton: Composable, demand-driven incremental computation_, **PLDI 2014**](http://www.cs.umd.edu/~hammer/adapton/).
 - **Nominal memoization**: [_Incremental computation with names_, **OOPSLA 2015**](http://arxiv.org/abs/1503.07792).
 - **Type and effect structures**: The draft [_Typed Adapton: Refinement types for incremental computation with precise names_](https://arxiv.org/abs/1610.00097).
 
@@ -54,7 +54,7 @@ both predictable and scalable.
 Adapton programming model
 ==========================
 
-**Adapton roles**: Adapton proposes _editor_ and _achivist roles_:  
+**Adapton roles**: Adapton proposes _editor_ and _achivist roles_:
 
  - The **Editor role** _creates_ and _mutates_ input, and _demands_ the
    output of incremental computations in the **Archivist role**.
@@ -79,24 +79,24 @@ Adapton programming model
 
 **Programming primitives:** The following list of primitives covers
 the core features of the Adapton engine.  Each primitive below is
-meaningful in each of the two, editor and archivist, roles:  
+meaningful in each of the two, editor and archivist, roles:
 
  - **Ref cell allocation**: Mutable input (editor role), and cached data structures that change across runs (archivist role).
-   - [**`cell!`**](https://docs.rs/adapton/0/adapton/macro.cell.html) -- Preferred version  
-   - [`let_cell!`](https://docs.rs/adapton/0/adapton/macro.let_cell.html)  -- Useful in simple examples  
-   - [`engine::cell`](https://docs.rs/adapton/0/adapton/engine/fn.cell.html) -- Engine's raw interface  
- - **Observation** and **demand**: Both editor and archivist role.  
-   - [**`get!`**](https://docs.rs/adapton/0/adapton/macro.get.html) -- Preferred version  
-   - [`engine::force`](https://docs.rs/adapton/0/adapton/engine/fn.force.html) -- Engine's raw interface  
-   - [`engine::force_map`](https://docs.rs/adapton/0/adapton/engine/fn.force_map.html) -- A variant for observations that compose before projections  
- - **Thunk Allocation**: Both editor and archivist role.  
-   - Thunk allocation, **_without_ demand**:  
-     - [**`thunk!`**](https://docs.rs/adapton/0/adapton/macro.thunk.html) -- Preferred version  
-     - [`let_thunk!`](https://docs.rs/adapton/0/adapton/macro.let_thunk.html) -- Useful in simple examples  
-     - [`engine::thunk`](https://docs.rs/adapton/0/adapton/engine/fn.thunk.html) -- Engine's raw interface (can be cumbersome)  
-   - Thunk allocation, **_with_ demand**:  
-     - [**`memo!`**](https://docs.rs/adapton/0/adapton/macro.memo.html) -- Preferred version  
-     - [`let_memo!`](https://docs.rs/adapton/0/adapton/macro.let_memo.html) -- Useful in simple examples  
+   - [**`cell!`**](https://docs.rs/adapton/0/adapton/macro.cell.html) -- Preferred version
+   - [`let_cell!`](https://docs.rs/adapton/0/adapton/macro.let_cell.html)  -- Useful in simple examples
+   - [`engine::cell`](https://docs.rs/adapton/0/adapton/engine/fn.cell.html) -- Engine's raw interface
+ - **Observation** and **demand**: Both editor and archivist role.
+   - [**`get!`**](https://docs.rs/adapton/0/adapton/macro.get.html) -- Preferred version
+   - [`engine::force`](https://docs.rs/adapton/0/adapton/engine/fn.force.html) -- Engine's raw interface
+   - [`engine::force_map`](https://docs.rs/adapton/0/adapton/engine/fn.force_map.html) -- A variant for observations that compose before projections
+ - **Thunk Allocation**: Both editor and archivist role.
+   - Thunk allocation, **_without_ demand**:
+     - [**`thunk!`**](https://docs.rs/adapton/0/adapton/macro.thunk.html) -- Preferred version
+     - [`let_thunk!`](https://docs.rs/adapton/0/adapton/macro.let_thunk.html) -- Useful in simple examples
+     - [`engine::thunk`](https://docs.rs/adapton/0/adapton/engine/fn.thunk.html) -- Engine's raw interface (can be cumbersome)
+   - Thunk allocation, **_with_ demand**:
+     - [**`memo!`**](https://docs.rs/adapton/0/adapton/macro.memo.html) -- Preferred version
+     - [`let_memo!`](https://docs.rs/adapton/0/adapton/macro.let_memo.html) -- Useful in simple examples
 
 Start the DCG engine
 =====================
@@ -200,7 +200,7 @@ introduction operation `&`:
 # manage::init_dcg();
 let c : Art<usize> = cell!(123);
 
-assert_eq!( get!(c), force(&c) ); 
+assert_eq!( get!(c), force(&c) );
 # }
 ```
 
@@ -307,9 +307,9 @@ division:
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-# 
+#
 // Two mutable inputs, for numerator and denominator of division
-let num = cell!(42); 
+let num = cell!(42);
 let den = cell!(2);
 
 // In Rust, cloning is explicit:
@@ -358,19 +358,19 @@ Editor (of the output of `check`), _and_ the value of input cell
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-# 
+#
 # // Two mutable inputs, for numerator and denominator of division
-# let num = cell!(42); 
+# let num = cell!(42);
 # let den = cell!(2);
-# 
+#
 # // In Rust, cloning is explicit:
 # let den2 = den.clone(); // clone _global reference_ to cell.
 # let den3 = den.clone(); // clone _global reference_ to cell, again.
-# 
+#
 # // Two subcomputations: The division, and a check thunk with a conditional expression
 # let div   = thunk![ get!(num) / get!(den) ];
 # let check = thunk![ if get!(den2) == 0 { None } else { Some(get!(div)) } ];
-# 
+#
 // Observe output of `check` while we change the input `den`
 // Editor Step 1: (Explained in detail, below)
 assert_eq!(get!(check), Some(21));
@@ -389,18 +389,18 @@ of the graph structure and the code side-by-side may help:
 
 **Editor Step 1**
 
-<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_10.png" 
+<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_10.png"
    alt="Slide-10" style="width: 800px;"/>
 
 **Editor Steps 2 and 3**
 
-<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_12.png" 
+<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_12.png"
    alt="Slide_12" style="width: 200px;"/>
-<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_16.png" 
+<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_16.png"
    alt="Slide_16" style="width: 200px;"/>
-<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_17.png" 
+<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_17.png"
    alt="Slide-17" style="width: 200px;"/>
-<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_23.png" 
+<img src="https://raw.githubusercontent.com/cuplv/adapton-talk/master/adapton-example--div-by-zero/Adapton_Avoiddivbyzero_23.png"
    alt="Slide-23" style="width: 200px;"/>
 
 [Full-sized slides](https://github.com/cuplv/adapton-talk/blob/master/adapton-example--div-by-zero/)
@@ -413,7 +413,7 @@ approach to incremental computation.
 Switching
 -----------
 
-In the [academic literature on Adapton](http://matthewhammer.org/adapton/), 
+In the [academic literature on Adapton](http://matthewhammer.org/adapton/),
 we refer to the three-step
 pattern of change propagation illustrated above as _switching_:
 
@@ -452,7 +452,7 @@ In Adapton, each _memoization point_ has three ingredients:
   names are based on the hashes of their arguments).  The trait
   `Debug` is useful for debugging, and reflection.
 
-- An optional _name_, which identifies the function call for reuse later. 
+- An optional _name_, which identifies the function call for reuse later.
 
     - When this optional name is `None`, the memoization point may be
       treated in one of two ways: either as just an ordinary, uncached
@@ -496,7 +496,7 @@ Example
 # use adapton::macros::*;
 # use adapton::engine::*;
 # manage::init_dcg();
-let (t,z) : (Art<usize>, usize) = 
+let (t,z) : (Art<usize>, usize) =
   memo!([Some(name_unit())]?
     |x:usize,y:usize|{ if x > y { x } else { y }};
      x:10,   y:20   );
@@ -568,7 +568,7 @@ of dirtying steps, and ensures that this count is zero, as expected.
 # use adapton::engine::*;
 # use adapton::reflect;
 # manage::init_dcg();
-# 
+#
 // Trace the behavior of change propagation; ensure dirtying works as expected
 reflect::dcg_reflect_begin();
 
@@ -577,7 +577,7 @@ let pair1 = pair.clone();
 
 let t = thunk![{
   // Project the first component of pair:
-  let fst = force_map(&pair, |_,x| x.0); 
+  let fst = force_map(&pair, |_,x| x.0);
   fst + 100
 }];
 
@@ -603,7 +603,7 @@ Nominal memoization
 =========================
 
 Adapton offers **nominal memoization**, which uses first-class _names_
-(each of type `Name`) to identify cached computations and data. 
+(each of type `Name`) to identify cached computations and data.
 
 ```
 # #[macro_use] extern crate adapton;
@@ -611,10 +611,10 @@ Adapton offers **nominal memoization**, which uses first-class _names_
 # use adapton::macros::*;
 # use adapton::engine::*;
 # use adapton::reflect;
-# 
+#
 # // create an empty DCG (demanded computation graph)
 # manage::init_dcg();
-# 
+#
 fn sum(x:usize, y:usize) -> usize {
     x + y
 }
@@ -649,7 +649,7 @@ machine words. :)
 # fn sum(x:usize, y:usize) -> usize {
 #     x + y
 # }
-# 
+#
 // Optional: Traces what the engine does below (for diagnostics, testing, illustration)
 reflect::dcg_reflect_begin();
 
@@ -670,7 +670,7 @@ let res4 : usize = get!(thunk!([b] sum; x:55, y:66));
 Below we confirm the following facts:
 
 - The Editor:
-  - allocated two thunks (`a` and `b`), 
+  - allocated two thunks (`a` and `b`),
   - allocated one thunk without changing it (`a`, with the same arguments)
   - allocated one thunk by changing it (`b`, with different arguments)
 - The Archivist allocated nothing.
@@ -681,31 +681,31 @@ Below we confirm the following facts:
 # use adapton::macros::*;
 # use adapton::engine::*;
 # use adapton::reflect;
-# 
+#
 # // create an empty DCG (demanded computation graph)
 # manage::init_dcg();
-# 
+#
 # // a simple function (memoized below for illustration purposes;
 # //                    probably actually not worth it!)
 # fn sum(x:usize, y:usize) -> usize {
 #     x + y
 # }
-# 
+#
 # // Optional: Traces what the engine does below (for diagnostics, testing, illustration)
 # reflect::dcg_reflect_begin();
-# 
+#
 # // create a memo entry, named `a`, that remembers that `sum(42,43) = 85`
 # let res1 : usize = get!(thunk!([a] sum; x:42, y:43));
-# 
+#
 # // same name `a`, same arguments (42, 43) => reuse cached result
 # let res2 : usize = get!(thunk!([a] sum; x:42, y:43));
-# 
+#
 # // different name `b`, same arguments (42, 43) => recomputes `sum` for `b`
 # let res3 : usize = get!(thunk!([b] sum; x:42, y:43));
-# 
+#
 # // same name `b`, different arguments; *overwrite* `b` with new args & result
 # let res4 : usize = get!(thunk!([b] sum; x:55, y:66));
-# 
+#
 // Optional: Assert what happened above, in terms of analytical counts
 let traces = reflect::dcg_reflect_end();
 let counts = reflect::trace::trace_count(&traces, None);
@@ -731,44 +731,58 @@ Nominal Cycles
 In many settings, we explore structures that contain cycles, and it is
 useful to use Adapton's DCG mechanism to detect such cycles.
 
+
+Example problem: Recursive computation over a directed graph
+---------------------------------------------------------------
+
 As a tiny example, consider the following graph, defined as a table of
 adjacencies:
 
 ```
-// Node | Outgoing edges to two other nodes:
-// -----+-----------------------------------
+// Node | Adjacency pair
+//      | (two outgoing edges to other nodes):
+// -----+-------------------------------------
 // 0    | (1, 0)
 // 1    | (2, 3)
 // 2    | (3, 0)
 // 3    | (3, 1)
+// 4    | (2, 5)
+// 5    | (5, 4)
 ```
 
-This is a small arbitrary directed graph, and it has several cycles.
+This is a small arbitrary directed graph, and it has several cycles
+(e.g., `0 --> 0`, `3 --> 3`, `0 --> 1 --> 2 --> 0`).  It also has
+distinct strongly-connected components (SCCs), e.g., the one involving
+`0` versus the one involving `4`.
 
-**Problem statement** Suppose that we wish to explore this graph, to
+**Problem statement:** Suppose that we wish to explore this graph, to
 build a list (or `Vec`) of all of the nodes that it contains.
 
-**Desired solution** 
+**Desired solution program:**
 Consider the simple (naive) recursive exploration logic, defined
-as `explore_rec` below.  The problem with this logic is that it
-diverges on graphs with cycles, and for graphs that are DAGs, it
-re-explores some sub-graphs multiple times.
+as `explore_rec` below.  The problems with this logic are that
+
+1. **Repeated work**: `explore_rec` re-explores some sub-graphs multiple times, and
+2. **Divergence**: `explore_rec` diverges on graphs with cycles.
+
+To address the first problem, we can leverage the DCG, which performs
+function caching.  To address the second problem, the algorithm needs
+a mechanism to detect cycles.
+
+In terms of DCG evaluation, we can detect a cycle if we can remember
+and check whether we are "currently" visiting the node (on the
+recursive call stack) before we evaluate a node recursively.
+
+Regardless of how we detect the cycle, we wish to do something
+different (other than recur).
 
 ### DCG cycles: Detection and valuation
 
-To address the second problem, exploring the same sub-graph multiple
-times, we can leverage the DCG, which performs function caching.
-
-To address the first problem, diverging on cycles, the algorithm needs
-a mechanism to remember and check whether it is "currently" visiting
-the node (on the recursive call stack) each time it encounters it
-recursively.
-
-Rather than implement this mechanism directly, we can again use the
-DCG. Specifically, we can use the engine operation `force_cycle` to
-specify a "cycle value" for the result of a thunk `t` when `t` is
-forcing itself, or when `t` is forcing another thunk `s` that
-transitively forces `t`.
+Rather than implement this cycle-detection mechanism directly, we can
+use Adapton's DCG, which operates behind the scenes. Specifically, we
+can use the engine operation [`force_cycle`](https://docs.rs/adapton/0/adapton/engine/fn.force_cycle.html)
+to specify a "cycle value" for the result of a thunk `t` when `t` is forcing itself, or when `t`
+is forcing another thunk `s` that transitively forces `t`.
 
 In either case, the force operation that forms the cycle in the DCG
 evaluates to this programmer-specified cycle value, rather than
@@ -794,6 +808,8 @@ fn adjs (n:usize) -> (usize, usize) {
         1 => (2, 3),
         2 => (3, 0),
         3 => (3, 1),
+        4 => (2, 5),
+        5 => (5, 4),
         _ => unimplemented!()
     }
 }
@@ -860,7 +876,7 @@ Example: nominal firewall
 # use adapton::engine::*;
 fn demand_graph(a: Art<i32>) -> String {
     let_memo!{
-      d =(f)= { 
+      d =(f)= {
         let a = a.clone();
         let_memo!{ b =(g)={ let x = get!(a); cell!([b] x * x) };
                    c =(h)={ format!("{:?}", get!(b)) };
@@ -873,18 +889,18 @@ fn demand_graph(a: Art<i32>) -> String {
 The use of `let_memo!` is [convenient sugar](#let_memo-example) for `thunk!` and `force`.
 This code induces DCGs with the following structure:
 
-``` 
+```
 /*                                             +---- Legend ------------------+
 cell a                                         | [ 2 ]   ref cell holding 2   |
 [ 2 ]            "Nominal                      |  (g)    thunk named 'g'      |
   ^               firewall"                    | ---->   force/observe edge   |
-  | force            |                         | --->>   allocation edge      |              
+  | force            |                         | --->>   allocation edge      |
   | 2               \|/                        +------------------------------+
   |                  `
   |   g allocs b    cell    g forces b          When cell a changes, g is dirty, h is not;
   |   to hold 4      b      observes 4          in this sense, cell b _firewalls_ h from g:
  (g)------------->>[ 4 ]<--------------(h)  <~~ note that h does not observe cell a, or g.
-  ^                                     ^ 
+  ^                                     ^
   | f forces g                          | f forces h,
   | g returns cell b                    | returns String "4"
   |                                     |
@@ -912,10 +928,10 @@ input cell, named `"a"`:
 # fn main() {
 # use adapton::macros::*;
 # use adapton::engine::*;
-# 
+#
 # fn demand_graph(a: Art<i32>) -> String {
 #    let_memo!{
-#      d =(f)= { 
+#      d =(f)= {
 #        let a = a.clone();
 #        let_memo!{ b =(g)={ let x = get!(a); cell!([b] x * x) };
 #                   c =(h)={ format!("{:?}", get!(b)) };
@@ -924,7 +940,7 @@ input cell, named `"a"`:
 # }
 #
 # manage::init_dcg();
-# 
+#
 // 1. Initialize input cell "a" to hold 2, and do the computation illustrated above:
 assert_eq!(demand_graph(let_cell!{a = 2; a}), "4".to_string());
 
@@ -974,7 +990,7 @@ changes from `2` to `-2`: It would be dirtied when `a` changes, since
 it directly observes `g`, which directly observes cell `a`.
 
 **Run 3.** For some other change, e.g., from 2 to 3, thunk `h` would
-_eventually_ _will be_ 
+_eventually_ _will be_
 
  - dirtied, when `f` redemands `g`, which will overwrite cell `b` with `9`,
  - and cleaned, when `f` re-demands `h`, which will `format!` a new `String` of `"9"`.
@@ -996,7 +1012,7 @@ fn demand_graph__mid_macro_expansion(a: Art<i32>) -> String {
               let g = thunk!([g]{ let x = get!(a);
                                   cell!([b] x * x) });
               let b = force(&g);
-              let h = thunk!([h]{ let x = get!(b); 
+              let h = thunk!([h]{ let x = get!(b);
                                   format!("{:?}", x) });
               let c = force(&h);
               c });
@@ -1090,13 +1106,13 @@ Example: Nominal memoization and recursion
 #    Name(NameCons<X>),
 #    Art(Art<Rec<X>>),
 # }
-impl<X:'static+Clone+PartialEq+Eq+Debug+Hash> 
+impl<X:'static+Clone+PartialEq+Eq+Debug+Hash>
     Rec<X> {
 
-pub fn leaf(xs:Vec<X>) -> Self { 
+pub fn leaf(xs:Vec<X>) -> Self {
     Rec::Leaf(LeafCons{elms:xs})
 }
-pub fn bin(lev:u32, l:Self, r:Self) -> Self { 
+pub fn bin(lev:u32, l:Self, r:Self) -> Self {
     Rec::Bin(BinCons{level:lev,recl:Box::new(l),recr:Box::new(r)})
 }
 pub fn name(lev:u32, n:Name, r:Self) -> Self {
@@ -1143,13 +1159,13 @@ fn art(a:Art<Rec<X>>) -> Self {
 #    Name(NameCons<X>),
 #    Art(Art<Rec<X>>),
 # }
-# impl<X:'static+Clone+PartialEq+Eq+Debug+Hash> 
+# impl<X:'static+Clone+PartialEq+Eq+Debug+Hash>
 #    Rec<X>
 # {
-#    pub fn leaf(xs:Vec<X>) -> Self { 
+#    pub fn leaf(xs:Vec<X>) -> Self {
 #        Rec::Leaf(LeafCons{elms:xs})
 #    }
-#    pub fn bin(lev:u32, l:Self, r:Self) -> Self { 
+#    pub fn bin(lev:u32, l:Self, r:Self) -> Self {
 #        Rec::Bin(BinCons{level:lev,recl:Box::new(l),recr:Box::new(r)})
 #    }
 #    pub fn name(lev:u32, n:Name, r:Self) -> Self {
@@ -1160,20 +1176,20 @@ fn art(a:Art<Rec<X>>) -> Self {
 #    }
 #
 pub fn fold_monoid<B:'static+Clone+PartialEq+Eq+Debug+Hash>
-   (t:Rec<X>, z:X, b:B, 
-    bin:fn(B,X,X)->X, 
-    art:fn(Art<X>,X)->X) 
-   -> X 
+   (t:Rec<X>, z:X, b:B,
+    bin:fn(B,X,X)->X,
+    art:fn(Art<X>,X)->X)
+   -> X
 {
-  fn m_leaf<B:Clone,X>(m:(B,fn(B,X,X)->X,X), elms:Vec<X>) -> X { 
+  fn m_leaf<B:Clone,X>(m:(B,fn(B,X,X)->X,X), elms:Vec<X>) -> X {
 #    let mut x = m.2;
-#    for elm in elms { 
+#    for elm in elms {
 #      x = m.1(m.0.clone(), x, elm)
 #    };
 #    x
      // ...
   }
-  fn m_bin<B,X>(_n:Option<Name>, m:(B,fn(B,X,X)->X,X), _lev:u32, l:X, r:X) -> X { 
+  fn m_bin<B,X>(_n:Option<Name>, m:(B,fn(B,X,X)->X,X), _lev:u32, l:X, r:X) -> X {
       m.1(m.0, l, r)
   }
   Self::fold_up_namebin::<(B,fn(B,X,X)->X,X),
@@ -1184,12 +1200,12 @@ pub fn fold_monoid<B:'static+Clone+PartialEq+Eq+Debug+Hash>
 fn fold_up_namebin
    <L:'static+Clone+PartialEq+Eq+Debug+Hash,
     B:'static+Clone+PartialEq+Eq+Debug+Hash,
-    R:'static+Clone+PartialEq+Eq+Debug+Hash>             
+    R:'static+Clone+PartialEq+Eq+Debug+Hash>
    (t:Rec<X>,
     l:L, leaf:fn(L,Vec<X>)->R,
-    n:Option<Name>, b:B, 
+    n:Option<Name>, b:B,
     namebin:fn(Option<Name>,B,u32,R,R)->R,
-    art:fn(Art<R>,R)->R) 
+    art:fn(Art<R>,R)->R)
    -> R
 {
   match t {
@@ -1197,19 +1213,19 @@ fn fold_up_namebin
     Rec::Leaf(leafcons) => leaf(l, leafcons.elms),
     Rec::Bin(bincons)   => {
         let (n1,n2) = forko!(n.clone());
-        let r1 = memo!([n1]? Self::fold_up_namebin; 
-                       t:*bincons.recl, 
+        let r1 = memo!([n1]? Self::fold_up_namebin;
+                       t:*bincons.recl,
                        l:l.clone(), leaf:leaf, n:None, b:b.clone(), namebin:namebin, art:art);
         let r1 = art(r1.0,r1.1);
         let r2 = memo!([n2]? Self::fold_up_namebin;
-                       t:*bincons.recr, 
+                       t:*bincons.recr,
                        l:l.clone(), leaf:leaf, n:None, b:b.clone(), namebin:namebin, art:art);
         let r2 = art(r2.0,r2.1);
         namebin(n, b, bincons.level, r1, r2)
     }
     Rec::Name(namecons) => {
         Self::fold_up_namebin(
-            *namecons.rec, 
+            *namecons.rec,
             l, leaf, Some(namecons.name), b, namebin, art
         )
     }
@@ -1274,7 +1290,7 @@ value `v`.  This naming style is often called "hash-consing".  We
 refer to it as _structural naming_, since by using it, the name of
 each ref cell reflects the _entire structure_ of that cell's
 content. (Structural hashing approach is closely related to Merkle
-trees, the basis for revision-control systems like `git`.)  
+trees, the basis for revision-control systems like `git`.)
 
 ### Independent names
 
@@ -1315,7 +1331,7 @@ incremental insertions and removals.
 // rev : List -> List -> List
 // rev l r = match l with
 //  | Nil       => r
-//  | Cons(h,t) => 
+//  | Cons(h,t) =>
 //     memo(rev !t (Cons(h,r)))
 ```
 
@@ -1345,8 +1361,8 @@ keys_~\cite{AcarThesis,Hammer08,AcarLeyWild09} and
 _indices_~\cite{Acar06,Acar06ML}, but the core idea is the same.
 
 ```
-// | Cons(n,h,t) => 
-//    let rr = ref[n](r) in 
+// | Cons(n,h,t) =>
+//    let rr = ref[n](r) in
 //    memo(rev !t (Cons(h,rr)))
 ```
 
@@ -1373,7 +1389,7 @@ list.
 
 #![crate_name = "adapton"]
 #![crate_type = "lib"]
-    
+
 extern crate core;
 
 #[macro_use]
