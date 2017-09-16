@@ -3,6 +3,9 @@
 
 A general-purpose **Incremental Computation** (IC) library for Rust.  
 
+[Documentation, with examples](https://docs.rs/adapton/0/adapton/#programming-model)
+-------------------------------------------------------------------------------------
+
 Versions:
 ---------
 
