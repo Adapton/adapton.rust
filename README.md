@@ -1,4 +1,4 @@
-[Adapton](http://adapton.org) in Rust  [![Travis](https://api.travis-ci.org/Adapton/adapton.rust.svg?branch=master)](https://travis-ci.org/Adapton/adapton.rust)
+<img src="http://adapton.org/adapton-logo-bonsai-notext.png" alt="Logo" style="width: 64px;"/> [Adapton](http://adapton.org) in Rust  [![Travis](https://api.travis-ci.org/Adapton/adapton.rust.svg?branch=master)](https://travis-ci.org/Adapton/adapton.rust)
 ====================================================================================
 
 A general-purpose **Incremental Computation** (IC) library for Rust.  
