@@ -15,6 +15,7 @@ Versions:
 Research and Development Community:
 --------------------------------------
 
+ - The [Adapton community](https://gitter.im/Adapton) on [gitter](https://gitter.im/Adapton).
  - The [Adapton Slack Team](http://adapton-public.slack.com) is open to anyone that is interested in learning more.
  - If you are interested in joining this Slack team, send mail to `matthew.hammer@colorado.edu` for an invite.
  - For a list of current and past contributors, see [The Adapton Homepage](http://adapton.org)
