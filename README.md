@@ -9,10 +9,10 @@ A general-purpose **Incremental Computation** (IC) library for Rust.
 Versions:
 ---------
 
-- The [Adapton repo](https://github.com/Adapton/adapton.rust) has the latest, in `dev` and `master` branches.
-    - (The `master` branch is intended to be "stable", e.g., for external libraries).  
-    - The **latest development** is always in branch [dev](https://github.com/Adapton/adapton.rust/tree/dev).
-    - See also: [Adapton crate](https://crates.io/crates/adapton), for periodic releases.
+- The [Adapton repo](https://github.com/Adapton/adapton.rust) has the latest, in `dev` and `master` branches.  
+    - branch [dev](https://github.com/Adapton/adapton.rust/tree/dev) contains the **latest development**.  
+    - branch `master` is "stable", e.g., for external libraries.  
+    - Also see [Adapton crate](https://crates.io/crates/adapton), for periodic "stable" releases.  
 - See also: A prior [OCaml implementation](https://github.com/plum-umd/adapton.ocaml).  
 
 Research and Development Community:
