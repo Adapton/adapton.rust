@@ -328,10 +328,23 @@ pub mod trace {
     RefGet,
   }
 
+    /// For analytic cost analysis
+    #[derive(Clone,Debug)]
+    pub struct Cost {
+        pub work:usize,
+        pub depth:usize,
+    }
+
   /// The effects of the DCG (including cleaning and dirtying) on one of
   /// its edges.
   #[derive(Clone,Debug)]
-  pub enum Effect { 
+    pub enum Effect {
+
+        /// Catch-all for user-defined (e.g., application-specific)
+        /// effects, whose presence in the trace structure may aid
+        /// debugging, visualization, analytic cost analysis, etc.
+        UserEffect(Cost, String),
+        
     /// Wrapper for Effect::Alloc; transition to DCG after the alloc.
     Alloc (AllocCase, AllocKind), 
     
@@ -512,6 +525,11 @@ archivist:
         match role {
             Role::Editor =>
                 match tr.effect {
+                    Effect::UserEffect(_,_) => {
+                        for sub_tr in tr.extent.iter() { 
+                            trace_count_rec(Role::Editor, sub_tr, c);
+                        }                        
+                    },
                     Effect::Dirty => trace_count_dirty(role, tr, c),
                     Effect::Remove => unreachable!(),
                     Effect::CleanEdge => unreachable!(),
@@ -540,6 +558,11 @@ archivist:
                 },
             Role::Archivist =>
                 match tr.effect {
+                    Effect::UserEffect(_,_) => {
+                        for sub_tr in tr.extent.iter() { 
+                            trace_count_rec(Role::Archivist, sub_tr, c);
+                        }                        
+                    },
                     Effect::Dirty => trace_count_dirty(role, tr, c),
                     Effect::Remove => assert!(tr.extent.len() == 0),
                     Effect::CleanEdge => assert!(tr.extent.len() == 0),
@@ -547,6 +570,7 @@ archivist:
                         let mut change = false;
                         for subtr in tr.extent.iter() {
                             match subtr.effect {
+                                Effect::UserEffect(_,_) => unreachable!(),
                                 Effect::Remove => (),
                                 Effect::CleanEdge => (),
                                 Effect::CleanEval => (),

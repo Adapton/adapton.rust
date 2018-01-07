@@ -1383,7 +1383,7 @@ list.
 
 */
 
-#![feature(associated_consts)]
+//#![feature(associated_consts)]
 #![feature(box_patterns)]
 #![feature(box_syntax)]
 
