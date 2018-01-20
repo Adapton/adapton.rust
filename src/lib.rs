@@ -118,18 +118,18 @@ fn main() {
 }
 ```
 
-Create incremental cells
-========================
+# Create incremental cells
 
 Commonly, the input and intermediate data of Adapton computations
 consists of named reference `cell`s.  A reference `cell` is one
 variety of `Art`s; another are [`thunk`s](#create-thunks).
 
-## Implicit counter for naming `cell`s
+## Implicit `cell` names
 
-`cell!(123)` uses a global counter to choose a unique name to hold
-`123`. Important note: This _may_ be appopriate for the Editor role,
-but is _never appropriate for the Archivist role_.
+Behind the scenes, the (editor's) invocation `cell!(123)` uses an
+imperative global counter to choose a unique name to hold the number
+`123`. After each use, it increments this global counter, ensuring
+that each such number is used at most once.
 
 ```
 # #[macro_use] extern crate adapton;
@@ -143,8 +143,21 @@ assert_eq!( get!(c), 123 );
 # }
 ```
 
-Explicitly-named `cell`s
--------------------------
+## Naming strategy: *Global counter* ###
+
+Using a global counter to name cells, as above, _may_ be appopriate
+for the Editor role, but is _never appropriate for the Archivist
+role_, since this global counter is too sensitive to global
+(often-changing) properties, such as an index into the sequence of all
+allocations, globally.
+
+To replace this global counter, we the Archivist may give names
+*explicitly*, as shown in various forms, below.
+
+
+## Explicitly named `cell`s
+
+### Names via Rust "identifiers"
 
 Sometimes we name a cell using a Rust identifier.  We specify this
 case using the notation `[ name ]`, which specifies that the cell's
@@ -162,8 +175,7 @@ assert_eq!(get!(c), 123);
 # }
 ```
 
-Optionally-named `cell`s
--------------------------
+### Optional `Name`s
 
 Most generally, we supply an expression `optional_name` of type
 `Option<Name>` to specify the name for the `Art`.  This `Art` is
@@ -186,8 +198,8 @@ let c = cell!([None]? 123);
 assert_eq!(get!(c), 123);
 # }
 ```
-Observe `Art`s
-======================
+
+# Observe `Art`s
 
 The macro `get!` is sugar for `engine::force!`, with reference
 introduction operation `&`:

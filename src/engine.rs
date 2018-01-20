@@ -1338,12 +1338,13 @@ fn set_<T:'static+Eq+Debug> (st:&mut DCG, cell:AbsArt<T,Loc>, val:T) {
                         true
                     }},
                 _ => unreachable!(),
-            }} ;
+            }
+        };
         if changed {
             // TODO: Dirtying isn't quite necessary for *all* allocations.
             // Only those that allocated a different value than the present
-            // one--- we should check this, but we do not (we are *too*
-            // conservative at present).
+            // one--- we should check this, but we do not (we are *too
+            // conservative* at present).
             dirty_alloc(st, loc);
         }
     }
@@ -1355,7 +1356,7 @@ fn current_path (st:&DCG) -> Rc<Path> {
     st.path.clone()
 }
 
-/// The term "Art" stands for two things here: "Adapton return type",
+/// The term "Art" stands for two things here: "Adapton ref/thunk",
 /// and "Articulation point, for 'articulating' incremental change".
 /// The concept of an "Art" also abstracts over whether the producer
 /// is eager (like a ref cell) or lazy (like a thunk).
@@ -1692,7 +1693,7 @@ impl Adapton for DCG {
                         Common location: {:?}
 
                         ** Hint: Consider using distinct namespaces, via `Adapton::ns`
-                           (See: https://docs.rs/adapton/0.3/adapton/engine/fn.ns.html)
+                           (See: https://docs.rs/adapton/0/adapton/engine/fn.ns.html)
                         ",
                                            comp_nd.producer.prog_pt(), &comp_nd.producer,
                                            producer.prog_pt(), &producer,
@@ -2023,25 +2024,29 @@ impl Adapton for DCG {
         }}
 }
 
-/// *Articulations:* for incrementally-changing data/computation.
+/// *Articulations:* for incrementally-changing data/computation.  
 ///
 ///  - Introduced by (produced by) `thunk`, `cell` and `put`
 ///
 ///  - Eliminated by (consumed by) `force` (and `set`).
 ///
-/// The term *Art* stands for two things here: _Adapton Return Type_
-/// (of `thunk` and `cell`), and _Articulation point for
-/// incrementally-changing data/computation_.
+/// The term *Art* stands for two things here:  
 ///
-/// Each art has a unique identity. (See also: `Name`s, and functions
-/// to produce them).  Because this identity, an art can be hashed and
-/// compared for equality efficiently, in O(1) time.
+/// - _Adapton Reference / Thunk_, and
 ///
-/// The concept of an art abstracts over whether the producer is eager
-/// (like a ref `cell`) or lazy (like a `thunk`).  One uses `force` to
-/// inspect both. Consequently, code that consumes structures with
-/// arts need only ever use `force` (not two different functions,
-/// depending on whether the art is lazy or eager).
+/// - _Articulation_, for naming and discretizing incrementally-changing data (and computations).
+///
+/// Each art has a unique identity, its `Name`.
+/// Because this identity, each art permits efficient (O(1) time)
+/// hashing and equality checks.
+///
+/// The concept of an art abstracts over whether the producer is
+/// *eager* (like a ref `cell`) or *lazy* (like a `thunk`).  One uses
+/// `force` to inspect both eager and lazy arts.  Consequently, code
+/// that consumes structures with arts need only ever use `force` (not
+/// two different functions, depending on whether the art is lazy or
+/// eager).
+///
 #[derive(Clone,PartialEq,Eq,Hash,Debug)]
 pub struct Art<T> {
     art:EnumArt<T>,
