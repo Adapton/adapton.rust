@@ -1,6 +1,6 @@
 [package]
 name = "adapton"
-version = "0.3.21"
+version = "0.3.22"
 authors = ["Matthew A. Hammer <Matthew.Hammer@Colorado.Edu>"]
 
 # A short blurb about the package. This is not rendered in any format when
@@ -18,7 +18,7 @@ readme = "README.md"
 
 # This is a small list of keywords used to categorize and search for this
 # package.
-keywords = ["Incremental", "Memoization", "Dependency-Graph", "Demand-driven", "Self-Adjusting",]
+keywords = ["Incremental", "Memoization", "Dependency-Graph", "Demand-driven", "Lazy"]
 
 # This is a string description of the license for this package. Currently
 # crates.io will validate the license provided against a whitelist of known

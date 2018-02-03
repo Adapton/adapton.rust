@@ -347,8 +347,8 @@ macro_rules! thunk {
   ([ $nmop:expr ] ? $fun:expr ; $( $lab:ident :$arg:expr ),* ) => {{
       thunk(
           match $nmop {
-              None => { ArtIdChoice::Eager },
-              Some(n) => { ArtIdChoice::Nominal(n) }},
+              None => { NameChoice::Eager },
+              Some(n) => { NameChoice::Nominal(n) }},
           prog_pt!(stringify!($fun)),
           Rc::new(Box::new(
               move |($($lab),*,()),()| $fun ( $($lab),* )
@@ -360,8 +360,8 @@ macro_rules! thunk {
   ([ $nmop:expr ] ? $fun:expr ; $( $lab:ident :$arg:expr ),* ;; $( $lab2:ident :$arg2:expr ),* ) => {{
       thunk(
           match $nmop {
-              None => { ArtIdChoice::Eager },
-              Some(n) => { ArtIdChoice::Nominal(n) }},
+              None => { NameChoice::Eager },
+              Some(n) => { NameChoice::Nominal(n) }},
           prog_pt!(stringify!($fun)),
           Rc::new(Box::new(
               move | arg1 , arg2 | {
@@ -400,8 +400,8 @@ macro_rules! thunk {
   [ [ $nmop:expr ] ? $body:expr ] => {{
       thunk(
           match $nmop {
-              None => { ArtIdChoice::Eager },
-              Some(n) => { ArtIdChoice::Nominal(n) }},
+              None => { NameChoice::Eager },
+              Some(n) => { NameChoice::Nominal(n) }},
           prog_pt!(stringify!($body)),
           Rc::new(Box::new( move |(),()| { $body } )),
           () ,
@@ -410,7 +410,7 @@ macro_rules! thunk {
   ;
   [ [ $name:ident ] $body:expr ] => {{
       thunk(
-          ArtIdChoice::Nominal(name_of_str(stringify!($name))),
+          NameChoice::Nominal(name_of_str(stringify!($name))),
           prog_pt!(stringify!($fun)),
           Rc::new(Box::new( move |(),()| { $body } )),
           () ,
@@ -719,7 +719,7 @@ macro_rules! memo {
 macro_rules! eager {
   ( $nm:expr =>> $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
     let t = thunk
-      (ArtIdChoice::Nominal($nm),
+      (NameChoice::Nominal($nm),
        prog_pt!(stringify!($f)),
        Rc::new(Box::new(
          |args, _|{
@@ -735,7 +735,7 @@ macro_rules! eager {
   ;
   ( $nm:expr =>> $f:path , $( $lab:ident : $arg:expr ),* ) => {{
     let t = thunk
-      (ArtIdChoice::Nominal($nm),
+      (NameChoice::Nominal($nm),
        prog_pt!(stringify!($f)),
        Rc::new(Box::new(
          |args, _|{
@@ -751,7 +751,7 @@ macro_rules! eager {
   ;
   ( $f:ident :: < $( $ty:ty ),* > , $( $lab:ident : $arg:expr ),* ) => {{
     let t = thunk
-      (ArtIdChoice::Structural,
+      (NameChoice::Structural,
        prog_pt!(stringify!($f)),
        Rc::new(Box::new(
          |args, _|{
@@ -767,7 +767,7 @@ macro_rules! eager {
   ;
   ( $f:path , $( $lab:ident : $arg:expr ),* ) => {{
     let t = thunk
-      (ArtIdChoice::Structural,
+      (NameChoice::Structural,
        prog_pt!(stringify!($f)),
        Rc::new(Box::new(
          |args, _|{
@@ -783,7 +783,7 @@ macro_rules! eager {
   ;
   ( $nm:expr =>> $f:ident =>> < $( $ty:ty ),* > , $( $lab1:ident : $arg1:expr ),* ;; $( $lab2:ident : $arg2:expr ),* ) => {{
     let t = thunk
-      (ArtIdChoice::Nominal($nm),
+      (NameChoice::Nominal($nm),
        prog_pt!(stringify!($f)),
        Rc::new(Box::new(
          |args1, args2|{

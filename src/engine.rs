@@ -307,7 +307,7 @@ impl Debug for ArtId {
 #[derive(Debug)]
 pub struct Flags {
     pub use_purity_optimization : bool,
-    /// Ignore the `Nominal` `ArtIdChoice`, and use `Structural` behavior instead
+    /// Ignore the `Nominal` `NameChoice`, and use `Structural` behavior instead
     pub ignore_nominal_use_structural : bool,
     /// After each Adapton operation, check that the DCG is well-formed
     pub check_dcg_is_wf : bool,
@@ -636,21 +636,18 @@ impl reflect::Reflect<Vec<reflect::Loc>> for Vec<Rc<Loc>> {
 }
 
 
-/// An `ArtIdChoice` choses between `Eager`, `Structural` and
+/// A `NameChoice` chooses between `Native`, `Structural` and
 /// `Nominal` identities for articulation points introduced by
 /// `thunk`.
-///
-/// An `Eager` identity is special, and it means "do not introduce any
-/// laziness/memoization overhead here"; when Eager is used, no thunk
-/// is created; rather, the computation eagerly produces an immutable
-/// value held in an `Rc`.
 #[derive(Hash,Debug,PartialEq,Eq,Clone)]
-pub enum ArtIdChoice {
-    /// Eagerly produces an `Art` that merely consists of an `Rc`; no additional indirection is needed/used.
-    Eager,
-    /// Identifies an `Art` based on hashing content (e.g., `prog_pt` for code and argument(s)).
+pub enum NameChoice {
+    /// Naive: Native Rust thunk, with no caching/reuse of the thunk representation, or its result.
+    Naive,
+    /// Eager: Special case of `Naive`, with no suspension of the thunk -- the function is called immediately.
+    Eager,    
+    /// Structurally identify an `Art` based on hashing its content (e.g., `prog_pt` and argument(s)).
     Structural,
-    /// Identifies an `Art` based on a programmer-chosen name.
+    /// Explicitly names an `Art` based on a programmer-chosen name, of type `Name`.
     Nominal(Name),
 }
 
@@ -1395,7 +1392,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
               Res:Eq+Debug+Clone+Hash+'static
               >
         (self:&mut Self,
-         id:ArtIdChoice,
+         id:NameChoice,
          prog_pt:ProgPt,
          fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
          arg:Arg, spurious:Spurious)
@@ -1578,7 +1575,7 @@ impl Adapton for DCG {
 
     fn thunk<Arg:Eq+Hash+Debug+Clone+'static,Spurious:'static+Clone,Res:Eq+Debug+Clone+Hash+'static>
         (self:&mut DCG,
-         id:ArtIdChoice,
+         id:NameChoice,
          prog_pt:ProgPt,
          fn_box:Rc<Box<Fn(Arg, Spurious) -> Res>>,
          arg:Arg, spurious:Spurious)
@@ -1587,16 +1584,25 @@ impl Adapton for DCG {
         wf::check_dcg(self);
         let id =
         // Apply the logic of engine's flags:
-            match id { ArtIdChoice::Nominal(_)
+            match id { NameChoice::Nominal(_)
                        if self.flags.ignore_nominal_use_structural
-                       => ArtIdChoice::Structural,
+                       => NameChoice::Structural,
                        id => id } ;
         match id {
-            ArtIdChoice::Eager => {
+            // Eagerly do the computation now, and store the result.
+            NameChoice::Eager => {
                 AbsArt::Rc(Rc::new(fn_box(arg,spurious)))
             },
 
-            ArtIdChoice::Structural => {
+            NameChoice::Naive => {
+                // TODO/XXX
+                // Tried to implement this, but got stuck because of `Self::Loc`.
+                // Perhaps now is the time to completely ditch this `Adapton` trait, and the `Self::Loc` type.
+                unimplemented!()
+            }
+            
+            // Name the computation structurally, based on the args and prog point.
+            NameChoice::Structural => {
                 wf::check_dcg(self);
                 let hash = my_hash (&(&prog_pt, &arg)) ;
                 let loc = loc_of_id(current_path(self),
@@ -1637,7 +1643,8 @@ impl Adapton for DCG {
                 AbsArt::Loc(loc)
             },
 
-            ArtIdChoice::Nominal(nm) => {
+            // Name the thunk explicitly by `nm`
+            NameChoice::Nominal(nm) => {
                 wf::check_dcg(self);
                 let loc = loc_of_id(current_path(self),
                                     Rc::new(ArtId::Nominal(nm)));
@@ -2101,7 +2108,7 @@ trait Force<T> {
     fn force(&self) -> T;
     fn copy(self:&Self) -> Box<Force<T>>;
     fn eq(self:&Self, other:&Force<T>) -> bool;
-    fn id<'r>(self:&'r Self) -> &'r ArtIdChoice;
+    fn id<'r>(self:&'r Self) -> &'r NameChoice;
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
     fn hash_u64(self:&Self) -> u64;
     fn fmt(&self, f:&mut Formatter) -> fmt::Result;
@@ -2109,7 +2116,7 @@ trait Force<T> {
 
 #[derive(Clone)]
 struct NaiveThunk<Arg, Spurious, Res> {
-    id:ArtIdChoice,
+    id:NameChoice,
     prog_pt:ProgPt,
     fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
     arg:Arg,
@@ -2133,7 +2140,7 @@ impl<A:Hash+Clone+Eq+Debug+'static,S:Clone+'static,T:'static>
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt {
         & self.prog_pt
     }
-    fn id<'r>(self:&'r Self) -> &'r ArtIdChoice {
+    fn id<'r>(self:&'r Self) -> &'r NameChoice {
         & self.id
     }
     fn hash_u64(&self) -> u64 {
@@ -2338,7 +2345,7 @@ pub fn set<T:'static+Eq+Debug+Clone> (a:&Art<T>, val:T) {
 ///
 /// A full invocation of `thunk` consists of the following:
 ///
-///  - It has an `id` of type `ArtIdChoice`, either giving a `Name`,
+///  - It has an `id` of type `NameChoice`, either giving a `Name`,
 ///    requesting structural identity, or requesting no caching
 ///    whatsoever.
 ///
@@ -2362,12 +2369,12 @@ pub fn set<T:'static+Eq+Debug+Clone> (a:&Art<T>, val:T) {
 ///    higher-order functions that parameterize the thunk; we make
 ///    them spurious because (1) we cannot, and do not wish to compare
 ///    them for equality and (2) the triple of type (`ProgPt`,
-///    `ArtIdChoice`, `Arg`) should determine these spurious
+///    `NameChoice`, `Arg`) should determine these spurious
 ///    arguments, if any.  Because some arguments have no equality
 ///    relation, the presence of these arguments is sometimes a
 ///    necessary hack.
 pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+Debug+Clone+'static>
-    (id:ArtIdChoice,
+    (id:NameChoice,
      prog_pt:ProgPt,
      fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
      arg:Arg, spurious:Spurious)
@@ -2390,6 +2397,32 @@ pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+
     })
 }
 
+/// Map a given `thunk` by a mapping function `map_fn`, yielding a new
+/// thunk.
+///
+/// Under the hood, this operation is "cheap" (but sound), in that it
+/// uses a "naive", native Rust thunk that does not cache its output,
+/// or represent itself in the trace.
+pub fn thunk_map<Res1:Hash+Eq+Debug+Clone+'static,
+                 Res2:Hash+Eq+Debug+Clone+'static>
+    (thunk:Art<Res1>, map_pt:ProgPt, map_fn:Rc<Fn(Res1) -> Res2>) -> Art<Res2>
+{
+    Art{art:EnumArt::Force(
+        Rc::new(NaiveThunk{
+            id:NameChoice::Naive,
+            prog_pt:map_pt,
+            fn_box:{Rc::new(Box::new(move |_,_| {
+                let res1 = force(&thunk);
+                let res2 = map_fn(res1);
+                res2
+            }))},
+            arg:(),
+            spurious:()
+        }))
+    }
+    
+}
+    
 /// Demands and observes the value of an `&Art<T>`, returning a (cloned) value of type `T`.
 pub fn force<T:Hash+Eq+Debug+Clone+'static> (a:&Art<T>) -> T {
     match a.art {
