@@ -24,8 +24,10 @@ pub use std::rc::Rc;
 
 thread_local!(static NAME_COUNTER: RefCell<usize> = RefCell::new(0));
 
-#[doc(hidden)]
-/// Program points: used by the Adapton engine to distinguish different memoized functions.
+//#[doc(hidden)]
+/// Program points: used by the Adapton engine to distinguish
+/// different memoized Rust functions, which cannot be directly
+/// compared for equality, nor hashed.
 #[derive(PartialEq,Eq,Clone,Hash)]
 pub struct ProgPt {
   // Symbolic identity, in Rust semantics:
