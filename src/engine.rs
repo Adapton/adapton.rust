@@ -2405,12 +2405,12 @@ pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+
 /// or represent itself in the trace.
 pub fn thunk_map<Res1:Hash+Eq+Debug+Clone+'static,
                  Res2:Hash+Eq+Debug+Clone+'static>
-    (thunk:Art<Res1>, map_pt:ProgPt, map_fn:Rc<Fn(Res1) -> Res2>) -> Art<Res2>
+    (thunk:Art<Res1>, map_fn:Rc<Fn(Res1) -> Res2>) -> Art<Res2>
 {
     Art{art:EnumArt::Force(
         Rc::new(NaiveThunk{
             id:NameChoice::Naive,
-            prog_pt:map_pt,
+            prog_pt:ProgPt{symbol:"engine::thunk_map"},
             fn_box:{Rc::new(Box::new(move |_,_| {
                 let res1 = force(&thunk);
                 let res2 = map_fn(res1);
