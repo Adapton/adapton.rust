@@ -284,7 +284,8 @@ pub fn reflect_val <V:Debug> (v:&V) -> Val {
 /// module (`reflect`) only gives reflected versions of the DCG
 /// itself, not changes that the engine makes to it.
 pub mod trace {
-  use std::fmt;
+    use std::fmt;
+    use engine;
 
   /// Distinguish fresh allocations from those that reuse an existing location.
   #[derive(Clone,Debug)]
@@ -344,7 +345,14 @@ pub mod trace {
         /// effects, whose presence in the trace structure may aid
         /// debugging, visualization, analytic cost analysis, etc.
         UserEffect(Cost, String),
-        
+
+        /// Debugging/visualization information: An ID (the optional
+        /// name) and string.
+        /// 
+        /// (Maybe this should be combined with `UserEffect`
+        /// someday?).
+        DebugLabel(Option<engine::Name>, String),
+
     /// Wrapper for Effect::Alloc; transition to DCG after the alloc.
     Alloc (AllocCase, AllocKind), 
     
@@ -525,6 +533,7 @@ archivist:
         match role {
             Role::Editor =>
                 match tr.effect {
+                    Effect::DebugLabel(_,_) |
                     Effect::UserEffect(_,_) => {
                         for sub_tr in tr.extent.iter() { 
                             trace_count_rec(Role::Editor, sub_tr, c);
@@ -558,6 +567,7 @@ archivist:
                 },
             Role::Archivist =>
                 match tr.effect {
+                    Effect::DebugLabel(_,_) |
                     Effect::UserEffect(_,_) => {
                         for sub_tr in tr.extent.iter() { 
                             trace_count_rec(Role::Archivist, sub_tr, c);
@@ -570,6 +580,7 @@ archivist:
                         let mut change = false;
                         for subtr in tr.extent.iter() {
                             match subtr.effect {
+                                Effect::DebugLabel(_,_) |
                                 Effect::UserEffect(_,_) => unreachable!(),
                                 Effect::Remove => (),
                                 Effect::CleanEdge => (),
