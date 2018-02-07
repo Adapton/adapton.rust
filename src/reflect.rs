@@ -424,7 +424,7 @@ pub mod trace {
     pub effect:Effect,
     
     /// The DCG edge on which this DCG effect takes place
-    pub edge: Edge,
+    pub edge: EffectEdge,
     
     /// The DCG effects that occur subordinately as a result of this
     /// effect. (They begin after this effect begins, and the end before
@@ -432,6 +432,16 @@ pub mod trace {
     pub extent:Box<Vec<Trace>>,
   }
 
+    /// Edge associated with an `Effect`.
+    #[derive(Clone,Debug)]
+    pub enum EffectEdge {
+        /// Edge effect follows the edge "forward" to its target
+        Fwd(Edge),
+        /// Edge effect follows the edge "backward" to its source
+        Bwd(Edge),
+        /// No edge associated with Trace effect (e.g., `DebugLabel`)
+        None,
+    }
     
     #[derive(Clone,Copy)]
     pub enum Role { Editor, Archivist }

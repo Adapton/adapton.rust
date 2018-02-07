@@ -72,6 +72,20 @@ pub mod reflect_dcg {
     use super::{TraceSt,TRACES,GLOBALS,Engine};
     use adapton::engine::Name;
 
+    /// Begin a debugging extent in the trace, with associated name and message.
+    pub fn debug_begin(n:Option<Name>, msg:Option<String>) {
+        super::debug_begin(n, msg)
+    }
+    /// End a debugging extent started with `debug_begin`.
+    pub fn debug_end() {
+        super::debug_end()
+    }
+    /// Insert an optional name and message in the `reflect::trace`
+    pub fn debug_effect(n:Option<Name>, msg:Option<String>) {
+        super::debug_effect(n, msg)
+    }
+
+    
     /// See doc for `write_name`. Returns this output as a string.
     pub fn string_of_name (n:&Name) -> String {
         let mut output = String::from("");  write_name(&mut output, n);  output
@@ -108,7 +122,7 @@ pub mod reflect_dcg {
         write!(w, "_").unwrap(); // Underscores are valid in CSS class names
         write_name(w, &l.name);
     }
-
+    
     /// Reflect the DCG's internal structure now.  Does not reflect any
     /// engine effects over this DCG (e.g., no cleaning or dirtying),
     /// just the _program effects_ recorded by the DCG's structure.
@@ -177,10 +191,33 @@ macro_rules! dcg_effect_begin {
                             ts.push( reflect::trace::Trace{
                                 extent: Box::new(vec![]),
                                 effect:$eff,
-                                edge: reflect::trace::Edge{
-                                    loc:  $loc.reflect(),
-                                    succ: $succ.reflect(),
-                                }})}};
+                                edge: reflect::trace::EffectEdge::Fwd(
+                                    reflect::trace::Edge{
+                                        loc:  $loc.reflect(),
+                                        succ: $succ.reflect(),
+                                    })})}};
+                    if $has_extent {
+                        ts.stack.push(Box::new(vec![]))
+                    } else { }
+                }
+            }})
+    }}
+    ;
+    ( $eff:expr, $has_extent:expr ) => {{
+        // The beginning of an effect, with an option extent (nested effects)
+        TRACES.with(|tr| {
+            match *tr.borrow_mut() {
+                None => (),
+                // Some ==> We are building a trace
+                Some(ref mut ts) => {
+                    match ts.stack.last_mut() {
+                        None => unreachable!(),
+                        Some(ref mut ts) => {
+                            ts.push( reflect::trace::Trace{
+                                extent: Box::new(vec![]),
+                                effect:$eff,
+                                edge: reflect::trace::EffectEdge::None,
+                            })}};
                     if $has_extent {
                         ts.stack.push(Box::new(vec![]))
                     } else { }
@@ -235,6 +272,20 @@ macro_rules! current_loc {
             Some(frame) => Some(&frame.loc),
         }
     }}
+}
+
+
+/// Begin a debugging extent in the trace, with associated name and message.
+fn debug_begin(n:Option<Name>, msg:Option<String>) {
+    dcg_effect_begin!(reflect::trace::Effect::DebugLabel(n, msg.unwrap_or_default()), true);
+}
+/// End a debugging extent started with `debug_begin`.
+fn debug_end() {
+    dcg_effect_end!();
+}
+/// Insert an optional name and message in the `reflect::trace`
+fn debug_effect(n:Option<Name>, msg:Option<String>) {
+    dcg_effect_begin!(reflect::trace::Effect::DebugLabel(n, msg.unwrap_or_default()), false);
 }
 
 /// *Names*: First-class data that identifies a mutable cell (see
