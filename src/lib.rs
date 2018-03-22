@@ -21,8 +21,8 @@ Resources
 ---------------
 
 - [Presentations and benchmark results](https://github.com/cuplv/adapton-talk#benchmark-results)
+- [Fungi: A typed, functional language for programs that dynamically name their own dependency graphs](https://github.com/Adapton/fungi-lang.rust)
 - [IODyn: Adapton collections, for algorithms with dynamic input and output](https://github.com/cuplv/iodyn.rust)
-- [Adapton Lab: Evaluation and testing](https://github.com/cuplv/adapton-lab.rust)
 
 Background
 ---------------
