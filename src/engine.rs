@@ -277,7 +277,7 @@ macro_rules! current_loc {
 
 /// Begin a debugging extent in the trace, with associated name and message.
 fn debug_begin(n:Option<Name>, msg:Option<String>) {
-    dcg_effect_begin!(reflect::trace::Effect::DebugLabel(n, msg.unwrap_or_default()), true);
+    dcg_effect_begin!(reflect::trace::Effect::Debug(n, msg), true);
 }
 /// End a debugging extent started with `debug_begin`.
 fn debug_end() {
@@ -285,7 +285,7 @@ fn debug_end() {
 }
 /// Insert an optional name and message in the `reflect::trace`
 fn debug_effect(n:Option<Name>, msg:Option<String>) {
-    dcg_effect_begin!(reflect::trace::Effect::DebugLabel(n, msg.unwrap_or_default()), false);
+    dcg_effect_begin!(reflect::trace::Effect::Debug(n, msg), false);
 }
 
 /// *Names*: First-class data that identifies a mutable cell (see

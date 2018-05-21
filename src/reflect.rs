@@ -340,18 +340,20 @@ pub mod trace {
   /// its edges.
   #[derive(Clone,Debug)]
     pub enum Effect {
-
+        /* Deprecated:
+        
         /// Catch-all for user-defined (e.g., application-specific)
         /// effects, whose presence in the trace structure may aid
         /// debugging, visualization, analytic cost analysis, etc.
         UserEffect(Cost, String),
+        */
 
         /// Debugging/visualization information: An ID (the optional
         /// name) and string.
         /// 
-        /// (Maybe this should be combined with `UserEffect`
-        /// someday?).
-        DebugLabel(Option<engine::Name>, String),
+        // (Maybe this should be combined with `UserEffect`
+        // someday?).
+        Debug(Option<engine::Name>, Option<String>),
 
     /// Wrapper for Effect::Alloc; transition to DCG after the alloc.
     Alloc (AllocCase, AllocKind), 
@@ -439,7 +441,7 @@ pub mod trace {
         Fwd(Edge),
         /// Edge effect follows the edge "backward" to its source
         Bwd(Edge),
-        /// No edge associated with Trace effect (e.g., `DebugLabel`)
+        /// No edge associated with Trace effect (e.g., `Debug`)
         None,
     }
     
@@ -543,12 +545,12 @@ archivist:
         match role {
             Role::Editor =>
                 match tr.effect {
-                    Effect::DebugLabel(_,_) |
-                    Effect::UserEffect(_,_) => {
-                        for sub_tr in tr.extent.iter() { 
-                            trace_count_rec(Role::Editor, sub_tr, c);
-                        }                        
-                    },
+                    Effect::Debug(_,_) |
+                    // Effect::UserEffect(_,_) => {
+                    //     for sub_tr in tr.extent.iter() { 
+                    //         trace_count_rec(Role::Editor, sub_tr, c);
+                    //     }                        
+                    // },
                     Effect::Dirty => trace_count_dirty(role, tr, c),
                     Effect::Remove => unreachable!(),
                     Effect::CleanEdge => unreachable!(),
@@ -577,12 +579,12 @@ archivist:
                 },
             Role::Archivist =>
                 match tr.effect {
-                    Effect::DebugLabel(_,_) |
-                    Effect::UserEffect(_,_) => {
-                        for sub_tr in tr.extent.iter() { 
-                            trace_count_rec(Role::Archivist, sub_tr, c);
-                        }                        
-                    },
+                    Effect::Debug(_,_) |
+                    // Effect::UserEffect(_,_) => {
+                    //     for sub_tr in tr.extent.iter() { 
+                    //         trace_count_rec(Role::Archivist, sub_tr, c);
+                    //     }                        
+                    // },
                     Effect::Dirty => trace_count_dirty(role, tr, c),
                     Effect::Remove => assert!(tr.extent.len() == 0),
                     Effect::CleanEdge => assert!(tr.extent.len() == 0),
@@ -590,8 +592,8 @@ archivist:
                         let mut change = false;
                         for subtr in tr.extent.iter() {
                             match subtr.effect {
-                                Effect::DebugLabel(_,_) |
-                                Effect::UserEffect(_,_) => unreachable!(),
+                                Effect::Debug(_,_) |
+                                //Effect::UserEffect(_,_) => unreachable!(),
                                 Effect::Remove => (),
                                 Effect::CleanEdge => (),
                                 Effect::CleanEval => (),
