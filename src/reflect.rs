@@ -534,7 +534,7 @@ archivist:
                 Role::Editor    => c.dirty.0 += 1,
                 Role::Archivist => c.dirty.1 += 1,
             },
-            _ => panic!("unexpected effect: {:?}", tr),
+            _ => println!("WARNING: unexpected effect: {:?}", tr), // XXX
         }
         for sub_tr in tr.extent.iter() {
             trace_count_dirty(role, sub_tr, c)
