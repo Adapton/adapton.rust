@@ -768,7 +768,7 @@ distinct strongly-connected components (SCCs), e.g., the one involving
 `0` versus the one involving `4`.
 
 **Problem statement:** Suppose that we wish to explore this graph, to
-build a list (or `Vec`) of all of the nodes that it contains.
+build a list (or `Vec`) with all of the edges that it contains.
 
 **Desired solution program:**
 Consider the simple (naive) recursive exploration logic, defined
