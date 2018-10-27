@@ -334,18 +334,18 @@ let check = thunk![ if get!(den2) == 0 { None } else { Some(get!(div)) } ];
 # }
 ```
 
-After allocating `num`, `den` and `check`, the editor changes `den`
+After allocating `num`, `den` and `check`, the programmer changes `den`
 and observes `check`, inducing the following change propagation
 behavior.  In sum, _whether_ `div` runs is based on _demand_ from the
 Editor (of the output of `check`), _and_ the value of input cell
 `den`, via the condition in `check`:
 
-1. When the editor demands thunk `check` the first time, Adapton
+1. When the thunk `check` is demanded for first time, Adapton
    executes the condition, and cell `den` holds `2`, which is non-zero.
    Hence, the `else` branch executes `get!(div)`, which demands the
    output of the division, `21`.
 
-2. After this first observation of `check`, the editor changes cell
+2. After this first observation of `check`, the programmer changes cell
    `den` to `0`, and re-demands the output of thunk `check`.  In
    response, Adapton's change propagation algorithm first re-executes
    the condition (not the division), and the condition branches to the
