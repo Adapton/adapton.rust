@@ -8,8 +8,8 @@
 //! traversal.
 
 use std::fmt::Debug;
-use adapton::reflect::{Loc,Path,Val,ArtContent,Const};
-use adapton::engine::{Name, name_of_str, name_of_string};
+use crate::adapton::reflect::{Loc,Path,Val,ArtContent,Const};
+use crate::adapton::engine::{Name, name_of_str, name_of_string};
 
 /// _Balanced tokens_: Tokens that must be balanced with a left and
 /// right instance and well-nested balanced tokens between them.
@@ -235,7 +235,7 @@ fn path_of_val ( p:&Val ) -> Path {
 }
 
 fn name_of_val ( n:&Val ) -> Name {
-    use engine::*;
+    use crate::engine::*;
 
     match *n {
         Val::Constr( ref cons_name, ref cons_args ) => {
@@ -283,7 +283,7 @@ fn name_of_val ( n:&Val ) -> Name {
 }
 
 fn name_option_of_val ( n:&Val ) -> Option<Name> {
-    use engine::*;
+    use crate::engine::*;
     
     match *n {
         Val::Constr( ref cons_name, ref cons_args ) => {

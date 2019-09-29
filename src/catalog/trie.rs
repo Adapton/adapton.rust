@@ -4,10 +4,10 @@ use std::collections::hash_map::DefaultHasher;
 use std::rc::Rc;
 use std::cmp::min;
 
-use adapton::catalog::collections::{ListIntro, ListElim, list_fold};
-use adapton::catalog::bitstring::*;
-use adapton::engine::*;
-use macros::*;
+use crate::adapton::catalog::collections::{ListIntro, ListElim, list_fold};
+use crate::adapton::catalog::bitstring::*;
+use crate::adapton::engine::*;
+use crate::macros::*;
 
 /// Probablistically Balanced Trie
 /// Rough implementation of probabilistic tries from OOPSLA 2015 paper.
@@ -32,7 +32,7 @@ pub struct Meta {
 }
 
 pub trait MetaT {
-    fn hash_seeded(&self, u64);
+    fn hash_seeded(&self, _: u64);
 }
 
 impl MetaT for Meta {
@@ -86,39 +86,39 @@ impl MetaT for Meta {
 // impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Eq for Trie<X> {}
 
 pub trait TrieIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
-    fn nil(BS) -> Self;
-    fn leaf(BS, X) -> Self;
-    fn bin(BS, Self, Self) -> Self;
-    fn root(Meta, Self) -> Self;
+    fn nil(_: BS) -> Self;
+    fn leaf(_: BS, _: X) -> Self;
+    fn bin(_: BS, _: Self, _: Self) -> Self;
+    fn root(_: Meta, _: Self) -> Self;
 
     // requisite "adaptonic" constructors: `name` and `art`:
-    fn name(Name, Self) -> Self;
-    fn art(Art<Self>) -> Self;
+    fn name(_: Name, _: Self) -> Self;
+    fn art(_: Art<Self>) -> Self;
 
-    fn empty(Meta) -> Self;
-    fn singleton(Meta, Name, X) -> Self;
-    fn extend(Name, Self, X) -> Self;
+    fn empty(_: Meta) -> Self;
+    fn singleton(_: Meta, _: Name, _: X) -> Self;
+    fn extend(_: Name, _: Self, _: X) -> Self;
 }
 
 pub trait TrieElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
-    fn find(&Self, &X, i64) -> Option<X>;
-    fn is_empty(&Self) -> bool;
-    fn split_atomic(Self) -> Self;
+    fn find(_: &Self, _: &X, _: i64) -> Option<X>;
+    fn is_empty(_: &Self) -> bool;
+    fn split_atomic(_: Self) -> Self;
 
-    fn elim<Res, NilC, LeafC, BinC, RootC, NameC>(Self, NilC, LeafC, BinC, RootC, NameC) -> Res
+    fn elim<Res, NilC, LeafC, BinC, RootC, NameC>(_: Self, _: NilC, _: LeafC, _: BinC, _: RootC, _: NameC) -> Res
         where NilC: FnOnce(BS) -> Res,
               LeafC: FnOnce(BS, X) -> Res,
               BinC: FnOnce(BS, Self, Self) -> Res,
               RootC: FnOnce(Meta, Self) -> Res,
               NameC: FnOnce(Name, Self) -> Res;
 
-    fn elim_arg<Arg, Res, NilC, LeafC, BinC, RootC, NameC>(Self,
-                                                           Arg,
-                                                           NilC,
-                                                           LeafC,
-                                                           BinC,
-                                                           RootC,
-                                                           NameC)
+    fn elim_arg<Arg, Res, NilC, LeafC, BinC, RootC, NameC>(_: Self,
+                                                           _: Arg,
+                                                           _: NilC,
+                                                           _: LeafC,
+                                                           _: BinC,
+                                                           _: RootC,
+                                                           _: NameC)
                                                            -> Res
         where NilC: FnOnce(BS, Arg) -> Res,
               LeafC: FnOnce(BS, X, Arg) -> Res,
@@ -126,12 +126,12 @@ pub trait TrieElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
               RootC: FnOnce(Meta, Self, Arg) -> Res,
               NameC: FnOnce(Name, Self, Arg) -> Res;
 
-    fn elim_ref<Res, NilC, LeafC, BinC, RootC, NameC>(&Self,
-                                                      NilC,
-                                                      LeafC,
-                                                      BinC,
-                                                      RootC,
-                                                      NameC)
+    fn elim_ref<Res, NilC, LeafC, BinC, RootC, NameC>(_: &Self,
+                                                      _: NilC,
+                                                      _: LeafC,
+                                                      _: BinC,
+                                                      _: RootC,
+                                                      _: NameC)
                                                       -> Res
         where NilC: FnOnce(&BS) -> Res,
               LeafC: FnOnce(&BS, &X) -> Res,
@@ -420,7 +420,7 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieElim<X> for Trie<X>
 
 pub trait SetIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
     fn empty() -> Self;
-    fn add(Self, e: X) -> Self;
+    fn add(_: Self, e: X) -> Self;
     // fn remove(Self, e: &X) -> Self;
     // fn union(Self, Self) -> Self;
     // fn inter(Self, Self) -> Self;
@@ -428,8 +428,8 @@ pub trait SetIntro<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
 }
 
 pub trait SetElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
-    fn mem(&Self, &X) -> bool;
-    fn fold<Res, F>(Self, Res, Rc<F>) -> Res where F: Fn(X, Res) -> Res;
+    fn mem(_: &Self, _: &X) -> bool;
+    fn fold<Res, F>(_: Self, _: Res, _: Rc<F>) -> Res where F: Fn(X, Res) -> Res;
 }
 
 impl<X, Set: TrieIntro<X> + TrieElim<X>> SetIntro<X> for Set {

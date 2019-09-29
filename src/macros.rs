@@ -862,8 +862,8 @@ macro_rules! let_thunk {
 
 #[test]
 fn test_let_cell_let_thunk_macros() {
-    use adapton::macros::*;
-    use adapton::engine::*;
+    use crate::adapton::macros::*;
+    use crate::adapton::engine::*;
     
     fn demand_graph(a: Art<i32>) -> Art<i32> {
         let c : Art<i32> = get!(let_thunk!{f = {
@@ -910,8 +910,8 @@ macro_rules! let_memo {
 
 #[test]
 fn test_memo_macros() {
-    use adapton::macros::*;
-    use adapton::engine::*;
+    use crate::adapton::macros::*;
+    use crate::adapton::engine::*;
     
     fn demand_graph(a: Art<i32>) -> Art<i32> {
         let_memo!{c =(f)= {
