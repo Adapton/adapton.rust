@@ -3,11 +3,11 @@ use std::hash::{Hash,Hasher};
 use std::collections::hash_map::DefaultHasher;
 use std::rc::Rc;
 
-use macros::* ;
-use adapton::engine::* ;
+use crate::macros::* ;
+use crate::adapton::engine::* ;
 
 pub mod trie {
-  pub use catalog::trie::*;
+  pub use crate::catalog::trie::*;
 }
 
 #[derive(Clone,Copy,Hash,Eq,PartialEq,Debug)]
@@ -36,11 +36,11 @@ pub trait ListIntro<X:'static> : Debug+Clone+Hash+PartialEq+Eq+'static {
   /// Introduce an empty list
   fn nil  () -> Self ;
   /// Introduce a Cons cell
-  fn cons (X, Self) -> Self ;  
+  fn cons (_: X, _: Self) -> Self ;  
   /// Introduce a Name "cons" cell
-  fn name (Name, Self) -> Self ;
+  fn name (_: Name, _: Self) -> Self ;
   /// Introduce a list with an articulation that holds a list
-  fn art  (Art<Self>) -> Self ;
+  fn art  (_: Art<Self>) -> Self ;
 
   /// Creates a singleton list. Derived from `cons` and `nil` introduction forms.
   fn singleton (hd:X) -> Self {
@@ -84,7 +84,7 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
   /// Eliminates the `art` case internally, by forcing the art and
   /// eliminating the resulting list with the given handler functions;
   /// forces multiple `art` cases, if need be.
-  fn elim<Res,NilF,ConsF,NameF> (&Self, NilF, ConsF, NameF) -> Res
+  fn elim<Res,NilF,ConsF,NameF> (_: &Self, _: NilF, _: ConsF, _: NameF) -> Res
     where NilF:FnOnce(       &Self) -> Res
     ,    ConsF:FnOnce(&X,    &Self) -> Res
     ,    NameF:FnOnce(&Name, &Self) -> Res ;
@@ -93,7 +93,7 @@ pub trait ListElim<X> : Debug+Clone+Hash+PartialEq+Eq {
   /// argument.  This variant is needed due to the move semantics of
   /// Rust. The argument is moved into the body of the activated
   /// handler function when it is applied.
-  fn elim_arg<Arg,Res,NilF,ConsF,NameF> (Self, Arg, NilF, ConsF, NameF) -> Res
+  fn elim_arg<Arg,Res,NilF,ConsF,NameF> (_: Self, _: Arg, _: NilF, _: ConsF, _: NameF) -> Res
     where NilF:FnOnce(      Self, Arg) -> Res
     ,    ConsF:FnOnce(X,    Self, Arg) -> Res
     ,    NameF:FnOnce(Name, Self, Arg) -> Res ;
@@ -314,13 +314,13 @@ pub fn list_append<X:'static, L:ListIntro<X>+ListElim<X>>(l1:L, l2:L) -> L {
 pub trait RoseIntro<Leaf,Branch> : Debug+Clone+Hash+PartialEq+Eq {
   type List: ListElim<Self>;
   /// Introduce a leaf with exactly zero children
-  fn leaf (Leaf) -> Self;
+  fn leaf (_: Leaf) -> Self;
   /// Introduce a branch with zero or more subtrees
-  fn branch (Branch, Self::List) -> Self;
+  fn branch (_: Branch, _: Self::List) -> Self;
   /// Introduce a Named subtree  
-  fn name (Name, Self) -> Self ;
+  fn name (_: Name, _: Self) -> Self ;
   /// Introduce a list with an articulation that holds a list
-  fn art  (Art<Self>) -> Self ;
+  fn art  (_: Art<Self>) -> Self ;
 }
 
 /// Rose Trees: A tree with arbitrary branching at each node.
@@ -330,7 +330,7 @@ pub trait RoseIntro<Leaf,Branch> : Debug+Clone+Hash+PartialEq+Eq {
 pub trait RoseElim<Leaf,Branch> : Debug+Clone+Hash+PartialEq+Eq {
   type Children: ListElim<Self>;
   fn elim<Arg, Res, LeafFn, BranchFn, NameFn>
-    (Self, Arg, LeafFn, BranchFn, NameFn) -> Res
+    (_: Self, _: Arg, _: LeafFn, _: BranchFn, _: NameFn) -> Res
     where LeafFn:  FnOnce(Leaf,                   Arg) -> Res
     ,     BranchFn:FnOnce(Branch, Self::Children, Arg) -> Res
     ,     NameFn:  FnOnce(Name,   Self,           Arg) -> Res
@@ -341,12 +341,12 @@ pub trait RoseElim<Leaf,Branch> : Debug+Clone+Hash+PartialEq+Eq {
 /// Pugh and Teiltelbaum's POPL 1989 paper, and its "Chunky List"
 /// representation (*Incremental Computation via Function Caching*).
 pub trait Level : Debug+Hash+PartialEq+Eq+Clone+'static {
-  fn new<X:Hash>(&X) -> Self ;
+  fn new<X:Hash>(_: &X) -> Self ;
   fn bits () -> Self ;
   fn zero () -> Self ;
-  fn inc (&Self) -> Self ;
-  fn add (&Self, &Self) -> Self ;
-  fn lte (&Self, &Self) -> bool ;
+  fn inc (_: &Self) -> Self ;
+  fn add (_: &Self, _: &Self) -> Self ;
+  fn lte (_: &Self, _: &Self) -> bool ;
   fn max_val () -> Self ;
   fn max (a:&Self, b:&Self) -> Self {
     if Self::lte(a, b) { b.clone() } else { a.clone() }
@@ -359,19 +359,19 @@ pub trait Level : Debug+Hash+PartialEq+Eq+Clone+'static {
 /// further, the binary cases `name` and `bin` carry levels of type `Lev`, which helps establish and maintain balance.
 pub trait TreeIntro<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
   fn nil  () -> Self ;
-  fn leaf (Leaf) -> Self ;
-  fn bin  (Lev, Self, Self) -> Self ;
+  fn leaf (_: Leaf) -> Self ;
+  fn bin  (_: Lev, _: Self, _: Self) -> Self ;
 
   // requisite "adaptonic" constructors: `name` and `art`:
-  fn name (Name, Lev, Self, Self) -> Self ;
-  fn art  (Art<Self>) -> Self ;
+  fn name (_: Name, _: Lev, _: Self, _: Self) -> Self ;
+  fn art  (_: Art<Self>) -> Self ;
 }
   
 pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
-  fn lev_of_tree(&Self) -> Lev ;
+  fn lev_of_tree(_: &Self) -> Lev ;
   
   fn elim<Res,NilC,LeafC,BinC,NameC>
-    (Self, NilC, LeafC, BinC, NameC) -> Res        
+    (_: Self, _: NilC, _: LeafC, _: BinC, _: NameC) -> Res        
     where NilC  : FnOnce() -> Res
     ,     LeafC : FnOnce(Leaf) -> Res
     ,     BinC  : FnOnce(Lev,       Self, Self) -> Res
@@ -379,7 +379,7 @@ pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
     ;
 
   fn elim_ref<Res,NilC,LeafC,BinC,NameC>
-    (&Self, NilC, LeafC, BinC, NameC) -> Res
+    (_: &Self, _: NilC, _: LeafC, _: BinC, _: NameC) -> Res
     where NilC  : FnOnce() -> Res
     ,     LeafC : FnOnce(&Leaf) -> Res
     ,     BinC  : FnOnce(&Lev,        &Self, &Self) -> Res
@@ -387,7 +387,7 @@ pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
     ;
 
   fn elim_arg<Arg,Res,NilC,LeafC,BinC,NameC>
-    (Self, Arg, NilC, LeafC, BinC, NameC) -> Res
+    (_: Self, _: Arg, _: NilC, _: LeafC, _: BinC, _: NameC) -> Res
     where NilC  : FnOnce(Arg) -> Res
     ,     LeafC : FnOnce(Leaf, Arg) -> Res
     ,     BinC  : FnOnce(Lev,       Self, Self, Arg) -> Res
@@ -395,7 +395,7 @@ pub trait TreeElim<Lev:Level,Leaf> : Debug+Hash+PartialEq+Eq+Clone+'static {
     ;
 
   fn full_move<Arg,Res,NilC,LeafC,BinC,NameC,ArtC>
-    (Self, Arg, NilC, LeafC, BinC, NameC, ArtC) -> Res
+    (_: Self, _: Arg, _: NilC, _: LeafC, _: BinC, _: NameC, _: ArtC) -> Res
     where NilC  : FnOnce(Arg) -> Res
     ,     LeafC : FnOnce(Leaf, Arg) -> Res
     ,     BinC  : FnOnce(Lev,       Self, Self, Arg) -> Res
@@ -436,11 +436,11 @@ pub trait MapElim<Dom,Cod>
   : Debug+Hash+PartialEq+Eq+Clone+'static
 
 {
-  fn find(&Self, d:&Dom) -> Option<Cod>;
-  fn remove (Self, d:&Dom) -> (Self, Option<Cod>);
-  fn fold<Res,F>(Self, Res, Rc<F>) -> Res where
+  fn find(_: &Self, d:&Dom) -> Option<Cod>;
+  fn remove (_: Self, d:&Dom) -> (Self, Option<Cod>);
+  fn fold<Res,F>(_: Self, _: Res, _: Rc<F>) -> Res where
     F:Fn(Dom, Cod, Res) -> Res;
-  fn append(Self, other:Self) -> Self;
+  fn append(_: Self, other:Self) -> Self;
 }
 
 pub fn map_empty<Dom,Cod,M:MapIntro<Dom,Cod>>() -> M { M::empty() }
@@ -452,11 +452,11 @@ pub trait SetIntro<Elm>
   : Debug+Hash+PartialEq+Eq+Clone+'static
 {
   fn empty  () -> Self;
-  fn add    (Self, e:Elm) -> Self;
-  fn remove (Self, e:&Elm) -> Self;
-  fn union  (Self, Self) -> Self;
-  fn inter  (Self, Self) -> Self;
-  fn diff   (Self, Self) -> Self;
+  fn add    (_: Self, e:Elm) -> Self;
+  fn remove (_: Self, e:&Elm) -> Self;
+  fn union  (_: Self, _: Self) -> Self;
+  fn inter  (_: Self, _: Self) -> Self;
+  fn diff   (_: Self, _: Self) -> Self;
 }
 
 impl<Elm,Map:MapIntro<Elm,()>+MapElim<Elm,()>> SetIntro<Elm> for Map {
@@ -486,7 +486,7 @@ pub trait SetElim<Elm>
   : Debug+Hash+PartialEq+Eq+Clone+'static  
 {
   fn is_mem (set:&Self, e:&Elm) -> bool;
-  fn fold<Res,F>(set:Self, Res, F) -> Res where
+  fn fold<Res,F>(set:Self, _: Res, _: F) -> Res where
     F:Fn(Elm, Res) -> Res;
 }
 
@@ -754,7 +754,7 @@ pub fn filter_list_of_tree
   , L:ListIntro<X>+ListElim<X>+'static
   , T:TreeElim<Lev,X>+'static
   >
-  (tree:T, pred:Box<Fn(&X) -> bool>) -> L
+  (tree:T, pred:Box<dyn Fn(&X) -> bool>) -> L
 {
   let nil = L::nil();
   tree_fold_seq
@@ -775,7 +775,7 @@ pub fn filter_tree_of_tree
   , Te:TreeElim<Lev,X>+'static
   , Ti:TreeIntro<Lev,X>+TreeElim<Lev,X>+'static
   >
-  (tree:Te, pred:Box<Fn(&X) -> bool>) -> Ti
+  (tree:Te, pred:Box<dyn Fn(&X) -> bool>) -> Ti
 {
   tree_fold_up
     (tree,
@@ -797,7 +797,7 @@ pub fn monoid_of_tree
   < Lev:Level, X:Debug+Eq+Hash+Clone+'static
   , Te:TreeElim<Lev,X>+'static
   >
-  (tree:Te, id_elm:X, bin_op:Rc<Fn(X,X) -> X>) -> X
+  (tree:Te, id_elm:X, bin_op:Rc<dyn Fn(X,X) -> X>) -> X
 {
   let bin_op2 = bin_op.clone();
   tree_fold_up
@@ -1067,7 +1067,7 @@ pub fn test_mergesort2 () {
                ||prune_tree_of_tree::<_,_,_,Tree<_>>(t));
     println!("input tree: {:?}", eager_tree_of_tree::<_,_,_,Tree<_>>(t.clone()));
     let s = ns(name_of_str("mergesort"),
-               ||mergesort_list_of_tree2::<_,_,_,List<_>>(t, (Some(name_of_usize(666)))));
+               ||mergesort_list_of_tree2::<_,_,_,List<_>>(t, Some(name_of_usize(666))));
     let o = vec_of_list(s, None);
     println!("output vec: {:?}", o);
     o
