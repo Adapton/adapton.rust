@@ -33,7 +33,7 @@ thread_local!(static UNIT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Un
 
 struct TraceSt { stack:Vec<Box<Vec<reflect::trace::Trace>>>, }
 
-/// When this option is set to some, the engine will record a trace of its DCG effects.
+// When this option is set to some, the engine will record a trace of its DCG effects.
 thread_local!(static TRACES: RefCell<Option<TraceSt>> = RefCell::new( None ));
 
 fn my_hash<T>(obj: T) -> u64
@@ -1557,15 +1557,15 @@ impl Adapton for DCG {
                     }} else                 { (false, false, None, true, true ) }
             ;
             // - - - - - - - - - -
-            /// Begin an allocation.  Because this allocation may require
-            /// dirtying some allocation edges. (See value of bit
-            /// `do_dirty`, which is true when we are overwriting what was
-            /// once a computation with a value). This allocation may also
-            /// require dirtying some observers, when the new value is
-            /// different from the one that they last observed. (Similarly,
-            /// allocations that allocated a different value need to be
-            /// dirtied too).  Hence, this effect may contain other effects
-            /// to the DCG, namely, those dirtying steps.
+            // Begin an allocation.  Because this allocation may require
+            // dirtying some allocation edges. (See value of bit
+            // `do_dirty`, which is true when we are overwriting what was
+            // once a computation with a value). This allocation may also
+            // require dirtying some observers, when the new value is
+            // different from the one that they last observed. (Similarly,
+            // allocations that allocated a different value need to be
+            // dirtied too).  Hence, this effect may contain other effects
+            // to the DCG, namely, those dirtying steps.
             // - - - - - - -
             dcg_effect_begin!(
                 reflect::trace::Effect::Alloc(
