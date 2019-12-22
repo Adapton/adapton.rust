@@ -25,8 +25,8 @@ use std::mem::transmute;
 use std::rc::Rc;
 use std::fmt::Write;
 
-use macros::{ProgPt};
-use reflect;
+use crate::macros::{ProgPt};
+use crate::reflect;
 
 thread_local!(static GLOBALS: RefCell<Globals> = RefCell::new(Globals{engine:Engine::Naive}));
 thread_local!(static UNIT_NAME: Name = Name{ hash:0, symbol: Rc::new(NameSym::Unit) });
@@ -65,12 +65,12 @@ fn my_hash<T>(obj: T) -> u64
 /// walking their values, recursively.
 
 pub mod reflect_dcg {
-    use reflect::*;
-    pub use parse_val;
+    use crate::reflect::*;
+    pub use crate::parse_val;
 
     use std::fmt::{Write};
     use super::{TraceSt,TRACES,GLOBALS,Engine};
-    use adapton::engine::Name;
+    use crate::adapton::engine::Name;
 
     /// Begin a debugging extent in the trace, with associated name and message.
     pub fn debug_begin(n:Option<Name>, msg:Option<String>) {
@@ -173,7 +173,7 @@ pub mod reflect_dcg {
         })
     }
 }
-use reflect::Reflect;
+use crate::reflect::Reflect;
 
 
 //#[macro_export]
@@ -388,7 +388,7 @@ pub enum Engine {
 #[derive(Debug)]
 pub struct DCG {
     pub flags : Flags, // public because I dont want to write / design abstract accessors
-    table : HashMap<Rc<Loc>, Box<GraphNode>>,
+    table : HashMap<Rc<Loc>, Box<dyn GraphNode>>,
     stack : Vec<Frame>,
     path  : Rc<Path>,
     //cnt   : Cnt,
@@ -483,19 +483,19 @@ impl Debug for Path {
 trait GraphNode : Debug + reflect::Reflect<reflect::Node> {
     fn res_typeid      (self:&Self) -> TypeId ;
     fn preds_alloc<'r> (self:&Self) -> Vec<Rc<Loc>> ;
-    fn preds_obs<'r>   (self:&Self) -> Vec<(Rc<Loc>, Option<Rc<Box<DCGDep>>>)> ;
-    fn preds_insert<'r>(self:&'r mut Self, Effect, &Rc<Loc>, Option<Rc<Box<DCGDep>>>) -> () ;
-    fn preds_remove<'r>(self:&'r mut Self, &Rc<Loc>) -> () ;
+    fn preds_obs<'r>   (self:&Self) -> Vec<(Rc<Loc>, Option<Rc<Box<dyn DCGDep>>>)> ;
+    fn preds_insert<'r>(self:&'r mut Self, _: Effect, _: &Rc<Loc>, _: Option<Rc<Box<dyn DCGDep>>>) -> () ;
+    fn preds_remove<'r>(self:&'r mut Self, _: &Rc<Loc>) -> () ;
     fn succs_def<'r>   (self:&Self) -> bool ;
     fn succs_mut<'r>   (self:&'r mut Self) -> &'r mut Vec<Succ> ;
     fn succs<'r>       (self:&'r Self) -> &'r Vec<Succ> ;
-    fn hash_seeded     (self:&Self, u64) -> u64 ;
+    fn hash_seeded     (self:&Self, _: u64) -> u64 ;
 }
 
 #[derive(Debug,Clone)]
 struct Frame {
     loc   : Rc<Loc>,    // The currently-executing node
-    succs : Vec<(Succ, Option<Rc<Box<DCGDep>>>)>,  // The currently-executing node's effects (viz., the nodes it demands)
+    succs : Vec<(Succ, Option<Rc<Box<dyn DCGDep>>>)>,  // The currently-executing node's effects (viz., the nodes it demands)
 }
 
 impl reflect::Reflect<reflect::Frame> for Frame {
@@ -512,7 +512,7 @@ struct Succ {
     dirty  : bool,    // mutated to dirty when loc changes, or any of its successors change
     loc    : Rc<Loc>, // Target of the effect, aka, the successor, by this edge
     effect : Effect,
-    dep    : Rc<Box<DCGDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
+    dep    : Rc<Box<dyn DCGDep>>, // Abstracted dependency information (e.g., for Observe Effect, the prior observed value)
 }
 
 #[derive(Debug,Clone)]
@@ -526,7 +526,7 @@ struct Pred {
     /// `dep.dirty(...)` permits the dirtying algorithm of the engine to
     /// check whether the observed value has changed, and whether
     /// dirtying should continue to the predecessors of `loc` .
-    dep    : Option<Rc<Box<DCGDep>>>,
+    dep    : Option<Rc<Box<dyn DCGDep>>>,
 }
 
 impl reflect::Reflect<reflect::Succ> for Succ {
@@ -547,7 +547,7 @@ impl reflect::Reflect<Vec<reflect::Succ>> for Vec<Succ> {
     }
 }
 
-impl reflect::Reflect<Vec<reflect::Succ>> for Vec<(Succ, Option<Rc<Box<DCGDep>>>)> {
+impl reflect::Reflect<Vec<reflect::Succ>> for Vec<(Succ, Option<Rc<Box<dyn DCGDep>>>)> {
     fn reflect(&self) -> Vec<reflect::Succ> {
         self.iter().map(|ref x| x.0.reflect()).collect::<Vec<_>>()
     }
@@ -610,7 +610,7 @@ enum Node<Res> {
 }
 impl<X:Debug> reflect::Reflect<reflect::Node> for Node<X> {
     fn reflect(&self) -> reflect::Node {
-        use parse_val::parse_val;
+        use crate::parse_val::parse_val;
         match *self {
             Node::Comp(ref n) => {
                 reflect::Node::Comp(
@@ -666,7 +666,7 @@ struct MutNode<T> {
 struct CompNode<Res> {
     preds    : Vec<Pred>,
     succs    : Vec<Succ>,
-    producer : Box<Producer<Res>>, // Producer can be App<Arg,Res>, where type Arg is hidden.
+    producer : Box<dyn Producer<Res>>, // Producer can be App<Arg,Res>, where type Arg is hidden.
     res      : Option<Res>,
 }
 
@@ -706,20 +706,20 @@ pub enum NameChoice {
 trait Producer<Res> : Debug {
     //  fn produce(self:&Self, st:&mut DCG) -> Res;
     fn produce(self:&Self) -> Res;
-    fn copy(self:&Self) -> Box<Producer<Res>>;
-    fn eq(self:&Self, other:&Producer<Res>) -> bool;
+    fn copy(self:&Self) -> Box<dyn Producer<Res>>;
+    fn eq(self:&Self, other:&dyn Producer<Res>) -> bool;
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
 }
 // Consume a value of type Arg.
 trait Consumer<Arg> : Debug {
-    fn consume(self:&mut Self, Arg);
+    fn consume(self:&mut Self, _: Arg);
     fn get_arg(self:&mut Self) -> Arg;
 }
 // struct App is hidden by traits Comp<Res> and CompWithArg<Res>, below.
 #[derive(Clone)]
 struct App<Arg:Debug,Spurious,Res> {
     prog_pt: ProgPt,
-    fn_box:   Rc<Box<Fn(Arg, Spurious) -> Res>>,
+    fn_box:   Rc<Box<dyn Fn(Arg, Spurious) -> Res>>,
     arg:      Arg,
     spurious: Spurious,
 }
@@ -749,7 +749,7 @@ impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Deb
         let res = f (self.arg.clone(),self.spurious.clone()) ;
         res
     }
-    fn copy(self:&Self) -> Box<Producer<Res>> {
+    fn copy(self:&Self) -> Box<dyn Producer<Res>> {
         Box::new(App{
             prog_pt:self.prog_pt.clone(),
             fn_box:self.fn_box.clone(),
@@ -760,7 +760,7 @@ impl<Arg:'static+PartialEq+Eq+Clone+Debug,Spurious:'static+Clone,Res:'static+Deb
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt {
         & self.prog_pt
     }
-    fn eq (&self, other:&Producer<Res>) -> bool {
+    fn eq (&self, other:&dyn Producer<Res>) -> bool {
         if &self.prog_pt == other.prog_pt() {
             let other = Box::new(other) ;
             // This is safe if the prog_pt implies unique Arg and Res types.
@@ -782,7 +782,7 @@ impl<Arg:Clone+PartialEq+Eq+Debug,Spurious,Res>
 
 // ----------- Location resolution:
 
-fn lookup_abs<'r>(st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<GraphNode> {
+fn lookup_abs<'r>(st:&'r mut DCG, loc:&Rc<Loc>) -> &'r mut Box<dyn GraphNode> {
     match st.table.get_mut( loc ) {
         None => panic!("dangling pointer: {:?}", loc),
         Some(node) => node.be_node() // This is a weird workaround; TODO-Later: Investigate.
@@ -797,7 +797,7 @@ fn get_top_stack_loc(st:&DCG) -> Option<Rc<Loc>> {
     }
 }
 
-fn assert_graphnode_res_type<Res:'static> (loc:&Loc, node:&Box<GraphNode>, top_stack:Option<Rc<Loc>>) {
+fn assert_graphnode_res_type<Res:'static> (loc:&Loc, node:&Box<dyn GraphNode>, top_stack:Option<Rc<Loc>>) {
     let res_typeid = TypeId::of::<Res>();
     let node_res_typeid = node.res_typeid();
     if node_res_typeid != res_typeid {
@@ -839,7 +839,7 @@ impl <Res:'static+Debug+Hash> GraphNode for Node<Res> {
                       Node::Pure(_) => unreachable!(),
         }}
 
-    fn preds_obs(self:&Self) -> Vec<(Rc<Loc>, Option<Rc<Box<DCGDep>>>)> {
+    fn preds_obs(self:&Self) -> Vec<(Rc<Loc>, Option<Rc<Box<dyn DCGDep>>>)> {
         match *self {
             Node::Mut(ref nd) =>
                 nd.preds.iter().filter_map(
@@ -857,7 +857,7 @@ impl <Res:'static+Debug+Hash> GraphNode for Node<Res> {
 
             Node::Pure(_) => unreachable!(),
         }}
-    fn preds_insert (self:&mut Self, eff:Effect, loc:&Rc<Loc>, dep:Option<Rc<Box<DCGDep>>>) -> () {
+    fn preds_insert (self:&mut Self, eff:Effect, loc:&Rc<Loc>, dep:Option<Rc<Box<dyn DCGDep>>>) -> () {
         match *self { Node::Mut(ref mut nd) => nd.preds.push (Pred{effect:eff,loc:loc.clone(),dep:dep.clone()}),
                       Node::Comp(ref mut nd) => nd.preds.push (Pred{effect:eff,loc:loc.clone(),dep:dep.clone()}),
                       Node::Pure(_) => unreachable!(),
@@ -889,18 +889,18 @@ impl <Res:'static+Debug+Hash> GraphNode for Node<Res> {
 }
 
 trait ShapeShifter {
-    fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<GraphNode> ;
+    fn be_node<'r> (self:&'r mut Self) -> &'r mut Box<dyn GraphNode> ;
 }
 
 impl <Res> ShapeShifter for Box<Node<Res>> {
-    fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<GraphNode> {
+    fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<dyn GraphNode> {
         // TODO-Later: Why is this transmute needed here ??
         unsafe { transmute::<_,_>(self) }
     }
 }
 
-impl ShapeShifter for Box<GraphNode> {
-    fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<GraphNode> {
+impl ShapeShifter for Box<dyn GraphNode> {
+    fn be_node<'r>(self:&'r mut Self) -> &'r mut Box<dyn GraphNode> {
         // TODO-Later: Why is this transmute needed here ??
         unsafe { transmute::<_,_>(self) }
     }
@@ -944,7 +944,7 @@ fn loc_produce<Res:'static+Debug+PartialEq+Eq+Clone+Hash>(g:&RefCell<DCG>, loc:&
         //st.cnt.stack = if st.cnt.stack > st.stack.len() { st.cnt.stack } else { st.stack.len() } ;
         let prev_path = st.path.clone () ;
         st.path = loc.path.clone() ;
-        let producer : Box<Producer<Res>> = {
+        let producer : Box<dyn Producer<Res>> = {
             let node : &mut Node<Res> = res_node_of_loc( st, loc ) ;
             match *node {
                 Node::Comp(ref nd) => nd.producer.copy(),
@@ -998,7 +998,7 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
 {
     for succ in succs.iter() {
         let dirty = {
-            let mut st = &mut *g.borrow_mut();
+            let st = &mut *g.borrow_mut();
             get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty
         } ;
         if dirty {
@@ -1014,7 +1014,7 @@ fn clean_comp<Res:'static+Sized+Debug+PartialEq+Clone+Eq+Hash>
                 return DCGRes{changed:changed}
             }
             else {
-                let mut st : &mut DCG = &mut *g.borrow_mut();
+                let st : &mut DCG = &mut *g.borrow_mut();
                 //st.cnt.clean += 1 ;
                 get_succ_mut(st, loc, succ.effect.clone(), &succ.loc).dirty = false ;
                 dcg_effect!(reflect::trace::Effect::CleanEdge, Some(loc), succ);
@@ -1117,7 +1117,7 @@ struct ForceAbsDep<Arg,Abs,T,DiffT,S> {
     /// types that we do not instantiate here; we only store an `Abs` here
     phm:PhantomData<(Arg,T,DiffT,S)>,
     /// abstract mapping, so we can re-map via `map.1.map(map.0,_)`
-    map:(Abs, Box<AbsMapFam<Arg,Abs,T,DiffT,S>>),
+    map:(Abs, Box<dyn AbsMapFam<Arg,Abs,T,DiffT,S>>),
 }
 
 impl<Arg,Abs,T:'static,DiffT,S> AbsDiff<T> for ForceAbsDep<Arg,Abs,T,DiffT,S> {
@@ -1266,7 +1266,7 @@ fn revoke_succs<'x> (st:&mut DCG, src:&Rc<Loc>, succs:&Vec<Succ>) {
     //let mut succ_idx = 0;
     for succ in succs.iter() {
         dcg_effect!(reflect::trace::Effect::Remove, Some(src), succ);
-        let succ_node : &mut Box<GraphNode> = lookup_abs(st, &succ.loc) ;
+        let succ_node : &mut Box<dyn GraphNode> = lookup_abs(st, &succ.loc) ;
         succ_node.preds_remove(src)
     }
 }
@@ -1304,7 +1304,7 @@ fn get_succ_mut<'r>(st:&'r mut DCG, src_loc:&Rc<Loc>, eff:Effect, tgt_loc:&Rc<Lo
 }
 
 fn dirty_pred_observers(st:&mut DCG, loc:&Rc<Loc>) {
-    let pred_locs : Vec<(Rc<Loc>, Option<Rc<Box<DCGDep>>>)> = lookup_abs( st, loc ).preds_obs() ;
+    let pred_locs : Vec<(Rc<Loc>, Option<Rc<Box<dyn DCGDep>>>)> = lookup_abs( st, loc ).preds_obs() ;
     for (pred_loc, dep) in pred_locs {
         let stop : bool = match dep {
             None => false,
@@ -1423,19 +1423,19 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
     fn new () -> Self ;
 
     /// Creates or re-enters a given namespace; performs the given computation there.
-    fn ns<T,F> (g: &RefCell<DCG>, Name, body:F) -> T where F:FnOnce() -> T;
+    fn ns<T,F> (g: &RefCell<DCG>, _: Name, body:F) -> T where F:FnOnce() -> T;
 
     /// Enters a special "namespace" where all name uses are ignored; instead, Adapton uses structural identity.
     fn structural<T,F> (g: &RefCell<DCG>, body:F) -> T where F:FnOnce() -> T;
 
     /// Creates immutable, eager articulation.
-    fn put<T:Eq+Debug+Clone> (self:&mut Self, T) -> AbsArt<T,Self::Loc> ;
+    fn put<T:Eq+Debug+Clone> (self:&mut Self, _: T) -> AbsArt<T,Self::Loc> ;
 
     /// Creates a mutable articulation.
-    fn cell<T:Eq+Debug+Clone+Hash+'static> (self:&mut Self, Name, T) -> AbsArt<T,Self::Loc> ;
+    fn cell<T:Eq+Debug+Clone+Hash+'static> (self:&mut Self, _: Name, _: T) -> AbsArt<T,Self::Loc> ;
 
     /// Mutates a mutable articulation.
-    fn set<T:'static+Eq+Debug+Clone> (self:&mut Self, AbsArt<T,Self::Loc>, T) ;
+    fn set<T:'static+Eq+Debug+Clone> (self:&mut Self, _: AbsArt<T,Self::Loc>, _: T) ;
 
     /// Creates an articulated computation.
     fn thunk <Arg:Eq+Hash+Debug+Clone+'static,
@@ -1445,20 +1445,20 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
         (self:&mut Self,
          id:NameChoice,
          prog_pt:ProgPt,
-         fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
+         fn_box:Rc<Box< dyn Fn(Arg, Spurious) -> Res >>,
          arg:Arg, spurious:Spurious)
          -> AbsArt<Res,Self::Loc> ;
 
     /// Demand and observe arts (both thunks and cells)
     ///
     /// cycle_out gives an optional return value for cycles; None means no cycles are permitted
-    fn force<T:Eq+Debug+Clone+Hash+'static> (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>, Option<T>) -> T ;
+    fn force<T:Eq+Debug+Clone+Hash+'static> (g:&RefCell<DCG>, _: &AbsArt<T,Self::Loc>, _: Option<T>) -> T ;
 
     /// Demand & observe arts, through a mapping function (e.g., for projections)
     fn force_map<T:Eq+Debug+Clone+Hash+'static,
                  S:Eq+Debug+Clone+Hash+'static,
                  F:'static>
-        (g:&RefCell<DCG>, &AbsArt<T,Self::Loc>, F) -> S
+        (g:&RefCell<DCG>, _: &AbsArt<T,Self::Loc>, _: F) -> S
         where F:Fn(&Art<T>, T) -> S
         ;
 
@@ -1472,7 +1472,7 @@ trait Adapton : Debug+PartialEq+Eq+Hash+Clone {
          DiffT:'static+Eq+Debug+Clone+Hash,
          S:'static+Eq+Debug+Clone+Hash>
         (g:&RefCell<DCG>,
-         absmapfam:Box<AbsMapFam<Arg,Abs,T,DiffT,S>>,
+         absmapfam:Box<dyn AbsMapFam<Arg,Abs,T,DiffT,S>>,
          arg:Arg, art:&AbsArt<T,Self::Loc>) -> S ;
 
 }
@@ -1628,7 +1628,7 @@ impl Adapton for DCG {
         (self:&mut DCG,
          id:NameChoice,
          prog_pt:ProgPt,
-         fn_box:Rc<Box<Fn(Arg, Spurious) -> Res>>,
+         fn_box:Rc<Box<dyn Fn(Arg, Spurious) -> Res>>,
          arg:Arg, spurious:Spurious)
          -> AbsArt<Res,Self::Loc>
     {
@@ -1675,7 +1675,7 @@ impl Adapton for DCG {
                                  dirty:false};
                         frame.succs.push((succ, None))
                     }};
-                let producer : Box<Producer<Res>> =
+                let producer : Box<dyn Producer<Res>> =
                     Box::new(App{prog_pt:prog_pt,
                                  fn_box:fn_box,
                                  arg:arg.clone(),
@@ -1713,7 +1713,7 @@ impl Adapton for DCG {
                         (false, true, true)
                     },
                     Some(node) => {
-                        let node: &mut Box<GraphNode> = node ;
+                        let node: &mut Box<dyn GraphNode> = node ;
                         assert_graphnode_res_type::<Res>(&loc, node, top_loc);
                         let res_nd: &mut Box<Node<Res>> = unsafe { transmute::<_,_>( node ) } ;
                         match ** res_nd {
@@ -1855,7 +1855,7 @@ impl Adapton for DCG {
                         let res = mapf(&Art{art:EnumArt::Loc(loc.clone())}, val.clone());
                         match st.stack.last_mut() { None => (), Some(frame) => {
                             // `dep` records the mapping function
-                            let dep : Rc<Box<DCGDep>> = Rc::new(Box::new(ForceMapDep{
+                            let dep : Rc<Box<dyn DCGDep>> = Rc::new(Box::new(ForceMapDep{
                                 raw:PhantomData,
                                 mapf:mapf,
                                 res:res.clone()}));
@@ -1882,7 +1882,7 @@ impl Adapton for DCG {
          T:'static+Eq+Debug+Clone+Hash,
          DiffT:'static+Eq+Debug+Clone+Hash,
          S:'static+Eq+Debug+Clone+Hash>
-        (g:&RefCell<DCG>, absmapfam:Box<AbsMapFam<Arg,Abs,T,DiffT,S>>,
+        (g:&RefCell<DCG>, absmapfam:Box<dyn AbsMapFam<Arg,Abs,T,DiffT,S>>,
          arg:Arg, art:&AbsArt<T,Self::Loc>) -> S
     {
         match *art {
@@ -1922,7 +1922,7 @@ impl Adapton for DCG {
                         let res = absmapfam.map(arg.clone(),/*&Art{art:EnumArt::Loc(loc.clone())},*/val.clone());
                         match st.stack.last_mut() { None => (), Some(frame) => {
                             // `dep` records the mapping function
-                            let dep : Rc<Box<DCGDep>> = Rc::new(Box::new(ForceAbsDep{
+                            let dep : Rc<Box<dyn DCGDep>> = Rc::new(Box::new(ForceAbsDep{
                                 phm:PhantomData,
                                 map:(absmapfam.abs(arg), absmapfam),
 
@@ -2117,7 +2117,7 @@ enum EnumArt<T> {
     /// Location in table.
     Loc(Rc<Loc>),
     /// A closure that is 'force-able'
-    Force(Rc<Force<T>>),
+    Force(Rc<dyn Force<T>>),
 }
 
 impl<T:Hash> Hash for EnumArt<T> {
@@ -2157,8 +2157,8 @@ impl<T:Eq> Eq for EnumArt<T> { }
 
 trait Force<T> {
     fn force(&self) -> T;
-    fn copy(self:&Self) -> Box<Force<T>>;
-    fn eq(self:&Self, other:&Force<T>) -> bool;
+    fn copy(self:&Self) -> Box<dyn Force<T>>;
+    fn eq(self:&Self, other:&dyn Force<T>) -> bool;
     fn id<'r>(self:&'r Self) -> &'r NameChoice;
     fn prog_pt<'r>(self:&'r Self) -> &'r ProgPt;
     fn hash_u64(self:&Self) -> u64;
@@ -2169,7 +2169,7 @@ trait Force<T> {
 struct NaiveThunk<Arg, Spurious, Res> {
     id:NameChoice,
     prog_pt:ProgPt,
-    fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
+    fn_box:Rc<Box< dyn Fn(Arg, Spurious) -> Res >>,
     arg:Arg,
     spurious:Spurious
 }
@@ -2181,7 +2181,7 @@ impl<A:Hash+Clone+Eq+Debug+'static,S:Clone+'static,T:'static>
     fn force(&self) -> T {
         (*self.fn_box)(self.arg.clone(), self.spurious.clone())
     }
-    fn copy(self:&Self) -> Box<Force<T>> {
+    fn copy(self:&Self) -> Box<dyn Force<T>> {
         Box::new(NaiveThunk{id:self.id.clone(),
                             prog_pt:self.prog_pt.clone(),
                             fn_box:self.fn_box.clone(),
@@ -2201,7 +2201,7 @@ impl<A:Hash+Clone+Eq+Debug+'static,S:Clone+'static,T:'static>
         self.arg.hash( &mut hasher );
         hasher.finish()
     }
-    fn eq (&self, other:&Force<T>) -> bool {
+    fn eq (&self, other:&dyn Force<T>) -> bool {
         if   &self.id      == other.id()
             && &self.prog_pt == other.prog_pt()
         {
@@ -2427,7 +2427,7 @@ pub fn set<T:'static+Eq+Debug+Clone> (a:&Art<T>, val:T) {
 pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+Debug+Clone+'static>
     (id:NameChoice,
      prog_pt:ProgPt,
-     fn_box:Rc<Box< Fn(Arg, Spurious) -> Res >>,
+     fn_box:Rc<Box< dyn Fn(Arg, Spurious) -> Res >>,
      arg:Arg, spurious:Spurious)
      -> Art<Res>
 {
@@ -2456,7 +2456,7 @@ pub fn thunk<Arg:Hash+Eq+Debug+Clone+'static,Spurious:Clone+'static,Res:Hash+Eq+
 /// or represent itself in the trace.
 pub fn thunk_map<Res1:Hash+Eq+Debug+Clone+'static,
                  Res2:Hash+Eq+Debug+Clone+'static>
-    (thunk:Art<Res1>, map_fn:Rc<Fn(Res1) -> Res2>) -> Art<Res2>
+    (thunk:Art<Res1>, map_fn:Rc<dyn Fn(Res1) -> Res2>) -> Art<Res2>
 {
     Art{art:EnumArt::Force(
         Rc::new(NaiveThunk{
@@ -2552,7 +2552,7 @@ pub fn force_abs
      T:'static+Eq+Debug+Clone+Hash,
      DiffT:'static+Eq+Debug+Clone+Hash,
      S:'static+Eq+Debug+Clone+Hash>
-    (absmapfam:Box<AbsMapFam<Arg,Abs,T,DiffT,S>>, arg:Arg, a:Art<T>) -> S
+    (absmapfam:Box<dyn AbsMapFam<Arg,Abs,T,DiffT,S>>, arg:Arg, a:Art<T>) -> S
 {
     match a.art {
         EnumArt::Force(ref f) => absmapfam.map(arg, f.force()),

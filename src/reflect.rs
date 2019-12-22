@@ -20,13 +20,13 @@ version of values to "walk" them, finding their articulations, and
 walking their values, recursively.
 */
 
-use engine::Name;
-use macros::ProgPt;
+use crate::engine::Name;
+use crate::macros::ProgPt;
 use std::fmt::Debug;
 use std::rc::Rc;
 use std::collections::HashMap;
 
-pub use engine::reflect_dcg::*;
+pub use crate::engine::reflect_dcg::*;
 
 /// This trait consists of the ability for a reference to `Self` to
 /// produce a `T`.  Conceptually, that value of type T is the
@@ -275,7 +275,7 @@ pub struct DCG {
 /// Wrapper for `parse_val::parse_val`. Transforms most Rust data
 /// that derives `Debug` into a reflected `Val`.
 pub fn reflect_val <V:Debug> (v:&V) -> Val { 
-    use parse_val::parse_val;
+    use crate::parse_val::parse_val;
     parse_val(v)
 }
 
@@ -285,7 +285,7 @@ pub fn reflect_val <V:Debug> (v:&V) -> Val {
 /// itself, not changes that the engine makes to it.
 pub mod trace {
     use std::fmt;
-    use engine;
+    use crate::engine;
 
   /// Distinguish fresh allocations from those that reuse an existing location.
   #[derive(Clone,Debug)]

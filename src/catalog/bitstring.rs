@@ -7,12 +7,12 @@ pub struct BS {
 }
 
 pub trait BitString {
-    fn pow(i64, i64) -> i64;
-    fn flip(i64, i64) -> i64;
-    fn is_set(i64, i64) -> bool;
-    fn prepend(i64, BS) -> BS;
-    fn length(BS) -> i64;
-    fn shift_left(BS, i64) -> BS;
+    fn pow(_: i64, _: i64) -> i64;
+    fn flip(_: i64, _: i64) -> i64;
+    fn is_set(_: i64, _: i64) -> bool;
+    fn prepend(_: i64, _: BS) -> BS;
+    fn length(_: BS) -> i64;
+    fn shift_left(_: BS, _: i64) -> BS;
 
     const MAX_LEN: i64;
 }

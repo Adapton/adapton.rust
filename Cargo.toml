@@ -1,6 +1,7 @@
 [package]
 name = "adapton"
 version = "0.3.30"
+edition = "2018"
 authors = ["Matthew A. Hammer <pubmah@nym.hush.com>"]
 
 # A short blurb about the package. This is not rendered in any format when
@@ -11,6 +12,7 @@ description = "programming abstractions for general-purpose incremental computat
 documentation = "https://docs.rs/adapton"
 homepage = "http://adapton.org"
 repository = "https://github.com/Adapton/adapton.rust/"
+
 
 # This points to a file in the repository (relative to this Cargo.toml). The
 # contents of this file are stored and indexed in the registry.
