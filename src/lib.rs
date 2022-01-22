@@ -449,7 +449,7 @@ Memoization
 ============
 
 Memoization provides a mechanism for caching the results of
-subcomputations; it is a crtical feature of Adapton's approach to
+subcomputations; it is a critical feature of Adapton's approach to
 incremental computation.
 
 In Adapton, each _memoization point_ has three ingredients:
