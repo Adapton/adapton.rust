@@ -140,9 +140,6 @@ pub trait TrieElim<X>: Debug + Hash + PartialEq + Eq + Clone + 'static {
               NameC: FnOnce(&Name, &Self) -> Res;
 }
 
-/*
-20121221-- requires box_syntax feature
-
 impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
     fn mfn(nm: Name, meta: Meta, trie: Self, bs: BS, elt: X, hash: u64) -> Self {
         match trie {
@@ -185,39 +182,44 @@ impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> Trie<X> {
                     Self::bin(bs, *left, r)
                 }
             }
-            Trie::Name(_, box Trie::Art(a)) => Self::mfn(nm, meta, force(&a), bs, elt, hash),
+            Trie::Name(name, name_trie) => match *name_trie {
+                Trie::Art(a) => Self::mfn(nm, meta, force(&a), bs, elt, hash),
+                t => panic!("Bad value found in nadd:\n{:?}\n", Trie::Name(name, Box::new(t))),
+            },
             t => panic!("Bad value found in nadd:\n{:?}\n", t),
         }
     }
 
     fn root_mfn(_: Name, nm: Name, trie: Self, elt: X) -> Self {
         match trie {
-            Trie::Name(_, box Trie::Art(a)) => {
-                match force(&a) {
-                    Trie::Root(meta, t) => {
-                        let (nm, nm_) = name_fork(nm);
-                        let mut hasher = DefaultHasher::new();
-                        elt.hash(&mut hasher);
-                        let a = Self::mfn(nm_,
-                                          meta.clone(),
-                                          *t,
-                                          BS {
-                                              length: 0,
-                                              value: 0,
-                                          },
-                                          elt,
-                                          hasher.finish());
-                        Self::root(meta, Self::name(nm, Self::art(put(a))))
+            Trie::Name(_, name_trie) => match *name_trie {
+                Trie::Art(a) => {
+                    match force(&a) {
+                        Trie::Root(meta, t) => {
+                            let (nm, nm_) = name_fork(nm);
+                            let mut hasher = DefaultHasher::new();
+                            elt.hash(&mut hasher);
+                            let a = Self::mfn(nm_,
+                                              meta.clone(),
+                                              *t,
+                                              BS {
+                                                  length: 0,
+                                                  value: 0,
+                                              },
+                                              elt,
+                                              hasher.finish());
+                            Self::root(meta, Self::name(nm, Self::art(put(a))))
+                        }
+                        Trie::Name(name, name_trie) if matches!(&*name_trie, Trie::Art(_)) => Self::root_mfn(nm.clone(), nm, Trie::Name(name, name_trie), elt),
+                        t => panic!("Non-root node entry to `Trie.extend': {:?}", t),
                     }
-                    t @ Trie::Name(_, box Trie::Art(_)) => Self::root_mfn(nm.clone(), nm, t, elt),
-                    t => panic!("Non-root node entry to `Trie.extend': {:?}", t),
                 }
+                _ => panic!("None-name node at entry to `Trie.extend'"),
             }
             _ => panic!("None-name node at entry to `Trie.extend'"),
         }
     }
 }
-*/
 
 impl<X: Debug + Hash + PartialEq + Eq + Clone + 'static> TrieIntro<X> for Trie<X> {
     fn nil(bs: BS) -> Self {
